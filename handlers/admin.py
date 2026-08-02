@@ -13,7 +13,9 @@ from db import (
     give_premium_admin,
     give_xp_admin,
     ban_user,
-    unban_user
+    unban_user,
+    get_ai_feedback_stats,
+    get_error_stats,
 )
 
 router = Router()
@@ -342,6 +344,20 @@ async def admin_stats(callback: CallbackQuery):
     total_level = sum(u["level"] for u in users)
     avg_level = round(total_level / total, 2) if total else 0
 
+    fb = get_ai_feedback_stats()
+    if fb["total"]:
+        fb_line = f"👍 {fb['up']} / 👎 {fb['down']} (позитивных: {fb['positive_share']}%)"
+    else:
+        fb_line = "оценок пока нет"
+
+    errors = get_error_stats(hours=24)
+    if errors["total"]:
+        err_line = f"⚠️ {errors['total']} за 24ч (" + ", ".join(
+            f"{row['scope']}: {row['cnt']}" for row in errors["by_scope"]
+        ) + ")"
+    else:
+        err_line = "за 24ч ошибок не было ✅"
+
     await callback.message.answer(
         f"""
 📊 <b>Статистика бота</b>
@@ -355,6 +371,10 @@ async def admin_stats(callback: CallbackQuery):
 ⭐ Всего Adam Coin: <b>{total_xp}</b>
 
 🏅 Средний уровень: <b>{avg_level}</b>
+
+🤖 Оценки ответов AI: <b>{fb_line}</b>
+
+🩺 Мониторинг ошибок: <b>{err_line}</b>
 """,
         parse_mode="HTML"
     )

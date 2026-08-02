@@ -50,9 +50,18 @@ def create_tables():
         user_id INTEGER UNIQUE,
         reminders INTEGER DEFAULT 1,
         reminder_hour INTEGER DEFAULT 9,
-        reminder_minute INTEGER DEFAULT 0
+        reminder_minute INTEGER DEFAULT 0,
+        ai_style TEXT DEFAULT 'neutral'
     )
     """)
+
+    # Миграция для БД, созданных до появления ai_style (у существующих
+    # пользователей колонки ещё нет — ALTER TABLE один раз безопасно
+    # добавляет её со значением по умолчанию 'neutral').
+    cursor.execute("PRAGMA table_info(settings)")
+    settings_columns = {row[1] for row in cursor.fetchall()}
+    if "ai_style" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN ai_style TEXT DEFAULT 'neutral'")
 
     # ---------------- HABITS ----------------
     cursor.execute("""
@@ -142,6 +151,50 @@ def create_tables():
         rating TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(message_id, user_id)
+    )
+    """)
+
+    # Миграция: причина дизлайка (для "обучения" на 👎 — этап 2 AI Core).
+    cursor.execute("PRAGMA table_info(ai_feedback)")
+    ai_feedback_columns = {row[1] for row in cursor.fetchall()}
+    if "reason" not in ai_feedback_columns:
+        cursor.execute("ALTER TABLE ai_feedback ADD COLUMN reason TEXT")
+
+    # ---------------- AI ДОЛГОСРОЧНАЯ ПАМЯТЬ ----------------
+    # Короткий профиль пользователя (3-5 фактов), который переживает
+    # рестарты и обновляется раз в несколько сообщений — этап 2 AI Core.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_ai_profile(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER UNIQUE,
+        summary TEXT DEFAULT '',
+        message_count INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # ---------------- AI КЭШ ОТВЕТОВ ----------------
+    # Кэш финальных ответов на простые/повторяющиеся сообщения ("привет",
+    # "спасибо" и т.п.) — этап 4 "Оптимизация": меньше запросов к Groq,
+    # быстрее ответ. Хранится в БД (не в памяти процесса), так что переживает
+    # рестарты и работает одинаково для всех воркеров.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ai_response_cache(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cache_key TEXT UNIQUE,
+        answer TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # ---------------- ЛОГ ОШИБОК (мониторинг) ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS error_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT,
+        error TEXT,
+        user_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
 

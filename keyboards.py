@@ -244,6 +244,13 @@ def ai_keyboard():
 
             [
                 InlineKeyboardButton(
+                    text="💡 Совет дня",
+                    callback_data="ai_tip"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
                     text="⬅️ Главное меню",
                     callback_data="back_menu"
                 )
@@ -253,21 +260,89 @@ def ai_keyboard():
     )
 
 
-def ai_feedback_keyboard(message_id: int):
+def ai_feedback_keyboard(message_id: int, suggested_habit: str | None = None):
+    """suggested_habit: если AI явно посоветовал конкретную привычку, здесь
+    добавляется кнопка "➕ Добавить", которая сразу заводит её в БД —
+    без похода пользователя в раздел привычек."""
+
+    rows = []
+
+    if suggested_habit:
+        rows.append([
+            InlineKeyboardButton(
+                text=f"➕ Добавить «{suggested_habit}»",
+                callback_data=f"ai_addhabit_{message_id}"
+            )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(
+            text="👍",
+            callback_data=f"ai_fb_up_{message_id}"
+        ),
+        InlineKeyboardButton(
+            text="👎",
+            callback_data=f"ai_fb_down_{message_id}"
+        )
+    ])
+
+    rows.append([
+        InlineKeyboardButton(
+            text="⬅️ Главное меню",
+            callback_data="back_menu"
+        )
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def ai_feedback_reason_keyboard(message_id: int):
+    """Показывается вместо обычной клавиатуры сразу после 👎 — короткий,
+    необязательный уточняющий вопрос, что именно не понравилось. Используется
+    для 'обучения' AI на дизлайках (этап 2 AI Core)."""
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
 
             [
                 InlineKeyboardButton(
-                    text="👍",
-                    callback_data=f"ai_fb_up_{message_id}"
+                    text="Затянуто",
+                    callback_data=f"ai_fbr_long_{message_id}"
                 ),
                 InlineKeyboardButton(
-                    text="👎",
-                    callback_data=f"ai_fb_down_{message_id}"
+                    text="Не по теме",
+                    callback_data=f"ai_fbr_off_{message_id}"
                 )
             ],
+
+            [
+                InlineKeyboardButton(
+                    text="Непонятно",
+                    callback_data=f"ai_fbr_unclear_{message_id}"
+                ),
+                InlineKeyboardButton(
+                    text="Другое",
+                    callback_data=f"ai_fbr_other_{message_id}"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="Пропустить",
+                    callback_data=f"ai_fbr_skip_{message_id}"
+                )
+            ]
+
+        ]
+    )
+
+
+def crisis_keyboard():
+    """Клавиатура для кризисного ответа — намеренно без оценок 👍/👎 и без
+    кнопки добавления привычки: это не обычный совет по продуктивности."""
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
 
             [
                 InlineKeyboardButton(
@@ -323,7 +398,12 @@ def settings_keyboard():
                 )
             ],
 
-            
+            [
+                InlineKeyboardButton(
+                    text="🎭 Стиль AI-наставника",
+                    callback_data="ai_style_menu"
+                )
+            ],
 
             [
                 InlineKeyboardButton(
@@ -344,6 +424,57 @@ def settings_keyboard():
 
 
 
+# =====================================
+# СТИЛЬ AI-НАСТАВНИКА
+# =====================================
+
+def ai_style_keyboard(current: str = "neutral"):
+
+    labels = {
+        "soft": "🌿 Мягкий",
+        "neutral": "⚖️ Нейтральный",
+        "strict": "🔥 Жёсткий тренер",
+    }
+
+    def label(style):
+        text = labels[style]
+        return f"✅ {text}" if style == current else text
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text=label("soft"),
+                    callback_data="ai_style_soft"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text=label("neutral"),
+                    callback_data="ai_style_neutral"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text=label("strict"),
+                    callback_data="ai_style_strict"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Настройки",
+                    callback_data="settings"
+                )
+            ]
+
+        ]
+    )
+
+
 # ==============================# ПРОГРЕСС
 # =====================================
 
@@ -351,6 +482,13 @@ def progress_keyboard():
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="🤖 AI-анализ прогресса",
+                    callback_data="progress_ai_analysis"
+                )
+            ],
 
             [
                 InlineKeyboardButton(

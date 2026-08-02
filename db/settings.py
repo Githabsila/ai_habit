@@ -19,3 +19,26 @@ def update_reminder_time(user_id, hour, minute):
     """, (hour, minute, user_id))
     conn.commit()
     conn.close()
+
+
+def update_ai_style(user_id, style):
+    """style: 'soft' / 'neutral' / 'strict' — стиль общения AI-наставника."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE settings SET ai_style=?
+        WHERE user_id=?
+    """, (style, user_id))
+    conn.commit()
+    conn.close()
+
+
+def get_ai_style(user_id):
+    settings = get_settings(user_id)
+    if settings is None:
+        return "neutral"
+    try:
+        style = settings["ai_style"]
+    except (IndexError, KeyError):
+        return "neutral"
+    return style or "neutral"

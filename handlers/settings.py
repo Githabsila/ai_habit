@@ -7,8 +7,12 @@ from db import (
     get_settings,
     update_reminder_time,
     reset_progress,
-    connect
+    connect,
+    get_ai_style,
+    update_ai_style,
 )
+
+from keyboards import ai_style_keyboard, settings_keyboard, back_menu_keyboard
 
 
 
@@ -92,6 +96,43 @@ async def toggle(callback: CallbackQuery):
     await callback.answer("✅ Настройки сохранены")
 
     await settings(callback)
+
+
+# =====================================
+# СТИЛЬ AI-НАСТАВНИКА
+# =====================================
+
+@router.callback_query(F.data == "ai_style_menu")
+async def ai_style_menu(callback: CallbackQuery):
+
+    current = get_ai_style(callback.from_user.id)
+
+    await callback.message.edit_text(
+        """
+🎭 <b>Стиль AI-наставника</b>
+
+Выбери, как с тобой должен говорить AI-коуч:
+
+🌿 <b>Мягкий</b> — бережно, с поддержкой, без давления
+⚖️ <b>Нейтральный</b> — сбалансированный тон (по умолчанию)
+🔥 <b>Жёсткий тренер</b> — прямо, требовательно, без сюсюканья
+""",
+        parse_mode="HTML",
+        reply_markup=ai_style_keyboard(current)
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.in_({"ai_style_soft", "ai_style_neutral", "ai_style_strict"}))
+async def ai_style_select(callback: CallbackQuery):
+
+    style = callback.data.removeprefix("ai_style_")
+    update_ai_style(callback.from_user.id, style)
+
+    await callback.answer("✅ Стиль сохранён")
+
+    await ai_style_menu(callback)
 
 
 # =====================================

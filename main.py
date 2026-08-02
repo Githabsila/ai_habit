@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -7,8 +8,11 @@ from aiogram.enums import ParseMode
 from config import BOT_TOKEN
 from db import create_tables
 
+from logging_config import setup_logging
+
 from scheduler import scheduler, new_day
 from reminders import send_reminders
+from coach import run_streak_risk_check, run_weekly_report
 
 from backups.backup import start_backup_scheduler
 
@@ -32,6 +36,9 @@ from handlers.shop import router as shop_router
 # =====================================
 # ИНИЦИАЛИЗАЦИЯ
 # =====================================
+
+setup_logging()
+logger = logging.getLogger("main")
 
 create_tables()
 
@@ -87,6 +94,28 @@ async def main():
     )
 
     # ==========================
+    # AI Coach: проактивные сообщения
+    # ==========================
+    # Вечером — пинг тем, у кого серия под угрозой (прогноз срыва привычек).
+    scheduler.add_job(
+        run_streak_risk_check,
+        "cron",
+        hour=20,
+        minute=0,
+        args=[bot]
+    )
+
+    # Раз в неделю — короткий отчёт по прогрессу.
+    scheduler.add_job(
+        run_weekly_report,
+        "cron",
+        day_of_week="sun",
+        hour=19,
+        minute=0,
+        args=[bot]
+    )
+
+    # ==========================
     # Новый день
     # ==========================
 
@@ -105,6 +134,7 @@ async def main():
     print("✅ Планировщик запущен")
     print("🚀 Бот успешно запущен")
     print("=" * 40)
+    logger.info("Бот успешно запущен")
 
     await dp.start_polling(bot)
 
