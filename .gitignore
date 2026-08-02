@@ -1,0 +1,12 @@
+.env
+users.db
+backups/*.db
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.vscode/
+.idea/
+.DS_Store
+.env.example

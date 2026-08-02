@@ -3,7 +3,7 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
-from config import ADMIN_ID
+from config import ADMIN_IDS
 from keyboards import admin_keyboard
 
 from db import (
@@ -38,7 +38,7 @@ class AdminState(StatesGroup):
 @router.callback_query(F.data == "admin")
 async def admin_panel(callback: CallbackQuery):
 
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         await callback.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
@@ -66,7 +66,7 @@ async def admin_panel(callback: CallbackQuery):
 @router.callback_query(F.data == "admin_unban")
 async def start_unban(callback: CallbackQuery, state: FSMContext):
 
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         return
 
     await state.set_state(AdminState.unban)
@@ -77,7 +77,7 @@ async def start_unban(callback: CallbackQuery, state: FSMContext):
 @router.message(AdminState.unban)
 async def do_unban(message: Message, state: FSMContext):
 
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
 
     try:
@@ -107,7 +107,7 @@ async def do_unban(message: Message, state: FSMContext):
 @router.callback_query(F.data == "admin_ban")
 async def start_ban(callback: CallbackQuery, state: FSMContext):
 
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         return
 
     await state.set_state(AdminState.ban)
@@ -118,7 +118,7 @@ async def start_ban(callback: CallbackQuery, state: FSMContext):
 @router.message(AdminState.ban)
 async def ban(message: Message, state: FSMContext):
 
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
 
     try:
@@ -148,7 +148,7 @@ async def ban(message: Message, state: FSMContext):
 @router.callback_query(F.data == "admin_broadcast")
 async def broadcast_start(callback: CallbackQuery, state: FSMContext):
 
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         return
 
     await state.set_state(AdminState.broadcast)
@@ -159,7 +159,7 @@ async def broadcast_start(callback: CallbackQuery, state: FSMContext):
 @router.message(AdminState.broadcast)
 async def send_broadcast(message: Message, state: FSMContext):
 
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
 
     users = get_all_users()
@@ -198,7 +198,7 @@ async def send_broadcast(message: Message, state: FSMContext):
 @router.callback_query(F.data == "admin_premium")
 async def premium_start(callback: CallbackQuery, state: FSMContext):
 
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         return
 
     await state.set_state(AdminState.premium)
@@ -209,7 +209,7 @@ async def premium_start(callback: CallbackQuery, state: FSMContext):
 @router.message(AdminState.premium)
 async def premium_user(message: Message, state: FSMContext):
 
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
 
     try:
@@ -239,7 +239,7 @@ async def premium_user(message: Message, state: FSMContext):
 @router.callback_query(F.data == "admin_xp")
 async def xp_start(callback: CallbackQuery, state: FSMContext):
 
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         return
 
     await state.set_state(AdminState.xp)
@@ -250,7 +250,7 @@ async def xp_start(callback: CallbackQuery, state: FSMContext):
 @router.message(AdminState.xp)
 async def give_xp(message: Message, state: FSMContext):
 
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
 
     try:
@@ -285,7 +285,7 @@ async def give_xp(message: Message, state: FSMContext):
 @router.callback_query(F.data == "admin_users")
 async def admin_users(callback: CallbackQuery):
 
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         return
 
     users = get_all_users_info()
@@ -330,7 +330,7 @@ async def admin_users(callback: CallbackQuery):
 @router.callback_query(F.data == "admin_stats")
 async def admin_stats(callback: CallbackQuery):
 
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         return
 
     users = get_all_users_info()

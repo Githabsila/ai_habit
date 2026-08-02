@@ -7,7 +7,11 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-ADMIN_ID = int(os.getenv("ADMIN_ID", "8695214950"))
+# Можно указать несколько ID через запятую: ADMIN_ID=8695214950,123456789
+_admin_ids_raw = os.getenv("ADMIN_ID", "8695214950")
+ADMIN_IDS = [int(x.strip()) for x in _admin_ids_raw.split(",") if x.strip()]
+# Оставлено для обратной совместимости — первый ID из списка
+ADMIN_ID = ADMIN_IDS[0]
 
 # ---------------- GOOGLE CALENDAR ----------------
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")

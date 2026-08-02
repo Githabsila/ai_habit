@@ -1,7 +1,7 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-from config import ADMIN_ID
+from config import ADMIN_IDS
 from keyboards import main_menu
 
 from db import (
@@ -83,7 +83,7 @@ async def start(message: Message):
         reply_markup=main_menu()
     )
 
-    if message.from_user.id == ADMIN_ID:
+    if message.from_user.id in ADMIN_IDS:
         await message.answer(
             "👑 Админ-панель",
             reply_markup=InlineKeyboardMarkup(
