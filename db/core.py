@@ -166,18 +166,7 @@ def create_tables():
     )
     """)
 
-    # ---------------- GOOGLE CALENDAR (OAuth-токены) ----------------
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS google_tokens(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER UNIQUE,
-        access_token TEXT,
-        refresh_token TEXT,
-        token_expiry TEXT,
-        calendar_event_id TEXT,
-        connected_at TEXT
-    )
-    """)
+    
 
     conn.commit()
     conn.close()

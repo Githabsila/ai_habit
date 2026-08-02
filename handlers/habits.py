@@ -19,7 +19,6 @@ from keyboards import (
     complete_keyboard
 )
 
-from google_calendar import is_connected as gcal_is_connected, sync_habit_reminder
 
 router = Router()
 

@@ -10,19 +10,9 @@ from db import (
     connect
 )
 
-from keyboards import (
-    settings_keyboard,
-    back_menu_keyboard,
-    google_calendar_keyboard
-)
 
-from google_calendar import (
-    get_auth_url,
-    is_connected as gcal_is_connected,
-    disconnect as gcal_disconnect,
-    sync_habit_reminder,
-    delete_habit_reminder,
-)
+
+
 
 router = Router()
 

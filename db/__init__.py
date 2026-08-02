@@ -1,22 +1,4 @@
-"""
-Пакет db — модульная замена монолитного database.py.
 
-Разбит по доменам:
-    core          — подключение к БД и создание таблиц (DB_NAME здесь и только здесь)
-    users         — пользователи, premium, Adam Coin, бан, рефералы, рейтинг, бонус
-    settings      — настройки напоминаний
-    habits        — привычки, серия (streak), выполнение, прогресс
-    statistics    — ежедневная статистика
-    daily_tasks   — ежедневные задания/квесты
-    achievements  — достижения
-    calendar      — внутренний календарь активности (не Google)
-    ai            — история диалогов с ИИ-наставником и обратная связь
-    shop          — магазин в боте
-    google_tokens — хранилище токенов Google OAuth
-
-Все имена, которые раньше импортировались как `from database import ...`,
-доступны отсюда же: `from db import ...` — без изменения сигнатур.
-"""
 
 from .core import DB_NAME, connect, create_tables
 
@@ -93,14 +75,7 @@ from .shop import (
     buy_shop_item,
 )
 
-from .google_tokens import (
-    save_google_tokens,
-    get_google_tokens,
-    update_google_access_token,
-    save_google_event_id,
-    delete_google_tokens,
-    has_google_calendar,
-)
+
 
 __all__ = [
     "DB_NAME", "connect", "create_tables",
@@ -119,6 +94,4 @@ __all__ = [
     "update_calendar", "get_calendar",
     "add_ai_message", "get_ai_history", "clear_ai_history", "save_ai_feedback",
     "get_shop_items", "buy_shop_item",
-    "save_google_tokens", "get_google_tokens", "update_google_access_token",
-    "save_google_event_id", "delete_google_tokens", "has_google_calendar",
 ]

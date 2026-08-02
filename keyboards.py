@@ -323,12 +323,7 @@ def settings_keyboard():
                 )
             ],
 
-            [
-                InlineKeyboardButton(
-                    text="📅 Google Calendar",
-                    callback_data="google_calendar_menu"
-                )
-            ],
+            
 
             [
                 InlineKeyboardButton(
@@ -348,8 +343,7 @@ def settings_keyboard():
     )
 
 
-# =====================================
-# GOOGLE CALENDAR
+
 # ==============================# ПРОГРЕСС
 # =====================================
 

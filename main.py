@@ -4,12 +4,11 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from config import BOT_TOKEN, PORT
+from config import BOT_TOKEN
 from db import create_tables
 
 from scheduler import scheduler, new_day
 from reminders import send_reminders
-from oauth_server import run_oauth_server
 
 from backups.backup import start_backup_scheduler
 
@@ -107,11 +106,7 @@ async def main():
     print("🚀 Бот успешно запущен")
     print("=" * 40)
 
-    # Polling бота и OAuth-сервер для Google Calendar работают параллельно
-    await asyncio.gather(
-        dp.start_polling(bot),
-        run_oauth_server(bot, PORT),
-    )
+    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":

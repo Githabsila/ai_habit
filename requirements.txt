@@ -3,6 +3,3 @@ python-dotenv
 groq
 apscheduler
 aiohttp
-google-auth
-google-auth-oauthlib
-google-api-python-client
