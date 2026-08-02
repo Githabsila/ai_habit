@@ -13,12 +13,16 @@ from logging_config import setup_logging
 from scheduler import scheduler, new_day
 from reminders import send_reminders
 from coach import run_streak_risk_check, run_weekly_report
+from onboarding_auto import run_auto_approve
 
 from backups.backup import start_backup_scheduler
+
+from middlewares.access_control import AccessControlMiddleware
 
 from handlers.admin import router as admin_router
 from handlers.calendar import router as calendar_router
 from handlers.start import router as start_router
+from handlers.onboarding import router as onboarding_router
 from handlers.menu import router as menu_router
 from handlers.profile import router as profile_router
 from handlers.habits import router as habits_router
@@ -63,6 +67,14 @@ async def main():
     dp = Dispatcher()
 
     # ==========================
+    # Middleware
+    # ==========================
+    # Закрытый доступ ("Project ADAM"): один гейт на все сообщения/кнопки,
+    # а не проверка в каждом хендлере — см. middlewares/access_control.py
+    dp.message.outer_middleware(AccessControlMiddleware())
+    dp.callback_query.outer_middleware(AccessControlMiddleware())
+
+    # ==========================
     # Роутеры
     # ==========================
 
@@ -70,6 +82,7 @@ async def main():
     dp.include_router(shop_router)
     dp.include_router(calendar_router)
     dp.include_router(start_router)
+    dp.include_router(onboarding_router)
     dp.include_router(menu_router)
     dp.include_router(profile_router)
     dp.include_router(habits_router)
@@ -112,6 +125,18 @@ async def main():
         day_of_week="sun",
         hour=19,
         minute=0,
+        args=[bot]
+    )
+
+    # ==========================
+    # Автоодобрение анкет ("Project ADAM")
+    # ==========================
+    # Раз в 15 минут проверяем, не пора ли автоматически открыть доступ
+    # тем, кто ждёт дольше AUTO_APPROVE_HOURS (см. onboarding_auto.py).
+    scheduler.add_job(
+        run_auto_approve,
+        "interval",
+        minutes=15,
         args=[bot]
     )
 

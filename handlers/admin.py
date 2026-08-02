@@ -2,9 +2,10 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
 
 from config import ADMIN_IDS
-from keyboards import admin_keyboard
+from keyboards import admin_keyboard, pending_keyboard, back_menu_keyboard
 
 from db import (
     get_users_count,
@@ -16,7 +17,17 @@ from db import (
     unban_user,
     get_ai_feedback_stats,
     get_error_stats,
+    get_pending_users,
+    set_access_status,
+    get_access_status_counts,
+    get_survey,
+    get_survey_tags,
+    get_ai_history,
+    get_achievements,
+    get_progress,
 )
+
+from handlers.onboarding import notify_approved
 
 router = Router()
 
@@ -31,6 +42,7 @@ class AdminState(StatesGroup):
     xp = State()
     ban = State()
     unban = State()
+    user_card = State()
 
 
 # =====================================
@@ -358,6 +370,11 @@ async def admin_stats(callback: CallbackQuery):
     else:
         err_line = "за 24ч ошибок не было ✅"
 
+    access_counts = get_access_status_counts()
+    pending_n = access_counts.get("pending", 0)
+    new_n = access_counts.get("new", 0)
+    approved_n = access_counts.get("approved", 0)
+
     await callback.message.answer(
         f"""
 📊 <b>Статистика бота</b>
@@ -372,6 +389,8 @@ async def admin_stats(callback: CallbackQuery):
 
 🏅 Средний уровень: <b>{avg_level}</b>
 
+🔐 Доступ: одобрено <b>{approved_n}</b> / на проверке <b>{pending_n}</b> / анкету не прошли <b>{new_n}</b>
+
 🤖 Оценки ответов AI: <b>{fb_line}</b>
 
 🩺 Мониторинг ошибок: <b>{err_line}</b>
@@ -380,3 +399,191 @@ async def admin_stats(callback: CallbackQuery):
     )
 
     await callback.answer()
+
+
+# =====================================
+# ЗАЯВКИ НА ДОСТУП (pending) — "Project ADAM"
+# =====================================
+
+@router.callback_query(F.data == "admin_pending")
+async def admin_pending(callback: CallbackQuery):
+
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    users = get_pending_users()
+
+    if not users:
+        await callback.message.edit_text(
+            "🕓 <b>Заявки на доступ</b>\n\nСейчас заявок на рассмотрении нет.",
+            parse_mode="HTML",
+            reply_markup=admin_keyboard()
+        )
+        await callback.answer()
+        return
+
+    text = "🕓 <b>Заявки на доступ</b>\n\nНажмите на пользователя, чтобы одобрить:\n\n"
+
+    for user in users:
+        tags = get_survey_tags(user["telegram_id"])
+        tags_line = ", ".join(tags) if tags else "—"
+        text += (
+            f"🆔 <code>{user['telegram_id']}</code> (@{user['username'] or '-'})\n"
+            f"🏷 Теги: {tags_line}\n"
+            "────────────────\n"
+        )
+
+    try:
+        await callback.message.edit_text(
+            text[:4000],
+            parse_mode="HTML",
+            reply_markup=pending_keyboard(users)
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin_approve_"))
+async def admin_approve(callback: CallbackQuery):
+
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    user_id = int(callback.data.removeprefix("admin_approve_"))
+
+    set_access_status(user_id, "approved")
+    await notify_approved(callback.bot, user_id)
+
+    await callback.answer(f"✅ Доступ открыт для {user_id}", show_alert=True)
+
+    # Обновляем список заявок (одобренный уже не должен в нём числиться)
+    users = get_pending_users()
+    if not users:
+        await callback.message.edit_text(
+            "🕓 <b>Заявки на доступ</b>\n\nСейчас заявок на рассмотрении нет.",
+            parse_mode="HTML",
+            reply_markup=admin_keyboard()
+        )
+        return
+
+    text = "🕓 <b>Заявки на доступ</b>\n\nНажмите на пользователя, чтобы одобрить:\n\n"
+    for user in users:
+        tags = get_survey_tags(user["telegram_id"])
+        tags_line = ", ".join(tags) if tags else "—"
+        text += (
+            f"🆔 <code>{user['telegram_id']}</code> (@{user['username'] or '-'})\n"
+            f"🏷 Теги: {tags_line}\n"
+            "────────────────\n"
+        )
+
+    try:
+        await callback.message.edit_text(
+            text[:4000],
+            parse_mode="HTML",
+            reply_markup=pending_keyboard(users)
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
+
+
+# =====================================
+# КАРТОЧКА ПОЛЬЗОВАТЕЛЯ (профиль + анкета + статистика)
+# =====================================
+
+@router.callback_query(F.data == "admin_user_card")
+async def user_card_start(callback: CallbackQuery, state: FSMContext):
+
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    await state.set_state(AdminState.user_card)
+    await callback.message.answer("🔎 Введите Telegram ID пользователя:")
+    await callback.answer()
+
+
+@router.message(AdminState.user_card)
+async def user_card_show(message: Message, state: FSMContext):
+
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    try:
+        user_id = int(message.text)
+    except ValueError:
+        await message.answer("❌ Нужно ввести Telegram ID.")
+        return
+
+    await state.clear()
+
+    users = {u["telegram_id"]: u for u in get_all_users_info()}
+    user = users.get(user_id)
+
+    if not user:
+        await message.answer("❌ Пользователь с таким ID не найден.")
+        return
+
+    premium = "✅" if user["premium"] else "❌"
+    banned = "🚫" if user["banned"] else "✅"
+
+    text = (
+        f"👤 <b>Карточка пользователя</b>\n\n"
+        f"🆔 <code>{user['telegram_id']}</code>\n"
+        f"👤 @{user['username'] or '-'} ({user['first_name'] or '-'})\n"
+        f"⭐ Уровень: {user['level']} · Adam Coin: {user['xp']}\n"
+        f"🔥 Серия: {user['streak']}\n"
+        f"✅ Выполнено привычек: {user['total_completed']}\n"
+        f"💎 Premium: {premium} · 🚫 Бан: {banned}\n"
+        f"📅 Регистрация: {user['created_at']}\n"
+    )
+
+    # Анкета + AI-разбор
+    survey = get_survey(user_id)
+    if survey:
+        tags = get_survey_tags(user_id)
+        text += (
+            "\n📋 <b>Анкета</b>\n"
+            f"💼 Дело: {survey['business'] or '-'}\n"
+            f"🎨 Увлечения: {survey['hobbies'] or '-'}\n"
+            f"🎯 Цель в жизни: {survey['life_goal'] or '-'}\n"
+            f"🤖 Цель в боте: {survey['bot_goal'] or '-'}\n"
+        )
+        if tags:
+            text += f"🏷 Теги (AI): {', '.join(tags)}\n"
+        if survey["ai_summary"]:
+            text += f"🧠 AI-резюме: {survey['ai_summary']}\n"
+    else:
+        text += "\n📋 Анкету ещё не заполнял.\n"
+
+    # Прогресс по привычкам сегодня
+    progress = get_progress(user_id)
+    if progress and progress["total"]:
+        text += f"\n📈 Сегодня выполнено: {progress['completed']}/{progress['total']} привычек\n"
+
+    # Достижения
+    achievements = get_achievements(user_id)
+    if achievements:
+        text += f"\n🏆 Достижения ({len(achievements)}): " + ", ".join(
+            a["title"] for a in achievements[:5]
+        ) + "\n"
+
+    # Последние сообщения AI-наставнику
+    history = get_ai_history(user_id, limit=6)
+    if history:
+        text += "\n💬 <b>Последние сообщения AI-наставнику</b>\n"
+        for row in history[-6:]:
+            role = "🧑" if row["role"] == "user" else "🤖"
+            snippet = row["message"][:120]
+            text += f"{role} {snippet}\n"
+
+    if len(text) > 4000:
+        for i in range(0, len(text), 4000):
+            await message.answer(text[i:i + 4000], parse_mode="HTML")
+    else:
+        await message.answer(text, parse_mode="HTML", reply_markup=back_menu_keyboard())

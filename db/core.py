@@ -43,6 +43,22 @@ def create_tables():
     )
     """)
 
+    # Миграция: доступ ("закрытое сообщество") — анкета при первом входе +
+    # модерация. Существующие пользователи (те, что были в базе ДО появления
+    # этой колонки) считаются approved автоматически, чтобы не заблокировать
+    # уже пользующихся ботом людей анкетой задним числом.
+    cursor.execute("PRAGMA table_info(users)")
+    users_columns = {row[1] for row in cursor.fetchall()}
+    is_first_deploy_of_access_gate = "access_status" not in users_columns
+
+    if is_first_deploy_of_access_gate:
+        cursor.execute("ALTER TABLE users ADD COLUMN access_status TEXT DEFAULT 'new'")
+    if "survey_completed_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN survey_completed_at TIMESTAMP")
+
+    if is_first_deploy_of_access_gate:
+        cursor.execute("UPDATE users SET access_status='approved' WHERE access_status='new'")
+
     # ---------------- SETTINGS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS settings(
@@ -206,6 +222,22 @@ def create_tables():
         title TEXT,
         description TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # ---------------- АНКЕТА ПРИ ВХОДЕ (onboarding) ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_survey(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER UNIQUE,
+        business TEXT,
+        hobbies TEXT,
+        life_goal TEXT,
+        bot_goal TEXT,
+        ai_summary TEXT,
+        ai_tags TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
 

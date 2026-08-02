@@ -61,6 +61,20 @@ def admin_keyboard():
 
             [
                 InlineKeyboardButton(
+                    text="🕓 Заявки на доступ",
+                    callback_data="admin_pending"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="🔎 Карточка пользователя",
+                    callback_data="admin_user_card"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
                     text="⬅️ Главное меню",
                     callback_data="back_menu"
                 )
@@ -68,6 +82,33 @@ def admin_keyboard():
 
         ]
     )
+
+
+# =====================================
+# ЗАЯВКИ НА ДОСТУП (pending)
+# =====================================
+
+def pending_keyboard(users):
+    """users — список sqlite3.Row с telegram_id/username, статус 'pending'."""
+
+    rows = []
+
+    for user in users:
+        label = f"✅ {user['telegram_id']}"
+        if user["username"]:
+            label += f" (@{user['username']})"
+        rows.append([
+            InlineKeyboardButton(
+                text=label,
+                callback_data=f"admin_approve_{user['telegram_id']}"
+            )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(text="⬅️ Админ-панель", callback_data="admin")
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 # =====================================

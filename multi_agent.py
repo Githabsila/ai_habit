@@ -674,6 +674,49 @@ async def summarize_user_memory(existing_summary: str, recent_history: str) -> s
     return result.strip()[:1500]
 
 
+# ============ АНАЛИЗ АНКЕТЫ ПРИ ВХОДЕ (onboarding) ============
+# Один вызов после того, как пользователь ответил на 4 вопроса анкеты:
+# превращает свободный текст в короткое summary + список тегов интересов
+# для админки (используется, чтобы админ мог сегментировать пользователей
+# по интересам без ручного чтения анкет).
+
+SURVEY_ANALYSIS_SYSTEM = (
+    "Ты анализируешь анкету нового пользователя бота-коуча по привычкам и "
+    "целям (Project ADAM). Верни СТРОГО JSON без пояснений и markdown-разметки, "
+    "в формате:\n"
+    '{"summary": "<2-3 предложения: кто этот человек, чем занимается, к чему '
+    'стремится — от третьего лица>", '
+    '"tags": ["<3-6 коротких тегов интересов/сферы деятельности, '
+    'например: бизнес, спорт, финансы, здоровье, творчество, обучение>"]}'
+)
+
+
+async def analyze_onboarding_survey(business: str, hobbies: str, life_goal: str, bot_goal: str) -> dict:
+    """Возвращает {"summary": str, "tags": list[str]}. При сбое парсинга или
+    вызова — безопасный фолбэк, чтобы анкетирование не блокировалось."""
+    user = (
+        f"Чем занимается / бизнес: {business}\n"
+        f"Увлечения: {hobbies}\n"
+        f"Цель в жизни: {life_goal}\n"
+        f"Цель в боте: {bot_goal}"
+    )
+    raw = await _ask(SURVEY_ANALYSIS_SYSTEM, user, temperature=0.3, max_tokens=300, model=FAST_MODEL)
+    try:
+        cleaned = raw.strip().strip("`")
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].strip()
+        data = json.loads(cleaned)
+        summary = str(data.get("summary", "")).strip()[:600]
+        tags = data.get("tags", [])
+        if not isinstance(tags, list):
+            tags = []
+        tags = [str(t).strip() for t in tags if str(t).strip()][:6]
+        return {"summary": summary, "tags": tags}
+    except Exception as e:
+        logger.warning(f"Не удалось распарсить анализ анкеты ({e})")
+        return {"summary": "", "tags": []}
+
+
 # ============ СОВЕТ ДНЯ ============
 # Отдельная лёгкая функция (не весь мультиагентный пайплайн) для кнопки
 # "💡 Совет дня" — этап 3 AI Coach, "персональные советы". Результат

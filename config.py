@@ -13,4 +13,9 @@ ADMIN_IDS = [int(x.strip()) for x in _admin_ids_raw.split(",") if x.strip()]
 # Оставлено для обратной совместимости — первый ID из списка
 ADMIN_ID = ADMIN_IDS[0]
 
+# Через сколько часов анкета "pending" одобряется автоматически, если
+# админ не одобрил вручную (эффект "закрытого доступа" + защита от того,
+# что все залипнут в ожидании навсегда)
+AUTO_APPROVE_HOURS = int(os.getenv("AUTO_APPROVE_HOURS", "3"))
+
 

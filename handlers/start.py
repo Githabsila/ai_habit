@@ -1,5 +1,6 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from config import ADMIN_IDS
 from keyboards import main_menu
@@ -9,16 +10,20 @@ from db import (
     get_user,
     set_referrer,
     add_referral,
-    add_xp
+    add_xp,
+    get_access_status,
 )
+
+from handlers.onboarding import begin_survey
 
 router = Router()
 
 
 @router.message(CommandStart())
-async def start(message: Message):
+async def start(message: Message, state: FSMContext):
 
-    # Регистрируем пользователя
+    # Регистрируем пользователя (для уже существующих — no-op благодаря
+    # INSERT OR IGNORE внутри add_user)
     add_user(
         telegram_id=message.from_user.id,
         username=message.from_user.username,
@@ -61,6 +66,22 @@ async def start(message: Message):
     if user and user["banned"] == 1:
         await message.answer(
             "🚫 Ваш аккаунт заблокирован администрацией."
+        )
+        return
+
+    # Админов анкета не касается — сразу в меню
+    is_admin = message.from_user.id in ADMIN_IDS
+    status = get_access_status(message.from_user.id)
+
+    if not is_admin and status == "new":
+        await begin_survey(message, state)
+        return
+
+    if not is_admin and status == "pending":
+        await message.answer(
+            "🕓 Ваша анкета уже на проверке модератором.\n\n"
+            "Как только доступ к <b>Project ADAM</b> откроется — мы напишем сразу.",
+            parse_mode="HTML"
         )
         return
 

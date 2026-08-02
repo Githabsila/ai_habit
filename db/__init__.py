@@ -88,6 +88,18 @@ from .shop import (
     buy_shop_item,
 )
 
+from .onboarding import (
+    get_access_status,
+    set_access_status,
+    get_pending_users,
+    get_users_pending_since,
+    get_access_status_counts,
+    save_survey_answers,
+    save_survey_analysis,
+    get_survey,
+    get_survey_tags,
+)
+
 
 
 __all__ = [
@@ -110,4 +122,7 @@ __all__ = [
     "get_user_profile", "update_user_profile", "bump_profile_counter",
     "cache_get", "cache_set", "log_error", "get_error_stats",
     "get_shop_items", "buy_shop_item",
+    "get_access_status", "set_access_status", "get_pending_users",
+    "get_users_pending_since", "get_access_status_counts",
+    "save_survey_answers", "save_survey_analysis", "get_survey", "get_survey_tags",
 ]
