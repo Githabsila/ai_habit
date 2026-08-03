@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
 from config import ADMIN_IDS
-from keyboards import admin_keyboard, pending_keyboard, back_menu_keyboard
+from keyboards import admin_keyboard, pending_keyboard, back_menu_keyboard, broadcast_target_keyboard, tag_search_results_keyboard
 
 from db import (
     get_users_count,
@@ -25,6 +25,8 @@ from db import (
     get_ai_history,
     get_achievements,
     get_progress,
+    search_users_by_tag,
+    get_users_by_tags,
 )
 
 from handlers.onboarding import notify_approved
@@ -38,11 +40,13 @@ router = Router()
 
 class AdminState(StatesGroup):
     broadcast = State()
+    broadcast_tag_input = State()
     premium = State()
     xp = State()
     ban = State()
     unban = State()
     user_card = State()
+    tag_search = State()
 
 
 # =====================================
@@ -165,9 +169,55 @@ async def broadcast_start(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id not in ADMIN_IDS:
         return
 
+    await callback.message.answer(
+        "📢 Кому отправить рассылку?",
+        reply_markup=broadcast_target_keyboard()
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "broadcast_all")
+async def broadcast_all(callback: CallbackQuery, state: FSMContext):
+
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+
     await state.set_state(AdminState.broadcast)
+    await state.update_data(tag=None)
     await callback.message.answer("📢 Отправьте сообщение для рассылки всем пользователям.")
     await callback.answer()
+
+
+@router.callback_query(F.data == "broadcast_tag")
+async def broadcast_tag_start(callback: CallbackQuery, state: FSMContext):
+
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+
+    await state.set_state(AdminState.broadcast_tag_input)
+    await callback.message.answer("🏷 Введите тег (например: бизнес).")
+    await callback.answer()
+
+
+@router.message(AdminState.broadcast_tag_input)
+async def broadcast_tag_input(message: Message, state: FSMContext):
+
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    tag = (message.text or "").strip()
+    matching = get_users_by_tags([tag])
+
+    if not matching:
+        await message.answer(f"❌ По тегу «{tag}» никого не нашлось. Введите другой тег.")
+        return
+
+    await state.set_state(AdminState.broadcast)
+    await state.update_data(tag=tag)
+    await message.answer(
+        f"🏷 Найдено {len(matching)} пользователей с тегом «{tag}».\n\n"
+        "📢 Отправьте сообщение для рассылки только им."
+    )
 
 
 @router.message(AdminState.broadcast)
@@ -176,15 +226,21 @@ async def send_broadcast(message: Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
         return
 
-    users = get_all_users()
+    data = await state.get_data()
+    tag = data.get("tag")
+
+    if tag:
+        telegram_ids = get_users_by_tags([tag])
+    else:
+        telegram_ids = [u["telegram_id"] for u in get_all_users()]
 
     success = 0
     failed = 0
 
-    for user in users:
+    for telegram_id in telegram_ids:
         try:
             await message.bot.send_message(
-                chat_id=user["telegram_id"],
+                chat_id=telegram_id,
                 text=message.text,
                 parse_mode="HTML"
             )
@@ -194,9 +250,10 @@ async def send_broadcast(message: Message, state: FSMContext):
 
     await state.clear()
 
+    target_line = f"по тегу «{tag}»" if tag else "всем пользователям"
     await message.answer(
         f"""
-✅ Рассылка завершена!
+✅ Рассылка завершена ({target_line})!
 
 👥 Отправлено: {success}
 
@@ -521,6 +578,22 @@ async def user_card_show(message: Message, state: FSMContext):
         return
 
     await state.clear()
+    await _send_user_card(message, user_id)
+
+
+@router.callback_query(F.data.startswith("admin_card_"))
+async def user_card_from_button(callback: CallbackQuery):
+
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    user_id = int(callback.data.removeprefix("admin_card_"))
+    await _send_user_card(callback.message, user_id)
+    await callback.answer()
+
+
+async def _send_user_card(message: Message, user_id: int):
 
     users = {u["telegram_id"]: u for u in get_all_users_info()}
     user = users.get(user_id)
@@ -587,3 +660,45 @@ async def user_card_show(message: Message, state: FSMContext):
             await message.answer(text[i:i + 4000], parse_mode="HTML")
     else:
         await message.answer(text, parse_mode="HTML", reply_markup=back_menu_keyboard())
+
+
+# =====================================
+# ПОИСК ПО ТЕГУ (сегментация пользователей)
+# =====================================
+
+@router.callback_query(F.data == "admin_tag_search")
+async def tag_search_start(callback: CallbackQuery, state: FSMContext):
+
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    await state.set_state(AdminState.tag_search)
+    await callback.message.answer("🏷 Введите тег для поиска (например: бизнес, спорт, здоровье).")
+    await callback.answer()
+
+
+@router.message(AdminState.tag_search)
+async def tag_search_run(message: Message, state: FSMContext):
+
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    tag = (message.text or "").strip()
+    await state.clear()
+
+    users = search_users_by_tag(tag)
+
+    if not users:
+        await message.answer(f"❌ По тегу «{tag}» никого не нашлось.")
+        return
+
+    text = f"🏷 <b>По тегу «{tag}»</b> — найдено {len(users)}:\n\n"
+    for user in users:
+        text += f"🆔 <code>{user['telegram_id']}</code> (@{user['username'] or '-'})\n"
+
+    await message.answer(
+        text[:4000],
+        parse_mode="HTML",
+        reply_markup=tag_search_results_keyboard(users)
+    )

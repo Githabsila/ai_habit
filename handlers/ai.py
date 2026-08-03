@@ -2,7 +2,7 @@ import time
 import hashlib
 import asyncio
 import logging
-from datetime import date
+from datetime import date, datetime
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
@@ -26,6 +26,8 @@ from db import (
     cache_get,
     cache_set,
     log_error,
+    get_last_ai_message_at,
+    touch_last_ai_message,
 )
 
 from keyboards import (
@@ -58,26 +60,26 @@ class AiState(StatesGroup):
 # ТРОТТЛИНГ
 # =====================================
 # Каждое сообщение — это несколько платных вызовов Groq, а состояние
-# AiState.chatting ловит любое сообщение без ограничений. Простой троттлинг
-# в памяти процесса защищает от случайного или намеренного разгона расходов
-# (пользователь шлёт сообщения подряд быстрее, чем раз в MIN_INTERVAL_SECONDS).
-#
-# Это по-процессное решение (не переживает рестарт и не годится для
-# нескольких инстансов бота за балансировщиком) — для одного процесса,
-# как здесь, этого достаточно; при масштабировании стоит перенести счётчик
-# в Redis или БД.
+# AiState.chatting ловит любое сообщение без ограничений. Троттлинг хранится
+# в БД (users.last_ai_message_at), а не в памяти процесса — переживает
+# рестарт/редеплой без Redis. Для нескольких инстансов бота за балансировщиком
+# этого тоже достаточно, так как источник правды один — БД.
 
 MIN_INTERVAL_SECONDS = 3.0
-_last_message_at: dict[int, float] = {}
 
 
 def _is_throttled(user_id: int) -> float | None:
     """Возвращает, сколько секунд осталось ждать, или None, если можно слать."""
-    now = time.monotonic()
-    last = _last_message_at.get(user_id)
-    if last is not None and (now - last) < MIN_INTERVAL_SECONDS:
-        return round(MIN_INTERVAL_SECONDS - (now - last), 1)
-    _last_message_at[user_id] = now
+    last_str = get_last_ai_message_at(user_id)
+    if last_str:
+        try:
+            last_dt = datetime.strptime(last_str, "%Y-%m-%d %H:%M:%S")
+            elapsed = (datetime.utcnow() - last_dt).total_seconds()
+            if elapsed < MIN_INTERVAL_SECONDS:
+                return round(MIN_INTERVAL_SECONDS - elapsed, 1)
+        except ValueError:
+            pass
+    touch_last_ai_message(user_id)
     return None
 
 

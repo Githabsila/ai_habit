@@ -14,6 +14,8 @@ from scheduler import scheduler, new_day
 from reminders import send_reminders
 from coach import run_streak_risk_check, run_weekly_report
 from onboarding_auto import run_auto_approve
+from goal_feedback import run_goal_feedback
+from morning_ping import run_morning_ping
 
 from backups.backup import start_backup_scheduler
 
@@ -23,6 +25,8 @@ from handlers.admin import router as admin_router
 from handlers.calendar import router as calendar_router
 from handlers.start import router as start_router
 from handlers.onboarding import router as onboarding_router
+from handlers.goals import router as goals_router
+from handlers.payments import router as payments_router
 from handlers.menu import router as menu_router
 from handlers.profile import router as profile_router
 from handlers.habits import router as habits_router
@@ -83,6 +87,8 @@ async def main():
     dp.include_router(calendar_router)
     dp.include_router(start_router)
     dp.include_router(onboarding_router)
+    dp.include_router(goals_router)
+    dp.include_router(payments_router)
     dp.include_router(menu_router)
     dp.include_router(profile_router)
     dp.include_router(habits_router)
@@ -124,6 +130,25 @@ async def main():
         "cron",
         day_of_week="sun",
         hour=19,
+        minute=0,
+        args=[bot]
+    )
+
+    # Утро — персонализированное приветствие под стиль общения и профиль.
+    scheduler.add_job(
+        run_morning_ping,
+        "cron",
+        hour=8,
+        minute=0,
+        args=[bot]
+    )
+
+    # Раз в неделю — AI-разбор цели из анкеты vs реальный прогресс (Premium).
+    scheduler.add_job(
+        run_goal_feedback,
+        "cron",
+        day_of_week="mon",
+        hour=10,
         minute=0,
         args=[bot]
     )

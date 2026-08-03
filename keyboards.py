@@ -75,6 +75,13 @@ def admin_keyboard():
 
             [
                 InlineKeyboardButton(
+                    text="🏷 Поиск по тегу",
+                    callback_data="admin_tag_search"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
                     text="⬅️ Главное меню",
                     callback_data="back_menu"
                 )
@@ -82,6 +89,28 @@ def admin_keyboard():
 
         ]
     )
+
+
+def broadcast_target_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="👥 Всем", callback_data="broadcast_all")],
+            [InlineKeyboardButton(text="🏷 По тегу", callback_data="broadcast_tag")],
+        ]
+    )
+
+
+def tag_search_results_keyboard(users):
+    rows = []
+    for user in users:
+        label = f"🔎 {user['telegram_id']}"
+        if user["username"]:
+            label += f" (@{user['username']})"
+        rows.append([
+            InlineKeyboardButton(text=label, callback_data=f"admin_card_{user['telegram_id']}")
+        ])
+    rows.append([InlineKeyboardButton(text="⬅️ Админ-панель", callback_data="admin")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 # =====================================
@@ -194,6 +223,20 @@ def main_menu():
                 InlineKeyboardButton(
                     text="👥 Сообщество",
                     callback_data="community"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="🧭 Моя цель и вехи",
+                    callback_data="milestones"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="💎 Premium",
+                    callback_data="premium_info"
                 )
             ],
 
@@ -627,6 +670,13 @@ def community_keyboard():
 
             [
                 InlineKeyboardButton(
+                    text="🔎 Найти единомышленника",
+                    callback_data="find_match"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
                     text="🤝 Пригласить друга",
                     callback_data="invite_friend"
                 )
@@ -680,4 +730,33 @@ def shop_keyboard(items):
 
     return InlineKeyboardMarkup(
         inline_keyboard=keyboard
+    )
+
+
+# =====================================
+# ВЕХИ ПО ЦЕЛИ
+# =====================================
+
+def milestones_keyboard(milestones):
+    rows = []
+    for m in milestones:
+        mark = "✅" if m["done"] else "▫️"
+        label = f"{mark} {m['milestone_text']}"[:64]
+        rows.append([
+            InlineKeyboardButton(text=label, callback_data=f"milestone_toggle_{m['id']}")
+        ])
+    rows.append([InlineKeyboardButton(text="⬅️ Главное меню", callback_data="back_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+# =====================================
+# PREMIUM (покупка через Telegram Stars)
+# =====================================
+
+def premium_buy_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💎 Купить Premium", callback_data="buy_premium")],
+            [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="back_menu")],
+        ]
     )

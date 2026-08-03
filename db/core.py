@@ -56,6 +56,11 @@ def create_tables():
     if "survey_completed_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN survey_completed_at TIMESTAMP")
 
+    # DB-бэкенд для троттлинга AI-чата вместо in-memory словаря в процессе —
+    # переживает рестарт/редеплой, не требует Redis.
+    if "last_ai_message_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_ai_message_at TIMESTAMP")
+
     if is_first_deploy_of_access_gate:
         cursor.execute("UPDATE users SET access_status='approved' WHERE access_status='new'")
 
@@ -236,8 +241,26 @@ def create_tables():
         bot_goal TEXT,
         ai_summary TEXT,
         ai_tags TEXT,
+        last_feedback_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("PRAGMA table_info(user_survey)")
+    survey_columns = {row[1] for row in cursor.fetchall()}
+    if "last_feedback_at" not in survey_columns:
+        cursor.execute("ALTER TABLE user_survey ADD COLUMN last_feedback_at TIMESTAMP")
+
+    # ---------------- ВЕХИ ПО ЦЕЛИ (milestones) ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_milestones(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        goal_text TEXT,
+        milestone_text TEXT,
+        done INTEGER DEFAULT 0,
+        position INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
 

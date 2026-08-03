@@ -23,6 +23,8 @@ from .users import (
     get_rating,
     get_user_rank,
     claim_daily_bonus,
+    get_last_ai_message_at,
+    touch_last_ai_message,
 )
 
 from .settings import (
@@ -98,6 +100,14 @@ from .onboarding import (
     save_survey_analysis,
     get_survey,
     get_survey_tags,
+    search_users_by_tag,
+    get_users_by_tags,
+    get_surveys_due_for_feedback,
+    mark_feedback_sent,
+    find_match_by_tags,
+    save_milestones,
+    get_milestones,
+    toggle_milestone,
 )
 
 
@@ -110,6 +120,7 @@ __all__ = [
     "ban_user", "unban_user", "is_banned", "reset_progress",
     "set_referrer", "add_referral", "get_referrals",
     "get_rating", "get_user_rank", "claim_daily_bonus",
+    "get_last_ai_message_at", "touch_last_ai_message",
     "get_settings", "update_reminder_time", "update_ai_style", "get_ai_style",
     "add_habit", "get_habits", "get_habit", "edit_habit", "delete_habit",
     "reset_habits", "update_streak", "complete_habit", "get_progress",
@@ -125,4 +136,7 @@ __all__ = [
     "get_access_status", "set_access_status", "get_pending_users",
     "get_users_pending_since", "get_access_status_counts",
     "save_survey_answers", "save_survey_analysis", "get_survey", "get_survey_tags",
+    "search_users_by_tag", "get_users_by_tags",
+    "get_surveys_due_for_feedback", "mark_feedback_sent",
+    "find_match_by_tags", "save_milestones", "get_milestones", "toggle_milestone",
 ]

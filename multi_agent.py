@@ -717,6 +717,100 @@ async def analyze_onboarding_survey(business: str, hobbies: str, life_goal: str,
         return {"summary": "", "tags": []}
 
 
+# ============ ПЕРВЫЙ ШАГ ПОСЛЕ ОДОБРЕНИЯ ДОСТУПА ============
+# Вызывается один раз, сразу после того как пользователь получает доступ —
+# превращает цель из анкеты (bot_goal) в конкретную первую привычку и
+# 3 вехи на пути к цели, чтобы человек не оставался один на один с пустым
+# меню сразу после "эксклюзивного доступа".
+
+FIRST_HABIT_SYSTEM = (
+    "Ты помогаешь новому пользователю бота-коуча по привычкам начать. Дана "
+    "его цель в боте. Верни СТРОГО JSON без пояснений и markdown-разметки:\n"
+    '{"habit": "<короткое (до 6 слов) название ОДНОЙ ежедневной привычки, '
+    'которая реально приближает к этой цели>", '
+    '"milestones": ["<веха 1>", "<веха 2>", "<веха 3>"]} '
+    "Вехи — это 3 конкретных промежуточных результата по пути к цели, "
+    "от простого к сложному, каждая до 10 слов."
+)
+
+
+async def suggest_first_step(bot_goal: str) -> dict:
+    """Возвращает {"habit": str, "milestones": list[str]}. При сбое —
+    безопасный фолбэк с общей привычкой, чтобы онбординг не падал."""
+    raw = await _ask(FIRST_HABIT_SYSTEM, bot_goal, temperature=0.4, max_tokens=300, model=FAST_MODEL)
+    try:
+        cleaned = raw.strip().strip("`")
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].strip()
+        data = json.loads(cleaned)
+        habit = str(data.get("habit", "")).strip()[:60] or "Ежедневный шаг к цели"
+        milestones = data.get("milestones", [])
+        if not isinstance(milestones, list):
+            milestones = []
+        milestones = [str(m).strip() for m in milestones if str(m).strip()][:3]
+        if not milestones:
+            milestones = ["Первая неделя без пропусков", "Первый заметный результат", "Цель достигнута"]
+        return {"habit": habit, "milestones": milestones}
+    except Exception as e:
+        logger.warning(f"Не удалось распарсить первый шаг онбординга ({e})")
+        return {
+            "habit": "Ежедневный шаг к цели",
+            "milestones": ["Первая неделя без пропусков", "Первый заметный результат", "Цель достигнута"],
+        }
+
+
+# ============ AI-РАЗБОР ЦЕЛИ vs РЕАЛЬНЫЙ ПРОГРЕСС (Premium) ============
+# Раз в неделю сравнивает то, что человек написал в анкете, с тем, что
+# реально происходит (серия, доля выполненных привычек) — и говорит,
+# где он торопится, а где стоит поднажать.
+
+GOAL_FEEDBACK_SYSTEM = (
+    "Ты — AI-наставник в боте по привычкам и целям. Пользователь раньше "
+    "написал в анкете свою цель. Тебе дана эта цель и его реальная "
+    "статистика за последнее время. Напиши короткую (3-5 предложений) "
+    "честную обратную связь от второго лица ('ты'): что реально по цели, "
+    "где человек торопится или поставил нереалистичный темп, а где "
+    "наоборот стоит поднажать. Без воды и общих фраз, опирайся на цифры."
+)
+
+
+async def analyze_goal_progress(life_goal: str, bot_goal: str, streak: int, completed_ratio: float) -> str:
+    user = (
+        f"Цель в жизни: {life_goal}\n"
+        f"Цель в боте: {bot_goal}\n"
+        f"Текущая серия дней подряд: {streak}\n"
+        f"Доля выполненных привычек за последнее время: {round(completed_ratio * 100)}%"
+    )
+    try:
+        return await _ask(GOAL_FEEDBACK_SYSTEM, user, temperature=0.5, max_tokens=300, model=FAST_MODEL)
+    except Exception as e:
+        logger.warning(f"Не удалось получить разбор цели ({e})")
+        return ""
+
+
+# ============ ПЕРСОНАЛИЗИРОВАННОЕ УТРЕННЕЕ СООБЩЕНИЕ ============
+
+MORNING_SYSTEM = (
+    "Ты — AI-наставник в боте по привычкам. Напиши короткое (1-3 предложения) "
+    "утреннее приветствие пользователю, задающее настрой на день. Учитывай "
+    "стиль общения и то, что известно о человеке. Без канцелярита, живо, "
+    "по-русски. Не используй фразы 'доброе утро' дважды и не пиши markdown."
+)
+
+
+async def generate_morning_message(style: str, profile_summary: str, streak: int) -> str:
+    user = (
+        f"Стиль общения: {style}\n"
+        f"Известно о пользователе: {profile_summary or 'пока немного'}\n"
+        f"Текущая серия дней подряд: {streak}"
+    )
+    try:
+        return await _ask(MORNING_SYSTEM, user, temperature=0.7, max_tokens=150, model=FAST_MODEL)
+    except Exception as e:
+        logger.warning(f"Не удалось сгенерировать утреннее сообщение ({e})")
+        return ""
+
+
 # ============ СОВЕТ ДНЯ ============
 # Отдельная лёгкая функция (не весь мультиагентный пайплайн) для кнопки
 # "💡 Совет дня" — этап 3 AI Coach, "персональные советы". Результат

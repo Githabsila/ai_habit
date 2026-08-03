@@ -85,6 +85,30 @@ def get_all_users_info():
 
 
 # =====================================
+# ТРОТТЛИНГ AI-ЧАТА (БД вместо in-memory — переживает рестарт)
+# =====================================
+
+def get_last_ai_message_at(user_id):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT last_ai_message_at FROM users WHERE telegram_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row["last_ai_message_at"] if row else None
+
+
+def touch_last_ai_message(user_id):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE users SET last_ai_message_at=CURRENT_TIMESTAMP WHERE telegram_id=?",
+        (user_id,)
+    )
+    conn.commit()
+    conn.close()
+
+
+# =====================================
 # PREMIUM
 # =====================================
 

@@ -11,10 +11,13 @@ from db import (
     save_survey_answers,
     save_survey_analysis,
     set_access_status,
+    save_milestones,
     log_error,
+    get_user,
+    add_habit,
 )
 
-from multi_agent import analyze_onboarding_survey
+from multi_agent import analyze_onboarding_survey, suggest_first_step
 
 router = Router()
 logger = logging.getLogger("handlers.onboarding")
@@ -104,9 +107,20 @@ async def survey_bot_goal(message: Message, state: FSMContext):
         # Анализ — не критичен для самого доступа, анкета всё равно уходит
         # на модерацию/автоапрув даже если AI-разбор не удался.
 
-    set_access_status(user_id, "pending")
     await state.clear()
 
+    # Premium-пользователи (выданы админом заранее) получают доступ сразу,
+    # минуя очередь модерации — это одна из premium-плюшек.
+    user = get_user(user_id)
+    if user and user["premium"] == 1:
+        await message.answer(
+            "✅ Анкета получена. У вас Premium — доступ открывается сразу, без очереди 💎",
+            parse_mode="HTML"
+        )
+        await grant_access(message.bot, user_id, bot_goal=bot_goal)
+        return
+
+    set_access_status(user_id, "pending")
     await message.answer(
         "✅ Анкета получена.\n\n"
         "🕓 Идёт проверка модератором — скоро вы получите открытый "
@@ -117,24 +131,55 @@ async def survey_bot_goal(message: Message, state: FSMContext):
 
 
 # =====================================
-# УВЕДОМЛЕНИЕ ОБ ОДОБРЕНИИ
+# ВЫДАЧА ДОСТУПА (одобрение)
 # =====================================
-# Общий текст — используется и при ручном одобрении админом (handlers/admin.py),
-# и при автоодобрении по таймеру (onboarding_auto.py).
+# Общая точка входа — используется и при ручном одобрении админом
+# (handlers/admin.py), и при автоодобрении по таймеру (onboarding_auto.py),
+# и при мгновенном доступе для Premium выше. Помимо самого доступа сразу
+# подбирает первую привычку и вехи под цель из анкеты (bot_goal), чтобы
+# человек не оставался один на один с пустым меню.
 
-APPROVED_TEXT = (
+APPROVED_INTRO = (
     "🎉 Доступ открыт!\n\n"
     "Добро пожаловать в <b>Project ADAM</b>. Теперь доступны все разделы бота 👇"
 )
 
 
-async def notify_approved(bot, user_id: int):
+async def grant_access(bot, user_id: int, bot_goal: str = None):
+    set_access_status(user_id, "approved")
+
+    extra_text = ""
+    if bot_goal:
+        try:
+            step = await suggest_first_step(bot_goal)
+            add_habit(user_id, step["habit"])
+            save_milestones(user_id, bot_goal, step["milestones"])
+            milestones_lines = "\n".join(f"▫️ {m}" for m in step["milestones"])
+            extra_text = (
+                f"\n\nЧтобы не начинать с пустого места, уже добавил первую привычку:\n"
+                f"✅ <b>{step['habit']}</b>\n\n"
+                f"И наметил вехи на пути к цели:\n{milestones_lines}\n\n"
+                f"Привычку и вехи всегда можно поменять в разделах бота."
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось подобрать первый шаг для {user_id}: {e}")
+            log_error("grant_access_first_step", e, user_id)
+
     try:
         await bot.send_message(
             chat_id=user_id,
-            text=APPROVED_TEXT,
+            text=APPROVED_INTRO + extra_text,
             parse_mode="HTML",
             reply_markup=main_menu()
         )
     except Exception:
         logger.warning(f"Не удалось уведомить пользователя {user_id} об одобрении доступа")
+
+
+async def notify_approved(bot, user_id: int):
+    """Обёртка для мест, где под рукой нет bot_goal (например автоодобрение
+    по таймеру) — берёт цель из уже сохранённой анкеты, если она есть."""
+    from db import get_survey
+    survey = get_survey(user_id)
+    bot_goal = survey["bot_goal"] if survey else None
+    await grant_access(bot, user_id, bot_goal=bot_goal)

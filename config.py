@@ -18,4 +18,8 @@ ADMIN_ID = ADMIN_IDS[0]
 # что все залипнут в ожидании навсегда)
 AUTO_APPROVE_HOURS = int(os.getenv("AUTO_APPROVE_HOURS", "3"))
 
+# Цена Premium в Telegram Stars — встроенная валюта Telegram, не требует
+# подключения платёжного провайдера (ЮKassa и т.п.), работает сразу "из коробки".
+PREMIUM_PRICE_STARS = int(os.getenv("PREMIUM_PRICE_STARS", "150"))
+
 

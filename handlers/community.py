@@ -1,6 +1,8 @@
+import json
+
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
-from db import get_referrals
+from db import get_referrals, find_match_by_tags, get_survey_tags
 from keyboards import (
     community_keyboard,
     back_menu_keyboard,
@@ -26,6 +28,8 @@ async def community(callback: CallbackQuery):
 
 🌍 Общаться с другими пользователями
 
+🔎 Находить единомышленников по интересам
+
 🤝 Приглашать друзей
 
 🎁 Получать бонусы за приглашения
@@ -48,6 +52,56 @@ async def community_chat(callback: CallbackQuery):
         "🚧 Общий чат скоро появится.",
         show_alert=True
     )
+
+
+# =====================================
+# НАЙТИ ЕДИНОМЫШЛЕННИКА (мэтчинг по тегам анкеты)
+# =====================================
+
+@router.callback_query(F.data == "find_match")
+async def find_match(callback: CallbackQuery):
+
+    user_id = callback.from_user.id
+    my_tags = get_survey_tags(user_id)
+
+    if not my_tags:
+        await callback.answer(
+            "Сначала нужно пройти анкету — по ней подбираются совпадения по интересам.",
+            show_alert=True
+        )
+        return
+
+    matches = find_match_by_tags(user_id, limit=1)
+
+    if not matches:
+        await callback.message.answer(
+            "🔎 Пока не нашлось никого с похожими интересами — попробуйте позже, "
+            "аудитория растёт.",
+            reply_markup=back_menu_keyboard()
+        )
+        await callback.answer()
+        return
+
+    match = matches[0]
+    their_tags = []
+    try:
+        their_tags = json.loads(match["ai_tags"]) if match["ai_tags"] else []
+    except (TypeError, ValueError):
+        pass
+
+    shared = ", ".join(set(my_tags) & set(their_tags)) or "общие интересы"
+    username_line = f"@{match['username']}" if match["username"] else "username закрыт — совпадение чисто по интересам"
+
+    await callback.message.answer(
+        f"🔎 <b>Похожий человек нашёлся!</b>\n\n"
+        f"👤 {username_line}\n"
+        f"🏷 Общее: {shared}\n"
+        + (f"🧠 {match['ai_summary']}\n" if match["ai_summary"] else ""),
+        parse_mode="HTML",
+        reply_markup=back_menu_keyboard()
+    )
+
+    await callback.answer()
 
 
 # =====================================
