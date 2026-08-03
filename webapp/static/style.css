@@ -83,28 +83,73 @@ h1, h2, h3, .display {
   flex-shrink: 0;
 }
 
-.level-ring {
-  width: 76px;
-  height: 76px;
-  transform: rotate(-90deg);
+.level-ring{
+  position: relative;
+
+  width: 104px;
+  height: 104px;
+
+  flex-shrink: 0;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 50%;
+
+  background: transparent;
+
+  box-shadow: none;
 }
 
-.level-ring__track {
+.level-ring svg{
+  width: 104px;
+  height: 104px;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.level-ring__center{
+  position: absolute;
+  inset: 14px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,.06), transparent 38%),
+    linear-gradient(180deg, rgba(18,14,28,.96), rgba(10,8,18,.96));
+
+  border: 1px solid rgba(255,255,255,.04);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 10px 22px rgba(0,0,0,.42);
+}
+
+.level-ring__track{
   fill: none;
-  stroke: var(--surface-hi);
+  stroke: rgba(255,255,255,.06);
   stroke-width: 8;
 }
 
-.level-ring__fill {
+.level-ring__fill{
   fill: none;
   stroke: url(#goldGradient);
   stroke-width: 8;
   stroke-linecap: round;
   stroke-dasharray: 326.7;
   stroke-dashoffset: 326.7;
-  transition: stroke-dashoffset 0.6s cubic-bezier(.4,0,.2,1);
-  filter: drop-shadow(0 0 6px rgba(240,180,41,.8)) drop-shadow(0 0 14px rgba(240,180,41,.35)); 
-  }
+
+  filter:
+    drop-shadow(0 0 6px rgba(240,180,41,.8))
+    drop-shadow(0 0 14px rgba(240,180,41,.35));
+
+  transition: stroke-dashoffset .6s cubic-bezier(.4,0,.2,1);
+}
 
 .level-ring__badge {
   position: absolute;
@@ -127,6 +172,25 @@ h1, h2, h3, .display {
   color: var(--text-muted);
   letter-spacing: 0.08em;
   margin-top: 2px;
+}
+
+.level-ring__value{
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+
+  color: #FFFFFF;
+}
+
+.level-ring__label{
+  margin-top: 2px;
+
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .18em;
+
+  color: #A69BC2;
 }
 
 .player-card__info {
