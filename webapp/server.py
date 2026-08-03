@@ -226,7 +226,13 @@ async def buy_route(request):
 def create_app():
     app = web.Application(middlewares=[error_middleware])
     app.add_routes(routes)
-    app.router.add_static("/static/", STATIC_DIR)
+    from pathlib import Path
+
+    BASE_DIR = Path(__file__).parent
+    app.router.add_static(
+         '/static/',
+           path=BASE_DIR / 'webapp' / 'static' 
+           )
     return app
 
 async def run_webapp(port):

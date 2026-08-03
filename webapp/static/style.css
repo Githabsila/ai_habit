@@ -630,4 +630,277 @@ h1, h2, h3, .display {
   100% { transform: rotateY(360deg); }
 }
 
+/* ========== ULTRA PREMIUM UI ========== */
 
+/* Глубокий фон */
+body {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(124,92,252,.22), transparent 38%),
+    radial-gradient(circle at 100% 10%, rgba(240,180,41,.12), transparent 32%),
+    radial-gradient(circle at 50% 100%, rgba(255,106,77,.10), transparent 40%),
+    #07040E;
+  color: var(--text);
+}
+
+/* Стеклянная карточка игрока */
+.player-card {
+  position: relative;
+  overflow: hidden;
+
+  background: rgba(18,14,28,.72);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  border-bottom: 1px solid rgba(255,255,255,.06);
+
+  box-shadow:
+    0 10px 40px rgba(0,0,0,.45),
+    inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+/* Бегущее свечение */
+.player-card::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(
+    120deg,
+    transparent 20%,
+    rgba(124,92,252,.18) 40%,
+    rgba(240,180,41,.14) 60%,
+    transparent 80%
+  );
+  animation: cardGlow 6s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes cardGlow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Золотое кольцо уровня */
+.level-ring__fill {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 326.7;
+  stroke-dashoffset: 326.7;
+  transition: stroke-dashoffset .6s cubic-bezier(.4,0,.2,1);
+  filter:
+    drop-shadow(0 0 6px rgba(240,180,41,.8))
+    drop-shadow(0 0 14px rgba(240,180,41,.35));
+}
+
+/* Премиальные привычки */
+.habit-item {
+  background: rgba(20,16,31,.72);
+  backdrop-filter: blur(16px);
+
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 22px;
+
+  padding: 14px 14px;
+
+  transition:
+    transform .18s ease,
+    border-color .25s ease,
+    box-shadow .25s ease;
+}
+
+.habit-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(124,92,252,.45);
+  box-shadow: 0 12px 28px rgba(124,92,252,.18);
+}
+
+/* Выполненная привычка */
+.habit-item.is-done {
+  border-color: rgba(74,222,128,.45);
+  background: linear-gradient(
+    90deg,
+    rgba(74,222,128,.08),
+    rgba(20,16,31,.72) 40%
+  );
+  box-shadow: 0 10px 24px rgba(74,222,128,.12);
+}
+
+/* Кнопка выполнения */
+.habit-item__check {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 18px;
+  color: transparent;
+
+  transition: all .2s ease;
+}
+
+.habit-item.is-done .habit-item__check {
+  background: linear-gradient(135deg,#4ADE80,#22C55E);
+  color: #07120B;
+
+  box-shadow:
+    0 0 0 4px rgba(74,222,128,.14),
+    0 10px 18px rgba(34,197,94,.32);
+}
+
+/* Поле ввода */
+.add-form input {
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+
+  border-radius: 18px;
+  height: 54px;
+
+  padding: 0 18px;
+
+  color: var(--text);
+  font-size: 15px;
+}
+
+.add-form input:focus {
+  outline: none;
+  border-color: rgba(124,92,252,.65);
+  box-shadow: 0 0 0 4px rgba(124,92,252,.16);
+}
+
+/* Кнопка + */
+.btn--accent {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+
+  background: linear-gradient(135deg,#FFD76A,#F0B429);
+  color: #201703;
+
+  box-shadow:
+    0 10px 24px rgba(240,180,41,.35),
+    inset 0 1px 0 rgba(255,255,255,.45);
+
+  font-size: 22px;
+  font-weight: 700;
+
+  transition: transform .15s ease;
+}
+
+.btn--accent:active {
+  transform: scale(.94);
+}
+
+/* XP бар */
+.xp-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  overflow: hidden;
+}
+
+.xp-bar__fill {
+  background: linear-gradient(90deg,#FFE08A,#F0B429,#FF8A00);
+  box-shadow: 0 0 14px rgba(240,180,41,.45);
+}
+
+/* Нижняя панель */
+.tab-bar {
+  background: rgba(18,14,28,.86);
+  backdrop-filter: blur(24px);
+
+  border-top: 1px solid rgba(255,255,255,.06);
+
+  box-shadow: 0 -12px 30px rgba(0,0,0,.38);
+}
+
+.tab-bar__item {
+  transition: color .2s ease, transform .2s ease;
+}
+
+.tab-bar__item.is-active {
+  color: var(--gold);
+  transform: translateY(-2px);
+}
+
+.tab-bar__item.is-active .tab-bar__icon {
+  filter: none;
+  opacity: 1;
+  text-shadow: 0 0 12px rgba(240,180,41,.6);
+}
+
+/* ===== ЖИВЫЕ ЧАСТИЦЫ НА ФОНЕ ===== */
+
+.bg-particles{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
+}
+
+.bg-particles span{
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.18);
+  box-shadow: 0 0 12px rgba(255,255,255,.35);
+  animation: floatParticle linear infinite;
+}
+
+.bg-particles span:nth-child(1){
+  left: 10%;
+  animation-duration: 18s;
+  animation-delay: 0s;
+}
+
+.bg-particles span:nth-child(2){
+  left: 28%;
+  animation-duration: 22s;
+  animation-delay: -4s;
+}
+
+.bg-particles span:nth-child(3){
+  left: 52%;
+  animation-duration: 16s;
+  animation-delay: -8s;
+}
+
+.bg-particles span:nth-child(4){
+  left: 74%;
+  animation-duration: 24s;
+  animation-delay: -2s;
+}
+
+.bg-particles span:nth-child(5){
+  left: 90%;
+  animation-duration: 20s;
+  animation-delay: -10s;
+}
+
+@keyframes floatParticle{
+  from{
+    transform: translateY(110vh) scale(.7);
+    opacity: 0;
+  }
+
+  10%{
+    opacity: 1;
+  }
+
+  90%{
+    opacity: 1;
+  }
+
+  to{
+    transform: translateY(-10vh) scale(1.2);
+    opacity: 0;
+  }
+}
