@@ -41,10 +41,6 @@ from handlers.ai import router as ai_router
 from handlers.progress import router as progress_router
 from handlers.settings import router as settings_router
 from handlers.rating import router as rating_router
-from handlers.achievements import router as achievements_router
-from handlers.community import router as community_router
-from handlers.daily import router as daily_router
-from handlers.bonus import router as bonus_router
 from handlers.shop import router as shop_router
 # =====================================================================
 
@@ -86,11 +82,7 @@ async def main():
     dp.include_router(progress_router)
     dp.include_router(settings_router)
     dp.include_router(rating_router)
-    dp.include_router(achievements_router)
-    dp.include_router(community_router)
-    dp.include_router(daily_router)
-    dp.include_router(bonus_router)
-
+   
     # Планировщик (без изменений)
     scheduler.add_job(send_reminders, "interval", minutes=120, args=[bot])
     scheduler.add_job(run_streak_risk_check, "cron", hour=20, minute=0, args=[bot])
