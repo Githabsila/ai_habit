@@ -760,3 +760,7 @@ def premium_buy_keyboard():
             [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="back_menu")],
         ]
     )
+
+
+
+

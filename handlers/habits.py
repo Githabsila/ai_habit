@@ -7,7 +7,6 @@ from db import (
     add_habit,
     edit_habit,
     delete_habit,
-    get_habit,
     get_habits,
     complete_habit,
     update_daily_task,
@@ -65,9 +64,6 @@ async def save_habit(message: Message, state: FSMContext):
         message.from_user.id,
         title
     )
-
-    if gcal_is_connected(message.from_user.id):
-        sync_habit_reminder(message.from_user.id)
 
     await state.clear()
 
@@ -179,9 +175,6 @@ async def save_new_title(message: Message, state: FSMContext):
         new_title
     )
 
-    if gcal_is_connected(message.from_user.id):
-        sync_habit_reminder(message.from_user.id)
-
     await state.clear()
 
     await message.answer(
@@ -261,12 +254,7 @@ async def delete(callback: CallbackQuery):
 
     habit_id = int(callback.data.split("_")[1])
 
-    habit = get_habit(habit_id)
-
     delete_habit(habit_id)
-
-    if habit and gcal_is_connected(habit["user_id"]):
-        sync_habit_reminder(habit["user_id"])
 
     await callback.message.edit_text(
         "🗑 Привычка удалена!"

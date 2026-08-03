@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>ADAM</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===== ШАПКА: карточка игрока ===== -->
+  <header class="player-card">
+    <div class="player-card__ring-wrap">
+      <svg class="level-ring" viewBox="0 0 120 120">
+        <circle class="level-ring__track" cx="60" cy="60" r="52"></circle>
+        <circle id="levelRingFill" class="level-ring__fill" cx="60" cy="60" r="52"></circle>
+      </svg>
+      <div class="level-ring__badge">
+        <span id="levelNumber">1</span>
+        <small>LVL</small>
+      </div>
+    </div>
+
+    <div class="player-card__info">
+      <div class="player-card__name" id="playerName">Игрок</div>
+      <div class="player-card__stats">
+        <span class="stat stat--streak" title="Серия дней подряд">
+          <span class="stat__icon">🔥</span>
+          <span id="streakValue">0</span>
+        </span>
+        <span class="stat stat--coin" title="Adam Coin">
+          <span class="stat__icon">🪙</span>
+          <span id="coinValue">0</span>
+        </span>
+      </div>
+      <div class="xp-bar">
+        <div class="xp-bar__fill" id="xpBarFill"></div>
+      </div>
+      <div class="xp-bar__label"><span id="xpLabel">0 / 100 XP</span></div>
+    </div>
+  </header>
+
+  <!-- ===== ОСНОВНОЙ КОНТЕНТ ===== -->
+  <main id="content">
+
+    <!-- ---- ПРИВЫЧКИ ---- -->
+    <section class="tab-panel" id="tab-habits" data-tab="habits">
+      <div class="section-heading">
+        <h2>Твои привычки</h2>
+        <span class="section-heading__sub" id="habitsProgressLabel">0/0 сегодня</span>
+      </div>
+
+      <ul class="habit-list" id="habitList"></ul>
+
+      <form class="add-form" id="addHabitForm">
+        <input type="text" id="newHabitInput" maxlength="60" placeholder="Новая привычка…" autocomplete="off">
+        <button type="submit" class="btn btn--accent" aria-label="Добавить">+</button>
+      </form>
+    </section>
+
+    <!-- ---- МАГАЗИН ---- -->
+    <section class="tab-panel" id="tab-shop" data-tab="shop" hidden>
+      <div class="section-heading">
+        <h2>Магазин</h2>
+        <span class="section-heading__sub">Трать Adam Coin</span>
+      </div>
+      <ul class="shop-list" id="shopList"></ul>
+    </section>
+
+    <!-- ---- АЧИВКИ ---- -->
+    <section class="tab-panel" id="tab-achievements" data-tab="achievements" hidden>
+      <div class="section-heading">
+        <h2>Достижения</h2>
+        <span class="section-heading__sub" id="achievementsCountLabel">0 наград</span>
+      </div>
+      <ul class="achievement-list" id="achievementList"></ul>
+    </section>
+
+    <!-- ---- РЕЙТИНГ ---- -->
+    <section class="tab-panel" id="tab-rating" data-tab="rating" hidden>
+      <div class="section-heading">
+        <h2>Рейтинг</h2>
+        <span class="section-heading__sub">Топ игроков ADAM</span>
+      </div>
+      <ol class="rating-list" id="ratingList"></ol>
+    </section>
+
+    <!-- ---- КАЛЕНДАРЬ ---- -->
+    <section class="tab-panel" id="tab-calendar" data-tab="calendar" hidden>
+      <div class="section-heading">
+        <h2>Календарь</h2>
+        <span class="section-heading__sub">Последние 5 недель</span>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+      <div class="calendar-legend">
+        <span>Меньше</span>
+        <span class="cal-cell cal-cell--0"></span>
+        <span class="cal-cell cal-cell--1"></span>
+        <span class="cal-cell cal-cell--2"></span>
+        <span class="cal-cell cal-cell--3"></span>
+        <span>Больше</span>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== НИЖНЯЯ НАВИГАЦИЯ ===== -->
+  <nav class="tab-bar" id="tabBar">
+    <button class="tab-bar__item is-active" data-tab="habits">
+      <span class="tab-bar__icon">✅</span><span>Привычки</span>
+    </button>
+    <button class="tab-bar__item" data-tab="shop">
+      <span class="tab-bar__icon">🛒</span><span>Магазин</span>
+    </button>
+    <button class="tab-bar__item" data-tab="achievements">
+      <span class="tab-bar__icon">🏆</span><span>Ачивки</span>
+    </button>
+    <button class="tab-bar__item" data-tab="rating">
+      <span class="tab-bar__icon">📊</span><span>Рейтинг</span>
+    </button>
+    <button class="tab-bar__item" data-tab="calendar">
+      <span class="tab-bar__icon">📅</span><span>Календарь</span>
+    </button>
+  </nav>
+
+  <div id="toast" class="toast"></div>
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-overlay__coin">🪙</div>
+  </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

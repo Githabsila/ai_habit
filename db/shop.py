@@ -14,6 +14,15 @@ def get_shop_items():
     return items
 
 
+def get_user_items(user_id):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT item_id FROM user_items WHERE user_id=?", (user_id,))
+    ids = [row["item_id"] for row in cursor.fetchall()]
+    conn.close()
+    return ids
+
+
 def buy_shop_item(user_id, item_id):
     conn = connect()
     cursor = conn.cursor()

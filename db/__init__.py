@@ -88,6 +88,7 @@ from .ai import (
 from .shop import (
     get_shop_items,
     buy_shop_item,
+    get_user_items,
 )
 
 from .onboarding import (
@@ -132,7 +133,7 @@ __all__ = [
     "save_feedback_reason", "get_recent_negative_reasons",
     "get_user_profile", "update_user_profile", "bump_profile_counter",
     "cache_get", "cache_set", "log_error", "get_error_stats",
-    "get_shop_items", "buy_shop_item",
+    "get_shop_items", "buy_shop_item", "get_user_items",
     "get_access_status", "set_access_status", "get_pending_users",
     "get_users_pending_since", "get_access_status_counts",
     "save_survey_answers", "save_survey_analysis", "get_survey", "get_survey_tags",

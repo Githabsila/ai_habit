@@ -1,12 +1,18 @@
 import asyncio
 import logging
+import os
+import sys
 
+sys.path.insert(0, os.path.dirname(__file__))
+PORT = int(os.getenv("PORT", 8080))
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 
-from config import BOT_TOKEN
+from config import BOT_TOKEN, WEBAPP_URL, PORT
 from db import create_tables
+from webapp.server import run_webapp
 
 from logging_config import setup_logging
 
@@ -21,6 +27,7 @@ from backups.backup import start_backup_scheduler
 
 from middlewares.access_control import AccessControlMiddleware
 
+# ====================== ИМПОРТЫ (Этап 1 + Этап 2) ======================
 from handlers.admin import router as admin_router
 from handlers.calendar import router as calendar_router
 from handlers.start import router as start_router
@@ -39,11 +46,7 @@ from handlers.community import router as community_router
 from handlers.daily import router as daily_router
 from handlers.bonus import router as bonus_router
 from handlers.shop import router as shop_router
-
-
-# =====================================
-# ИНИЦИАЛИЗАЦИЯ
-# =====================================
+# =====================================================================
 
 setup_logging()
 logger = logging.getLogger("main")
@@ -55,33 +58,20 @@ print("✅ База данных подключена")
 start_backup_scheduler()
 
 
-# =====================================
-# ОСНОВНАЯ ФУНКЦИЯ
-# =====================================
-
 async def main():
 
     bot = Bot(
         token=BOT_TOKEN,
-        default=DefaultBotProperties(
-            parse_mode=ParseMode.HTML
-        )
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
 
     dp = Dispatcher()
 
-    # ==========================
-    # Middleware
-    # ==========================
-    # Закрытый доступ ("Project ADAM"): один гейт на все сообщения/кнопки,
-    # а не проверка в каждом хендлере — см. middlewares/access_control.py
+    # Middleware (закрытый доступ)
     dp.message.outer_middleware(AccessControlMiddleware())
     dp.callback_query.outer_middleware(AccessControlMiddleware())
 
-    # ==========================
-    # Роутеры
-    # ==========================
-
+    # Все роутеры (теперь MiniApp полностью работает)
     dp.include_router(admin_router)
     dp.include_router(shop_router)
     dp.include_router(calendar_router)
@@ -101,92 +91,44 @@ async def main():
     dp.include_router(daily_router)
     dp.include_router(bonus_router)
 
-    # ==========================
-    # Напоминания
-    # ==========================
-
-    scheduler.add_job(
-        send_reminders,
-        "interval",
-        minutes=120,
-        args=[bot]
-    )
-
-    # ==========================
-    # AI Coach: проактивные сообщения
-    # ==========================
-    # Вечером — пинг тем, у кого серия под угрозой (прогноз срыва привычек).
-    scheduler.add_job(
-        run_streak_risk_check,
-        "cron",
-        hour=20,
-        minute=0,
-        args=[bot]
-    )
-
-    # Раз в неделю — короткий отчёт по прогрессу.
-    scheduler.add_job(
-        run_weekly_report,
-        "cron",
-        day_of_week="sun",
-        hour=19,
-        minute=0,
-        args=[bot]
-    )
-
-    # Утро — персонализированное приветствие под стиль общения и профиль.
-    scheduler.add_job(
-        run_morning_ping,
-        "cron",
-        hour=8,
-        minute=0,
-        args=[bot]
-    )
-
-    # Раз в неделю — AI-разбор цели из анкеты vs реальный прогресс (Premium).
-    scheduler.add_job(
-        run_goal_feedback,
-        "cron",
-        day_of_week="mon",
-        hour=10,
-        minute=0,
-        args=[bot]
-    )
-
-    # ==========================
-    # Автоодобрение анкет ("Project ADAM")
-    # ==========================
-    # Раз в 15 минут проверяем, не пора ли автоматически открыть доступ
-    # тем, кто ждёт дольше AUTO_APPROVE_HOURS (см. onboarding_auto.py).
-    scheduler.add_job(
-        run_auto_approve,
-        "interval",
-        minutes=15,
-        args=[bot]
-    )
-
-    # ==========================
-    # Новый день
-    # ==========================
-
-    scheduler.add_job(
-        new_day,
-        "cron",
-        hour=0,
-        minute=0
-    )
-
+    # Планировщик (без изменений)
+    scheduler.add_job(send_reminders, "interval", minutes=120, args=[bot])
+    scheduler.add_job(run_streak_risk_check, "cron", hour=20, minute=0, args=[bot])
+    scheduler.add_job(run_weekly_report, "cron", day_of_week="sun", hour=19, minute=0, args=[bot])
+    scheduler.add_job(run_morning_ping, "cron", hour=8, minute=0, args=[bot])
+    scheduler.add_job(run_goal_feedback, "cron", day_of_week="mon", hour=10, minute=0, args=[bot])
+    scheduler.add_job(run_auto_approve, "interval", minutes=15, args=[bot])
+    scheduler.add_job(new_day, "cron", hour=0, minute=0)
     scheduler.start()
+
+    # MiniApp кнопка
+    if WEBAPP_URL:
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(text="Открыть ADAM", web_app=WebAppInfo(url=WEBAPP_URL))
+        )
+        logger.info(f"MiniApp установлена: {WEBAPP_URL}")
+    else:
+        await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+        logger.warning("WEBAPP_URL не задан — кнопка не установлена")
+
+    web_runner = await run_webapp(PORT)
+
+    logger.info(f"WEB SERVER STARTED ON PORT {PORT}")
+    print(f"WEB SERVER STARTED ON PORT {PORT}")
 
     print("=" * 40)
     print("🤖 Project ADAM v1.0")
     print("✅ База данных подключена")
     print("✅ Планировщик запущен")
+    print(f"🌐 MiniApp сервер: порт {PORT}" + (f" ({WEBAPP_URL})" if WEBAPP_URL else " (без домена)"))
     print("🚀 Бот успешно запущен")
     print("=" * 40)
     logger.info("Бот успешно запущен")
 
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await web_runner.cleanup()
 
 
 if __name__ == "__main__":

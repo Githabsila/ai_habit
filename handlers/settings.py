@@ -188,10 +188,6 @@ async def save_time(message: Message, state: FSMContext):
         minute
     )
 
-    # Если календарь подключён — переносим ивент на новое время
-    if gcal_is_connected(message.from_user.id):
-        sync_habit_reminder(message.from_user.id)
-
     await state.clear()
 
     await message.answer(

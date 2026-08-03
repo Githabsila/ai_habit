@@ -1,0 +1,5 @@
+2026-08-03 15:07:39 | WARNING | main | WEBAPP_URL не задан — кнопка не установлена
+2026-08-03 15:07:39 | INFO    | webapp | 🌐 MiniApp сервер запущен на порту 8080
+2026-08-03 15:07:39 | INFO    | main | Бот успешно запущен
+2026-08-03 15:09:26 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
+2026-08-03 15:09:26 | WARNING | aiogram.dispatcher | Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8986439296)

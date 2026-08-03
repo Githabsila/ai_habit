@@ -22,4 +22,17 @@ AUTO_APPROVE_HOURS = int(os.getenv("AUTO_APPROVE_HOURS", "3"))
 # подключения платёжного провайдера (ЮKassa и т.п.), работает сразу "из коробки".
 PREMIUM_PRICE_STARS = int(os.getenv("PREMIUM_PRICE_STARS", "150"))
 
+# =====================================
+# MINIAPP
+# =====================================
+# Публичный HTTPS-адрес MiniApp — на Railway это домен, который платформа
+# выдаёт сервису после первого деплоя (Settings → Networking → Generate
+# Domain). Задаётся вручную ПОСЛЕ первого деплоя (курица/яйцо: домена ещё
+# нет, пока сервис не задеплоен ни разу) — см. README.
+WEBAPP_URL = os.getenv("WEBAPP_URL", "")
+
+# Порт, на котором слушает встроенный веб-сервер MiniApp — Railway передаёт
+# его сам через переменную PORT, локально по умолчанию 8080.
+PORT = int(os.getenv("PORT", "8080"))
+
 
