@@ -11,3 +11,29 @@
 2026-08-03 15:36:51 | INFO    | main | Бот успешно запущен
 2026-08-03 15:36:52 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
 2026-08-03 15:36:52 | WARNING | aiogram.dispatcher | Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8986439296)
+2026-08-03 15:57:00 | WARNING | main | WEBAPP_URL не задан — кнопка не установлена
+2026-08-03 15:57:00 | INFO    | main | STARTING WEB SERVER
+2026-08-03 15:57:00 | INFO    | webapp | 🌐 MiniApp сервер запущен на порту 8080
+2026-08-03 15:57:00 | INFO    | main | WEB SERVER STARTED ON PORT 8080
+2026-08-03 15:57:00 | INFO    | main | WEB SERVER STARTED ON PORT 8080
+2026-08-03 15:57:00 | INFO    | main | Бот успешно запущен
+2026-08-03 15:57:05 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramConflictError: Telegram server says - Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-08-03 15:57:05 | WARNING | aiogram.dispatcher | Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8986439296)
+2026-08-03 15:57:11 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramConflictError: Telegram server says - Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-08-03 15:57:11 | WARNING | aiogram.dispatcher | Sleep for 1.263629 seconds and try again... (tryings = 1, bot id = 8986439296)
+2026-08-03 15:57:17 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramConflictError: Telegram server says - Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-08-03 15:57:17 | WARNING | aiogram.dispatcher | Sleep for 1.672457 seconds and try again... (tryings = 2, bot id = 8986439296)
+2026-08-03 15:57:24 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramConflictError: Telegram server says - Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-08-03 15:57:24 | WARNING | aiogram.dispatcher | Sleep for 2.176221 seconds and try again... (tryings = 3, bot id = 8986439296)
+2026-08-03 15:57:30 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramConflictError: Telegram server says - Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-08-03 15:57:30 | WARNING | aiogram.dispatcher | Sleep for 2.877943 seconds and try again... (tryings = 4, bot id = 8986439296)
+2026-08-03 15:57:38 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramConflictError: Telegram server says - Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-08-03 15:57:38 | WARNING | aiogram.dispatcher | Sleep for 3.738808 seconds and try again... (tryings = 5, bot id = 8986439296)
+2026-08-03 15:57:47 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramConflictError: Telegram server says - Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-08-03 15:57:47 | WARNING | aiogram.dispatcher | Sleep for 4.796238 seconds and try again... (tryings = 6, bot id = 8986439296)
+2026-08-03 15:57:57 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramConflictError: Telegram server says - Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-08-03 15:57:57 | WARNING | aiogram.dispatcher | Sleep for 5.001254 seconds and try again... (tryings = 7, bot id = 8986439296)
+2026-08-03 15:58:08 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramConflictError: Telegram server says - Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-08-03 15:58:08 | WARNING | aiogram.dispatcher | Sleep for 4.761339 seconds and try again... (tryings = 8, bot id = 8986439296)
+2026-08-03 15:58:13 | ERROR   | asyncio | Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x000001BA339D74D0>
