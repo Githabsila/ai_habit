@@ -1,7 +1,9 @@
 import json
 import logging
 import os
+from pathlib import Path
 
+BASE_DIR = Path(__file__).parent
 from aiohttp import web
 
 from config import BOT_TOKEN, ADMIN_IDS
@@ -72,9 +74,7 @@ async def error_middleware(request, handler):
 
 routes = web.RouteTableDef()
 
-@routes.get("/")
-async def index(request):
-    return web.FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
 
 @routes.get("/api/bootstrap")
 async def bootstrap(request):
@@ -223,16 +223,15 @@ async def buy_route(request):
     user = get_user(telegram_id)
     return web.json_response({"ok": True, "xp": user["xp"] if user else 0})
 
+@routes.get("/")
+async def index(request):
+    return web.FileResponse(BASE_DIR / "static" / "index.html")
+
 def create_app():
     app = web.Application(middlewares=[error_middleware])
     app.add_routes(routes)
-    from pathlib import Path
 
-    BASE_DIR = Path(__file__).parent
-    app.router.add_static(
-         '/static/',
-           path=BASE_DIR / 'webapp' / 'static' 
-           )
+    app.router.add_static('/static/', path=BASE_DIR / 'static')
     return app
 
 async def run_webapp(port):
@@ -249,3 +248,4 @@ async def health(request):
     return web.json_response({"status": "ok"})
 
 logger.info("MiniApp server started")
+
