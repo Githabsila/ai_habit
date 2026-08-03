@@ -244,13 +244,38 @@ class="btn btn--accent">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script type="module" src="/static/app.js?v=1001"></script>
 
-<div class="levelup-overlay" hidden>
-  <div class="levelup-card">
-    <div class="levelup-sparkles">✨✨✨</div>
-    <div class="levelup-title">LEVEL UP!</div>
-    <div class="levelup-level">Уровень <span id="levelupValue">2</span></div>
-  </div>
-</div>
+let levelUpTimer = null;
+
+function showLevelUp(level){
+  const overlay = document.querySelector('.levelup-overlay');
+  const value = document.getElementById('levelupValue');
+
+  if(!overlay || !value) return;
+
+  value.textContent = level;
+
+  // показать
+  overlay.hidden = false;
+  overlay.classList.add('show');
+
+  // Telegram вибрация
+  try{
+    tg.HapticFeedback.notificationOccurred('success');
+  }catch(e){}
+
+  // сброс предыдущего таймера
+  clearTimeout(levelUpTimer);
+
+  // скрыть через 2.2 сек
+  levelUpTimer = setTimeout(() => {
+    overlay.classList.remove('show');
+
+    setTimeout(() => {
+      overlay.hidden = true;
+    }, 300);
+
+  }, 2200);
+}
 
 
 </body>

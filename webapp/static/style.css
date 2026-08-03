@@ -906,11 +906,22 @@ body {
   inset: 0;
   background: rgba(7,4,14,.82);
   backdrop-filter: blur(10px);
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   z-index: 200;
-  animation: levelupFade .45s ease;
+
+  opacity: 0;
+  pointer-events: none;
+
+  transition: opacity .3s ease;
+}
+
+.levelup-overlay.show{
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .levelup-card{
@@ -948,7 +959,12 @@ body {
   letter-spacing: .04em;
 
   background: linear-gradient(90deg,#FFE08A,#F0B429,#FF8A00);
+
+  /* Совместимость */
+  background-clip: text;
   -webkit-background-clip: text;
+
+  color: transparent;
   -webkit-text-fill-color: transparent;
 
   text-shadow: 0 0 24px rgba(240,180,41,.45);

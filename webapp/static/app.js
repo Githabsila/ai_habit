@@ -354,10 +354,7 @@ function showLevelUp(level){
 
   overlay.hidden = false;
 
-  if (newLevel > oldLevel) {
-  showLevelUp(newLevel);
-}
-
+  
   // Telegram вибрация
   try{
     tg.HapticFeedback.notificationOccurred('success');
@@ -367,3 +364,9 @@ function showLevelUp(level){
     overlay.hidden = true;
   }, 2200);
 }
+
+
+if (newLevel > oldLevel) {
+  showLevelUp(newLevel);
+}
+
