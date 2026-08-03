@@ -267,12 +267,6 @@ h1, h2, h3, .display {
    0 10px 18px rgba(34,197,94,.32);
   }
 
-.habit-item.is-done .habit-item__check {
-  border-color: var(--success);
-  background: var(--success);
-  color: #0E0B14;
-}
-
 .habit-item__title {
   flex: 1;
   min-width: 0;
@@ -903,4 +897,96 @@ body {
     transform: translateY(-10vh) scale(1.2);
     opacity: 0;
   }
+}
+
+/* ===== CINEMATIC LEVEL UP ===== */
+
+.levelup-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(7,4,14,.82);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: levelupFade .45s ease;
+}
+
+.levelup-card{
+  width: 280px;
+  border-radius: 28px;
+  padding: 28px 24px;
+  text-align: center;
+
+  background: linear-gradient(
+    180deg,
+    rgba(28,22,44,.96),
+    rgba(16,12,28,.96)
+  );
+
+  border: 1px solid rgba(255,255,255,.08);
+
+  box-shadow:
+    0 0 0 1px rgba(240,180,41,.08),
+    0 24px 60px rgba(0,0,0,.55),
+    0 0 40px rgba(240,180,41,.18);
+
+  animation: levelupPop .55s cubic-bezier(.2,.9,.2,1);
+}
+
+.levelup-sparkles{
+  font-size: 28px;
+  margin-bottom: 12px;
+  animation: sparkleFloat 2s ease-in-out infinite;
+}
+
+.levelup-title{
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: .04em;
+
+  background: linear-gradient(90deg,#FFE08A,#F0B429,#FF8A00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  text-shadow: 0 0 24px rgba(240,180,41,.45);
+}
+
+.levelup-level{
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 16px;
+}
+
+.levelup-level span{
+  color: var(--gold-2);
+  font-weight: 700;
+  font-size: 24px;
+}
+
+@keyframes levelupFade{
+  from{ opacity:0; }
+  to{ opacity:1; }
+}
+
+@keyframes levelupPop{
+  0%{
+    transform: scale(.72) translateY(18px);
+    opacity:0;
+  }
+  70%{
+    transform: scale(1.04);
+    opacity:1;
+  }
+  100%{
+    transform: scale(1);
+    opacity:1;
+  }
+}
+
+@keyframes sparkleFloat{
+  0%,100%{ transform: translateY(0); }
+  50%{ transform: translateY(-6px); }
 }

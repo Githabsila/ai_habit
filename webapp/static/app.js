@@ -324,3 +324,46 @@
 
   document.addEventListener("DOMContentLoaded", boot);
 })();
+
+
+function burstCoins(){
+  for(let i = 0; i < 8; i++){
+    const el = document.createElement('div');
+    el.className = 'coin-burst';
+    el.textContent = '🪙';
+
+    el.style.left = (50 + (Math.random() * 20 - 10)) + 'vw';
+    el.style.top = '36vh';
+
+    el.style.setProperty('--x', (Math.random() * 160 - 80) + 'px');
+    el.style.setProperty('--y', (-Math.random() * 140 - 60) + 'px');
+
+    document.body.appendChild(el);
+
+    setTimeout(() => el.remove(), 1200);
+  }
+}
+
+function showLevelUp(level){
+  const overlay = document.querySelector('.levelup-overlay');
+  const value = document.getElementById('levelupValue');
+
+  if(!overlay || !value) return;
+
+  value.textContent = level;
+
+  overlay.hidden = false;
+
+  if (newLevel > oldLevel) {
+  showLevelUp(newLevel);
+}
+
+  // Telegram вибрация
+  try{
+    tg.HapticFeedback.notificationOccurred('success');
+  }catch(e){}
+
+  setTimeout(() => {
+    overlay.hidden = true;
+  }, 2200);
+}
