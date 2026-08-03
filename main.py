@@ -111,7 +111,13 @@ async def main():
         await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
         logger.warning("WEBAPP_URL не задан — кнопка не установлена")
 
+    logger.info("STARTING WEB SERVER")
+    print("STARTING WEB SERVER", flush=True)
+
     web_runner = await run_webapp(PORT)
+
+    logger.info(f"WEB SERVER STARTED ON PORT {PORT}")
+    print(f"WEB SERVER STARTED ON PORT {PORT}", flush=True)
 
     logger.info(f"WEB SERVER STARTED ON PORT {PORT}")
     print(f"WEB SERVER STARTED ON PORT {PORT}")
