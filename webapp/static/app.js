@@ -386,7 +386,7 @@
 })();
 
 document.getElementById("aiCoachBtn").addEventListener("click", () => {
-    window.location.href = "/aiCoach";
+    window.location.href = "/";
 });
 
 

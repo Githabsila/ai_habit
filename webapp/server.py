@@ -223,6 +223,10 @@ async def buy_route(request):
     user = get_user(telegram_id)
     return web.json_response({"ok": True, "xp": user["xp"] if user else 0})
 
+    @routes.get("/coach")
+    async def coach(request):
+        return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
+
 @routes.get("/")
 async def index(request):
     return web.FileResponse(BASE_DIR / "static" / "index.html")
@@ -233,14 +237,14 @@ async def ai_miniapp(request):
     """Serve the AI mini app interface"""
     return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
 
+
+
 def create_app():
     app = web.Application(middlewares=[error_middleware])
     app.add_routes(routes)
 
 
-    @routes.get('/coach')
-    async def coach(request):
-     return web.FileResponse('./static/coach.html')
+
 
     # Добавляем маршруты для AI мини-приложения
     from webapp.routes_ai_miniapp import routes as ai_routes
