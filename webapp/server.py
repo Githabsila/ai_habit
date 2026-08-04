@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
+routes = web.RouteTableDef()
 from aiohttp import web
 
 from config import BOT_TOKEN, ADMIN_IDS
@@ -85,13 +86,13 @@ async def error_middleware(request, handler):
         logger.exception(f"Необработанная ошибка в {request.path}")
         return web.json_response({"error": "internal_error"}, status=500)
 
-routes = web.RouteTableDef()
 
 
 
-@routes.get("/api/bootstrap")
-async def bootstrap(request):
-    telegram_id, is_admin = await _authenticate(request)
+
+    @routes.get("/api/bootstrap")
+    async def bootstrap(request):
+     telegram_id, is_admin = await _authenticate(request)
     user = get_user(telegram_id)
     habits = get_habits(telegram_id)
     progress = get_progress(telegram_id)
@@ -147,9 +148,9 @@ async def bootstrap(request):
     })
 
 # ПРИВЫЧКИ (как в Этапе 1)
-@routes.post("/api/habits")
-async def create_habit(request):
-    telegram_id, _ = await _authenticate(request)
+    @routes.post("/api/habits")
+    async def create_habit(request):
+            telegram_id, _ = await _authenticate(request)
     body = await request.json()
     title = body.get("title", "").strip()
     if len(title) < 2:
@@ -163,9 +164,9 @@ def _owned_habit_or_404(habit_id, telegram_id):
         raise web.HTTPNotFound(text='{"error": "not_found"}')
     return habit
 
-@routes.put("/api/habits/{habit_id}")
-async def rename_habit(request):
-    telegram_id, _ = await _authenticate(request)
+    @routes.put("/api/habits/{habit_id}")
+    async def rename_habit(request):
+     telegram_id, _ = await _authenticate(request)
     habit_id = int(request.match_info["habit_id"])
     _owned_habit_or_404(habit_id, telegram_id)
     body = await request.json()
@@ -175,9 +176,9 @@ async def rename_habit(request):
     edit_habit(habit_id, new_title)
     return web.json_response({"ok": True})
 
-@routes.post("/api/habits/{habit_id}/complete")
-async def complete_habit_route(request):
-    telegram_id, _ = await _authenticate(request)
+    @routes.post("/api/habits/{habit_id}/complete")
+    async def complete_habit_route(request):
+     telegram_id, _ = await _authenticate(request)
     habit_id = int(request.match_info["habit_id"])
     _owned_habit_or_404(habit_id, telegram_id)
     success = complete_habit(habit_id)
@@ -185,27 +186,27 @@ async def complete_habit_route(request):
         return web.json_response({"error": "already_completed"}, status=409)
     return web.json_response({"ok": True, "progress": get_progress(telegram_id)})
 
-@routes.delete("/api/habits/{habit_id}")
-async def delete_habit_route(request):
-    telegram_id, _ = await _authenticate(request)
+    @routes.delete("/api/habits/{habit_id}")
+    async def delete_habit_route(request):
+        telegram_id, _ = await _authenticate(request)
     habit_id = int(request.match_info["habit_id"])
     _owned_habit_or_404(habit_id, telegram_id)
     delete_habit(habit_id)
     return web.json_response({"ok": True})
 
 # НАСТРОЙКИ (как в Этапе 1)
-@routes.post("/api/settings/reminder-time")
-async def set_reminder_time(request):
-    telegram_id, _ = await _authenticate(request)
+    @routes.post("/api/settings/reminder-time")
+    async def set_reminder_time(request):
+        telegram_id, _ = await _authenticate(request)
     body = await request.json()
     hour = int(body.get("hour"))
     minute = int(body.get("minute"))
     update_reminder_time(telegram_id, hour, minute)
     return web.json_response({"ok": True})
 
-@routes.post("/api/settings/ai-style")
-async def set_ai_style(request):
-    telegram_id, _ = await _authenticate(request)
+    @routes.post("/api/settings/ai-style")
+    async def set_ai_style(request):
+        telegram_id, _ = await _authenticate(request)
     body = await request.json()
     style = body.get("style")
     if style not in ("soft", "neutral", "strict"):
@@ -213,50 +214,78 @@ async def set_ai_style(request):
     update_ai_style(telegram_id, style)
     return web.json_response({"ok": True})
 
-# ====================== Этап 2 API ======================
-@routes.get("/api/shop")
-async def get_shop(request):
-    telegram_id, _ = await _authenticate(request)
-    owned_item_ids = set(get_user_items(telegram_id))
-    items = [
-        {
-            "id": it["id"], "name": it["name"], "description": it["description"],
-            "price": it["price"], "owned": it["id"] in owned_item_ids,
-        } for it in get_shop_items()
-    ]
-    return web.json_response({"items": items})
 
-@routes.post("/api/buy/{item_id}")
-async def buy_route(request):
-    telegram_id, _ = await _authenticate(request)
-    item_id = int(request.match_info["item_id"])
-    success = buy_shop_item(telegram_id, item_id)
-    if not success:
-        return web.json_response({"error": "not_enough_xp_or_not_found"}, status=400)
-    user = get_user(telegram_id)
-    return web.json_response({"ok": True, "xp": user["xp"] if user else 0})
+# ====================== Главная ======================
+
+    @routes.get("/")
+    async def index(request):
+        return web.FileResponse(BASE_DIR / "static" / "index.html")
+
 
     @routes.get("/coach")
     async def coach(request):
-        return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
+            return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
 
-@routes.get("/")
-async def index(request):
-    return web.FileResponse(BASE_DIR / "static" / "index.html")
 
-# ====================== AI МиниПриложение ======================
-@routes.get("/ai")
-async def ai_miniapp(request):
-    """Serve the AI mini app interface"""
-    return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
+# ====================== Этап 2 API ======================
 
+    @routes.get("/api/shop")
+    async def get_shop(request):
+        telegram_id, _ = await _authenticate(request)
+    owned_item_ids = set(get_user_items(telegram_id))
+
+    items = [
+        {
+            "id": it["id"],
+            "name": it["name"],
+            "description": it["description"],
+            "price": it["price"],
+            "owned": it["id"] in owned_item_ids,
+        }
+        for it in get_shop_items()
+    ]
+
+    return web.json_response({"items": items})
+
+
+    @routes.post("/api/buy/{item_id}")
+    async def buy_route(request):
+        telegram_id, _ = await _authenticate(request)
+
+    item_id = int(request.match_info["item_id"])
+    success = buy_shop_item(telegram_id, item_id)
+
+    if not success:
+        return web.json_response(
+            {"error": "not_enough_xp_or_not_found"},
+            status=400
+        )
+
+    user = get_user(telegram_id)
+
+    return web.json_response({
+        "ok": True,
+        "xp": user["xp"] if user else 0
+    })
 
 
 def create_app():
-    app = web.Application(middlewares=[error_middleware])
+    app = web.Application()
+
     app.add_routes(routes)
 
+    app.router.add_static(
+        "/static",
+        BASE_DIR / "static"
+    )
 
+    return app
+
+# ====================== AI МиниПриложение ======================
+    @routes.get("/ai")
+    async def ai_miniapp(request):
+        """Serve the AI mini app interface"""
+    return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
 
 
     # Добавляем маршруты для AI мини-приложения
@@ -265,6 +294,8 @@ def create_app():
 
     app.router.add_static('/static/', path=BASE_DIR / 'static')
     return app
+
+
 
 async def run_webapp(port):
     app = create_app()
