@@ -4,11 +4,12 @@ from db import (
     cache_set,
 )
 
-from services.ai_utils import (
+from webapp.services.ai_utils import (
     build_history_text,
     build_user_context,
     _cache_key,
 )
+
 
 from handlers.ai import (
     build_history_text,
