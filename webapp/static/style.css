@@ -1685,3 +1685,20 @@ body {
 .rating-stat .stat-icon{
     font-size:16px;
 }
+
+.tab-bar__item--ai{
+    background:linear-gradient(135deg,#8B5CF6,#6D28D9);
+    border-radius:22px;
+    transform:translateY(-12px);
+    box-shadow:0 8px 25px rgba(139,92,246,.45);
+}
+
+.tab-bar__item--ai .tab-bar__icon{
+    font-size:28px;
+    color:#FFD54F;
+}
+
+.tab-bar__item--ai span:last-child{
+    color:#fff;
+    font-weight:700;
+}

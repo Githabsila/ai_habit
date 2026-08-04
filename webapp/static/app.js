@@ -385,3 +385,6 @@
   document.addEventListener("DOMContentLoaded", boot);
 })();
 
+document.getElementById("aiCoachBtn").addEventListener("click", () => {
+    window.location.href = "/coach";
+});
