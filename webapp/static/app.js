@@ -5,6 +5,7 @@
   const RING_CIRCUMFERENCE = 326.7; // 2 * PI * 52
 
   let state = null; // последний bootstrap-снимок
+  let knownLevel = null; // для детекта левел-апа между загрузками
 
   // ===================== TELEGRAM WEBAPP INIT =====================
   function initTelegram() {
@@ -50,6 +51,11 @@
 
   async function loadBootstrap() {
     state = await api("/api/bootstrap");
+    const newLevel = state.user.level;
+    if (knownLevel !== null && newLevel > knownLevel) {
+      showLevelUp(newLevel);
+    }
+    knownLevel = newLevel;
     renderAll();
   }
 
@@ -306,6 +312,43 @@
     return (code && map[code]) || "Что-то пошло не так";
   }
 
+  // ===================== LEVEL UP =====================
+  let levelUpTimer = null;
+
+  function burstCoins() {
+    for (let i = 0; i < 8; i++) {
+      const el = document.createElement("div");
+      el.className = "coin-burst";
+      el.textContent = "🪙";
+      el.style.left = (50 + (Math.random() * 20 - 10)) + "vw";
+      el.style.top = "36vh";
+      el.style.setProperty("--x", (Math.random() * 160 - 80) + "px");
+      el.style.setProperty("--y", (-Math.random() * 140 - 60) + "px");
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1200);
+    }
+  }
+
+  function showLevelUp(level) {
+    const overlay = document.getElementById("levelupOverlay");
+    const value = document.getElementById("levelupValue");
+    if (!overlay || !value) return;
+
+    value.textContent = level;
+    overlay.hidden = false;
+    overlay.classList.add("show");
+    burstCoins();
+    if (tg && tg.HapticFeedback) {
+      try { tg.HapticFeedback.notificationOccurred("success"); } catch (e) {}
+    }
+
+    clearTimeout(levelUpTimer);
+    levelUpTimer = setTimeout(() => {
+      overlay.classList.remove("show");
+      setTimeout(() => { overlay.hidden = true; }, 300);
+    }, 2200);
+  }
+
   // ===================== BOOT =====================
   async function boot() {
     initTelegram();
@@ -324,49 +367,4 @@
 
   document.addEventListener("DOMContentLoaded", boot);
 })();
-
-
-function burstCoins(){
-  for(let i = 0; i < 8; i++){
-    const el = document.createElement('div');
-    el.className = 'coin-burst';
-    el.textContent = '🪙';
-
-    el.style.left = (50 + (Math.random() * 20 - 10)) + 'vw';
-    el.style.top = '36vh';
-
-    el.style.setProperty('--x', (Math.random() * 160 - 80) + 'px');
-    el.style.setProperty('--y', (-Math.random() * 140 - 60) + 'px');
-
-    document.body.appendChild(el);
-
-    setTimeout(() => el.remove(), 1200);
-  }
-}
-
-function showLevelUp(level){
-  const overlay = document.querySelector('.levelup-overlay');
-  const value = document.getElementById('levelupValue');
-
-  if(!overlay || !value) return;
-
-  value.textContent = level;
-
-  overlay.hidden = false;
-
-  
-  // Telegram вибрация
-  try{
-    tg.HapticFeedback.notificationOccurred('success');
-  }catch(e){}
-
-  setTimeout(() => {
-    overlay.hidden = true;
-  }, 2200);
-}
-
-
-if (newLevel > oldLevel) {
-  showLevelUp(newLevel);
-}
 

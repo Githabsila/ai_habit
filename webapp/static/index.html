@@ -18,6 +18,13 @@
 
 <svg class="level-ring" viewBox="0 0 120 120">
 
+<defs>
+<linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#FFD76A"></stop>
+<stop offset="100%" stop-color="#F0B429"></stop>
+</linearGradient>
+</defs>
+
 <circle class="level-ring__track"
 cx="60"
 cy="60"
@@ -227,10 +234,20 @@ class="btn btn--accent">
 
 </nav>
 
-<div class="toast"></div>
+</div>
 
-<div class="loading-overlay" hidden>
+<div class="toast" id="toast"></div>
+
+<div class="loading-overlay" id="loadingOverlay">
   <div class="loading-overlay__coin">🪙</div>
+</div>
+
+<div class="levelup-overlay" id="levelupOverlay" hidden>
+  <div class="levelup-card">
+    <div class="levelup-sparkles">✨🎉✨</div>
+    <div class="levelup-title">LEVEL UP</div>
+    <div class="levelup-level">Новый уровень: <span id="levelupValue">0</span></div>
+  </div>
 </div>
 
 <div class="bg-particles">
@@ -242,41 +259,7 @@ class="btn btn--accent">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=1001"></script>
-
-let levelUpTimer = null;
-
-function showLevelUp(level){
-  const overlay = document.querySelector('.levelup-overlay');
-  const value = document.getElementById('levelupValue');
-
-  if(!overlay || !value) return;
-
-  value.textContent = level;
-
-  // показать
-  overlay.hidden = false;
-  overlay.classList.add('show');
-
-  // Telegram вибрация
-  try{
-    tg.HapticFeedback.notificationOccurred('success');
-  }catch(e){}
-
-  // сброс предыдущего таймера
-  clearTimeout(levelUpTimer);
-
-  // скрыть через 2.2 сек
-  levelUpTimer = setTimeout(() => {
-    overlay.classList.remove('show');
-
-    setTimeout(() => {
-      overlay.hidden = true;
-    }, 300);
-
-  }, 2200);
-}
-
+<script type="module" src="/static/app.js?v=1002"></script>
 
 </body>
 </html>
