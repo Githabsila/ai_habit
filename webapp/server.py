@@ -5,7 +5,7 @@ from pathlib import Path
 from webapp.services.ai_coach import ask_ai
 from aiohttp import web
 from aiohttp.web import Application
-
+app = web.Application()
 
 
 
@@ -347,3 +347,13 @@ async def health(request):
 
 logger.info("MiniApp server started")
 
+
+from aiohttp import web
+
+async def handle_root(request):
+    return web.Response(text="OK")
+
+app.router.add_get('/', handle_root)
+
+app.router.add_static('/static', path='webapp/static')  # пример
+# или отдавайте index.html по корню
