@@ -4,7 +4,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-PORT = int(os.getenv("PORT", 8080))
+
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -13,21 +13,17 @@ from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 from config import BOT_TOKEN, WEBAPP_URL, PORT
 from db import create_tables
 from webapp.server import run_webapp
-
 from logging_config import setup_logging
-
 from scheduler import scheduler, new_day
 from reminders import send_reminders
 from coach import run_streak_risk_check, run_weekly_report
 from onboarding_auto import run_auto_approve
 from goal_feedback import run_goal_feedback
 from morning_ping import run_morning_ping
-
 from backups.backup import start_backup_scheduler
-
 from middlewares.access_control import AccessControlMiddleware
 
-# ====================== ИМПОРТЫ (Этап 1 + Этап 2) ======================
+# ====================== ИМПОРТЫ ХЕНДЛЕРОВ ======================
 from handlers.admin import router as admin_router
 from handlers.calendar import router as calendar_router
 from handlers.start import router as start_router
@@ -45,32 +41,34 @@ from handlers.shop import router as shop_router
 from handlers.achievements import router as achievements_router
 from handlers.daily import router as daily_router
 from handlers.community import router as community_router
-# =====================================================================
 
+# ====================== НАСТРОЙКА ЛОГГИРОВАНИЯ ======================
 setup_logging()
 logger = logging.getLogger("main")
 
+# ====================== ИНИЦИАЛИЗАЦИЯ БД ======================
 create_tables()
+logger.info("✅ База данных подключена")
 
-print("✅ База данных подключена")
-
+# ====================== БЭКАПЫ ======================
 start_backup_scheduler()
 
-
+# ====================== ОСНОВНАЯ ФУНКЦИЯ ======================
 async def main():
-
+    # --- БОТ ---
     bot = Bot(
         token=BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
 
+    # --- ДИСПЕТЧЕР ---
     dp = Dispatcher()
 
-    # Middleware (закрытый доступ)
+    # Middleware (доступ)
     dp.message.outer_middleware(AccessControlMiddleware())
     dp.callback_query.outer_middleware(AccessControlMiddleware())
 
-    # Все роутеры (теперь MiniApp полностью работает)
+    # Роутеры
     dp.include_router(admin_router)
     dp.include_router(shop_router)
     dp.include_router(calendar_router)
@@ -88,8 +86,8 @@ async def main():
     dp.include_router(achievements_router)
     dp.include_router(daily_router)
     dp.include_router(community_router)
-   
-    # Планировщик (без изменений)
+
+    # --- ПЛАНИРОВЩИК ---
     scheduler.add_job(send_reminders, "interval", minutes=120, args=[bot])
     scheduler.add_job(run_streak_risk_check, "cron", hour=20, minute=0, args=[bot])
     scheduler.add_job(run_weekly_report, "cron", day_of_week="sun", hour=19, minute=0, args=[bot])
@@ -98,44 +96,48 @@ async def main():
     scheduler.add_job(run_auto_approve, "interval", minutes=15, args=[bot])
     scheduler.add_job(new_day, "cron", hour=0, minute=0)
     scheduler.start()
+    logger.info("✅ Планировщик запущен")
 
-    # MiniApp кнопка
+    # --- КНОПКА MINIAPP ---
     if WEBAPP_URL:
         await bot.set_chat_menu_button(
-            menu_button=MenuButtonWebApp(text="Открыть ADAM", web_app=WebAppInfo(url=WEBAPP_URL))
+            menu_button=MenuButtonWebApp(
+                text="Открыть ADAM",
+                web_app=WebAppInfo(url=WEBAPP_URL)
+            )
         )
-        logger.info(f"MiniApp установлена: {WEBAPP_URL}")
+        logger.info(f"✅ MiniApp кнопка установлена: {WEBAPP_URL}")
     else:
         await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
-        logger.warning("WEBAPP_URL не задан — кнопка не установлена")
+        logger.warning("⚠️ WEBAPP_URL не задан — кнопка MiniApp не установлена")
 
-    logger.info("STARTING WEB SERVER")
-    print("STARTING WEB SERVER", flush=True)
+    # --- ЗАПУСК ВЕБ-СЕРВЕРА ---
+    logger.info("🌐 Запуск веб-сервера...")
+    try:
+        web_runner = await run_webapp(PORT)
+        logger.info(f"✅ Веб-сервер запущен на порту {PORT}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка запуска веб-сервера: {e}")
+        web_runner = None
 
-    web_runner = await run_webapp(PORT)
-
-    logger.info(f"WEB SERVER STARTED ON PORT {PORT}")
-    print(f"WEB SERVER STARTED ON PORT {PORT}", flush=True)
-
-    logger.info(f"WEB SERVER STARTED ON PORT {PORT}")
-    print(f"WEB SERVER STARTED ON PORT {PORT}")
-
-    print("=" * 40)
+    # --- СТАРТОВОЕ СООБЩЕНИЕ ---
+    print("\n" + "=" * 50)
     print("🤖 Project ADAM v1.0")
     print("✅ База данных подключена")
     print("✅ Планировщик запущен")
-    print(f"🌐 MiniApp сервер: порт {PORT}" + (f" ({WEBAPP_URL})" if WEBAPP_URL else " (без домена)"))
+    print(f"🌐 Веб-сервер: порт {PORT}" + (f" ({WEBAPP_URL})" if WEBAPP_URL else ""))
     print("🚀 Бот успешно запущен")
-    print("=" * 40)
-    logger.info("Бот успешно запущен")
+    print("=" * 50 + "\n")
+    logger.info("🚀 Бот успешно запущен")
 
+    # --- ЗАПУСК ПОЛЛИНГА ---
     try:
         await dp.start_polling(bot)
     finally:
-        await web_runner.cleanup()
+        if web_runner:
+            await web_runner.cleanup()
+            logger.info("🛑 Веб-сервер остановлен")
 
-
+# ====================== ТОЧКА ВХОДА ======================
 if __name__ == "__main__":
     asyncio.run(main())
-
-    

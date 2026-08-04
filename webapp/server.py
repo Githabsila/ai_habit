@@ -2,36 +2,28 @@ import json
 import logging
 import os
 from pathlib import Path
-from webapp.services.ai_coach import ask_ai
+
 from aiohttp import web
 from aiohttp.web import Application
-app = web.Application()
-
-
-
-BASE_DIR = Path(__file__).parent
-routes = web.RouteTableDef()
 
 from config import BOT_TOKEN, ADMIN_IDS
 from webapp.telegram_auth import validate_init_data
+from webapp.services.ai_coach import ask_ai
 
 from db import (
     get_user, add_user, is_banned, get_access_status,
     get_habits, get_habit, add_habit, edit_habit, delete_habit,
     complete_habit, get_progress, get_settings,
     update_reminder_time, update_ai_style, get_ai_style,
-    # Этап 2 данные
     get_shop_items, buy_shop_item, get_user_items,
-    get_rating,
-    get_calendar,
-    get_achievements
+    get_rating, get_calendar, get_achievements
 )
 
 logger = logging.getLogger("webapp")
+BASE_DIR = Path(__file__).parent
+routes = web.RouteTableDef()
 
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-
-# ====================== АВТОРИЗАЦИЯ (как в Этапе 1) ======================
+# ====================== АВТОРИЗАЦИЯ ======================
 
 def _extract_init_data(request):
     header = request.headers.get("Authorization", "")
@@ -39,20 +31,9 @@ def _extract_init_data(request):
         return header[4:]
     return request.headers.get("X-Telegram-Init-Data", "")
 
-
 async def _authenticate(request):
     init_data = _extract_init_data(request)
-
-    print("=" * 60)
-    print("Authorization:", request.headers.get("Authorization"))
-    print("InitData:", repr(init_data))
-    print("BOT_TOKEN:", BOT_TOKEN)
-
     tg_user = validate_init_data(init_data, BOT_TOKEN)
-
-    print("TG_USER:", tg_user)
-    print("=" * 60)
-
     if tg_user is None:
         raise web.HTTPUnauthorized(reason="invalid_init_data")
 
@@ -80,7 +61,16 @@ async def _authenticate(request):
             )
 
     return telegram_id, is_admin
-# ====================== API (всё + Этап 2) ======================
+
+# ====================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ======================
+
+def _owned_habit_or_404(habit_id, telegram_id):
+    habit = get_habit(habit_id)
+    if not habit or habit["telegram_id"] != telegram_id:
+        raise web.HTTPNotFound()
+
+# ====================== MIDDLEWARE ======================
+
 @web.middleware
 async def error_middleware(request, handler):
     try:
@@ -91,18 +81,15 @@ async def error_middleware(request, handler):
         logger.exception(f"Необработанная ошибка в {request.path}")
         return web.json_response({"error": "internal_error"}, status=500)
 
+# ====================== МАРШРУТЫ ======================
 
-
-
-
-    @routes.get("/api/bootstrap")
-    async def bootstrap(request):
-     telegram_id, is_admin = await _authenticate(request)
+@routes.get("/api/bootstrap")
+async def bootstrap(request):
+    telegram_id, is_admin = await _authenticate(request)
     user = get_user(telegram_id)
     habits = get_habits(telegram_id)
     progress = get_progress(telegram_id)
     settings_row = get_settings(telegram_id)
-
     shop_items = get_shop_items()
     owned_item_ids = set(get_user_items(telegram_id))
     leaderboard = get_rating()
@@ -152,11 +139,9 @@ async def error_middleware(request, handler):
         ],
     })
 
-# ПРИВЫЧКИ (как в Этапе 1)
-    @routes.post("/api/habits")
-    async def create_habit(request):
-            body = await request.json()
-            telegram_id, _ = await _authenticate(request)
+@routes.post("/api/habits")
+async def create_habit(request):
+    telegram_id, _ = await _authenticate(request)
     body = await request.json()
     title = body.get("title", "").strip()
     if len(title) < 2:
@@ -164,55 +149,35 @@ async def error_middleware(request, handler):
     add_habit(telegram_id, title)
     return web.json_response({"ok": True})
 
-from webapp.services.ai_coach import ask_ai
-
 @routes.post("/api/ai/chat")
 async def ai_chat(request):
     telegram_id, _ = await _authenticate(request)
-
     body = await request.json()
-
     message = body.get("message", "").strip()
-
     if not message:
-        return web.json_response(
-            {"error": "empty_message"},
-            status=400,
-        )
-
+        return web.json_response({"error": "empty_message"}, status=400)
     try:
-        answer = await ask_ai(
-            telegram_id,
-            message,
-        )
-
-        return web.json_response({
-            "reply": answer
-        })
-
+        answer = await ask_ai(telegram_id, message)
+        return web.json_response({"reply": answer})
     except Exception as e:
         logger.exception(e)
+        return web.json_response({"error": "ai_error"}, status=500)
 
-        return web.json_response(
-            {
-                "error": "ai_error"
-            },
-            status=500,
-        )
-    @routes.put("/api/habits/{habit_id}")
-    async def rename_habit(request):
-     telegram_id, _ = await _authenticate(request)
+@routes.put("/api/habits/{habit_id}")
+async def rename_habit(request):
+    telegram_id, _ = await _authenticate(request)
     habit_id = int(request.match_info["habit_id"])
     _owned_habit_or_404(habit_id, telegram_id)
+    body = await request.json()
     new_title = body.get("title", "").strip()
     if len(new_title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)
     edit_habit(habit_id, new_title)
     return web.json_response({"ok": True})
 
-    @routes.post("/api/habits/{habit_id}/complete")
-    async def complete_habit_route(request):
-     telegram_id, _ = await _authenticate(request)
+@routes.post("/api/habits/{habit_id}/complete")
+async def complete_habit_route(request):
+    telegram_id, _ = await _authenticate(request)
     habit_id = int(request.match_info["habit_id"])
     _owned_habit_or_404(habit_id, telegram_id)
     success = complete_habit(habit_id)
@@ -220,27 +185,26 @@ async def ai_chat(request):
         return web.json_response({"error": "already_completed"}, status=409)
     return web.json_response({"ok": True, "progress": get_progress(telegram_id)})
 
-    @routes.delete("/api/habits/{habit_id}")
-    async def delete_habit_route(request):
-        telegram_id, _ = await _authenticate(request)
+@routes.delete("/api/habits/{habit_id}")
+async def delete_habit_route(request):
+    telegram_id, _ = await _authenticate(request)
     habit_id = int(request.match_info["habit_id"])
     _owned_habit_or_404(habit_id, telegram_id)
     delete_habit(habit_id)
     return web.json_response({"ok": True})
 
-# НАСТРОЙКИ (как в Этапе 1)
-    @routes.post("/api/settings/reminder-time")
-    async def set_reminder_time(request):
-        telegram_id, _ = await _authenticate(request)
+@routes.post("/api/settings/reminder-time")
+async def set_reminder_time(request):
+    telegram_id, _ = await _authenticate(request)
     body = await request.json()
     hour = int(body.get("hour"))
     minute = int(body.get("minute"))
     update_reminder_time(telegram_id, hour, minute)
     return web.json_response({"ok": True})
 
-    @routes.post("/api/settings/ai-style")
-    async def set_ai_style(request):
-        telegram_id, _ = await _authenticate(request)
+@routes.post("/api/settings/ai-style")
+async def set_ai_style(request):
+    telegram_id, _ = await _authenticate(request)
     body = await request.json()
     style = body.get("style")
     if style not in ("soft", "neutral", "strict"):
@@ -248,26 +212,18 @@ async def ai_chat(request):
     update_ai_style(telegram_id, style)
     return web.json_response({"ok": True})
 
+@routes.get("/")
+async def index(request):
+    return web.FileResponse(BASE_DIR / "static" / "index.html")
 
-# ====================== Главная ======================
+@routes.get("/coach")
+async def coach(request):
+    return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
 
-    @routes.get("/")
-    async def index(request):
-        return web.FileResponse(BASE_DIR / "static" / "index.html")
-
-
-    @routes.get("/coach")
-    async def coach(request):
-            return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
-
-
-# ====================== Этап 2 API ======================
-
-    @routes.get("/api/shop")
-    async def get_shop(request):
-        telegram_id, _ = await _authenticate(request)
+@routes.get("/api/shop")
+async def get_shop(request):
+    telegram_id, _ = await _authenticate(request)
     owned_item_ids = set(get_user_items(telegram_id))
-
     items = [
         {
             "id": it["id"],
@@ -278,58 +234,34 @@ async def ai_chat(request):
         }
         for it in get_shop_items()
     ]
-
     return web.json_response({"items": items})
 
-
-    @routes.post("/api/buy/{item_id}")
-    async def buy_route(request):
-        telegram_id, _ = await _authenticate(request)
-
+@routes.post("/api/buy/{item_id}")
+async def buy_route(request):
+    telegram_id, _ = await _authenticate(request)
     item_id = int(request.match_info["item_id"])
     success = buy_shop_item(telegram_id, item_id)
-
     if not success:
-        return web.json_response(
-            {"error": "not_enough_xp_or_not_found"},
-            status=400
-        )
-
+        return web.json_response({"error": "not_enough_xp_or_not_found"}, status=400)
     user = get_user(telegram_id)
-
     return web.json_response({
         "ok": True,
         "xp": user["xp"] if user else 0
     })
 
+@routes.get("/health")
+async def health(request):
+    return web.json_response({"status": "ok"})
+
+# ====================== СОЗДАНИЕ ПРИЛОЖЕНИЯ ======================
 
 def create_app():
-    app = web.Application()
-
+    app = web.Application(middlewares=[error_middleware])
     app.add_routes(routes)
-
-    app.router.add_static(
-        "/static",
-        BASE_DIR / "static"
-    )
-
+    app.router.add_static("/static", BASE_DIR / "static")
     return app
 
-# ====================== AI МиниПриложение ======================
-    @routes.get("/ai")
-    async def ai_miniapp(request):
-        """Serve the AI mini app interface"""
-    return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
-
-
-    # Добавляем маршруты для AI мини-приложения
-    from webapp.routes_ai_miniapp import routes as ai_routes
-    app.add_routes(ai_routes)
-
-    app.router.add_static('/static/', path=BASE_DIR / 'static')
-    return app
-
-
+# ====================== ЗАПУСК СЕРВЕРА ======================
 
 async def run_webapp(port):
     app = create_app()
@@ -339,26 +271,3 @@ async def run_webapp(port):
     await site.start()
     logger.info(f"🌐 MiniApp сервер запущен на порту {port}")
     return runner
-
-@routes.get("/health")
-async def health(request):
-    return web.json_response({"status": "ok"})
-
-logger.info("MiniApp server started")
-
-
-from aiohttp import web
-
-# Обработчик для корневого пути — чтобы Railway не паниковал
-async def root_handler(request):
-    return web.Response(text="✅ Bot is running")
-
-app.router.add_get('/', root_handler)
-
-async def handle_root(request):
-    return web.Response(text="OK")
-
-app.router.add_get('/', handle_root)
-
-app.router.add_static('/static', path='webapp/static')  # пример
-# или отдавайте index.html по корню
