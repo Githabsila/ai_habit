@@ -12,7 +12,11 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
-
+from webapp.services.ai_utils import (
+    build_history_text,
+    build_user_context,
+    _cache_key,
+)
 
 
 from db import (
