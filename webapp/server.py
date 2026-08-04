@@ -237,6 +237,11 @@ def create_app():
     app = web.Application(middlewares=[error_middleware])
     app.add_routes(routes)
 
+
+    @routes.get('/coach')
+    async def coach(request):
+     return web.FileResponse('./static/coach.html')
+
     # Добавляем маршруты для AI мини-приложения
     from webapp.routes_ai_miniapp import routes as ai_routes
     app.add_routes(ai_routes)
