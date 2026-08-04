@@ -806,40 +806,35 @@ opacity:.35;
 }
 
 .tab-bar__item{
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    gap:4px;
-    color:var(--muted);
-    transition:
-        color .25s ease,
-        transform .22s ease,
-        background .25s ease;
-    border-radius:18px;
-    padding:10px 8px;
+
     position:relative;
-}
 
-.tab-bar__item:active{
-    transform:scale(.94);
-}
+    flex:1;
 
-.tab-bar__item.active{
-    color:#FFD54F;
-    background:rgba(255,213,79,.12);
-    transform:translateY(-2px);
-}
+    height:58px;
 
-.tab-bar__icon{
-    transition:
-        transform .25s ease,
-        color .25s ease;
-}
+    display:flex;
 
-.tab-bar__item.active .tab-bar__icon{
-    transform:scale(1.12);
+    flex-direction:column;
+
+    justify-content:center;
+
+    align-items:center;
+
+    gap:4px;
+
+    border:none;
+
+    border-radius:18px;
+
+    background:transparent;
+
+    color:#8D8DA7;
+
+    transition:.35s;
+
+    cursor:pointer;
+
 }
 
 .tab-bar__icon{
@@ -1668,27 +1663,3 @@ body {
     font-size:16px;
 }
 
-/* Все экраны */
-.screen{
-    opacity:0;
-    transform:translateX(24px);
-    transition:
-        opacity .35s ease,
-        transform .35s cubic-bezier(.22,.8,.2,1);
-    pointer-events:none;
-    position:absolute;
-    inset:0;
-}
-
-.screen.active{
-    opacity:1;
-    transform:translateX(0);
-    pointer-events:auto;
-    position:relative;
-}
-
-/* Анимация ухода */
-.screen.exit{
-    opacity:0;
-    transform:translateX(-24px);
-}
