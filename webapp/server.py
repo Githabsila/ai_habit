@@ -5,6 +5,11 @@ from pathlib import Path
 from webapp.services.ai_coach import ask_ai
 from aiohttp import web
 from aiohttp.web import Application
+from webapp.services.ai_utils import (
+    build_history_text,
+    build_user_context,
+    _cache_key,
+)
 
 
 
