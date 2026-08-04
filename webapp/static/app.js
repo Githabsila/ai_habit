@@ -30,6 +30,7 @@
 
   // ===================== API =====================
   async function api(path, options = {}) {
+    console.log("initData =", initData());
     const res = await fetch(path, {
       ...options,
       headers: {
