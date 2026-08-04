@@ -326,15 +326,18 @@
 
   function friendlyError(err) {
     const code = err && err.data && err.data.error;
+
     const map = {
-      title_too_short: "Название слишком короткое",
-      already_completed: "Уже выполнено сегодня",
-      not_enough_xp_or_not_found: "Не хватает Adam Coin",
-      not_found: "Не найдено",
-      banned: "Доступ ограничен",
+        title_too_short: "Название слишком короткое",
+        already_completed: "Уже выполнено сегодня",
+        not_enough_xp_or_not_found: "Не хватает Adam Coin",
+        not_found: "Не найдено",
+        banned: "Доступ ограничен",
+        invalid_init_data: "Telegram не передал данные авторизации. Закройте Mini App и откройте его снова."
     };
-    return (code && map[code]) || "Что-то пошло не так";
-  }
+
+    return map[code] || (err && err.message) || "Неизвестная ошибка";
+}
 
   // ===================== LEVEL UP =====================
   let levelUpTimer = null;
@@ -374,29 +377,26 @@
   }
 
   // ===================== BOOT =====================
-  async function boot() {
+async function boot() {
     try {
-      initTelegram();
-      initTabs();
-      initHabitActions();
-      initShopActions();
-      await loadBootstrap();
+        initTelegram();
+        initTabs();
+        initHabitActions();
+        initShopActions();
+        await loadBootstrap();
     } catch (err) {
-      console.error("boot() failed:", err);
-      showToast(friendlyError(err) || "Не удалось загрузить данные", "error");
+        console.error("boot() failed:", err);
+        showToast(friendlyError(err) || "Не удалось загрузить данные", "error");
     } finally {
-      // Что бы ни сломалось выше — оверлей загрузки обязан скрыться,
-      // иначе пользователь навсегда застревает на чёрном экране с квадратом.
-      const overlay = document.getElementById("loadingOverlay");
-      if (overlay) overlay.hidden = true;
+        const overlay = document.getElementById("loadingOverlay");
+        if (overlay) overlay.hidden = true;
     }
-  }
+}
 
-  document.addEventListener("DOMContentLoaded", boot);
-})();
+document.addEventListener("DOMContentLoaded", boot);
 
 document.getElementById("aiCoachBtn").addEventListener("click", () => {
-    window.location.href = "/";
+    window.location.href = "/coach";
 });
 
-
+})();

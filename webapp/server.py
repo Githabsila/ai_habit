@@ -27,44 +27,25 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 # ====================== АВТОРИЗАЦИЯ (как в Этапе 1) ======================
 
-async def _authenticate(request):
-    init_data = _extract_init_data(request)
-
-    print("Authorization:", request.headers.get("Authorization"))
-    print("InitData:", repr(init_data))
-
-    tg_user = validate_init_data(init_data, BOT_TOKEN)
-
-    print("TG_USER:", tg_user)
-
-    if tg_user is None:
-        raise web.HTTPUnauthorized(reason="invalid_init_data")
-
-async def _authenticate(request):
-    init_data = _extract_init_data(request)
-
-    print("INIT_DATA:", init_data)
-    print("BOT_TOKEN:", BOT_TOKEN)
-
-    tg_user = validate_init_data(init_data, BOT_TOKEN)
-    print("TG_USER:", tg_user)
-
-    if tg_user is None:
-        raise web.HTTPUnauthorized(reason="invalid_init_data")
-
-
-
-
-
 def _extract_init_data(request):
     header = request.headers.get("Authorization", "")
     if header.startswith("tma "):
         return header[4:]
     return request.headers.get("X-Telegram-Init-Data", "")
 
+
 async def _authenticate(request):
     init_data = _extract_init_data(request)
+
+    print("=" * 60)
+    print("Authorization:", request.headers.get("Authorization"))
+    print("InitData:", repr(init_data))
+    print("BOT_TOKEN:", BOT_TOKEN)
+
     tg_user = validate_init_data(init_data, BOT_TOKEN)
+
+    print("TG_USER:", tg_user)
+    print("=" * 60)
 
     if tg_user is None:
         raise web.HTTPUnauthorized(reason="invalid_init_data")
@@ -73,10 +54,14 @@ async def _authenticate(request):
     is_admin = telegram_id in ADMIN_IDS
 
     if get_user(telegram_id) is None:
-        add_user(telegram_id=telegram_id, username=tg_user.get("username"), first_name=tg_user.get("first_name", ""))
+        add_user(
+            telegram_id=telegram_id,
+            username=tg_user.get("username"),
+            first_name=tg_user.get("first_name", "")
+        )
 
     if is_banned(telegram_id):
-        raise web.HTTPForbidden(text='{"error": "banned"}')
+        raise web.HTTPForbidden(text='{"error":"banned"}')
 
     if not is_admin:
         status = get_access_status(telegram_id) or "approved"
@@ -87,10 +72,8 @@ async def _authenticate(request):
                     "message": "Сначала пройдите анкету в самом боте"
                 })
             )
+
     return telegram_id, is_admin
-
-
-
 # ====================== API (всё + Этап 2) ======================
 @web.middleware
 async def error_middleware(request, handler):
