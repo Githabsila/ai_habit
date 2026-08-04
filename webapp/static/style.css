@@ -156,6 +156,37 @@ border-radius:50%;
     flex:0 0 104px;
 }
 
+.stat{
+    display:flex;
+    align-items:center;
+    gap:8px;
+
+    font-family:'Space Grotesk',sans-serif;
+    font-size:18px;
+    font-weight:700;
+}
+
+.stat-icon{
+    font-size:22px;
+    line-height:1;
+}
+
+.stat--coin .stat-icon{
+    color:#FFD54F;
+
+    filter:
+        drop-shadow(0 0 4px rgba(255,213,79,.9))
+        drop-shadow(0 0 10px rgba(255,213,79,.45));
+}
+
+.stat--streak .stat-icon{
+    color:#FF7A18;
+
+    filter:
+        drop-shadow(0 0 4px rgba(255,122,24,.9))
+        drop-shadow(0 0 10px rgba(255,122,24,.45));
+}
+
 .level-ring{
     position:absolute;
     inset:0;
