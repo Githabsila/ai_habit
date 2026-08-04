@@ -117,7 +117,11 @@
     }
     list.innerHTML = items.map(it => {
       const canAfford = state.user.xp >= it.price;
-      let btnLabel = `🪙 ${it.price}`;
+      let btnLabel = `
+<span style="display:flex;align-items:center;gap:4px;justify-content:center">
+    <span class="material-symbols-rounded stat-icon">diamond</span>
+    ${it.price}
+</span>`;
       let btnClass = "buy-btn";
       let disabled = "";
       if (it.owned) {
@@ -132,7 +136,10 @@
           <div class="shop-item__body">
             <div class="shop-item__name">${escapeHtml(it.name)}</div>
             <div class="shop-item__desc">${escapeHtml(it.description || "")}</div>
-            <div class="shop-item__price">🪙 ${it.price} Adam Coin</div>
+            <div class="shop-item__price">
+    <span class="material-symbols-rounded stat-icon">diamond</span>
+    <span>${it.price}</span>
+</div>
           </div>
           <button class="${btnClass}" data-action="buy" ${disabled}>${btnLabel}</button>
         </li>

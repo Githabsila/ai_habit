@@ -1664,3 +1664,14 @@ body {
     }
 
 }
+
+.shop-item__price{
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+
+.shop-item__price .stat-icon{
+    color:#FFD54F;
+    font-size:18px;
+}
