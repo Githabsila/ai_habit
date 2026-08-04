@@ -351,17 +351,20 @@
 
   // ===================== BOOT =====================
   async function boot() {
-    initTelegram();
-    initTabs();
-    initHabitActions();
-    initShopActions();
-
     try {
+      initTelegram();
+      initTabs();
+      initHabitActions();
+      initShopActions();
       await loadBootstrap();
     } catch (err) {
+      console.error("boot() failed:", err);
       showToast(friendlyError(err) || "Не удалось загрузить данные", "error");
     } finally {
-      document.getElementById("loadingOverlay").hidden = true;
+      // Что бы ни сломалось выше — оверлей загрузки обязан скрыться,
+      // иначе пользователь навсегда застревает на чёрном экране с квадратом.
+      const overlay = document.getElementById("loadingOverlay");
+      if (overlay) overlay.hidden = true;
     }
   }
 

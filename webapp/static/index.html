@@ -6,7 +6,7 @@
 
 <title>Project ADAM</title>
 
-<link rel="stylesheet" href="/static/style.css?v=1001">
+<link rel="stylesheet" href="/static/style.css?v=1003">
 </head>
 <body>
 
@@ -31,16 +31,16 @@ cy="60"
 r="52"></circle>
 
 <circle class="level-ring__fill"
+id="levelRingFill"
 cx="60"
 cy="60"
-r="52"
-style="stroke-dashoffset:108"></circle>
+r="52"></circle>
 
 </svg>
 
 <div class="level-ring__badge">
 
-<span>8</span>
+<span id="levelNumber">1</span>
 <small>LVL</small>
 
 </div>
@@ -49,7 +49,7 @@ style="stroke-dashoffset:108"></circle>
 
 <div class="player-card__info">
 
-<div class="player-card__name">
+<div class="player-card__name" id="playerName">
 
 👋 Добро пожаловать
 
@@ -59,13 +59,13 @@ style="stroke-dashoffset:108"></circle>
 
 <div class="stat stat--coin">
 
-🪙 1320
+🪙 <span id="coinValue">0</span>
 
 </div>
 
 <div class="stat stat--streak">
 
-🔥 18
+🔥 <span id="streakValue">0</span>
 
 </div>
 
@@ -73,15 +73,15 @@ style="stroke-dashoffset:108"></circle>
 
 <div class="xp-bar">
 
-<div class="xp-bar__fill"
-style="width:67%">
+<div class="xp-bar__fill" id="xpBarFill"
+style="width:0%">
 </div>
 
 </div>
 
-<div class="xp-bar__label">
+<div class="xp-bar__label" id="xpLabel">
 
-1240 / 1800 XP
+0 / 100 XP
 
 </div>
 
@@ -91,71 +91,34 @@ style="width:67%">
 
 <main id="content">
 
+<!-- ===================== HOME ===================== -->
+<section class="tab-panel" data-tab="home">
+
 <div class="section-heading">
 
 <h2>Сегодня</h2>
 
-<span class="section-heading__sub">
+<span class="section-heading__sub" id="habitsProgressLabel">
 
-3 привычки
+0/0 сегодня
 
 </span>
 
 </div>
 
-<ul class="habit-list">
-
-<li class="habit-item">
-
-<div class="habit-item__check"></div>
-
-<div class="habit-item__title">
-
-Тренировка
-
-</div>
-
-</li>
-
-<li class="habit-item is-done">
-
-<div class="habit-item__check">
-
-✓
-
-</div>
-
-<div class="habit-item__title">
-
-Английский
-
-</div>
-
-</li>
-
-<li class="habit-item">
-
-<div class="habit-item__check"></div>
-
-<div class="habit-item__title">
-
-Читать 20 минут
-
-</div>
-
-</li>
-
+<ul class="habit-list" id="habitList">
 </ul>
 
-<form class="add-form">
+<form class="add-form" id="addHabitForm">
 
 <input
 type="text"
+id="newHabitInput"
 placeholder="Новая привычка..."
 >
 
 <button
-type="button"
+type="submit"
 class="btn btn--accent">
 
 +
@@ -164,11 +127,70 @@ class="btn btn--accent">
 
 </form>
 
+</section>
+
+<!-- ===================== CALENDAR ===================== -->
+<section class="tab-panel" data-tab="calendar" hidden>
+
+<div class="section-heading">
+
+<h2>Календарь</h2>
+
+</div>
+
+<div class="calendar-grid" id="calendarGrid">
+</div>
+
+</section>
+
+<!-- ===================== RATING ===================== -->
+<section class="tab-panel" data-tab="rating" hidden>
+
+<div class="section-heading">
+
+<h2>Рейтинг</h2>
+
+</div>
+
+<ul class="rating-list" id="ratingList">
+</ul>
+
+</section>
+
+<!-- ===================== PROFILE ===================== -->
+<section class="tab-panel" data-tab="profile" hidden>
+
+<div class="section-heading">
+
+<h2>Достижения</h2>
+
+<span class="section-heading__sub" id="achievementsCountLabel">
+
+0 наград
+
+</span>
+
+</div>
+
+<ul class="achievement-list" id="achievementList">
+</ul>
+
+<div class="section-heading">
+
+<h2>Магазин</h2>
+
+</div>
+
+<ul class="shop-list" id="shopList">
+</ul>
+
+</section>
+
 </main>
 
-<nav class="tab-bar">
+<nav class="tab-bar" id="tabBar">
 
-<button class="tab-bar__item is-active">
+<button class="tab-bar__item is-active" data-tab="home">
 
 <div class="tab-bar__icon">
 
@@ -184,7 +206,7 @@ class="btn btn--accent">
 
 </button>
 
-<button class="tab-bar__item">
+<button class="tab-bar__item" data-tab="calendar">
 
 <div class="tab-bar__icon">
 
@@ -200,7 +222,7 @@ class="btn btn--accent">
 
 </button>
 
-<button class="tab-bar__item">
+<button class="tab-bar__item" data-tab="rating">
 
 <div class="tab-bar__icon">
 
@@ -216,7 +238,7 @@ class="btn btn--accent">
 
 </button>
 
-<button class="tab-bar__item">
+<button class="tab-bar__item" data-tab="profile">
 
 <div class="tab-bar__icon">
 
@@ -259,7 +281,7 @@ class="btn btn--accent">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=1002"></script>
+<script type="module" src="/static/app.js?v=1003"></script>
 
 </body>
 </html>
