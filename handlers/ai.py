@@ -1,14 +1,19 @@
+from email import message
 import time
 import hashlib
 import asyncio
 import logging
 from datetime import date, datetime
+from webapp.services.ai_service import chat
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
+
+
+
 
 from db import (
     add_ai_message,
@@ -267,47 +272,30 @@ async def ai_chat(message: Message, state: FSMContext):
     thinking_msg = await message.answer("🤔 Думаю над ответом...")
 
     user_id = message.from_user.id
-    history_text = build_history_text(user_id)
-    user_context = build_user_context(user_id)
-    style = get_ai_style(user_id)
 
-    # Кэш (этап 4): те же нормализованные простые сообщения ("привет",
-    # "спасибо" и т.п.) не гоняют пайплайн повторно — ни по скорости, ни
-    # по расходу токенов на Groq.
-    cache_key = _cache_key(message.text, style)
-    cached_answer = cache_get(cache_key)
+    try:
+        result = await chat(
+            user_id=user_id,
+            message=message.text,
+        )
 
-    if cached_answer is not None:
-        answer = cached_answer
+        answer = result["answer"]
+        is_crisis = result["is_crisis"]
+        suggested_habit = result["suggested_habit"]
+        complexity = result["complexity"]
+
+    except Exception as e:
+        logger.exception(f"Ошибка AI-пайплайна для {user_id}")
+        log_error("ai_pipeline", e, user_id)
+
+        answer = (
+            "❌ Не получилось сформировать ответ. "
+            "Попробуйте ещё раз через минуту."
+        )
+
         is_crisis = False
         suggested_habit = None
-        complexity = "просто"
-    else:
-        try:
-            result = await solve_task_multiagent(
-                task=message.text,
-                history=history_text,
-                user_context=user_context,
-                style=style,
-            )
-            answer = result["answer"]
-            is_crisis = result["is_crisis"]
-            suggested_habit = result["suggested_habit"]
-            complexity = result.get("complexity", "сложно")
-        except Exception as e:
-            # Пользователю — общее сообщение, подробности только в лог/БД.
-            logger.exception(f"Ошибка AI-пайплайна для {user_id}")
-            log_error("ai_pipeline", e, user_id)
-            answer = (
-                "❌ Не получилось сформировать ответ. Попробуйте ещё раз "
-                "через минуту."
-            )
-            is_crisis = False
-            suggested_habit = None
-            complexity = None
-
-        if complexity == "просто" and not is_crisis:
-            cache_set(cache_key, answer)
+        complexity = None
 
     add_ai_message(user_id, "user", message.text)
     assistant_message_id = add_ai_message(user_id, "assistant", answer)
@@ -316,24 +304,24 @@ async def ai_chat(message: Message, state: FSMContext):
         _schedule_memory_update(user_id)
 
     if is_crisis:
-        # Кризисный ответ — без оценок 👍/👎 и без кнопки добавления
-        # привычки: это не обычный совет по продуктивности, и превращать
-        # его в оцениваемый контент неуместно.
         keyboard = crisis_keyboard()
     else:
         if suggested_habit:
             _suggested_habits[assistant_message_id] = suggested_habit
-        keyboard = ai_feedback_keyboard(assistant_message_id, suggested_habit)
+
+        keyboard = ai_feedback_keyboard(
+            assistant_message_id,
+            suggested_habit,
+        )
 
     try:
         await thinking_msg.edit_text(
             answer,
-            reply_markup=keyboard
+            reply_markup=keyboard,
         )
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
-
 
 # =====================================
 # ОБРАТНАЯ СВЯЗЬ ПО ОТВЕТУ AI

@@ -2,6 +2,10 @@ import json
 import logging
 import os
 from pathlib import Path
+from webapp.services.ai_coach import ask_ai
+
+
+
 
 BASE_DIR = Path(__file__).parent
 routes = web.RouteTableDef()
@@ -150,6 +154,7 @@ async def error_middleware(request, handler):
 # ПРИВЫЧКИ (как в Этапе 1)
     @routes.post("/api/habits")
     async def create_habit(request):
+            body = await request.json()
             telegram_id, _ = await _authenticate(request)
     body = await request.json()
     title = body.get("title", "").strip()
@@ -158,18 +163,46 @@ async def error_middleware(request, handler):
     add_habit(telegram_id, title)
     return web.json_response({"ok": True})
 
-def _owned_habit_or_404(habit_id, telegram_id):
-    habit = get_habit(habit_id)
-    if not habit or habit["user_id"] != telegram_id:
-        raise web.HTTPNotFound(text='{"error": "not_found"}')
-    return habit
+from webapp.services.ai_coach import ask_ai
 
+@routes.post("/api/ai/chat")
+async def ai_chat(request):
+    telegram_id, _ = await _authenticate(request)
+
+    body = await request.json()
+
+    message = body.get("message", "").strip()
+
+    if not message:
+        return web.json_response(
+            {"error": "empty_message"},
+            status=400,
+        )
+
+    try:
+        answer = await ask_ai(
+            telegram_id,
+            message,
+        )
+
+        return web.json_response({
+            "reply": answer
+        })
+
+    except Exception as e:
+        logger.exception(e)
+
+        return web.json_response(
+            {
+                "error": "ai_error"
+            },
+            status=500,
+        )
     @routes.put("/api/habits/{habit_id}")
     async def rename_habit(request):
      telegram_id, _ = await _authenticate(request)
     habit_id = int(request.match_info["habit_id"])
     _owned_habit_or_404(habit_id, telegram_id)
-    body = await request.json()
     new_title = body.get("title", "").strip()
     if len(new_title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)

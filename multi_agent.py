@@ -26,7 +26,12 @@ multi_agent.py
 Использование:
     from multi_agent import solve_task_multiagent
 
-    result = await solve_task_multiagent("Как мне лучше выстроить привычку бегать по утрам?")
+   from services.ai_service import chat
+
+answer = await chat(
+    user_id,
+    user_message,
+)"Как мне лучше выстроить привычку бегать по утрам?")
     result["answer"]           -> текст ответа
     result["is_crisis"]        -> bool
     result["suggested_habit"]  -> str | None
