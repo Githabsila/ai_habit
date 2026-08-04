@@ -1675,3 +1675,13 @@ body {
     color:#FFD54F;
     font-size:18px;
 }
+
+.rating-stat{
+    display:flex;
+    align-items:center;
+    gap:3px;
+}
+
+.rating-stat .stat-icon{
+    font-size:16px;
+}

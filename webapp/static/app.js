@@ -185,9 +185,16 @@
           <span class="rating-item__rank">${rank}</span>
           <span class="rating-item__name">${escapeHtml(name)}${isMe ? " (ты)" : ""}</span>
           <span class="rating-item__meta">
-            <span>🔥${r.streak}</span>
-            <span>🪙${r.xp}</span>
-          </span>
+    <span class="rating-stat">
+        <span class="material-symbols-rounded stat-icon">local_fire_department</span>
+        ${r.streak}
+    </span>
+
+    <span class="rating-stat">
+        <span class="material-symbols-rounded stat-icon">diamond</span>
+        ${r.xp}
+    </span>
+</span>
         </li>
       `;
     }).join("");
