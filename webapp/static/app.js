@@ -7,7 +7,13 @@
   let state = null; // последний bootstrap-снимок
   let knownLevel = null; // для детекта левел-апа между загрузками
 
+
+  
   // ===================== TELEGRAM WEBAPP INIT =====================
+
+
+
+  
   function initTelegram() {
     if (!tg) return;
     tg.ready();
@@ -30,7 +36,10 @@
 
   // ===================== API =====================
   async function api(path, options = {}) {
-    console.log("initData =", initData());
+
+    console.log("initData:", initData());
+    console.log("length:", initData().length);  
+
     const res = await fetch(path, {
       ...options,
       headers: {

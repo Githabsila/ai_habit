@@ -26,6 +26,20 @@ logger = logging.getLogger("webapp")
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 # ====================== АВТОРИЗАЦИЯ (как в Этапе 1) ======================
+
+async def _authenticate(request):
+    init_data = _extract_init_data(request)
+
+    print("Authorization:", request.headers.get("Authorization"))
+    print("InitData:", repr(init_data))
+
+    tg_user = validate_init_data(init_data, BOT_TOKEN)
+
+    print("TG_USER:", tg_user)
+
+    if tg_user is None:
+        raise web.HTTPUnauthorized(reason="invalid_init_data")
+
 async def _authenticate(request):
     init_data = _extract_init_data(request)
 
