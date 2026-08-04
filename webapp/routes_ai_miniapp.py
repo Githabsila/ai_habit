@@ -12,6 +12,9 @@ API endpoints для мини-приложения AI-наставника.
 import json
 import logging
 from aiohttp import web
+
+
+
 from datetime import date
 from db import (
     add_ai_message,

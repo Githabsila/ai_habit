@@ -11,7 +11,6 @@ app = web.Application()
 
 BASE_DIR = Path(__file__).parent
 routes = web.RouteTableDef()
-from aiohttp import web
 
 from config import BOT_TOKEN, ADMIN_IDS
 from webapp.telegram_auth import validate_init_data
@@ -349,6 +348,12 @@ logger.info("MiniApp server started")
 
 
 from aiohttp import web
+
+# Обработчик для корневого пути — чтобы Railway не паниковал
+async def root_handler(request):
+    return web.Response(text="✅ Bot is running")
+
+app.router.add_get('/', root_handler)
 
 async def handle_root(request):
     return web.Response(text="OK")
