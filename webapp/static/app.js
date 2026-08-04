@@ -388,3 +388,35 @@
 document.getElementById("aiCoachBtn").addEventListener("click", () => {
     window.location.href = "/coach";
 });
+
+function switchTab(targetId){
+
+    const current = document.querySelector('.screen.active');
+    const next = document.getElementById(targetId);
+
+    if(!next || current === next) return;
+
+    // активная кнопка
+    document.querySelectorAll('.tab-bar__item').forEach(btn=>{
+        btn.classList.remove('active');
+    });
+
+    const activeBtn = document.querySelector(
+        `[data-target="${targetId}"]`
+    );
+    if(activeBtn) activeBtn.classList.add('active');
+
+    // анимация экранов
+    current.classList.add('exit');
+
+    setTimeout(()=>{
+        current.classList.remove('active','exit');
+        next.classList.add('active');
+    },180);
+}
+
+document.querySelectorAll('.tab-bar__item').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+        switchTab(btn.dataset.target);
+    });
+});
