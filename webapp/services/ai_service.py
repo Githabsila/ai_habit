@@ -4,18 +4,19 @@ from db import (
     cache_set,
 )
 
+# ✅ Правильный импорт — только из ai_utils (убираем дублирование)
 from webapp.services.ai_utils import (
     build_history_text,
     build_user_context,
     _cache_key,
 )
 
-
-from handlers.ai import (
-    build_history_text,
-    build_user_context,
-    _cache_key,
-)
+# ❌ УДАЛИТЕ эти строки — они создают циклическую зависимость
+# from handlers.ai import (
+#     build_history_text,
+#     build_user_context,
+#     _cache_key,
+# )
 
 from multi_agent import solve_task_multiagent
 
