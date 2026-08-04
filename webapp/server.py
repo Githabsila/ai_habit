@@ -227,9 +227,19 @@ async def buy_route(request):
 async def index(request):
     return web.FileResponse(BASE_DIR / "static" / "index.html")
 
+# ====================== AI МиниПриложение ======================
+@routes.get("/ai")
+async def ai_miniapp(request):
+    """Serve the AI mini app interface"""
+    return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
+
 def create_app():
     app = web.Application(middlewares=[error_middleware])
     app.add_routes(routes)
+
+    # Добавляем маршруты для AI мини-приложения
+    from webapp.routes_ai_miniapp import routes as ai_routes
+    app.add_routes(ai_routes)
 
     app.router.add_static('/static/', path=BASE_DIR / 'static')
     return app

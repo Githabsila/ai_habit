@@ -462,3 +462,4 @@ async def ai_add_suggested_habit(callback: CallbackQuery):
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
+

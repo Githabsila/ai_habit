@@ -1,0 +1,422 @@
+"""
+routes_ai_miniapp.py
+API endpoints для мини-приложения AI-наставника.
+
+Эндпоинты:
+  POST /api/ai/chat        — отправить сообщение AI, получить ответ
+  GET  /api/ai/history     — загрузить историю чата
+  POST /api/ai/feedback    — оценить ответ (👍/👎)
+  POST /api/ai/tip         — получить совет дня
+"""
+
+import json
+import logging
+from aiohttp import web
+from datetime import date
+from db import (
+    add_ai_message,
+    get_ai_history,
+    get_progress,
+    get_habits,
+    save_ai_feedback,
+    get_ai_style,
+    add_habit,
+    save_feedback_reason,
+    get_recent_negative_reasons,
+    get_user_profile,
+    update_user_profile,
+    bump_profile_counter,
+    cache_get,
+    cache_set,
+    log_error,
+    get_last_ai_message_at,
+    touch_last_ai_message,
+)
+from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
+from datetime import datetime
+import hashlib
+import asyncio
+
+logger = logging.getLogger("webapp.ai_miniapp")
+
+# ============ КОНФИГ ============
+
+MIN_INTERVAL_SECONDS = 3.0
+MEMORY_UPDATE_EVERY = 6
+
+
+# ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ============
+
+def _is_throttled(user_id: int) -> float | None:
+    """Возвращает, сколько секунд осталось ждать, или None, если можно слать."""
+    last_str = get_last_ai_message_at(user_id)
+    if last_str:
+        try:
+            last_dt = datetime.strptime(last_str, "%Y-%m-%d %H:%M:%S")
+            elapsed = (datetime.utcnow() - last_dt).total_seconds()
+            if elapsed < MIN_INTERVAL_SECONDS:
+                return round(MIN_INTERVAL_SECONDS - elapsed, 1)
+        except ValueError:
+            pass
+    touch_last_ai_message(user_id)
+    return None
+
+
+def _cache_key(text: str, style: str) -> str:
+    normalized = " ".join(text.strip().lower().split())
+    return hashlib.md5(f"{normalized}|{style}".encode("utf-8")).hexdigest()
+
+
+def build_user_context(user_id: int) -> str:
+    """Собирает контекст о пользователе для AI."""
+    progress = get_progress(user_id)
+    if not progress:
+        return ""
+
+    habits = get_habits(user_id)
+    lines = [
+        f"Уровень: {progress['level']}, Adam Coin: {progress['xp']}",
+        f"Серия дней подряд: {progress['streak']}",
+    ]
+
+    if habits:
+        lines.append("Привычки пользователя (выполнено сегодня?):")
+        for h in habits:
+            status = "да" if h["completed"] else "нет"
+            lines.append(f"  • {h['title']} — {status}")
+    else:
+        lines.append("Привычек пока не добавлено.")
+
+    profile = get_user_profile(user_id)
+    if profile and profile["summary"]:
+        lines.append("\nЧто известно о пользователе из прошлых разговоров:")
+        lines.append(profile["summary"])
+
+    reasons = get_recent_negative_reasons(user_id, limit=3)
+    if reasons:
+        unique_reasons = list(dict.fromkeys(reasons))
+        lines.append(
+            "\nВ недавних ответах пользователь отмечал проблемы: "
+            + "; ".join(unique_reasons)
+            + ". Постарайся их не повторять."
+        )
+
+    return "\n".join(lines)
+
+
+def build_history_text(user_id: int, limit: int = 4, max_chars_per_msg: int = 200) -> str:
+    """Берёт последние сообщения переписки из БД."""
+    history = get_ai_history(user_id)
+    if not history:
+        return ""
+
+    lines = []
+    for row in history[-limit:]:
+        role = "Пользователь" if row["role"] == "user" else "Наставник"
+        text = row["message"]
+        if len(text) > max_chars_per_msg:
+            text = text[:max_chars_per_msg] + "…"
+        lines.append(f"{role}: {text}")
+
+    return "\n".join(lines)
+
+
+async def _update_memory(user_id: int):
+    """Обновить долгосрочную память пользователя."""
+    try:
+        profile = get_user_profile(user_id)
+        existing_summary = profile["summary"] if profile else ""
+        recent_history = build_history_text(user_id, limit=MEMORY_UPDATE_EVERY + 2)
+        new_summary = await summarize_user_memory(existing_summary, recent_history)
+        update_user_profile(user_id, new_summary)
+    except Exception as e:
+        logger.exception(f"Не удалось обновить профиль памяти для {user_id}")
+        log_error("memory_update", e, user_id)
+
+
+def _schedule_memory_update(user_id: int):
+    """Запланировать обновление памяти."""
+    count = bump_profile_counter(user_id)
+    if count >= MEMORY_UPDATE_EVERY:
+        asyncio.create_task(_update_memory(user_id))
+
+
+# ============ API ROUTES ============
+
+routes = web.RouteTableDef()
+
+
+@routes.post("/api/ai/chat")
+async def ai_chat_miniapp(request):
+    """
+    Отправить сообщение AI и получить ответ.
+    
+    Request JSON:
+    {
+        "init_data": "...",  # Telegram init_data для аутентификации
+        "message": "Как начать бегать?"
+    }
+    
+    Response JSON:
+    {
+        "answer": "...",
+        "is_crisis": false,
+        "suggested_habit": "Бегать по утрам" или null,
+        "message_id": 123
+    }
+    """
+    from webapp.telegram_auth import validate_init_data
+    from config import BOT_TOKEN
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+
+    init_data = data.get("init_data", "")
+    message_text = data.get("message", "").strip()
+
+    if not message_text:
+        return web.json_response({"error": "empty_message"}, status=400)
+
+    # Аутентификация через Telegram
+    tg_user = validate_init_data(init_data, BOT_TOKEN)
+    if tg_user is None:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    user_id = tg_user["id"]
+
+    # Проверка троттлинга
+    wait = _is_throttled(user_id)
+    if wait is not None:
+        return web.json_response(
+            {"error": "throttled", "wait_seconds": wait},
+            status=429
+        )
+
+    # Собирем контекст
+    history_text = build_history_text(user_id)
+    user_context = build_user_context(user_id)
+    style = get_ai_style(user_id)
+
+    # Проверяем кэш
+    cache_key = _cache_key(message_text, style)
+    cached_answer = cache_get(cache_key)
+
+    if cached_answer is not None:
+        answer = cached_answer
+        is_crisis = False
+        suggested_habit = None
+        complexity = "просто"
+    else:
+        try:
+            result = await solve_task_multiagent(
+                task=message_text,
+                history=history_text,
+                user_context=user_context,
+                style=style,
+            )
+            answer = result["answer"]
+            is_crisis = result["is_crisis"]
+            suggested_habit = result["suggested_habit"]
+            complexity = result.get("complexity", "сложно")
+        except Exception as e:
+            logger.exception(f"Ошибка AI-пайплайна для {user_id}")
+            log_error("ai_pipeline", e, user_id)
+            return web.json_response(
+                {
+                    "error": "ai_error",
+                    "message": "Не получилось сформировать ответ. Попробуйте ещё раз через минуту."
+                },
+                status=500
+            )
+
+        if complexity == "просто" and not is_crisis:
+            cache_set(cache_key, answer)
+
+    # Сохраняем в БД
+    add_ai_message(user_id, "user", message_text)
+    message_id = add_ai_message(user_id, "assistant", answer)
+
+    if not is_crisis:
+        _schedule_memory_update(user_id)
+
+    return web.json_response({
+        "answer": answer,
+        "is_crisis": is_crisis,
+        "suggested_habit": suggested_habit,
+        "message_id": message_id,
+    })
+
+
+@routes.get("/api/ai/history")
+async def get_ai_history_miniapp(request):
+    """
+    Загрузить полную историю чата с AI.
+    
+    Query params:
+      init_data: Telegram init_data
+      limit: количество последних сообщений (default: 50)
+    
+    Response JSON:
+    {
+        "history": [
+            {"role": "user", "message": "...", "timestamp": "2024-01-01 12:00:00"},
+            {"role": "assistant", "message": "...", "timestamp": "2024-01-01 12:00:05"}
+        ]
+    }
+    """
+    from webapp.telegram_auth import validate_init_data
+    from config import BOT_TOKEN
+
+    init_data = request.rel_url.query.get("init_data", "")
+    limit = int(request.rel_url.query.get("limit", "50"))
+
+    tg_user = validate_init_data(init_data, BOT_TOKEN)
+    if tg_user is None:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    user_id = tg_user["id"]
+    history = get_ai_history(user_id)
+
+    if not history:
+        return web.json_response({"history": []})
+
+    return web.json_response({
+        "history": history[-limit:] if history else []
+    })
+
+
+@routes.post("/api/ai/feedback")
+async def ai_feedback_miniapp(request):
+    """
+    Оценить ответ AI (👍 = up, 👎 = down).
+    
+    Request JSON:
+    {
+        "init_data": "...",
+        "message_id": 123,
+        "rating": "up" или "down",
+        "reason": "слишком длинный" или null (опционально)
+    }
+    """
+    from webapp.telegram_auth import validate_init_data
+    from config import BOT_TOKEN
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+
+    init_data = data.get("init_data", "")
+    message_id = data.get("message_id")
+    rating = data.get("rating")
+    reason = data.get("reason")
+
+    tg_user = validate_init_data(init_data, BOT_TOKEN)
+    if tg_user is None:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    user_id = tg_user["id"]
+
+    if rating not in ["up", "down"]:
+        return web.json_response({"error": "invalid_rating"}, status=400)
+
+    save_ai_feedback(message_id, user_id, rating)
+
+    if reason and rating == "down":
+        save_feedback_reason(message_id, user_id, reason)
+
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/ai/tip")
+async def ai_daily_tip_miniapp(request):
+    """
+    Получить совет дня.
+    
+    Request JSON:
+    {
+        "init_data": "..."
+    }
+    
+    Response JSON:
+    {
+        "tip": "💡 Совет дня: ..."
+    }
+    """
+    from webapp.telegram_auth import validate_init_data
+    from config import BOT_TOKEN
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+
+    init_data = data.get("init_data", "")
+    tg_user = validate_init_data(init_data, BOT_TOKEN)
+    if tg_user is None:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    user_id = tg_user["id"]
+
+    # Проверяем кэш (один совет в день)
+    cache_key = f"tip:{user_id}:{date.today()}"
+    tip = cache_get(cache_key)
+
+    if tip is None:
+        style = get_ai_style(user_id)
+        user_context = build_user_context(user_id)
+        try:
+            tip = await generate_daily_tip(user_context, style)
+        except Exception as e:
+            logger.exception(f"Не удалось сформировать совет дня для {user_id}")
+            log_error("daily_tip", e, user_id)
+            return web.json_response(
+                {"error": "tip_error", "message": "Не получилось сформировать совет"},
+                status=500
+            )
+
+        if tip and "[ошибка агента" not in tip:
+            cache_set(cache_key, tip)
+
+    return web.json_response({"tip": tip})
+
+
+@routes.post("/api/ai/habit/add")
+async def ai_add_habit_miniapp(request):
+    """
+    Добавить привычку, предложенную AI.
+    
+    Request JSON:
+    {
+        "init_data": "...",
+        "habit_title": "Бегать по утрам"
+    }
+    """
+    from webapp.telegram_auth import validate_init_data
+    from config import BOT_TOKEN
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+
+    init_data = data.get("init_data", "")
+    habit_title = data.get("habit_title", "").strip()
+
+    if not habit_title:
+        return web.json_response({"error": "empty_habit"}, status=400)
+
+    tg_user = validate_init_data(init_data, BOT_TOKEN)
+    if tg_user is None:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    user_id = tg_user["id"]
+
+    try:
+        add_habit(user_id, habit_title)
+        return web.json_response({"ok": True, "habit": habit_title})
+    except Exception as e:
+        logger.exception(f"Ошибка при добавлении привычки для {user_id}")
+        return web.json_response({"error": "internal_error"}, status=500)
