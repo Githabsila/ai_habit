@@ -2,705 +2,629 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Наставник</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/react-dom.production.min.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* ---------- 1 В 1 СТИЛЬ PROJECT ADAM ---------- */
-        :root {
-            --bg-primary: #0b1a2e;
-            --bg-secondary: rgba(255, 255, 255, 0.06);
-            --bg-card: rgba(255, 255, 255, 0.07);
-            --text-primary: #ffffff;
-            --text-secondary: rgba(255, 255, 255, 0.75);
-            --text-muted: rgba(255, 255, 255, 0.4);
-            --accent: #4a9eff;
-            --accent-dim: rgba(74, 158, 255, 0.15);
-            --border: rgba(255, 255, 255, 0.08);
-            --shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-            --radius: 16px;
-            --radius-sm: 10px;
-            --transition: 0.2s ease;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        html, body {
+        html, body, #root {
             width: 100%;
             height: 100%;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            overflow: hidden;
-            -webkit-font-smoothing: antialiased;
         }
 
-        #app {
+        body {
+            background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
+            color: #ffffff;
+        }
+
+        .app-container {
             display: flex;
             flex-direction: column;
             height: 100vh;
-            max-width: 480px;
-            margin: 0 auto;
-            background: var(--bg-primary);
-            position: relative;
-            background-image:
-                radial-gradient(ellipse at 20% 50%, rgba(74, 158, 255, 0.08) 0%, transparent 60%),
-                radial-gradient(ellipse at 80% 20%, rgba(100, 80, 255, 0.05) 0%, transparent 50%);
+            background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
         }
 
-        /* ----- ШАПКА (как на главной) ----- */
+        /* HEADER */
         .header {
-            padding: 16px 20px 12px;
+            padding: 16px;
+            background: rgba(15, 20, 25, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
-            background: rgba(11, 26, 46, 0.8);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-        }
-
-        .header-left {
-            display: flex;
             align-items: center;
-            gap: 12px;
-        }
-
-        .avatar {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: var(--accent-dim);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .header-info {
-            display: flex;
-            flex-direction: column;
+            backdrop-filter: blur(10px);
         }
 
         .header-title {
-            font-size: 17px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
             font-weight: 600;
-            letter-spacing: 0.2px;
         }
 
-        .header-sub {
-            font-size: 12px;
-            color: var(--text-secondary);
+        .header-title-icon {
+            font-size: 24px;
+        }
+
+        .header-status {
             display: flex;
             align-items: center;
             gap: 6px;
+            font-size: 12px;
+            color: #64b233;
         }
 
-        .header-sub .dot {
-            width: 5px;
-            height: 5px;
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #64b233;
             border-radius: 50%;
-            background: #4caf50;
-            display: inline-block;
+            animation: pulse 2s infinite;
         }
 
-        .header-actions {
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .header-buttons {
             display: flex;
-            gap: 6px;
+            gap: 8px;
         }
 
         .icon-btn {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 50%;
-            width: 38px;
-            height: 38px;
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: rgba(100, 178, 51, 0.1);
+            color: #64b233;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-            cursor: pointer;
-            transition: var(--transition);
-            color: var(--text-secondary);
-            backdrop-filter: blur(4px);
+            transition: all 0.2s;
         }
 
         .icon-btn:hover {
-            background: var(--accent-dim);
-            color: var(--text-primary);
-            border-color: var(--accent);
+            background: rgba(100, 178, 51, 0.2);
+            transform: scale(1.05);
         }
-        .icon-btn:active { transform: scale(0.92); }
 
-        /* ----- ОБЛАСТЬ СООБЩЕНИЙ ----- */
-        .messages {
+        /* MESSAGES AREA */
+        .messages-container {
             flex: 1;
             overflow-y: auto;
-            padding: 16px 16px 8px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            scroll-behavior: smooth;
+            gap: 12px;
         }
 
-        .messages::-webkit-scrollbar { width: 3px; }
-        .messages::-webkit-scrollbar-track { background: transparent; }
-        .messages::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 4px; }
-
-        /* ----- СООБЩЕНИЯ (как карточки привычек) ----- */
-        .message {
-            padding: 14px 18px;
-            border-radius: var(--radius);
-            max-width: 85%;
-            word-wrap: break-word;
-            animation: slideUp 0.3s ease;
-            line-height: 1.5;
-            font-size: 15px;
-            backdrop-filter: blur(8px);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
+        .messages-container::-webkit-scrollbar {
+            width: 4px;
         }
 
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
         }
 
-        .message.user {
-            align-self: flex-end;
-            background: var(--accent);
-            color: #fff;
-            border-bottom-right-radius: 4px;
-            border-color: var(--accent);
+        .messages-container::-webkit-scrollbar-thumb {
+            background: rgba(100, 178, 51, 0.3);
+            border-radius: 2px;
         }
 
-        .message.assistant {
-            align-self: flex-start;
-            background: var(--bg-card);
-            color: var(--text-primary);
-            border-bottom-left-radius: 4px;
-            backdrop-filter: blur(8px);
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 178, 51, 0.5);
         }
 
-        .message.error {
-            align-self: center;
-            background: rgba(255, 59, 48, 0.15);
-            border-color: rgba(255, 59, 48, 0.25);
-            color: #ff6b6b;
-            border-radius: var(--radius);
-            max-width: 90%;
-            text-align: center;
-            font-size: 14px;
-        }
-
-        .timestamp {
-            font-size: 10px;
-            opacity: 0.45;
-            margin-top: 6px;
-            text-align: right;
-            letter-spacing: 0.2px;
-        }
-
-        .message.user .timestamp { color: rgba(255, 255, 255, 0.6); }
-        .message.assistant .timestamp { color: var(--text-muted); }
-
-        /* ----- ИНДИКАТОР ПЕЧАТИ ----- */
-        .typing-indicator {
-            align-self: flex-start;
-            background: var(--bg-card);
-            padding: 12px 18px;
-            border-radius: var(--radius);
-            border-bottom-left-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border: 1px solid var(--border);
-            backdrop-filter: blur(8px);
-            box-shadow: var(--shadow);
-            animation: slideUp 0.3s ease;
-        }
-
-        .typing-dots { display: flex; gap: 4px; }
-        .typing-dots span {
-            width: 8px; height: 8px;
-            background: var(--text-muted);
-            border-radius: 50%;
-            display: inline-block;
-            animation: bounce 1.4s infinite both;
-        }
-        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes bounce {
-            0%, 80%, 100% { transform: scale(0.4); opacity: 0.4; }
-            40% { transform: scale(1); opacity: 1; }
-        }
-        .typing-text {
-            font-size: 14px;
-            color: var(--text-secondary);
-        }
-
-        /* ----- ПРЕДУПРЕЖДЕНИЕ О ТРОТТЛИНГЕ ----- */
-        .throttle {
-            background: rgba(255, 149, 0, 0.12);
-            border: 1px solid rgba(255, 149, 0, 0.25);
-            color: #ffb84d;
-            padding: 8px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            text-align: center;
-            align-self: center;
-            backdrop-filter: blur(8px);
-            animation: slideUp 0.3s ease;
-        }
-
-        /* ----- ПУСТОЕ СОСТОЯНИЕ ----- */
-        .empty {
+        /* EMPTY STATE */
+        .empty-state {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100%;
-            text-align: center;
-            padding: 40px 20px;
-            gap: 12px;
-            opacity: 0.8;
+            gap: 16px;
         }
-        .empty-icon { font-size: 64px; margin-bottom: 4px; }
+
+        .empty-icon {
+            font-size: 64px;
+            opacity: 0.6;
+        }
+
         .empty-text {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-        .empty-sub {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
             font-size: 14px;
-            color: var(--text-secondary);
-            max-width: 280px;
+            line-height: 1.5;
         }
 
-        /* ----- ПОЛЕ ВВОДА ----- */
-        .input-area {
-            border-top: 1px solid var(--border);
-            padding: 12px 16px 16px;
+        /* MESSAGES */
+        .message {
             display: flex;
-            gap: 10px;
-            align-items: flex-end;
-            background: rgba(11, 26, 46, 0.8);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            flex-shrink: 0;
+            animation: slideIn 0.3s ease-out;
+            word-wrap: break-word;
         }
 
-        .input-area textarea {
-            flex: 1;
-            resize: none;
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.assistant {
+            justify-content: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 80%;
             padding: 12px 16px;
-            border-radius: 24px;
-            border: 1px solid var(--border);
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            font-size: 15px;
-            font-family: inherit;
-            outline: none;
-            transition: var(--transition);
-            min-height: 44px;
-            max-height: 120px;
+            border-radius: 16px;
+            word-wrap: break-word;
+            font-size: 14px;
             line-height: 1.4;
         }
 
-        .input-area textarea::placeholder { color: var(--text-muted); }
-
-        .input-area textarea:focus {
-            border-color: var(--accent);
-            background: rgba(255, 255, 255, 0.06);
-            box-shadow: 0 0 0 3px var(--accent-dim);
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #64b233 0%, #52a828 100%);
+            color: #ffffff;
+            border-radius: 16px 4px 16px 16px;
         }
 
-        .input-area button {
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            border-radius: 50%;
-            width: 48px;
-            height: 48px;
+        .message.assistant .message-bubble {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e8e8e8;
+            border: 1px solid rgba(100, 178, 51, 0.2);
+            border-radius: 4px 16px 16px 16px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            opacity: 0.6;
+            margin-top: 4px;
+        }
+
+        .thinking {
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            cursor: pointer;
-            transition: var(--transition);
-            flex-shrink: 0;
-            box-shadow: 0 4px 16px rgba(74, 158, 255, 0.25);
-        }
-
-        .input-area button:hover:not(:disabled) {
-            transform: scale(1.05);
-            box-shadow: 0 6px 24px rgba(74, 158, 255, 0.35);
-        }
-        .input-area button:active:not(:disabled) { transform: scale(0.92); }
-        .input-area button:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-            box-shadow: none;
+            gap: 8px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px 4px 16px 16px;
+            border: 1px solid rgba(100, 178, 51, 0.1);
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.8);
         }
 
         .spinner {
             display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: #fff;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(100, 178, 51, 0.3);
+            border-top-color: #64b233;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ----- НИЖНЯЯ НАВИГАЦИЯ (ТОЧНО КАК НА СКРИНШОТЕ) ----- */
-        .bottom-nav {
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* FEEDBACK & ACTIONS */
+        .message-actions {
             display: flex;
-            justify-content: space-around;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .action-btn {
+            padding: 6px 10px;
+            font-size: 12px;
+            border: 1px solid rgba(100, 178, 51, 0.4);
+            background: rgba(100, 178, 51, 0.05);
+            color: #64b233;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: rgba(100, 178, 51, 0.15);
+            border-color: #64b233;
+        }
+
+        .habit-suggestion {
+            background: rgba(100, 178, 51, 0.1);
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(100, 178, 51, 0.3);
+            margin-top: 8px;
+            font-size: 13px;
+            display: flex;
             align-items: center;
-            padding: 8px 0 14px;
-            border-top: 1px solid var(--border);
-            background: rgba(11, 26, 46, 0.9);
-            backdrop-filter: blur(12px);
+            gap: 8px;
+        }
+
+        .add-habit-btn {
+            padding: 5px 10px;
+            background: #64b233;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .add-habit-btn:hover {
+            background: #52a828;
+            transform: scale(1.05);
+        }
+
+        /* INPUT AREA */
+        .input-area {
+            padding: 12px 16px;
+            background: rgba(15, 20, 25, 0.95);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            backdrop-filter: blur(10px);
+        }
+
+        .input-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(100, 178, 51, 0.2);
+            border-radius: 24px;
+            padding: 8px 16px;
+            transition: all 0.2s;
+        }
+
+        .input-wrapper:focus-within {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #64b233;
+            box-shadow: 0 0 12px rgba(100, 178, 51, 0.2);
+        }
+
+        .input-wrapper textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-size: 14px;
+            resize: none;
+            max-height: 100px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .input-wrapper textarea::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .send-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: linear-gradient(135deg, #64b233 0%, #52a828 100%);
+            color: #ffffff;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
             flex-shrink: 0;
         }
 
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            font-size: 10px;
-            cursor: pointer;
-            transition: var(--transition);
-            padding: 4px 12px;
-            font-family: inherit;
-            position: relative;
+        .send-btn:hover:not(:disabled) {
+            transform: scale(1.08);
+            box-shadow: 0 4px 12px rgba(100, 178, 51, 0.4);
         }
 
-        .nav-item .nav-icon {
-            font-size: 22px;
-            line-height: 1;
-            margin-bottom: 2px;
+        .send-btn:active:not(:disabled) {
+            transform: scale(0.95);
         }
 
-        .nav-item.active {
-            color: var(--accent);
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
-        .nav-item.active::after {
-            content: '';
-            position: absolute;
-            top: -1px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 20px;
-            height: 2px;
-            background: var(--accent);
-            border-radius: 2px;
+        /* THROTTLE WARNING */
+        .throttle-warning {
+            background: rgba(255, 152, 0, 0.1);
+            border: 1px solid rgba(255, 152, 0, 0.4);
+            color: #ffb74d;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            text-align: center;
+            margin-bottom: 8px;
         }
 
-        .nav-item:hover { color: var(--text-primary); }
+        /* CRISIS ALERT */
+        .crisis-alert {
+            background: rgba(244, 67, 54, 0.15);
+            border: 1px solid rgba(244, 67, 54, 0.4);
+            color: #ff6b6b;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
 
-        /* ----- АДАПТАЦИЯ (фиксированно тёмная) ----- */
-        /* (тема Telegram игнорируется, мы используем свой стиль) */
+        /* RESPONSIVE */
+        @media (max-width: 600px) {
+            .message-bubble {
+                max-width: 90%;
+            }
+        }
     </style>
 </head>
 <body>
-<div id="app">
-    <!-- ШАПКА -->
-    <div class="header">
-        <div class="header-left">
-            <div class="avatar">🧠</div>
-            <div class="header-info">
-                <div class="header-title">AI Наставник</div>
-                <div class="header-sub">
-                    <span class="dot"></span> онлайн
-                </div>
-            </div>
-        </div>
-        <div class="header-actions">
-            <button class="icon-btn" id="tipBtn" title="Совет дня">💡</button>
-            <button class="icon-btn" id="clearBtn" title="Очистить историю">🗑️</button>
-        </div>
-    </div>
+    <div id="root"></div>
 
-    <!-- СООБЩЕНИЯ -->
-    <div class="messages" id="messages"></div>
+    <script>
+        const { useState, useEffect, useRef, useCallback } = React;
 
-    <!-- ПОЛЕ ВВОДА -->
-    <div class="input-area">
-        <textarea id="input" rows="1" placeholder="Напиши сообщение..." style="min-height:44px;"></textarea>
-        <button id="sendBtn">➤</button>
-    </div>
-
-    <!-- НИЖНЯЯ НАВИГАЦИЯ (копия с главной) -->
-    <div class="bottom-nav">
-        <button class="nav-item" data-tab="home">
-            <span class="nav-icon">🏠</span>
-            <span>Главная</span>
-        </button>
-        <button class="nav-item" data-tab="calendar">
-            <span class="nav-icon">📅</span>
-            <span>Календарь</span>
-        </button>
-        <button class="nav-item active" data-tab="ai">
-            <span class="nav-icon">🤖</span>
-            <span>ИИ</span>
-        </button>
-        <button class="nav-item" data-tab="rating">
-            <span class="nav-icon">🏆</span>
-            <span>Рейтинг</span>
-        </button>
-        <button class="nav-item" data-tab="profile">
-            <span class="nav-icon">👤</span>
-            <span>Профиль</span>
-        </button>
-    </div>
-</div>
-
-<script>
-    (function() {
-        // ----- Telegram WebApp -----
         const tg = window.Telegram.WebApp;
         tg.ready();
 
-        // ----- DOM -----
-        const messagesEl = document.getElementById('messages');
-        const inputField = document.getElementById('input');
-        const sendBtn = document.getElementById('sendBtn');
-        const tipBtn = document.getElementById('tipBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        const navItems = document.querySelectorAll('.nav-item');
-        const initData = tg.initData || '';
+        function AiChat() {
+            const [messages, setMessages] = useState([]);
+            const [input, setInput] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [throttle, setThrottle] = useState(null);
+            const messagesEnd = useRef(null);
 
-        let isLoading = false;
-        let throttleTimer = null;
+            const scroll = () => messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });
+            useEffect(scroll, [messages]);
 
-        // ----- Навигация (заглушка) -----
-        navItems.forEach(item => {
-            item.addEventListener('click', function() {
-                navItems.forEach(n => n.classList.remove('active'));
-                this.classList.add('active');
-                const tab = this.dataset.tab;
-                if (tab !== 'ai') {
-                    if (tg.showPopup) {
-                        tg.showPopup({
-                            title: 'Переход',
-                            message: `Вы перешли на вкладку "${this.querySelector('span:last-child').textContent}"`,
-                            buttons: [{ type: 'ok' }]
-                        });
-                    } else {
-                        alert(`Переход на ${this.querySelector('span:last-child').textContent}`);
-                    }
-                }
-            });
-        });
+            const sendMsg = useCallback(async () => {
+                if (!input.trim() || loading || throttle) return;
 
-        // ----- Вспомогательные -----
-        function addMessage(text, role, extraClass = '') {
-            const div = document.createElement('div');
-            div.className = 'message ' + role + (extraClass ? ' ' + extraClass : '');
-            div.innerHTML = text.replace(/\n/g, '<br>');
-            const time = document.createElement('div');
-            time.className = 'timestamp';
-            time.textContent = new Date().toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
-            div.appendChild(time);
-            messagesEl.appendChild(div);
-            messagesEl.scrollTop = messagesEl.scrollHeight;
-        }
+                const text = input.trim();
+                setInput('');
+                setMessages(p => [...p, {
+                    id: Date.now(),
+                    role: 'user',
+                    text,
+                    time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })
+                }]);
 
-        function showTyping() {
-            const div = document.createElement('div');
-            div.className = 'typing-indicator';
-            div.id = 'typingIndicator';
-            div.innerHTML = `
-                <div class="typing-dots"><span></span><span></span><span></span></div>
-                <span class="typing-text">Наставник печатает</span>
-            `;
-            messagesEl.appendChild(div);
-            messagesEl.scrollTop = messagesEl.scrollHeight;
-        }
+                setLoading(true);
 
-        function hideTyping() {
-            const el = document.getElementById('typingIndicator');
-            if (el) el.remove();
-        }
+                try {
+                    const res = await fetch('/api/ai/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            init_data: tg.initData,
+                            message: text
+                        })
+                    });
 
-        function showThrottle(seconds) {
-            const div = document.createElement('div');
-            div.className = 'throttle';
-            div.id = 'throttleMsg';
-            div.textContent = '⏳ Подожди ' + seconds + ' сек.';
-            messagesEl.appendChild(div);
-            messagesEl.scrollTop = messagesEl.scrollHeight;
-            setTimeout(() => {
-                const el = document.getElementById('throttleMsg');
-                if (el) el.remove();
-            }, seconds * 1000);
-        }
+                    const data = await res.json();
 
-        function clearInput() {
-            inputField.value = '';
-            inputField.style.height = 'auto';
-        }
-
-        // ----- Отправка -----
-        async function sendMessage() {
-            const text = inputField.value.trim();
-            if (!text || isLoading || throttleTimer) return;
-            if (!initData) {
-                addMessage('❌ Авторизация не пройдена. Откройте приложение через Telegram.', 'assistant', 'error');
-                return;
-            }
-
-            addMessage(text, 'user');
-            clearInput();
-            isLoading = true;
-            sendBtn.disabled = true;
-            showTyping();
-
-            try {
-                const response = await fetch('/api/ai/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Telegram-Init-Data': initData
-                    },
-                    body: JSON.stringify({ message: text })
-                });
-
-                if (!response.ok) {
-                    let errorMsg = 'Ошибка сервера (код ' + response.status + ')';
-                    if (response.status === 401) {
-                        errorMsg = '❌ Ошибка авторизации. Перезапустите приложение.';
-                    } else if (response.status === 429) {
-                        try {
-                            const data = await response.json();
-                            const seconds = data.wait_seconds || 5;
-                            throttleTimer = true;
-                            showThrottle(seconds);
-                            setTimeout(() => { throttleTimer = false; }, seconds * 1000);
-                            errorMsg = '⏳ Подожди ' + seconds + ' сек.';
-                        } catch (_) {
-                            errorMsg = '⏳ Слишком много запросов. Подождите.';
+                    if (!res.ok) {
+                        if (res.status === 429) {
+                            setThrottle(data.wait_seconds);
+                            setTimeout(() => setThrottle(null), data.wait_seconds * 1000);
                         }
-                    } else {
-                        try {
-                            const data = await response.json();
-                            if (data.message) errorMsg = data.message;
-                        } catch (_) {}
+                        setMessages(p => [...p, {
+                            id: Date.now(),
+                            role: 'system',
+                            text: data.message || 'Ошибка',
+                            type: 'error'
+                        }]);
+                        return;
                     }
-                    hideTyping();
-                    addMessage(errorMsg, 'assistant', 'error');
-                    return;
+
+                    setMessages(p => [...p, {
+                        id: data.message_id,
+                        role: 'assistant',
+                        text: data.answer,
+                        time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }),
+                        isCrisis: data.is_crisis,
+                        habit: data.suggested_habit,
+                        canRate: true
+                    }]);
+                } catch (e) {
+                    setMessages(p => [...p, {
+                        id: Date.now(),
+                        role: 'system',
+                        text: 'Ошибка подключения',
+                        type: 'error'
+                    }]);
+                } finally {
+                    setLoading(false);
                 }
+            }, [input, loading, throttle, tg.initData]);
 
-                const data = await response.json();
-                const reply = data.reply || 'Пустой ответ';
-                hideTyping();
-                addMessage(reply, 'assistant');
-
-            } catch (err) {
-                console.error(err);
-                hideTyping();
-                addMessage('❌ Ошибка сети. Проверьте интернет.', 'assistant', 'error');
-            } finally {
-                isLoading = false;
-                sendBtn.disabled = false;
-                inputField.focus();
-            }
-        }
-
-        // ----- Совет дня -----
-        async function getTip() {
-            if (!initData) {
-                addMessage('❌ Авторизация не пройдена.', 'assistant', 'error');
-                return;
-            }
-            if (isLoading) return;
-            isLoading = true;
-            sendBtn.disabled = true;
-            showTyping();
-
-            try {
-                const response = await fetch('/api/ai/tip', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Telegram-Init-Data': initData
-                    }
-                });
-                hideTyping();
-                if (!response.ok) {
-                    addMessage('❌ Не удалось получить совет (код ' + response.status + ')', 'assistant', 'error');
-                    return;
-                }
-                const data = await response.json();
-                addMessage('💡 <b>Совет дня</b>\n\n' + data.tip, 'assistant');
-            } catch (e) {
-                hideTyping();
-                addMessage('❌ Ошибка сети', 'assistant', 'error');
-            } finally {
-                isLoading = false;
-                sendBtn.disabled = false;
-            }
-        }
-
-        // ----- Очистка истории -----
-        function clearHistory() {
-            if (messagesEl.children.length <= 1) return;
-            const confirmAction = () => {
-                messagesEl.innerHTML = '';
-                addMessage('👋 История очищена. Задай новый вопрос!', 'assistant');
+            const rate = async (id, rating) => {
+                try {
+                    await fetch('/api/ai/feedback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            init_data: tg.initData,
+                            message_id: id,
+                            rating
+                        })
+                    });
+                    setMessages(p => p.map(m => m.id === id ? { ...m, canRate: false, rated: rating } : m));
+                } catch (e) {}
             };
-            if (tg.showPopup) {
-                tg.showPopup({
-                    title: 'Очистить историю?',
-                    message: 'Все сообщения будут удалены из чата (только локально).',
-                    buttons: [
-                        { type: 'cancel' },
-                        { type: 'ok', text: 'Очистить' }
-                    ]
-                }, (btn) => {
-                    if (btn === 'ok') confirmAction();
-                });
-            } else {
-                if (confirm('Очистить историю чата?')) confirmAction();
-            }
+
+            const addHabit = async (id, habit) => {
+                try {
+                    await fetch('/api/ai/habit/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            init_data: tg.initData,
+                            habit_title: habit
+                        })
+                    });
+                    setMessages(p => p.map(m => m.id === id ? { ...m, habit: null } : m));
+                    tg.showPopup({ title: '✅ Успешно', message: `Привычка "${habit}" добавлена`, buttons: [{ type: 'ok' }] });
+                } catch (e) {}
+            };
+
+            const getTip = async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch('/api/ai/tip', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ init_data: tg.initData })
+                    });
+                    const data = await res.json();
+                    setMessages(p => [...p, {
+                        id: Date.now(),
+                        role: 'assistant',
+                        text: '💡 <b>Совет дня</b>\n\n' + data.tip,
+                        time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }),
+                        isHtml: true
+                    }]);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="app-container">
+                    <div className="header">
+                        <div className="header-title">
+                            <div className="header-title-icon">🤖</div>
+                            <div>
+                                <div>AI Наставник</div>
+                                <div className="header-status">
+                                    <div className="status-dot"></div>
+                                    онлайн
+                                </div>
+                            </div>
+                        </div>
+                        <div className="header-buttons">
+                            <button className="icon-btn" onClick={getTip} title="Совет дня">💡</button>
+                        </div>
+                    </div>
+
+                    <div className="messages-container">
+                        {messages.length === 0 ? (
+                            <div className="empty-state">
+                                <div className="empty-icon">🤖</div>
+                                <div className="empty-text">
+                                    👋 Привет! Я твой персональный<br/>наставник по привычкам.<br/><br/>
+                                    Спроси меня что угодно!
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {messages.map(m => (
+                                    <div key={m.id}>
+                                        {m.type === 'error' && <div className="throttle-warning">{m.text}</div>}
+
+                                        {m.role === 'user' && (
+                                            <div className="message user">
+                                                <div>
+                                                    <div className="message-bubble">{m.text}</div>
+                                                    <div className="message-time" style={{textAlign: 'right'}}>{m.time}</div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {m.role === 'assistant' && (
+                                            <div className="message assistant">
+                                                <div style={{maxWidth: '80%'}}>
+                                                    {m.isCrisis && <div className="crisis-alert">⚠️ Важно</div>}
+                                                    <div className="message-bubble">
+                                                        {m.isHtml ? <div dangerouslySetInnerHTML={{__html: m.text}}/> : 
+                                                         <div style={{whiteSpace: 'pre-wrap'}}>{m.text}</div>}
+                                                    </div>
+                                                    <div className="message-time">{m.time}</div>
+
+                                                    {m.canRate && !m.isCrisis && (
+                                                        <div className="message-actions">
+                                                            <button className="action-btn" onClick={() => rate(m.id, 'up')}>👍 Полезно</button>
+                                                            <button className="action-btn" onClick={() => rate(m.id, 'down')}>👎 Не понравилось</button>
+                                                        </div>
+                                                    )}
+
+                                                    {m.habit && (
+                                                        <div className="habit-suggestion">
+                                                            <span>➕ {m.habit}</span>
+                                                            <button className="add-habit-btn" onClick={() => addHabit(m.id, m.habit)}>Добавить</button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                {loading && (
+                                    <div className="message assistant">
+                                        <div className="thinking">
+                                            <div className="spinner"></div>
+                                            <span>Думаю...</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <div ref={messagesEnd} />
+                            </>
+                        )}
+                    </div>
+
+                    {throttle && <div className="throttle-warning">⏳ Подожди {throttle} сек...</div>}
+
+                    <div className="input-area">
+                        <div className="input-wrapper">
+                            <textarea
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyPress={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMsg())}
+                                placeholder="Напиши вопрос..."
+                                disabled={loading || throttle}
+                                rows="1"
+                                style={{minHeight: '40px'}}
+                            />
+                        </div>
+                        <button className="send-btn" onClick={sendMsg} disabled={!input.trim() || loading || throttle}>
+                            {loading ? <div className="spinner"></div> : '➤'}
+                        </button>
+                    </div>
+                </div>
+            );
         }
 
-        // ----- Обработчики -----
-        sendBtn.addEventListener('click', sendMessage);
-        inputField.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-        inputField.addEventListener('input', () => {
-            inputField.style.height = 'auto';
-            inputField.style.height = inputField.scrollHeight + 'px';
-        });
-
-        tipBtn.addEventListener('click', getTip);
-        clearBtn.addEventListener('click', clearHistory);
-
-        // Приветствие
-        if (initData) {
-            addMessage('👋 Привет! Я твой персональный наставник по привычкам. Задай вопрос или расскажи о своих целях.', 'assistant');
-        } else {
-            addMessage('🔐 Для начала работы откройте это приложение через Telegram.', 'assistant', 'error');
-        }
-
-        inputField.focus();
-    })();
-</script>
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AiChat />);
+    </script>
 </body>
 </html>
