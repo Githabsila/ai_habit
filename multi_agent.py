@@ -454,8 +454,38 @@ CRISIS_RESPONSE = (
 
 
 async def detect_crisis(task: str) -> bool:
+    if not _has_crisis_signal(task):
+        return False
     raw = await _ask(CRISIS_SYSTEM, task, temperature=0.0, max_tokens=5, model=FAST_MODEL)
     return raw.strip().lower().startswith("да")
+
+
+# ============ 0c-2. KEYWORD-ФИЛЬТР (защита от ложных срабатываний) ============
+# Кризис-классификатор — это маленькая быстрая модель (FAST_MODEL), а не MODEL,
+# и она время от времени ошибочно помечает совершенно нейтральные сообщения
+# ("как дела", "привет") как кризис. Промпт с примерами снижает это, но не
+# убирает полностью. Поэтому здесь — детерминированный, не-ИИ фильтр: если в
+# сообщении нет вообще ни одного слова/корня, хоть отдалённо связанного с
+# риском для жизни или самоповреждением, кризис-гейт не сработает НИКОГДА,
+# независимо от того, что ответит модель. ИИ-классификатор вызывается и
+# учитывается только как дополнительное уточнение уже ПОСЛЕ этого фильтра —
+# это убирает ложные срабатывания на бытовых фразах полностью, а не только
+# "как правило".
+
+_CRISIS_KEYWORDS = (
+    "суицид", "самоуб", "самоповре", "покончить", "покончу",
+    "не хочу жить", "не хочу больше жить", "хочу умереть", "хочу сдохнуть",
+    "убить себя", "убью себя", "порезать себя", "порежу себя", "порезаться",
+    "навредить себе", "причинить себе вред", "нет смысла жить",
+    "жить не хочется", "лучше бы я умер", "лучше умереть", "закончить всё",
+    "закончить с собой", "свести счёты с жизнью", "не хочу больше жить",
+    "hurt myself", "kill myself", "suicide", "self harm", "self-harm",
+)
+
+
+def _has_crisis_signal(task: str) -> bool:
+    normalized = task.strip().lower()
+    return any(kw in normalized for kw in _CRISIS_KEYWORDS)
 
 
 # ============ 0d. ОБЪЕДИНЁННЫЙ КЛАССИФИКАТОР ============
@@ -500,7 +530,7 @@ async def classify_message(task: str) -> tuple[str, str, bool]:
         complexity_raw = str(data.get("complexity", "")).strip().lower()
         complexity = "просто" if complexity_raw.startswith("прост") else "сложно"
 
-        crisis = bool(data.get("crisis", False))
+        crisis = bool(data.get("crisis", False)) and _has_crisis_signal(task)
 
         return mood, complexity, crisis
     except Exception as e:
@@ -1167,3 +1197,4 @@ def detect_role(text: str):
         return PROGRAMMER_PROMPT
 
     return GENERAL_PROMPT
+
