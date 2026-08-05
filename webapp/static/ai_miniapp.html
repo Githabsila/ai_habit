@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Наставник</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/react-dom.production.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body, #root {
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
+            color: #ffffff;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
+        }
+
+        /* HEADER */
+        .header {
+            padding: 16px;
+            background: rgba(15, 20, 25, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .header-title-icon {
+            font-size: 24px;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #64b233;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #64b233;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: rgba(100, 178, 51, 0.1);
+            color: #64b233;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: rgba(100, 178, 51, 0.2);
+            transform: scale(1.05);
+        }
+
+        /* MESSAGES AREA */
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .messages-container::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb {
+            background: rgba(100, 178, 51, 0.3);
+            border-radius: 2px;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 178, 51, 0.5);
+        }
+
+        /* EMPTY STATE */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 16px;
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            opacity: 0.6;
+        }
+
+        .empty-text {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* MESSAGES */
+        .message {
+            display: flex;
+            animation: slideIn 0.3s ease-out;
+            word-wrap: break-word;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.assistant {
+            justify-content: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #64b233 0%, #52a828 100%);
+            color: #ffffff;
+            border-radius: 16px 4px 16px 16px;
+        }
+
+        .message.assistant .message-bubble {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e8e8e8;
+            border: 1px solid rgba(100, 178, 51, 0.2);
+            border-radius: 4px 16px 16px 16px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            opacity: 0.6;
+            margin-top: 4px;
+        }
+
+        .thinking {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px 4px 16px 16px;
+            border: 1px solid rgba(100, 178, 51, 0.1);
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(100, 178, 51, 0.3);
+            border-top-color: #64b233;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* FEEDBACK & ACTIONS */
+        .message-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .action-btn {
+            padding: 6px 10px;
+            font-size: 12px;
+            border: 1px solid rgba(100, 178, 51, 0.4);
+            background: rgba(100, 178, 51, 0.05);
+            color: #64b233;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: rgba(100, 178, 51, 0.15);
+            border-color: #64b233;
+        }
+
+        .habit-suggestion {
+            background: rgba(100, 178, 51, 0.1);
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(100, 178, 51, 0.3);
+            margin-top: 8px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .add-habit-btn {
+            padding: 5px 10px;
+            background: #64b233;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .add-habit-btn:hover {
+            background: #52a828;
+            transform: scale(1.05);
+        }
+
+        /* INPUT AREA */
+        .input-area {
+            padding: 12px 16px;
+            background: rgba(15, 20, 25, 0.95);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            backdrop-filter: blur(10px);
+        }
+
+        .input-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(100, 178, 51, 0.2);
+            border-radius: 24px;
+            padding: 8px 16px;
+            transition: all 0.2s;
+        }
+
+        .input-wrapper:focus-within {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #64b233;
+            box-shadow: 0 0 12px rgba(100, 178, 51, 0.2);
+        }
+
+        .input-wrapper textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-size: 14px;
+            resize: none;
+            max-height: 100px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .input-wrapper textarea::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .send-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: linear-gradient(135deg, #64b233 0%, #52a828 100%);
+            color: #ffffff;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: scale(1.08);
+            box-shadow: 0 4px 12px rgba(100, 178, 51, 0.4);
+        }
+
+        .send-btn:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* THROTTLE WARNING */
+        .throttle-warning {
+            background: rgba(255, 152, 0, 0.1);
+            border: 1px solid rgba(255, 152, 0, 0.4);
+            color: #ffb74d;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        /* CRISIS ALERT */
+        .crisis-alert {
+            background: rgba(244, 67, 54, 0.15);
+            border: 1px solid rgba(244, 67, 54, 0.4);
+            color: #ff6b6b;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 600px) {
+            .message-bubble {
+                max-width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+
+        function AiChat() {
+            const [messages, setMessages] = useState([]);
+            const [input, setInput] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [throttle, setThrottle] = useState(null);
+            const messagesEnd = useRef(null);
+
+            const scroll = () => messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });
+            useEffect(scroll, [messages]);
+
+            const sendMsg = useCallback(async () => {
+                if (!input.trim() || loading || throttle) return;
+
+                const text = input.trim();
+                setInput('');
+                setMessages(p => [...p, {
+                    id: Date.now(),
+                    role: 'user',
+                    text,
+                    time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })
+                }]);
+
+                setLoading(true);
+
+                try {
+                    const res = await fetch('/api/ai/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            init_data: tg.initData,
+                            message: text
+                        })
+                    });
+
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                        if (res.status === 429) {
+                            setThrottle(data.wait_seconds);
+                            setTimeout(() => setThrottle(null), data.wait_seconds * 1000);
+                        }
+                        setMessages(p => [...p, {
+                            id: Date.now(),
+                            role: 'system',
+                            text: data.message || 'Ошибка',
+                            type: 'error'
+                        }]);
+                        return;
+                    }
+
+                    setMessages(p => [...p, {
+                        id: data.message_id,
+                        role: 'assistant',
+                        text: data.answer,
+                        time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }),
+                        isCrisis: data.is_crisis,
+                        habit: data.suggested_habit,
+                        canRate: true
+                    }]);
+                } catch (e) {
+                    setMessages(p => [...p, {
+                        id: Date.now(),
+                        role: 'system',
+                        text: 'Ошибка подключения',
+                        type: 'error'
+                    }]);
+                } finally {
+                    setLoading(false);
+                }
+            }, [input, loading, throttle, tg.initData]);
+
+            const rate = async (id, rating) => {
+                try {
+                    await fetch('/api/ai/feedback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            init_data: tg.initData,
+                            message_id: id,
+                            rating
+                        })
+                    });
+                    setMessages(p => p.map(m => m.id === id ? { ...m, canRate: false, rated: rating } : m));
+                } catch (e) {}
+            };
+
+            const addHabit = async (id, habit) => {
+                try {
+                    await fetch('/api/ai/habit/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            init_data: tg.initData,
+                            habit_title: habit
+                        })
+                    });
+                    setMessages(p => p.map(m => m.id === id ? { ...m, habit: null } : m));
+                    tg.showPopup({ title: '✅ Успешно', message: `Привычка "${habit}" добавлена`, buttons: [{ type: 'ok' }] });
+                } catch (e) {}
+            };
+
+            const getTip = async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch('/api/ai/tip', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ init_data: tg.initData })
+                    });
+                    const data = await res.json();
+                    setMessages(p => [...p, {
+                        id: Date.now(),
+                        role: 'assistant',
+                        text: '💡 <b>Совет дня</b>\n\n' + data.tip,
+                        time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }),
+                        isHtml: true
+                    }]);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="app-container">
+                    <div className="header">
+                        <div className="header-title">
+                            <div className="header-title-icon">🤖</div>
+                            <div>
+                                <div>AI Наставник</div>
+                                <div className="header-status">
+                                    <div className="status-dot"></div>
+                                    онлайн
+                                </div>
+                            </div>
+                        </div>
+                        <div className="header-buttons">
+                            <button className="icon-btn" onClick={getTip} title="Совет дня">💡</button>
+                        </div>
+                    </div>
+
+                    <div className="messages-container">
+                        {messages.length === 0 ? (
+                            <div className="empty-state">
+                                <div className="empty-icon">🤖</div>
+                                <div className="empty-text">
+                                    👋 Привет! Я твой персональный<br/>наставник по привычкам.<br/><br/>
+                                    Спроси меня что угодно!
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {messages.map(m => (
+                                    <div key={m.id}>
+                                        {m.type === 'error' && <div className="throttle-warning">{m.text}</div>}
+
+                                        {m.role === 'user' && (
+                                            <div className="message user">
+                                                <div>
+                                                    <div className="message-bubble">{m.text}</div>
+                                                    <div className="message-time" style={{textAlign: 'right'}}>{m.time}</div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {m.role === 'assistant' && (
+                                            <div className="message assistant">
+                                                <div style={{maxWidth: '80%'}}>
+                                                    {m.isCrisis && <div className="crisis-alert">⚠️ Важно</div>}
+                                                    <div className="message-bubble">
+                                                        {m.isHtml ? <div dangerouslySetInnerHTML={{__html: m.text}}/> : 
+                                                         <div style={{whiteSpace: 'pre-wrap'}}>{m.text}</div>}
+                                                    </div>
+                                                    <div className="message-time">{m.time}</div>
+
+                                                    {m.canRate && !m.isCrisis && (
+                                                        <div className="message-actions">
+                                                            <button className="action-btn" onClick={() => rate(m.id, 'up')}>👍 Полезно</button>
+                                                            <button className="action-btn" onClick={() => rate(m.id, 'down')}>👎 Не понравилось</button>
+                                                        </div>
+                                                    )}
+
+                                                    {m.habit && (
+                                                        <div className="habit-suggestion">
+                                                            <span>➕ {m.habit}</span>
+                                                            <button className="add-habit-btn" onClick={() => addHabit(m.id, m.habit)}>Добавить</button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                {loading && (
+                                    <div className="message assistant">
+                                        <div className="thinking">
+                                            <div className="spinner"></div>
+                                            <span>Думаю...</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <div ref={messagesEnd} />
+                            </>
+                        )}
+                    </div>
+
+                    {throttle && <div className="throttle-warning">⏳ Подожди {throttle} сек...</div>}
+
+                    <div className="input-area">
+                        <div className="input-wrapper">
+                            <textarea
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyPress={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMsg())}
+                                placeholder="Напиши вопрос..."
+                                disabled={loading || throttle}
+                                rows="1"
+                                style={{minHeight: '40px'}}
+                            />
+                        </div>
+                        <button className="send-btn" onClick={sendMsg} disabled={!input.trim() || loading || throttle}>
+                            {loading ? <div className="spinner"></div> : '➤'}
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AiChat />);
+    </script>
+</body>
+</html>
