@@ -1,314 +1,87 @@
-import json
-import logging
+#!/usr/bin/env python3
+"""
+Скрипт для автоматического обновления webapp/server.py
+Добавляет маршруты для AI мини-приложения
+"""
+
 import os
-from pathlib import Path
+import sys
 
-from aiohttp import web
-from aiohttp.web import Application
-
-from config import BOT_TOKEN, ADMIN_IDS
-from webapp.telegram_auth import validate_init_data
-from webapp.services.ai_coach import ask_ai
-
-from db import (
-    get_user, add_user, is_banned, get_access_status,
-    get_habits, get_habit, add_habit, edit_habit, delete_habit,
-    complete_habit, get_progress, get_settings,
-    update_reminder_time, update_ai_style, get_ai_style,
-    get_shop_items, buy_shop_item, get_user_items,
-    get_rating, get_calendar, get_achievements
-)
-
-logger = logging.getLogger("webapp")
-BASE_DIR = Path(__file__).parent
-routes = web.RouteTableDef()
-
-# ====================== АВТОРИЗАЦИЯ ======================
-
-def _extract_init_data(request):
-    header = request.headers.get("Authorization", "")
-    if header.startswith("tma "):
-        return header[4:]
-    return request.headers.get("X-Telegram-Init-Data", "")
-
-async def _authenticate(request):
-    init_data = _extract_init_data(request)
-    tg_user = validate_init_data(init_data, BOT_TOKEN)
-    if tg_user is None:
-        raise web.HTTPUnauthorized(reason="invalid_init_data")
-
-    telegram_id = tg_user["id"]
-    is_admin = telegram_id in ADMIN_IDS
-
-    if get_user(telegram_id) is None:
-        add_user(
-            telegram_id=telegram_id,
-            username=tg_user.get("username"),
-            first_name=tg_user.get("first_name", "")
-        )
-
-    if is_banned(telegram_id):
-        raise web.HTTPForbidden(text='{"error":"banned"}')
-
-    if not is_admin:
-        status = get_access_status(telegram_id) or "approved"
-        if status != "approved":
-            raise web.HTTPForbidden(
-                text=json.dumps({
-                    "error": f"access_{status}",
-                    "message": "Сначала пройдите анкету в самом боте"
-                })
-            )
-
-    return telegram_id, is_admin
-
-# ====================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ======================
-
-def _owned_habit_or_404(habit_id, telegram_id):
-    habit = get_habit(habit_id)
-    if not habit or habit["telegram_id"] != telegram_id:
-        raise web.HTTPNotFound()
-
-# ====================== MIDDLEWARE ======================
-
-@web.middleware
-async def error_middleware(request, handler):
-    try:
-        return await handler(request)
-    except web.HTTPException:
-        raise
-    except Exception:
-        logger.exception(f"Необработанная ошибка в {request.path}")
-        return web.json_response({"error": "internal_error"}, status=500)
-
-# ====================== МАРШРУТЫ ======================
-
-@routes.get("/api/bootstrap")
-async def bootstrap(request):
-    telegram_id, is_admin = await _authenticate(request)
-    user = get_user(telegram_id)
-    habits = get_habits(telegram_id)
-    progress = get_progress(telegram_id)
-    settings_row = get_settings(telegram_id)
-    shop_items = get_shop_items()
-    owned_item_ids = set(get_user_items(telegram_id))
-    leaderboard = get_rating()
-    calendar_events = get_calendar(telegram_id)
-    achievements = get_achievements(telegram_id)
-
-    return web.json_response({
-        "user": {
-            "telegram_id": telegram_id,
-            "first_name": user["first_name"] if user else "",
-            "xp": user["xp"] if user else 0,
-            "level": user["level"] if user else 1,
-            "streak": user["streak"] if user else 0,
-            "premium": bool(user["premium"]) if user else False,
-            "is_admin": is_admin,
-        },
-        "habits": [{"id": h["id"], "title": h["title"], "completed": bool(h["completed"])} for h in habits],
-        "progress": progress,
-        "settings": {
-            "reminders": bool(settings_row["reminders"]) if settings_row else True,
-            "reminder_hour": settings_row["reminder_hour"] if settings_row else 9,
-            "reminder_minute": settings_row["reminder_minute"] if settings_row else 0,
-            "ai_style": get_ai_style(telegram_id),
-        },
-        "shop_items": [
-            {
-                "id": it["id"], "name": it["name"], "description": it["description"],
-                "price": it["price"], "owned": it["id"] in owned_item_ids,
-            } for it in shop_items
-        ],
-        "leaderboard": [
-            {
-                "telegram_id": row["telegram_id"],
-                "username": row["username"],
-                "first_name": row["first_name"],
-                "xp": row["xp"], "level": row["level"], "streak": row["streak"],
-            } for row in leaderboard
-        ],
-        "calendar_events": [
-            {"day": row["day"], "completed": row["completed"]} for row in calendar_events
-        ],
-        "achievements": [
-            {
-                "id": a["id"], "title": a["title"], "description": a["description"],
-                "created_at": a["created_at"],
-            } for a in achievements
-        ],
-    })
-
-@routes.post("/api/habits")
-async def create_habit(request):
-    telegram_id, _ = await _authenticate(request)
-    body = await request.json()
-    title = body.get("title", "").strip()
-    if len(title) < 2:
-        return web.json_response({"error": "title_too_short"}, status=400)
-    add_habit(telegram_id, title)
-    return web.json_response({"ok": True})
-
-@routes.post("/api/ai/chat")
-async def ai_chat(request):
-    telegram_id, _ = await _authenticate(request)
-    body = await request.json()
-    message = body.get("message", "").strip()
-    if not message:
-        return web.json_response({"error": "empty_message"}, status=400)
-    try:
-        answer = await ask_ai(telegram_id, message)
-        return web.json_response({"reply": answer})
-    except Exception as e:
-        logger.exception(e)
-        return web.json_response({"error": "ai_error"}, status=500)
-
-@routes.post("/api/ai/feedback")
-async def ai_feedback(request):
-    telegram_id, _ = await _authenticate(request)
-    body = await request.json()
-    message_id = body.get("message_id")
-    rating = body.get("rating")  # "up" или "down"
-    if not message_id or rating not in ("up", "down"):
-        return web.json_response({"error": "invalid_data"}, status=400)
+def update_server():
+    server_path = "webapp/server.py"
     
-    # Функция должна быть в db.py
-    from db import save_ai_feedback
-    save_ai_feedback(message_id, telegram_id, rating)
-    return web.json_response({"ok": True})
-
-@routes.post("/api/ai/habit/add")
-async def ai_add_habit(request):
-    telegram_id, _ = await _authenticate(request)
-    body = await request.json()
-    habit_title = body.get("habit_title", "").strip()
-    if len(habit_title) < 2:
-        return web.json_response({"error": "title_too_short"}, status=400)
-    from db import add_habit
-    add_habit(telegram_id, habit_title)
-    return web.json_response({"ok": True})
-
-@routes.post("/api/ai/tip")
-async def ai_tip(request):
-    telegram_id, _ = await _authenticate(request)
-    try:
-        # Используем существующую функцию из multi_agent
-        from multi_agent import generate_daily_tip
-        from webapp.services.ai_utils import build_user_context
-        from db import get_ai_style
-
-        user_context = build_user_context(telegram_id)
-        style = get_ai_style(telegram_id)
-        tip = await generate_daily_tip(user_context, style)
-        return web.json_response({"tip": tip})
-    except Exception as e:
-        logger.exception(e)
-        return web.json_response({"error": "tip_error"}, status=500)
-@routes.put("/api/habits/{habit_id}")
-async def rename_habit(request):
-    telegram_id, _ = await _authenticate(request)
-    habit_id = int(request.match_info["habit_id"])
-    _owned_habit_or_404(habit_id, telegram_id)
-    body = await request.json()
-    new_title = body.get("title", "").strip()
-    if len(new_title) < 2:
-        return web.json_response({"error": "title_too_short"}, status=400)
-    edit_habit(habit_id, new_title)
-    return web.json_response({"ok": True})
-
-@routes.post("/api/habits/{habit_id}/complete")
-async def complete_habit_route(request):
-    telegram_id, _ = await _authenticate(request)
-    habit_id = int(request.match_info["habit_id"])
-    _owned_habit_or_404(habit_id, telegram_id)
-    success = complete_habit(habit_id)
-    if not success:
-        return web.json_response({"error": "already_completed"}, status=409)
-    return web.json_response({"ok": True, "progress": get_progress(telegram_id)})
-
-@routes.delete("/api/habits/{habit_id}")
-async def delete_habit_route(request):
-    telegram_id, _ = await _authenticate(request)
-    habit_id = int(request.match_info["habit_id"])
-    _owned_habit_or_404(habit_id, telegram_id)
-    delete_habit(habit_id)
-    return web.json_response({"ok": True})
-
-@routes.post("/api/settings/reminder-time")
-async def set_reminder_time(request):
-    telegram_id, _ = await _authenticate(request)
-    body = await request.json()
-    hour = int(body.get("hour"))
-    minute = int(body.get("minute"))
-    update_reminder_time(telegram_id, hour, minute)
-    return web.json_response({"ok": True})
-
-@routes.post("/api/settings/ai-style")
-async def set_ai_style(request):
-    telegram_id, _ = await _authenticate(request)
-    body = await request.json()
-    style = body.get("style")
-    if style not in ("soft", "neutral", "strict"):
-        return web.json_response({"error": "invalid_style"}, status=400)
-    update_ai_style(telegram_id, style)
-    return web.json_response({"ok": True})
-
-@routes.get("/")
+    if not os.path.exists(server_path):
+        print("❌ webapp/server.py не найден!")
+        return False
+    
+    with open(server_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Проверяем есть ли уже маршрут /ai
+    if '@routes.get("/ai")' in content:
+        print("✓ Маршрут /ai уже добавлен в server.py")
+        return True
+    
+    # Ищем где добавить маршрут
+    marker = '@routes.get("/")\nasync def index(request):'
+    
+    if marker not in content:
+        print("⚠️  Не удалось найти маршрут index в server.py")
+        print("Добавьте вручную эти строки после функции index():")
+        print("""
+@routes.get("/ai")
+async def ai_miniapp(request):
+    return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
+""")
+        return False
+    
+    # Добавляем новый маршрут
+    new_route = '''@routes.get("/")
 async def index(request):
     return web.FileResponse(BASE_DIR / "static" / "index.html")
 
-@routes.get("/coach")
-async def coach(request):
+# ====================== AI МиниПриложение ======================
+@routes.get("/ai")
+async def ai_miniapp(request):
+    """Serve the AI mini app interface"""
     return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
-
-@routes.get("/api/shop")
-async def get_shop(request):
-    telegram_id, _ = await _authenticate(request)
-    owned_item_ids = set(get_user_items(telegram_id))
-    items = [
-        {
-            "id": it["id"],
-            "name": it["name"],
-            "description": it["description"],
-            "price": it["price"],
-            "owned": it["id"] in owned_item_ids,
-        }
-        for it in get_shop_items()
-    ]
-    return web.json_response({"items": items})
-
-@routes.post("/api/buy/{item_id}")
-async def buy_route(request):
-    telegram_id, _ = await _authenticate(request)
-    item_id = int(request.match_info["item_id"])
-    success = buy_shop_item(telegram_id, item_id)
-    if not success:
-        return web.json_response({"error": "not_enough_xp_or_not_found"}, status=400)
-    user = get_user(telegram_id)
-    return web.json_response({
-        "ok": True,
-        "xp": user["xp"] if user else 0
-    })
-
-@routes.get("/health")
-async def health(request):
-    return web.json_response({"status": "ok"})
-
-# ====================== СОЗДАНИЕ ПРИЛОЖЕНИЯ ======================
-
-def create_app():
+'''
+    
+    content = content.replace(marker.replace('\n', '\n    '), new_route)
+    
+    # Проверяем есть ли импорт routes_ai_miniapp
+    if 'from webapp.routes_ai_miniapp import routes as ai_routes' not in content:
+        # Ищем функцию create_app
+        create_app_marker = 'def create_app():\n    app = web.Application(middlewares=[error_middleware])\n    app.add_routes(routes)'
+        
+        if create_app_marker in content:
+            new_create_app = '''def create_app():
     app = web.Application(middlewares=[error_middleware])
     app.add_routes(routes)
-    app.router.add_static("/static", BASE_DIR / "static")
-    return app
+    
+    # Добавляем маршруты для AI мини-приложения
+    from webapp.routes_ai_miniapp import routes as ai_routes
+    app.add_routes(ai_routes)'''
+            
+            content = content.replace(create_app_marker, new_create_app)
+    
+    # Сохраняем файл
+    with open(server_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    print("✅ webapp/server.py обновлен успешно!")
+    return True
 
-# ====================== ЗАПУСК СЕРВЕРА ======================
-
-async def run_webapp(port):
-    app = create_app()
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, host="0.0.0.0", port=port)
-    await site.start()
-    logger.info(f"🌐 MiniApp сервер запущен на порту {port}")
-    return runner
+if __name__ == "__main__":
+    print("🔧 Обновление server.py для AI мини-приложения...\n")
+    
+    if update_server():
+        print("\n✨ Готово!")
+        print("\nДальше:")
+        print("  1. Запустите: python main.py")
+        print("  2. Откройте: http://localhost:8080/ai")
+        print("  3. Установите в BotFather: https://your-domain.com/ai")
+    else:
+        print("\n❌ Не удалось обновить server.py автоматически")
+        print("Добавьте маршруты вручную (см. выше)")
+        sys.exit(1)
