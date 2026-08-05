@@ -1,0 +1,10 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AI Наставник">
+  <circle cx="32" cy="7" r="3.2" fill="#ffffff"/>
+  <rect x="30.4" y="10" width="3.2" height="7" rx="1.6" fill="#ffffff"/>
+  <rect x="3" y="27" width="7.5" height="17" rx="3.75" fill="#ffffff"/>
+  <rect x="53.5" y="27" width="7.5" height="17" rx="3.75" fill="#ffffff"/>
+  <rect x="9" y="17" width="46" height="39" rx="15" fill="rgba(255,255,255,0.08)" stroke="#ffffff" stroke-width="3.4"/>
+  <circle cx="23.5" cy="35.5" r="5.1" fill="#ffffff"/>
+  <circle cx="40.5" cy="35.5" r="5.1" fill="#ffffff"/>
+  <rect x="21" y="45.5" width="22" height="4.6" rx="2.3" fill="#ffffff"/>
+</svg>
