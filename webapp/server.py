@@ -149,23 +149,6 @@ async def create_habit(request):
     add_habit(telegram_id, title)
     return web.json_response({"ok": True})
 
-@routes.post("/api/ai/tip")
-async def ai_tip(request):
-    telegram_id, _ = await _authenticate(request)
-    try:
-        # Используем существующую функцию из multi_agent
-        from multi_agent import generate_daily_tip
-        from webapp.services.ai_utils import build_user_context
-        from db import get_ai_style
-
-        user_context = build_user_context(telegram_id)
-        style = get_ai_style(telegram_id)
-        tip = await generate_daily_tip(user_context, style)
-        return web.json_response({"tip": tip})
-    except Exception as e:
-        logger.exception(e)
-        return web.json_response({"error": "tip_error"}, status=500)
-    
 @routes.put("/api/habits/{habit_id}")
 async def rename_habit(request):
     telegram_id, _ = await _authenticate(request)
