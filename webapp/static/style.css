@@ -178,6 +178,8 @@ border-radius:50%;
     display:flex;
     align-items:center;
     justify-content:center;
+
+    overflow: visible;
 }
 
 .level-ring svg{
@@ -1662,4 +1664,3 @@ body {
 .rating-stat .stat-icon{
     font-size:16px;
 }
-
