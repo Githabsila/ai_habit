@@ -2,264 +2,234 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AI Наставник</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/react-dom.production.min.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* Все стили остаются без изменений */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body, #root { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
-        .chat-container { display: flex; flex-direction: column; height: 100vh; background: var(--tg-color-bg); color: var(--tg-color-text); }
-        .message { padding: 12px 16px; margin-bottom: 8px; border-radius: 12px; max-width: 85%; word-wrap: break-word; animation: slideIn 0.3s ease-out; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .message.user { align-self: flex-end; background: var(--tg-color-button); color: var(--tg-color-button-text); margin-right: 8px; }
-        .message.assistant { align-self: flex-start; background: var(--tg-color-secondary-bg); color: var(--tg-color-text); margin-left: 8px; }
-        .messages-area { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
-        .messages-area::-webkit-scrollbar { width: 4px; }
-        .messages-area::-webkit-scrollbar-track { background: transparent; }
-        .messages-area::-webkit-scrollbar-thumb { background: var(--tg-color-text); opacity: 0.2; border-radius: 2px; }
-        .input-area { border-top: 1px solid var(--tg-color-hint); padding: 12px; display: flex; gap: 8px; align-items: flex-end; }
-        .input-area textarea { flex: 1; resize: none; max-height: 100px; padding: 10px; border-radius: 8px; border: 1px solid var(--tg-color-hint); background: var(--tg-color-bg); color: var(--tg-color-text); font-size: 14px; font-family: inherit; }
-        .input-area textarea::placeholder { color: var(--tg-color-hint); }
-        .input-area textarea:focus { outline: none; border-color: var(--tg-color-button); }
-        .btn-send { background: var(--tg-color-button); color: var(--tg-color-button-text); border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer; font-size: 14px; font-weight: 500; transition: opacity 0.2s; white-space: nowrap; }
-        .btn-send:hover:not(:disabled) { opacity: 0.8; }
-        .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
-        .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--tg-color-button-text); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .thinking-indicator { padding: 12px 16px; background: var(--tg-color-secondary-bg); border-radius: 12px; display: flex; align-items: center; gap: 8px; max-width: 200px; }
-        .habit-suggestion { background: var(--tg-color-hint); padding: 12px; border-radius: 8px; margin-top: 8px; display: flex; gap: 8px; align-items: center; }
-        .btn-small { padding: 6px 12px; background: var(--tg-color-button); color: var(--tg-color-button-text); border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
-        .feedback-buttons { display: flex; gap: 8px; margin-top: 8px; }
-        .btn-feedback { padding: 6px 12px; background: var(--tg-color-secondary-bg); border: 1px solid var(--tg-color-hint); border-radius: 6px; cursor: pointer; font-size: 12px; }
-        .btn-feedback:hover { border-color: var(--tg-color-button); color: var(--tg-color-button); }
-        .header { padding: 16px; border-bottom: 1px solid var(--tg-color-hint); display: flex; justify-content: space-between; align-items: center; }
-        .header-title { font-size: 18px; font-weight: 600; }
-        .tip-button { background: transparent; border: none; color: var(--tg-color-button); cursor: pointer; font-size: 18px; padding: 8px; }
-        .crisis-alert { background: #ff3b30; color: white; padding: 12px 16px; margin-bottom: 8px; border-radius: 8px; font-weight: 500; }
-        .throttle-warning { background: #ff9500; color: white; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 8px; }
-        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; opacity: 0.6; text-align: center; padding: 32px; }
-        .empty-state-icon { font-size: 64px; margin-bottom: 16px; }
-        .empty-state-text { font-size: 14px; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body, #root { width:100%; height:100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--tg-color-bg); color: var(--tg-color-text); }
+        .chat-container { display:flex; flex-direction:column; height:100vh; }
+        .header { padding:16px; border-bottom:1px solid var(--tg-color-hint); display:flex; justify-content:space-between; align-items:center; }
+        .header-title { font-size:18px; font-weight:600; }
+        .tip-button { background:transparent; border:none; color:var(--tg-color-button); font-size:20px; cursor:pointer; }
+        .messages-area { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+        .message { padding:12px 16px; border-radius:12px; max-width:85%; word-wrap:break-word; animation:slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        .message.user { align-self:flex-end; background:var(--tg-color-button); color:var(--tg-color-button-text); }
+        .message.assistant { align-self:flex-start; background:var(--tg-color-secondary-bg); color:var(--tg-color-text); }
+        .message.error { align-self:center; background:#ff3b30; color:white; }
+        .input-area { border-top:1px solid var(--tg-color-hint); padding:12px; display:flex; gap:8px; align-items:flex-end; }
+        .input-area textarea { flex:1; resize:none; max-height:100px; padding:10px; border-radius:8px; border:1px solid var(--tg-color-hint); background:var(--tg-color-bg); color:var(--tg-color-text); font-size:14px; outline:none; }
+        .input-area textarea:focus { border-color:var(--tg-color-button); }
+        .btn-send { background:var(--tg-color-button); color:var(--tg-color-button-text); border:none; border-radius:8px; padding:10px 16px; font-size:14px; font-weight:500; cursor:pointer; transition:0.2s; }
+        .btn-send:disabled { opacity:0.5; cursor:not-allowed; }
+        .spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--tg-color-button-text); border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .thinking-indicator { padding:12px 16px; background:var(--tg-color-secondary-bg); border-radius:12px; display:flex; align-items:center; gap:8px; max-width:200px; }
+        .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; text-align:center; padding:32px; }
+        .empty-state-icon { font-size:64px; margin-bottom:16px; }
+        .throttle-warning { background:#ff9500; color:white; padding:8px 12px; border-radius:6px; font-size:12px; margin-bottom:8px; text-align:center; }
     </style>
 </head>
 <body>
-    <div id="root"></div>
-    <script>
-        (function() {
-            const { useState, useEffect, useRef, useCallback } = React;
+<div id="root"></div>
+<script>
+    (function() {
+        // --------------------------------------------------------------------
+        // 1. Инициализация Telegram WebApp
+        // --------------------------------------------------------------------
+        const tg = window.Telegram.WebApp;
+        tg.ready();
 
-            // инициализация Telegram Web App
-            const tg = window.Telegram.WebApp;
-            tg.ready();
+        function applyTheme() {
+            const isDark = tg.colorScheme === 'dark';
+            const root = document.documentElement;
+            root.style.setProperty('--tg-color-bg', tg.backgroundColor || (isDark ? '#1a1a1a' : '#ffffff'));
+            root.style.setProperty('--tg-color-text', tg.textColor || (isDark ? '#ffffff' : '#000000'));
+            root.style.setProperty('--tg-color-hint', tg.hintColor || (isDark ? '#777777' : '#aaaaaa'));
+            root.style.setProperty('--tg-color-button', tg.buttonColor || '#2481cc');
+            root.style.setProperty('--tg-color-button-text', tg.buttonTextColor || '#ffffff');
+            root.style.setProperty('--tg-color-secondary-bg', isDark ? '#2a2a2a' : '#f0f0f0');
+        }
+        applyTheme();
+        tg.onEvent('themeChanged', applyTheme);
 
-            function applyTheme() {
-                const isDark = tg.colorScheme === 'dark';
-                const root = document.documentElement;
-                root.style.setProperty('--tg-color-bg', tg.backgroundColor);
-                root.style.setProperty('--tg-color-text', tg.textColor);
-                root.style.setProperty('--tg-color-hint', tg.hintColor);
-                root.style.setProperty('--tg-color-link', tg.linkColor);
-                root.style.setProperty('--tg-color-button', tg.buttonColor);
-                root.style.setProperty('--tg-color-button-text', tg.buttonTextColor);
-                root.style.setProperty('--tg-color-secondary-bg', isDark ? '#1a1a1a' : '#f0f0f0');
-            }
+        // --------------------------------------------------------------------
+        // 2. React-компонент (без JSX!)
+        // --------------------------------------------------------------------
+        const { useState, useEffect, useRef, useCallback } = React;
 
-            applyTheme();
-            tg.onEvent('themeChanged', applyTheme);
+        function AiChatApp() {
+            const [messages, setMessages] = useState([]);
+            const [input, setInput] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [initData] = useState(tg.initData || '');
+            const [throttleWait, setThrottleWait] = useState(null);
+            const messagesEndRef = useRef(null);
 
-            function AiChatApp() {
-                const [messages, setMessages] = useState([]);
-                const [input, setInput] = useState('');
-                const [isLoading, setIsLoading] = useState(false);
-                const [initData] = useState(tg.initData);
-                const [throttleWait, setThrottleWait] = useState(null);
-                const messagesEndRef = useRef(null);
+            const scrollToBottom = useCallback(() => {
+                if (messagesEndRef.current) {
+                    messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, []);
 
-                const scrollToBottom = function() {
-                    if (messagesEndRef.current) {
-                        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-                    }
-                };
+            useEffect(() => {
+                scrollToBottom();
+            }, [messages, scrollToBottom]);
 
-                useEffect(function() {
-                    scrollToBottom();
-                }, [messages]);
+            const sendMessage = useCallback(async () => {
+                const text = input.trim();
+                if (!text || isLoading || throttleWait) return;
 
-                const sendMessage = useCallback(async function() {
-                    if (!input.trim() || isLoading || throttleWait) return;
+                setInput('');
+                const userMsg = { id: Date.now(), role: 'user', text: text };
+                setMessages(prev => prev.concat(userMsg));
+                setIsLoading(true);
 
-                    const userMessage = input.trim();
-                    setInput('');
-                    setMessages(function(prev) {
-                        return prev.concat({
-                            id: Date.now(),
-                            role: 'user',
-                            text: userMessage,
-                            timestamp: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-                        });
+                try {
+                    const response = await fetch('/api/ai/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Telegram-Init-Data': initData
+                        },
+                        body: JSON.stringify({ message: text })
                     });
 
-                    setIsLoading(true);
+                    const data = await response.json();
 
-                    try {
-                        const response = await fetch('/api/ai/chat', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-Telegram-Init-Data': initData
-                            },
-                            body: JSON.stringify({ message: userMessage })
-                        });
-
-                        const data = await response.json();
-
-                        if (!response.ok) {
-                            if (response.status === 429) {
-                                setThrottleWait(data.wait_seconds);
-                                setTimeout(function() { setThrottleWait(null); }, data.wait_seconds * 1000);
-                                setMessages(function(prev) {
-                                    return prev.concat({
-                                        id: Date.now(),
-                                        role: 'system',
-                                        text: '⏳ Подожди ' + data.wait_seconds + ' сек. перед следующим сообщением',
-                                        type: 'throttle'
-                                    });
-                                });
-                            } else if (response.status === 401) {
-                                setMessages(function(prev) {
-                                    return prev.concat({
-                                        id: Date.now(),
-                                        role: 'system',
-                                        text: '❌ Ошибка аутентификации. Пожалуйста, откройте приложение заново.',
-                                        type: 'error'
-                                    });
-                                });
-                            } else {
-                                setMessages(function(prev) {
-                                    return prev.concat({
-                                        id: Date.now(),
-                                        role: 'system',
-                                        text: data.message || '❌ Ошибка сервера. Попробуйте ещё раз.',
-                                        type: 'error'
-                                    });
-                                });
-                            }
-                            return;
+                    if (!response.ok) {
+                        let errorText = data.message || 'Ошибка сервера';
+                        if (response.status === 429) {
+                            const seconds = data.wait_seconds || 5;
+                            setThrottleWait(seconds);
+                            setTimeout(() => setThrottleWait(null), seconds * 1000);
+                            errorText = '⏳ Подожди ' + seconds + ' сек.';
+                        } else if (response.status === 401) {
+                            errorText = '❌ Ошибка аутентификации. Перезапустите приложение.';
                         }
-
-                        // Используем поле reply
-                        setMessages(function(prev) {
-                            return prev.concat({
-                                id: Date.now(),
-                                role: 'assistant',
-                                text: data.reply,
-                                timestamp: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-                            });
-                        });
-                    } catch (error) {
-                        console.error('Error:', error);
-                        setMessages(function(prev) {
-                            return prev.concat({
-                                id: Date.now(),
-                                role: 'system',
-                                text: '❌ Ошибка подключения. Проверьте интернет.',
-                                type: 'error'
-                            });
-                        });
-                    } finally {
-                        setIsLoading(false);
+                        setMessages(prev => prev.concat({ id: Date.now(), role: 'system', text: errorText, type: 'error' }));
+                        return;
                     }
-                }, [input, isLoading, throttleWait, initData]);
 
-                const handleKeyPress = function(e) {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendMessage();
+                    // Предполагаем, что бэкенд возвращает { reply: "...", ... }
+                    const assistantMsg = {
+                        id: Date.now(),
+                        role: 'assistant',
+                        text: data.reply || 'Пустой ответ',
+                    };
+                    setMessages(prev => prev.concat(assistantMsg));
+                } catch (e) {
+                    console.error(e);
+                    setMessages(prev => prev.concat({ id: Date.now(), role: 'system', text: '❌ Ошибка сети. Проверьте интернет.', type: 'error' }));
+                } finally {
+                    setIsLoading(false);
+                }
+            }, [input, isLoading, throttleWait, initData]);
+
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            };
+
+            // Вспомогательная функция для рендеринга сообщений
+            const renderMessages = () => {
+                const items = [];
+                messages.forEach((msg) => {
+                    if (msg.type === 'error' || msg.type === 'throttle') {
+                        items.push(
+                            React.createElement('div', { key: msg.id, className: msg.type === 'throttle' ? 'throttle-warning' : 'message error' },
+                                msg.text
+                            )
+                        );
+                        return;
                     }
-                };
-
-                // Остальные функции (handleFeedback, handleAddHabit, handleGetTip) можно оставить, но для простоты пока убираем
-                // Пока оставляем пустыми заглушками
-                const handleFeedback = function(messageId, rating) {
-                    // временно
-                };
-                const handleAddHabit = function(messageId, habitTitle) {
-                    // временно
-                };
-                const handleGetTip = function() {
-                    // временно
-                };
-
-                // Создаём элементы через React.createElement
-                return React.createElement('div', { className: 'chat-container' },
-                    // Header
-                    React.createElement('div', { className: 'header' },
-                        React.createElement('div', { className: 'header-title' }, '🤖 AI Наставник'),
-                        React.createElement('button', { className: 'tip-button', onClick: handleGetTip, title: 'Совет дня' }, '💡')
-                    ),
-                    // Messages area
-                    React.createElement('div', { className: 'messages-area' },
-                        messages.length === 0 ?
-                            React.createElement('div', { className: 'empty-state' },
-                                React.createElement('div', { className: 'empty-state-icon' }, '🤖'),
-                                React.createElement('div', { className: 'empty-state-text' },
-                                    'Привет! Я твой персональный наставник.\nСпроси меня что угодно!'
+                    if (msg.role === 'user') {
+                        items.push(
+                            React.createElement('div', { key: msg.id, className: 'message user' },
+                                React.createElement('div', null, msg.text),
+                                React.createElement('div', { style: { fontSize: '11px', opacity: 0.7, marginTop: '4px' } },
+                                    new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
                                 )
-                            ) :
-                            messages.map(function(msg) {
-                                if (msg.type === 'throttle') {
-                                    return React.createElement('div', { key: msg.id, className: 'throttle-warning' }, msg.text);
-                                }
-                                if (msg.type === 'error') {
-                                    return React.createElement('div', { key: msg.id, className: 'message assistant', style: { color: '#ff3b30' } }, msg.text);
-                                }
-                                if (msg.role === 'user') {
-                                    return React.createElement('div', { key: msg.id, className: 'message user' },
-                                        React.createElement('div', null, msg.text),
-                                        React.createElement('div', { style: { fontSize: '11px', opacity: 0.7, marginTop: '4px' } }, msg.timestamp)
-                                    );
-                                }
-                                if (msg.role === 'assistant') {
-                                    return React.createElement('div', { key: msg.id, className: 'message assistant' },
-                                        React.createElement('div', { style: { whiteSpace: 'pre-wrap' } }, msg.text),
-                                        React.createElement('div', { style: { fontSize: '11px', opacity: 0.7, marginTop: '4px' } }, msg.timestamp)
-                                    );
-                                }
-                                return null;
-                            }),
-                        isLoading ?
-                            React.createElement('div', { className: 'thinking-indicator' },
-                                React.createElement('div', { className: 'spinner' }),
-                                React.createElement('span', null, 'Думаю...')
-                            ) : null,
-                        React.createElement('div', { ref: messagesEndRef })
-                    ),
-                    // Input area
-                    React.createElement('div', { className: 'input-area' },
-                        React.createElement('textarea', {
-                            value: input,
-                            onChange: function(e) { setInput(e.target.value); },
-                            onKeyPress: handleKeyPress,
-                            placeholder: 'Напиши сообщение...',
-                            disabled: isLoading || throttleWait,
-                            rows: 1,
-                            style: { minHeight: '40px' }
-                        }),
-                        React.createElement('button', {
-                            className: 'btn-send',
-                            onClick: sendMessage,
-                            disabled: !input.trim() || isLoading || throttleWait
-                        }, isLoading ? React.createElement('div', { className: 'spinner' }) : '➤')
-                    )
-                );
-            }
+                            )
+                        );
+                    } else if (msg.role === 'assistant') {
+                        items.push(
+                            React.createElement('div', { key: msg.id, className: 'message assistant' },
+                                React.createElement('div', { style: { whiteSpace: 'pre-wrap' } }, msg.text),
+                                React.createElement('div', { style: { fontSize: '11px', opacity: 0.7, marginTop: '4px' } },
+                                    new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+                                )
+                            )
+                        );
+                    }
+                });
+                if (isLoading) {
+                    items.push(
+                        React.createElement('div', { key: 'loading', className: 'thinking-indicator' },
+                            React.createElement('div', { className: 'spinner' }),
+                            React.createElement('span', null, 'Думаю...')
+                        )
+                    );
+                }
+                items.push(React.createElement('div', { key: 'end', ref: messagesEndRef }));
+                return items;
+            };
 
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(React.createElement(AiChatApp));
-        })();
-    </script>
+            // Основная разметка через createElement
+            return React.createElement('div', { className: 'chat-container' },
+                // Header
+                React.createElement('div', { className: 'header' },
+                    React.createElement('div', { className: 'header-title' }, '🤖 AI Наставник'),
+                    React.createElement('button', {
+                        className: 'tip-button',
+                        onClick: () => { /* добавить позже */ },
+                        title: 'Совет дня'
+                    }, '💡')
+                ),
+                // Messages
+                React.createElement('div', { className: 'messages-area' },
+                    messages.length === 0 ?
+                        React.createElement('div', { className: 'empty-state' },
+                            React.createElement('div', { className: 'empty-state-icon' }, '🤖'),
+                            React.createElement('div', { className: 'empty-state-text' },
+                                'Привет! Я твой персональный наставник.\nСпроси меня что угодно!'
+                            )
+                        ) :
+                        renderMessages()
+                ),
+                // Input
+                React.createElement('div', { className: 'input-area' },
+                    React.createElement('textarea', {
+                        value: input,
+                        onChange: (e) => setInput(e.target.value),
+                        onKeyPress: handleKeyPress,
+                        placeholder: 'Напиши сообщение...',
+                        disabled: isLoading || throttleWait,
+                        rows: 1,
+                        style: { minHeight: '40px' }
+                    }),
+                    React.createElement('button', {
+                        className: 'btn-send',
+                        onClick: sendMessage,
+                        disabled: !input.trim() || isLoading || throttleWait
+                    },
+                        isLoading ? React.createElement('div', { className: 'spinner' }) : '➤'
+                    )
+                )
+            );
+        }
+
+        // --------------------------------------------------------------------
+        // 3. Рендеринг
+        // --------------------------------------------------------------------
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(AiChatApp));
+    })();
+</script>
 </body>
 </html>
