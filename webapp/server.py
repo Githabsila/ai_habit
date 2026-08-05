@@ -204,6 +204,7 @@ async def ai_tip(request):
     except Exception as e:
         logger.exception(e)
         return web.json_response({"error": "tip_error"}, status=500)
+    
 @routes.put("/api/habits/{habit_id}")
 async def rename_habit(request):
     telegram_id, _ = await _authenticate(request)
@@ -317,5 +318,5 @@ async def run_webapp(port):
     await site.start()
     logger.info(f"🌐 MiniApp сервер запущен на порту {port}")
     return runner
-    #!/usr/bin/env python3
+   
 
