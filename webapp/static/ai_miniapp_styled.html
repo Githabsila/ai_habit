@@ -13,7 +13,7 @@ window.onerror = function(msg, url, line, col, error) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <<title>AI Наставник</title>
+    <title>AI Наставник</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -41,8 +41,10 @@ window.onerror = function(msg, url, line, col, error) {
         --primary-dark:#6D28D9;
         --gold:#FFD54F;
         --gold-dark:#F0B429;
-        --red:#EF4444;
+       --red:#EF4444;
         --radius:24px;
+        --primary-light:#A78BFA;
+        --tg-safe-top: 0px;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -68,7 +70,12 @@ window.onerror = function(msg, url, line, col, error) {
 
     /* HEADER */
     .header {
-        padding: 16px 20px;
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        padding: 14px 18px 16px;
+        padding-top: calc(14px + var(--tg-safe-top));
+        box-shadow: 0 12px 32px rgba(0,0,0,.35);
         background: var(--surface);
         backdrop-filter: blur(22px);
         -webkit-backdrop-filter: blur(22px);
@@ -408,6 +415,19 @@ window.onerror = function(msg, url, line, col, error) {
 
         const tg = window.Telegram.WebApp;
         tg.ready();
+        try { tg.expand(); } catch (e) {}
+        try { tg.setHeaderColor('#07040E'); tg.setBackgroundColor('#07040E'); } catch (e) {}
+
+        function applySafeArea() {
+            const top = (tg.contentSafeAreaInset && tg.contentSafeAreaInset.top || 0)
+                      + (tg.safeAreaInset && tg.safeAreaInset.top || 0);
+            document.documentElement.style.setProperty('--tg-safe-top', top + 'px');
+        }
+        applySafeArea();
+        try {
+            tg.onEvent('safeAreaChanged', applySafeArea);
+            tg.onEvent('contentSafeAreaChanged', applySafeArea);
+        } catch (e) {}
 
         function AiChat() {
             const [messages, setMessages] = useState([]);
