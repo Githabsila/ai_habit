@@ -429,6 +429,17 @@ window.onerror = function(msg, url, line, col, error) {
             tg.onEvent('contentSafeAreaChanged', applySafeArea);
         } catch (e) {}
 
+        function goHome() {
+            try { tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+            window.location.href = '/';
+        }
+
+        // Нативная кнопка "назад" Telegram — тоже ведёт в главное меню
+        try {
+            tg.BackButton.show();
+            tg.onEvent('backButtonClicked', goHome);
+        } catch (e) {}
+
         function AiChat() {
             const [messages, setMessages] = useState([]);
             const [input, setInput] = useState('');
@@ -567,6 +578,7 @@ window.onerror = function(msg, url, line, col, error) {
                             </div>
                         </div>
                         <div className="header-buttons">
+                            <button className="icon-btn" onClick={goHome} title="В главное меню">⌂</button>
                             <button className="icon-btn" onClick={getTip} title="Совет дня">💡</button>
                         </div>
                     </div>
