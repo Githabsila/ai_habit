@@ -66,7 +66,7 @@ async def _authenticate(request):
 
 def _owned_habit_or_404(habit_id, telegram_id):
     habit = get_habit(habit_id)
-    if not habit or habit["telegram_id"] != telegram_id:
+    if not habit or habit["user_id"] != telegram_id:
         raise web.HTTPNotFound()
 
 # ====================== MIDDLEWARE ======================
@@ -265,4 +265,3 @@ async def coach(request):
     response = web.FileResponse(BASE_DIR / "static" / "ai_miniapp_styled.html")
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
-
