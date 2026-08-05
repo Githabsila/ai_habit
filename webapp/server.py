@@ -219,10 +219,6 @@ async def set_ai_style(request):
 async def index(request):
     return web.FileResponse(BASE_DIR / "static" / "index.html")
 
-@routes.get("/coach")
-async def coach(request):
-   return web.FileResponse(BASE_DIR / "static" / "ai_miniapp_styled.html")
-
 @routes.get("/api/shop")
 async def get_shop(request):
     telegram_id, _ = await _authenticate(request)
@@ -280,4 +276,10 @@ async def run_webapp(port):
     logger.info(f"🌐 MiniApp сервер запущен на порту {port}")
     return runner
    
+
+@routes.get("/coach")
+async def coach(request):
+    response = web.FileResponse(BASE_DIR / "static" / "ai_miniapp_styled.html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 

@@ -15,17 +15,17 @@ window.onerror = function(msg, url, line, col, error) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Наставник</title>
     <script>
-window.onerror = function(msg, url, line, col, error) {
-    document.body.innerHTML =
-        '<pre style="color:#ff6b6b;padding:20px;white-space:pre-wrap;font-size:14px;">' +
-        'JS Error: ' + msg + '\nStr: ' + line + ':' + col +
-        '</pre>';
-};
-</script>
-<script src="/static/vendor/react.production.min.js"></script>
-<script src="/static/vendor/react-dom.production.min.js"></script>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="/static/vendor/babel.min.js"></script>
+    window.onerror = function(msg, url, line, col, error) {
+        document.body.innerHTML =
+            '<pre style="color:#ff6b6b;padding:20px;white-space:pre-wrap;font-size:14px;">' +
+            'JS Error: ' + msg + '\nStr: ' + line + ':' + col +
+            '</pre>';
+    };
+    </script>
+    <script src="/static/vendor/react.production.min.js?v=2"></script>
+    <script src="/static/vendor/react-dom.production.min.js?v=2"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="/static/vendor/babel.min.js?v=2"></script>
     <style>
         * {
             margin: 0;
