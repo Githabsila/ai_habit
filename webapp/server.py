@@ -163,6 +163,47 @@ async def ai_chat(request):
         logger.exception(e)
         return web.json_response({"error": "ai_error"}, status=500)
 
+@routes.post("/api/ai/feedback")
+async def ai_feedback(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    message_id = body.get("message_id")
+    rating = body.get("rating")  # "up" или "down"
+    if not message_id or rating not in ("up", "down"):
+        return web.json_response({"error": "invalid_data"}, status=400)
+    
+    # Функция должна быть в db.py
+    from db import save_ai_feedback
+    save_ai_feedback(message_id, telegram_id, rating)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/ai/habit/add")
+async def ai_add_habit(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    habit_title = body.get("habit_title", "").strip()
+    if len(habit_title) < 2:
+        return web.json_response({"error": "title_too_short"}, status=400)
+    from db import add_habit
+    add_habit(telegram_id, habit_title)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/ai/tip")
+async def ai_tip(request):
+    telegram_id, _ = await _authenticate(request)
+    try:
+        # Используем существующую функцию из multi_agent
+        from multi_agent import generate_daily_tip
+        from webapp.services.ai_utils import build_user_context
+        from db import get_ai_style
+
+        user_context = build_user_context(telegram_id)
+        style = get_ai_style(telegram_id)
+        tip = await generate_daily_tip(user_context, style)
+        return web.json_response({"tip": tip})
+    except Exception as e:
+        logger.exception(e)
+        return web.json_response({"error": "tip_error"}, status=500)
 @routes.put("/api/habits/{habit_id}")
 async def rename_habit(request):
     telegram_id, _ = await _authenticate(request)
