@@ -440,8 +440,29 @@ window.onerror = function(msg, url, line, col, error) {
             tg.onEvent('backButtonClicked', goHome);
         } catch (e) {}
 
+        // Ключ в sessionStorage: живёт, пока не закрыта сама мини-апп (вкладка/
+        // WebView), и переживает переход "назад в меню -> снова в наставника"
+        // внутри одной открытой сессии. Полное закрытие мини-аппы уничтожает
+        // sessionStorage сам по себе — отдельно чистить ничего не нужно.
+        const CHAT_STORAGE_KEY = 'adam_chat_history';
+
+        function loadStoredMessages() {
+            try {
+                const raw = sessionStorage.getItem(CHAT_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveStoredMessages(messages) {
+            try {
+                sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+            } catch (e) {}
+        }
+
         function AiChat() {
-            const [messages, setMessages] = useState([]);
+            const [messages, setMessages] = useState(loadStoredMessages);
             const [input, setInput] = useState('');
             const [loading, setLoading] = useState(false);
             const [throttle, setThrottle] = useState(null);
@@ -449,6 +470,7 @@ window.onerror = function(msg, url, line, col, error) {
 
             const scroll = () => { messagesEnd.current?.scrollIntoView({ behavior: 'smooth' }); };
             useEffect(scroll, [messages]);
+            useEffect(() => { saveStoredMessages(messages); }, [messages]);
 
             const sendMsg = useCallback(async () => {
                 if (!input.trim() || loading || throttle) return;

@@ -108,7 +108,13 @@ BASE_PERSONA = (
     "Всегда отвечай на русском языке. "
     "Пиши понятно, дружелюбно и по делу. "
     "Если можно дать пошаговый план — обязательно давай его. "
-    "Не ограничивай ответы темой привычек."
+    "Не ограничивай ответы темой привычек. "
+
+    "Никогда не используй markdown-разметку: не оборачивай слова в звёздочки "
+    "**вот так** или *вот так*, не используй решётки для заголовков, обратные "
+    "кавычки для кода или дефисы-буллеты. Это обычный текстовый чат, разметка "
+    "там не отображается и превращается в мусорные символы. Если нужно что-то "
+    "выделить — используй сами слова или уместный эмодзи, без звёздочек."
 )
 
 ROLE_ROUTER_SYSTEM = """
@@ -295,6 +301,31 @@ def _extract_wait_seconds(error_text: str, default: float = 2.0) -> float:
     return default
 
 
+_MD_BOLD_ITALIC = re.compile(r"(\*\*\*|\*\*|___|__)(.+?)\1", re.DOTALL)
+_MD_HEADER = re.compile(r"(?m)^#{1,6}\s*")
+_MD_CODE_FENCE = re.compile(r"```[a-zA-Z0-9]*\n?|```")
+_MD_INLINE_CODE = re.compile(r"`([^`]*)`")
+
+
+def _strip_markdown(text: str) -> str:
+    """Подстраховка: если модель всё же вставит markdown-разметку (звёздочки,
+    решётки заголовков, кавычки кода), срезаем её символы, оставляя сам текст,
+    т.к. фронтенд чата рендерит ответ как обычный текст, а не как markdown."""
+    if not text:
+        return text
+
+    prev = None
+    while prev != text:
+        prev = text
+        text = _MD_BOLD_ITALIC.sub(r"\2", text)
+
+    text = _MD_HEADER.sub("", text)
+    text = _MD_CODE_FENCE.sub("", text)
+    text = _MD_INLINE_CODE.sub(r"\1", text)
+
+    return text.strip()
+
+
 async def _ask(
     system: str,
     user: str,
@@ -316,7 +347,7 @@ async def _ask(
                         {"role": "user", "content": user},
                     ],
                 )
-                return response.choices[0].message.content.strip()
+                return _strip_markdown(response.choices[0].message.content.strip())
             except RateLimitError as e:
                 wait = _extract_wait_seconds(str(e))
                 if attempt < MAX_RETRIES:
