@@ -204,6 +204,7 @@ async def ai_tip(request):
     except Exception as e:
         logger.exception(e)
         return web.json_response({"error": "tip_error"}, status=500)
+    
 @routes.put("/api/habits/{habit_id}")
 async def rename_habit(request):
     telegram_id, _ = await _authenticate(request)
@@ -259,7 +260,7 @@ async def index(request):
 
 @routes.get("/coach")
 async def coach(request):
-    return web.FileResponse(BASE_DIR / "static" / "ai_miniapp.html")
+   return web.FileResponse(BASE_DIR / "static" / "ai_miniapp_styled.html")
 
 @routes.get("/api/shop")
 async def get_shop(request):
@@ -299,6 +300,11 @@ async def health(request):
 def create_app():
     app = web.Application(middlewares=[error_middleware])
     app.add_routes(routes)
+    
+    # Добавляем маршруты для AI мини-приложения
+    from webapp.routes_ai_miniapp import routes as ai_routes
+    app.add_routes(ai_routes)
+    
     app.router.add_static("/static", BASE_DIR / "static")
     return app
 
@@ -312,3 +318,5 @@ async def run_webapp(port):
     await site.start()
     logger.info(f"🌐 MiniApp сервер запущен на порту {port}")
     return runner
+   
+
