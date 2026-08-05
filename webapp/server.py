@@ -149,45 +149,6 @@ async def create_habit(request):
     add_habit(telegram_id, title)
     return web.json_response({"ok": True})
 
-@routes.post("/api/ai/chat")
-async def ai_chat(request):
-    telegram_id, _ = await _authenticate(request)
-    body = await request.json()
-    message = body.get("message", "").strip()
-    if not message:
-        return web.json_response({"error": "empty_message"}, status=400)
-    try:
-        answer = await ask_ai(telegram_id, message)
-        return web.json_response({"reply": answer})
-    except Exception as e:
-        logger.exception(e)
-        return web.json_response({"error": "ai_error"}, status=500)
-
-@routes.post("/api/ai/feedback")
-async def ai_feedback(request):
-    telegram_id, _ = await _authenticate(request)
-    body = await request.json()
-    message_id = body.get("message_id")
-    rating = body.get("rating")  # "up" или "down"
-    if not message_id or rating not in ("up", "down"):
-        return web.json_response({"error": "invalid_data"}, status=400)
-    
-    # Функция должна быть в db.py
-    from db import save_ai_feedback
-    save_ai_feedback(message_id, telegram_id, rating)
-    return web.json_response({"ok": True})
-
-@routes.post("/api/ai/habit/add")
-async def ai_add_habit(request):
-    telegram_id, _ = await _authenticate(request)
-    body = await request.json()
-    habit_title = body.get("habit_title", "").strip()
-    if len(habit_title) < 2:
-        return web.json_response({"error": "title_too_short"}, status=400)
-    from db import add_habit
-    add_habit(telegram_id, habit_title)
-    return web.json_response({"ok": True})
-
 @routes.post("/api/ai/tip")
 async def ai_tip(request):
     telegram_id, _ = await _authenticate(request)
