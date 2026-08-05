@@ -4,16 +4,30 @@ coach.py
   - прогноз срыва привычек (rule-based, без обращений к Groq — дёшево и
     можно гонять для всех пользователей разом);
   - проактивные сообщения (вечерний пинг тем, у кого серия под угрозой);
+  - жёсткий дедлайн в 21:00 — контрольное напоминание ВСЕМ, у кого остались
+    невыполненные привычки, независимо от серии;
   - недельные отчёты (шаблонные, без LLM — экономим запросы к Groq,
-    см. этап 4 "уменьшение количества запросов к Groq").
+    см. этап 4 "уменьшение количества запросов к Groq");
+  - еженедельный AI-разбор по КАЖДОЙ привычке отдельно (habit_logs) —
+    персонализированная обратная связь с конкретным советом.
 
-Оба джоба регистрируются в main.py через scheduler (apscheduler), как и
+Джобы регистрируются в main.py через scheduler (apscheduler), как и
 существующие new_day/send_reminders.
 """
 
 import logging
 
-from db import get_all_users, get_settings, get_progress, get_weekly_summary, log_error
+from db import (
+    get_all_users,
+    get_settings,
+    get_progress,
+    get_weekly_summary,
+    log_error,
+    get_incomplete_habits,
+    get_weekly_habit_breakdown,
+    get_ai_style,
+)
+from multi_agent import generate_weekly_habit_feedback
 
 logger = logging.getLogger("coach")
 
@@ -131,3 +145,128 @@ async def run_weekly_report(bot):
             log_error("weekly_report", e, telegram_id)
 
     logger.info(f"Недельные отчёты отправлены {sent} пользователям")
+
+
+# =====================================
+# ЖЁСТКИЙ ДЕДЛАЙН (21:00)
+# =====================================
+
+def format_hard_deadline_message(incomplete_habits) -> str:
+    titles = [h["title"] for h in incomplete_habits]
+
+    lines = "\n".join(f"• {t}" for t in titles)
+
+    return (
+        "⏰ <b>Контрольная точка — 21:00</b>\n\n"
+        "До конца дня осталось немного, а эти привычки ещё не отмечены "
+        "выполненными:\n\n"
+        f"{lines}\n\n"
+        "Ещё есть время всё закрыть 💪"
+    )
+
+
+async def run_hard_deadline_check(bot):
+    """Жёсткий дедлайн: если к 21:00 у пользователя остались привычки, не
+    отмеченные выполненными сегодня, — отправляем контрольное напоминание.
+    В отличие от run_streak_risk_check (20:00, только для тех, у кого есть
+    серия — то есть есть что терять), эта проверка идёт ВСЕМ, у кого
+    включены напоминания и есть незакрытые привычки, независимо от серии."""
+    users = get_all_users()
+    sent = 0
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+
+        settings = get_settings(telegram_id)
+        if not settings or settings["reminders"] == 0:
+            continue
+
+        incomplete = get_incomplete_habits(telegram_id)
+        if not incomplete:
+            continue
+
+        try:
+            await bot.send_message(
+                telegram_id,
+                format_hard_deadline_message(incomplete),
+                parse_mode="HTML"
+            )
+            sent += 1
+        except Exception as e:
+            log_error("hard_deadline", e, telegram_id)
+
+    logger.info(f"Жёсткий дедлайн 21:00: отправлено {sent} напоминаний")
+
+
+# =====================================
+# ЕЖЕНЕДЕЛЬНЫЙ AI-РАЗБОР ПО ПРИВЫЧКАМ
+# =====================================
+
+def _format_breakdown_text(breakdown) -> str:
+    lines = []
+    for row in breakdown:
+        lines.append(
+            f"{row['habit_title']}: выполнено {row['done']}/{row['total']}, "
+            f"пропущено {row['missed']}"
+        )
+    return "\n".join(lines)
+
+
+def _fallback_habit_feedback(breakdown) -> str:
+    """Шаблонный запасной вариант, если Groq недоступен — берём привычку
+    с наибольшим числом пропусков и даём общий, но конкретный совет."""
+    worst = max(breakdown, key=lambda r: r["missed"])
+
+    if worst["missed"] == 0:
+        return (
+            "📊 <b>AI-разбор недели по привычкам</b>\n\n"
+            "На этой неделе все привычки выполнялись без пропусков — "
+            "отличный ритм, продолжай в том же духе 🔥"
+        )
+
+    return (
+        "📊 <b>AI-разбор недели по привычкам</b>\n\n"
+        f"Ты пропустил {worst['missed']} дн. привычки «{worst['habit_title']}». "
+        "Попробуй на первое время сделать её полегче или покороче — "
+        "чтобы было проще вернуться в ритм, чем совсем бросить 🌱"
+    )
+
+
+async def run_weekly_habit_analysis(bot):
+    """Раз в неделю — смотрим не на общий агрегат, а на КАЖДУЮ привычку
+    отдельно (habit_logs, см. db/habits.py) и просим AI дать конкретную
+    персонализированную обратную связь по самой проседающей привычке —
+    например предложить сократить время, чтобы вернуться в ритм."""
+    users = get_all_users()
+    sent = 0
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+
+        settings = get_settings(telegram_id)
+        if not settings or settings["reminders"] == 0:
+            continue
+
+        breakdown = get_weekly_habit_breakdown(telegram_id)
+        if not breakdown:
+            # За неделю не было ни одной записи в журнале (нет привычек
+            # или бот только что запущен) — разбирать нечего.
+            continue
+
+        breakdown_text = _format_breakdown_text(breakdown)
+        style = get_ai_style(telegram_id) or "neutral"
+
+        ai_text = await generate_weekly_habit_feedback(breakdown_text, style)
+
+        if ai_text:
+            text = "📊 <b>AI-разбор недели по привычкам</b>\n\n" + ai_text
+        else:
+            text = _fallback_habit_feedback(breakdown)
+
+        try:
+            await bot.send_message(telegram_id, text, parse_mode="HTML")
+            sent += 1
+        except Exception as e:
+            log_error("weekly_habit_analysis", e, telegram_id)
+
+    logger.info(f"AI-разбор недели по привычкам: отправлено {sent} пользователям")

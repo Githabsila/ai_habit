@@ -45,9 +45,6 @@ from .habits import (
     update_streak,
     complete_habit,
     get_progress,
-    get_incomplete_habits,
-    log_daily_habits,
-    get_weekly_habit_breakdown,
 )
 
 from .statistics import (
@@ -129,7 +126,6 @@ __all__ = [
     "get_settings", "update_reminder_time", "update_ai_style", "get_ai_style",
     "add_habit", "get_habits", "get_habit", "edit_habit", "delete_habit",
     "reset_habits", "update_streak", "complete_habit", "get_progress",
-    "get_incomplete_habits", "log_daily_habits", "get_weekly_habit_breakdown",
     "add_statistics", "get_statistics", "get_weekly_summary",
     "create_daily_tasks", "get_daily_tasks", "update_daily_task",
     "check_achievements", "get_achievements",

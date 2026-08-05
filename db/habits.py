@@ -62,6 +62,70 @@ def reset_habits():
     conn.close()
 
 
+def get_incomplete_habits(user_id):
+    """Привычки пользователя, ещё не отмеченные выполненными сегодня —
+    используется для жёсткого дедлайна в 21:00 (coach.run_hard_deadline_check)."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM habits WHERE user_id=? AND completed=0",
+        (user_id,)
+    )
+    habits = cursor.fetchall()
+    conn.close()
+    return habits
+
+
+# =====================================
+# ПОСУТОЧНЫЙ ЖУРНАЛ ПО ПРИВЫЧКАМ (для AI-анализа недели)
+# =====================================
+
+def log_daily_habits():
+    """Снимок состояния КАЖДОЙ привычки за уходящий день — вызывается в
+    scheduler.new_day() ДО reset_habits(), пока completed ещё не сброшен.
+    В отличие от calendar (только агрегат по дню), тут видно конкретно
+    какая привычка была выполнена/пропущена — на этом строится еженедельный
+    персонализированный AI-разбор по привычкам."""
+    conn = connect()
+    cursor = conn.cursor()
+
+    yesterday = str(date.today() - timedelta(days=1))
+
+    cursor.execute("SELECT id, user_id, title, completed FROM habits")
+    habits = cursor.fetchall()
+
+    for h in habits:
+        cursor.execute("""
+            INSERT INTO habit_logs(user_id, habit_id, habit_title, day, completed)
+            VALUES (?, ?, ?, ?, ?)
+        """, (h["user_id"], h["id"], h["title"], yesterday, h["completed"]))
+
+    conn.commit()
+    conn.close()
+
+
+def get_weekly_habit_breakdown(user_id):
+    """За последние 7 дней — по каждой привычке (по названию), сколько раз
+    выполнена и сколько пропущена. Основа для еженедельного AI-анализа
+    (coach.run_weekly_habit_analysis): «Ты пропустил 3 дня медитации...»."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT
+            habit_title,
+            SUM(CASE WHEN completed=1 THEN 1 ELSE 0 END) as done,
+            SUM(CASE WHEN completed=0 THEN 1 ELSE 0 END) as missed,
+            COUNT(*) as total
+        FROM habit_logs
+        WHERE user_id=? AND day >= date('now', '-7 days')
+        GROUP BY habit_title
+        ORDER BY missed DESC
+    """, (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
 # =====================================
 # СЕРИЯ (STREAK)
 # =====================================

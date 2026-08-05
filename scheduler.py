@@ -4,7 +4,8 @@ from db import (
     reset_habits,
     get_all_users,
     create_daily_tasks,
-    check_achievements
+    check_achievements,
+    log_daily_habits
 )
 
 scheduler = AsyncIOScheduler()
@@ -18,6 +19,19 @@ def new_day():
 
     print("=" * 40)
     print("🌅 Новый день")
+
+    try:
+
+        # Сначала — снимок состояния каждой привычки за уходящий день
+        # (нужен для еженедельного AI-анализа по привычкам), и только
+        # потом сброс, иначе completed уже обнулится.
+        log_daily_habits()
+
+        print("📒 Журнал дня сохранён")
+
+    except Exception as e:
+
+        print(f"❌ Ошибка записи журнала дня: {e}")
 
     try:
 

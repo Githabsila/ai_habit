@@ -295,26 +295,7 @@ def create_tables():
     )
     """)
 
-    # ---------------- HABIT LOGS (посуточный журнал по каждой привычке) ----------------
-    # Снимок состояния каждой привычки за каждый прошедший день — в отличие
-    # от calendar (общий агрегат по дню), тут видно конкретно КАКАЯ привычка
-    # была выполнена/пропущена. Нужно для еженедельного AI-анализа по
-    # привычкам (см. coach.run_weekly_habit_analysis) — заполняется в
-    # scheduler.new_day() перед сбросом habits.completed.
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS habit_logs(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        habit_id INTEGER,
-        habit_title TEXT,
-        day TEXT,
-        completed INTEGER DEFAULT 0
-    )
-    """)
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_habit_logs_user_day "
-        "ON habit_logs(user_id, day)"
-    )
+    
 
     conn.commit()
     conn.close()
