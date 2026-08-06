@@ -146,3 +146,18 @@ __all__ = [
     "get_surveys_due_for_feedback", "mark_feedback_sent",
     "find_match_by_tags", "save_milestones", "get_milestones", "toggle_milestone",
 ]
+
+
+def get_daily_plan(telegram_id: int):
+    return {
+        "id": 1,
+        "main_goal": "",
+        "tasks": []
+        }
+
+def save_daily_plan(telegram_id: int, main_goal: str, tasks: list):
+    return True
+
+
+def toggle_daily_task(task_id: int):
+    return True
