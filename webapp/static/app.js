@@ -311,26 +311,34 @@ function renderPlan() {
       }
     });
 
-    document.getElementById("addHabitForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const input = document.getElementById("newHabitInput");
-      const title = input.value.trim();
-      if (title.length < 2) {
+ document.getElementById("addHabitForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const input = document.getElementById("newHabitInput");
+    const title = input.value.trim();
+
+    if (title.length < 2) {
         showToast("Название слишком короткое", "error");
         return;
-          try {
-        await api("/api/habits", { method: "POST", body: JSON.stringify({ title }) });
+    }
+
+    try {
+        await api("/api/habits", {
+            method: "POST",
+            body: JSON.stringify({ title })
+        });
+
         input.value = "";
         haptic("light");
         await loadBootstrap();
-      } catch (err) {
-        showToast(friendlyError(err), "error");
-        });
 
+    } catch (err) {
+        showToast(friendlyError(err), "error");
+    }
+});
 
   document.getElementById("savePlanBtn").addEventListener("click", async () => {
-    const main_goal = document.getElementById("mainGoalInput").value;
-
+    const main_goal = document.getElementById("mainGoalInput").value.trim();
     const tasks = [...document.querySelectorAll(".plan-task-input")]
       .map(i => i.value.trim())
       .filter(Boolean);

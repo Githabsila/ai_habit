@@ -210,26 +210,25 @@ def create_tables():
         )
     """)
 
+    # План дня
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS daily_plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id INTEGER NOT NULL,
+            plan_date TEXT NOT NULL,
+            main_goal TEXT DEFAULT '',
+            UNIQUE(telegram_id, plan_date)
+        )
+    """)
 
-# План дня
-cur.execute("""
-    CREATE TABLE IF NOT EXISTS daily_plans (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        telegram_id INTEGER NOT NULL,
-        plan_date TEXT NOT NULL,
-        main_goal TEXT DEFAULT '',
-        UNIQUE(telegram_id, plan_date)
-    )
-""")
-
-cur.execute("""
-    CREATE TABLE IF NOT EXISTS daily_tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        plan_id INTEGER NOT NULL,
-        text TEXT NOT NULL,
-        completed INTEGER DEFAULT 0
-    )
-""")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS daily_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            completed INTEGER DEFAULT 0
+        )
+    """)
 
     conn.commit()
     conn.close()
@@ -620,7 +619,6 @@ def log_error(context: str, error: Exception, telegram_id: int = None):
     # Просто логируем в стандартный логгер, но можно и в БД сохранять
     logger.error(f"Error in {context} for user {telegram_id}: {error}")
     # Можно добавить таблицу error_logs и записывать туда
-    
 
 
 # ---------- ПЛАН ДНЯ ----------
