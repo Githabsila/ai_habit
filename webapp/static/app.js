@@ -229,8 +229,35 @@
     }).join("");
   }
 
+
+
+// ===================== DAILY PLAN =====================
+function renderPlan() {
+  const plan = state.daily_plan || { main_goal: "", tasks: [] };
+  const list = document.getElementById("planList");
+
+  document.getElementById("mainGoalInput").value = plan.main_goal || "";
+
+  const inputs = document.querySelectorAll(".plan-task-input");
+  inputs.forEach((i, idx) => {
+    i.value = plan.tasks[idx] ? plan.tasks[idx].text : "";
+  });
+
+  const done = plan.tasks.filter(t => t.completed).length;
+  document.getElementById("planProgressLabel").textContent = `${done}/${plan.tasks.length}`;
+
+  list.innerHTML = plan.tasks.map(t => `
+    <li class="plan-item ${t.completed ? "is-done" : ""}">
+      <input type="checkbox" class="plan-toggle" data-id="${t.id}" ${t.completed ? "checked" : ""}>
+      <span class="plan-item__text">${escapeHtml(t.text)}</span>
+    </li>
+  `).join("");
+}
+
+
   function renderAll() {
     renderPlayerCard();
+    renderPlan();
     renderHabits();
     renderShop();
     renderAchievements();
@@ -291,17 +318,49 @@
       if (title.length < 2) {
         showToast("Название слишком короткое", "error");
         return;
-      }
-      try {
+          try {
         await api("/api/habits", { method: "POST", body: JSON.stringify({ title }) });
         input.value = "";
         haptic("light");
         await loadBootstrap();
       } catch (err) {
         showToast(friendlyError(err), "error");
+        });
+
+
+  document.getElementById("savePlanBtn").addEventListener("click", async () => {
+    const main_goal = document.getElementById("mainGoalInput").value;
+
+    const tasks = [...document.querySelectorAll(".plan-task-input")]
+      .map(i => i.value.trim())
+      .filter(Boolean);
+
+    try {
+      await api("/api/plan/save", {
+        method: "POST",
+        body: JSON.stringify({ main_goal, tasks })
+      });
+      showToast("План сохранён");
+      await loadBootstrap();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+
+  document.addEventListener("change", async (e) => {
+    if (e.target.classList.contains("plan-toggle")) {
+      try {
+        await api("/api/plan/task/toggle", {
+          method: "POST",
+          body: JSON.stringify({ task_id: e.target.dataset.id })
+        });
+        await loadBootstrap();
+      } catch (err) {
+        showToast(friendlyError(err), "error");
       }
-    });
-  }
+    }
+  });
+}
 
   // ===================== SHOP ACTIONS =====================
   function initShopActions() {

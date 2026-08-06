@@ -18,6 +18,7 @@ from db import (
     get_shop_items, buy_shop_item, get_user_items,
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
+    get_daily_plan, save_daily_plan, toggle_daily_task,
 )
 
 logger = logging.getLogger("webapp")
@@ -96,6 +97,7 @@ async def bootstrap(request):
     leaderboard = get_rating()
     calendar_events = get_calendar(telegram_id)
     achievements = get_achievements(telegram_id)
+    daily_plan = get_daily_plan(telegram_id)
 
     return web.json_response({
         "user": {
@@ -129,6 +131,7 @@ async def bootstrap(request):
                 "xp": row["xp"], "level": row["level"], "streak": row["streak"],
             } for row in leaderboard
         ],
+        "daily_plan": daily_plan,
         "calendar_events": [
             {"day": row["day"], "completed": row["completed"]} for row in calendar_events
         ],
@@ -197,6 +200,34 @@ async def set_ai_style(request):
     if style not in ("soft", "neutral", "strict"):
         return web.json_response({"error": "invalid_style"}, status=400)
     update_ai_style(telegram_id, style)
+    return web.json_response({"ok": True})
+
+
+
+
+# ====================== DAILY PLAN ======================
+
+@routes.post("/api/plan/save")
+async def api_plan_save(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+
+    save_daily_plan(
+        telegram_id,
+        body.get("main_goal", ""),
+        body.get("tasks", [])
+    )
+
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/plan/task/toggle")
+async def api_plan_toggle(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+
+    toggle_daily_task(int(body["task_id"]))
+
     return web.json_response({"ok": True})
 
 @routes.get("/")

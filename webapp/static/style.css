@@ -1664,3 +1664,60 @@ body {
 .rating-stat .stat-icon{
     font-size:16px;
 }
+
+/* ===================== DAILY PLAN ===================== */
+
+.plan-card{
+  background:#171322;
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:22px;
+  padding:16px;
+  margin-bottom:18px;
+}
+
+.plan-main{
+  background:#120F1B;
+  border-radius:18px;
+  padding:14px;
+  margin-bottom:12px;
+}
+
+.plan-main__label{
+  color:#F59E0B;
+  font-size:13px;
+  margin-bottom:8px;
+}
+
+#mainGoalInput,
+.plan-task-input{
+  width:100%;
+  background:#0E0B14;
+  border:1px solid rgba(255,255,255,.08);
+  color:#fff;
+  border-radius:14px;
+  padding:12px;
+  margin-bottom:10px;
+}
+
+.plan-list{
+  list-style:none;
+  padding:0;
+  margin:14px 0 0;
+}
+
+.plan-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.plan-item:last-child{
+  border-bottom:none;
+}
+
+.plan-item.is-done .plan-item__text{
+  opacity:.6;
+  text-decoration:line-through;
+}

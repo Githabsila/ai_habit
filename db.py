@@ -210,6 +210,27 @@ def create_tables():
         )
     """)
 
+
+# План дня
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS daily_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        telegram_id INTEGER NOT NULL,
+        plan_date TEXT NOT NULL,
+        main_goal TEXT DEFAULT '',
+        UNIQUE(telegram_id, plan_date)
+    )
+""")
+
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS daily_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER NOT NULL,
+        text TEXT NOT NULL,
+        completed INTEGER DEFAULT 0
+    )
+""")
+
     conn.commit()
     conn.close()
     logger.info("✅ Все таблицы созданы (или уже существовали)")
@@ -600,3 +621,83 @@ def log_error(context: str, error: Exception, telegram_id: int = None):
     logger.error(f"Error in {context} for user {telegram_id}: {error}")
     # Можно добавить таблицу error_logs и записывать туда
     
+
+
+# ---------- ПЛАН ДНЯ ----------
+def get_daily_plan(telegram_id: int, plan_date: str | None = None):
+    plan_date = plan_date or date.today().isoformat()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT * FROM daily_plans WHERE telegram_id=? AND plan_date=?",
+        (telegram_id, plan_date)
+    )
+    plan = cur.fetchone()
+
+    if not plan:
+        cur.execute(
+            "INSERT INTO daily_plans (telegram_id, plan_date) VALUES (?, ?)",
+            (telegram_id, plan_date)
+        )
+        conn.commit()
+
+        cur.execute(
+            "SELECT * FROM daily_plans WHERE telegram_id=? AND plan_date=?",
+            (telegram_id, plan_date)
+        )
+        plan = cur.fetchone()
+
+    cur.execute(
+        "SELECT * FROM daily_tasks WHERE plan_id=? ORDER BY id",
+        (plan["id"],)
+    )
+    tasks = cur.fetchall()
+
+    conn.close()
+
+    return {
+        "id": plan["id"],
+        "main_goal": plan["main_goal"] or "",
+        "tasks": [dict_from_row(t) for t in tasks]
+    }
+
+
+def save_daily_plan(telegram_id: int, main_goal: str, tasks: list[str]):
+    plan = get_daily_plan(telegram_id)
+    plan_id = plan["id"]
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "UPDATE daily_plans SET main_goal=? WHERE id=?",
+        (main_goal.strip(), plan_id)
+    )
+
+    cur.execute("DELETE FROM daily_tasks WHERE plan_id=?", (plan_id,))
+
+    for task in tasks[:5]:
+        task = task.strip()
+        if task:
+            cur.execute(
+                "INSERT INTO daily_tasks (plan_id, text) VALUES (?, ?)",
+                (plan_id, task)
+            )
+
+    conn.commit()
+    conn.close()
+
+
+def toggle_daily_task(task_id: int):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "UPDATE daily_tasks SET completed = CASE completed WHEN 1 THEN 0 ELSE 1 END WHERE id=?",
+        (task_id,)
+    )
+
+    conn.commit()
+    conn.close()
