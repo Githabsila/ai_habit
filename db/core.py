@@ -107,6 +107,47 @@ def create_tables():
     )
     """)
 
+    # Миграция: индивидуальные напоминания по конкретной задаче (привычке).
+    # assigned_at — момент, с которого отсчитываем "N часов без выполнения"
+    # (при создании привычки = created_at, а каждый день в 00:00 сбрасывается
+    # заново вместе с completed — см. reset_habits()). reminder_sent —
+    # флаг "по этой задаче уже напомнили сегодня", чтобы не спамить на
+    # каждый тик планировщика, сбрасывается там же, в reset_habits().
+    cursor.execute("PRAGMA table_info(habits)")
+    habits_columns = {row[1] for row in cursor.fetchall()}
+    if "assigned_at" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN assigned_at TIMESTAMP")
+        cursor.execute("UPDATE habits SET assigned_at = created_at WHERE assigned_at IS NULL")
+    if "reminder_sent" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN reminder_sent INTEGER DEFAULT 0")
+
+    # ---------------- ПЛАН ДНЯ (Mini App) ----------------
+    # main_goal — общая цель дня, tasks — до 5 отдельных задач (например
+    # «Прочитать книгу»). Раньше эти данные никуда не сохранялись — см.
+    # db/daily_plan.py.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS daily_plans(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        plan_date TEXT NOT NULL,
+        main_goal TEXT DEFAULT '',
+        goal_reminder_sent INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, plan_date)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS daily_plan_tasks(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER,
+        text TEXT NOT NULL,
+        completed INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reminder_sent INTEGER DEFAULT 0
+    )
+    """)
+
     # ---------------- SHOP ----------------
 
     cursor.execute("""

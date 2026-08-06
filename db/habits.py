@@ -15,7 +15,10 @@ from .achievements import check_achievements
 def add_habit(user_id, title):
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO habits(user_id, title) VALUES (?, ?)", (user_id, title))
+    cursor.execute("""
+        INSERT INTO habits(user_id, title, assigned_at, reminder_sent)
+        VALUES (?, ?, CURRENT_TIMESTAMP, 0)
+    """, (user_id, title))
     conn.commit()
     conn.close()
 
@@ -57,7 +60,12 @@ def delete_habit(habit_id):
 def reset_habits():
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute("UPDATE habits SET completed=0")
+    # assigned_at и reminder_sent сбрасываются вместе с completed — новый
+    # день значит задача "выдана" заново, и 2-часовой отсчёт для
+    # напоминаний (см. get_habits_needing_reminder) начинается с нуля.
+    cursor.execute("""
+        UPDATE habits SET completed=0, assigned_at=CURRENT_TIMESTAMP, reminder_sent=0
+    """)
     conn.commit()
     conn.close()
 
@@ -74,6 +82,35 @@ def get_incomplete_habits(user_id):
     habits = cursor.fetchall()
     conn.close()
     return habits
+
+
+def get_habits_needing_reminder(user_id, hours=2):
+    """Привычки пользователя, которые не выполнены и 'висят' без действия
+    уже >= hours часов с момента, когда были выданы (assigned_at — задаётся
+    при создании и обновляется каждый день в reset_habits()), и по которым
+    сегодня ещё не отправляли индивидуальное напоминание — используется
+    coach.run_task_reminder_check для точечных пингов по каждой задаче
+    отдельно, в отличие от общей рассылки reminders.py."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM habits
+        WHERE user_id=?
+          AND completed=0
+          AND reminder_sent=0
+          AND assigned_at <= datetime('now', ?)
+    """, (user_id, f"-{hours} hours"))
+    habits = cursor.fetchall()
+    conn.close()
+    return habits
+
+
+def mark_habit_reminder_sent(habit_id):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE habits SET reminder_sent=1 WHERE id=?", (habit_id,))
+    conn.commit()
+    conn.close()
 
 
 # =====================================

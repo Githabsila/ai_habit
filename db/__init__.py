@@ -48,6 +48,18 @@ from .habits import (
     get_incomplete_habits,
     log_daily_habits,
     get_weekly_habit_breakdown,
+    get_habits_needing_reminder,
+    mark_habit_reminder_sent,
+)
+
+from .daily_plan import (
+    get_daily_plan,
+    save_daily_plan,
+    toggle_daily_task,
+    get_plan_tasks_needing_reminder,
+    mark_plan_task_reminder_sent,
+    get_plans_needing_goal_reminder,
+    mark_goal_reminder_sent,
 )
 
 from .statistics import (
@@ -130,6 +142,10 @@ __all__ = [
     "add_habit", "get_habits", "get_habit", "edit_habit", "delete_habit",
     "reset_habits", "update_streak", "complete_habit", "get_progress",
     "get_incomplete_habits", "log_daily_habits", "get_weekly_habit_breakdown",
+    "get_habits_needing_reminder", "mark_habit_reminder_sent",
+    "get_daily_plan", "save_daily_plan", "toggle_daily_task",
+    "get_plan_tasks_needing_reminder", "mark_plan_task_reminder_sent",
+    "get_plans_needing_goal_reminder", "mark_goal_reminder_sent",
     "add_statistics", "get_statistics", "get_weekly_summary",
     "create_daily_tasks", "get_daily_tasks", "update_daily_task",
     "check_achievements", "get_achievements",
@@ -146,18 +162,3 @@ __all__ = [
     "get_surveys_due_for_feedback", "mark_feedback_sent",
     "find_match_by_tags", "save_milestones", "get_milestones", "toggle_milestone",
 ]
-
-
-def get_daily_plan(telegram_id: int):
-    return {
-        "id": 1,
-        "main_goal": "",
-        "tasks": []
-        }
-
-def save_daily_plan(telegram_id: int, main_goal: str, tasks: list):
-    return True
-
-
-def toggle_daily_task(task_id: int):
-    return True

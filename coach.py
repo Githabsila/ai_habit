@@ -26,6 +26,12 @@ from db import (
     get_incomplete_habits,
     get_weekly_habit_breakdown,
     get_ai_style,
+    get_habits_needing_reminder,
+    mark_habit_reminder_sent,
+    get_plan_tasks_needing_reminder,
+    mark_plan_task_reminder_sent,
+    get_plans_needing_goal_reminder,
+    mark_goal_reminder_sent,
 )
 from multi_agent import generate_weekly_habit_feedback
 
@@ -196,6 +202,87 @@ async def run_hard_deadline_check(bot):
             log_error("hard_deadline", e, telegram_id)
 
     logger.info(f"Жёсткий дедлайн 21:00: отправлено {sent} напоминаний")
+
+
+# =====================================
+# ИНДИВИДУАЛЬНЫЕ НАПОМИНАНИЯ ПО ЗАДАЧАМ (через N часов бездействия)
+# =====================================
+#
+# В отличие от reminders.py (общая рассылка всем раз в 2 часа с одним и тем
+# же текстом) и run_hard_deadline_check (один раз в 21:00, списком) — это
+# точечная проверка: у КАЖДОГО пользователя отдельно смотрим, по какой
+# конкретно привычке/задаче плана дня прошло >= REMINDER_AFTER_HOURS часов
+# без выполнения, и шлём напоминание с её названием. По каждой задаче
+# напоминание уходит один раз в день (флаг reminder_sent, сбрасывается
+# вместе с самой задачей — см. db/habits.py и db/daily_plan.py).
+
+REMINDER_AFTER_HOURS = 2
+
+
+async def run_task_reminder_check(bot):
+    """Запускается по расписанию каждые ~15-30 минут (main.py). За один
+    прогон пользователю может уйти несколько сообщений — по одному на
+    каждую просроченную привычку/задачу плюс, при необходимости, одно
+    про общую цель дня."""
+    users = get_all_users()
+    sent = 0
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+
+        settings = get_settings(telegram_id)
+        if not settings or settings["reminders"] == 0:
+            continue
+
+        # -- привычки ("Ваши привычки") --
+        for habit in get_habits_needing_reminder(telegram_id, hours=REMINDER_AFTER_HOURS):
+            try:
+                await bot.send_message(
+                    telegram_id,
+                    f"⏰ <b>Напоминание о задаче</b>\n\n"
+                    f"Уже {REMINDER_AFTER_HOURS} ч., а привычка «{habit['title']}» "
+                    f"ещё не отмечена выполненной сегодня. Не забудьте закрыть её 💪",
+                    parse_mode="HTML"
+                )
+                sent += 1
+            except Exception as e:
+                log_error("task_reminder_habit", e, telegram_id)
+            finally:
+                mark_habit_reminder_sent(habit["id"])
+
+        # -- задачи из плана дня (Mini App) --
+        for task in get_plan_tasks_needing_reminder(telegram_id, hours=REMINDER_AFTER_HOURS):
+            try:
+                await bot.send_message(
+                    telegram_id,
+                    f"⏰ <b>Напоминание о задаче</b>\n\n"
+                    f"Уже {REMINDER_AFTER_HOURS} ч., а задача «{task['text']}» из "
+                    f"плана на сегодня ещё не выполнена. Самое время вернуться к ней 🙂",
+                    parse_mode="HTML"
+                )
+                sent += 1
+            except Exception as e:
+                log_error("task_reminder_plan_task", e, telegram_id)
+            finally:
+                mark_plan_task_reminder_sent(task["id"])
+
+        # -- общая цель дня --
+        for plan in get_plans_needing_goal_reminder(telegram_id, hours=REMINDER_AFTER_HOURS):
+            try:
+                await bot.send_message(
+                    telegram_id,
+                    f"🎯 <b>Напоминание о цели дня</b>\n\n"
+                    f"Уже {REMINDER_AFTER_HOURS} ч., а по сегодняшней цели «{plan['main_goal']}» "
+                    f"пока нет прогресса. Начните хотя бы с малого шага 🌱",
+                    parse_mode="HTML"
+                )
+                sent += 1
+            except Exception as e:
+                log_error("task_reminder_goal", e, telegram_id)
+            finally:
+                mark_goal_reminder_sent(plan["id"])
+
+    logger.info(f"Индивидуальные напоминания по задачам: отправлено {sent} сообщений")
 
 
 # =====================================

@@ -16,7 +16,7 @@ from webapp.server import run_webapp
 from logging_config import setup_logging
 from scheduler import scheduler, new_day
 from reminders import send_reminders
-from coach import run_streak_risk_check, run_weekly_report, run_hard_deadline_check, run_weekly_habit_analysis
+from coach import run_streak_risk_check, run_weekly_report, run_hard_deadline_check, run_weekly_habit_analysis, run_task_reminder_check
 from onboarding_auto import run_auto_approve
 from goal_feedback import run_goal_feedback
 from morning_ping import run_morning_ping
@@ -89,6 +89,7 @@ async def main():
 
     # --- ПЛАНИРОВЩИК ---
     scheduler.add_job(send_reminders, "interval", minutes=120, args=[bot])
+    scheduler.add_job(run_task_reminder_check, "interval", minutes=15, args=[bot])
     scheduler.add_job(run_streak_risk_check, "cron", hour=20, minute=0, args=[bot])
     scheduler.add_job(run_hard_deadline_check, "cron", hour=21, minute=0, args=[bot])
     scheduler.add_job(run_weekly_report, "cron", day_of_week="sun", hour=19, minute=0, args=[bot])
