@@ -1670,46 +1670,81 @@ body {
 .plan-card{
   background:#171322;
   border:1px solid rgba(255,255,255,.06);
-  border-radius:22px;
-  padding:16px;
-  margin-bottom:18px;
+  border-radius:20px;
+  padding:14px;
+  margin-bottom:14px;
 }
 
 .plan-main{
   background:#120F1B;
-  border-radius:18px;
-  padding:14px;
-  margin-bottom:12px;
+  border-radius:16px;
+  padding:12px;
+  margin-bottom:10px;
 }
 
 .plan-main__label{
   color:#F59E0B;
-  font-size:13px;
-  margin-bottom:8px;
+  font-size:12px;
+  margin-bottom:6px;
 }
 
-#mainGoalInput,
+#mainGoalInput{
+  width:100%;
+  background:#0E0B14;
+  border:1px solid rgba(255,255,255,.08);
+  color:#fff;
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:14px;
+}
+
+.plan-tasks{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-bottom:10px;
+}
+
 .plan-task-input{
   width:100%;
   background:#0E0B14;
   border:1px solid rgba(255,255,255,.08);
   color:#fff;
+  border-radius:12px;
+  padding:9px 10px;
+  font-size:13px;
+}
+
+.plan-save-btn{
+  width:100%;
+  padding:11px 16px;
   border-radius:14px;
-  padding:12px;
-  margin-bottom:10px;
+  background:linear-gradient(135deg,#FFD76A,#F0B429);
+  color:#201703;
+  font-size:14px;
+  font-weight:700;
+  white-space:nowrap;
+  box-shadow:
+    0 8px 20px rgba(240,180,41,.3),
+    inset 0 1px 0 rgba(255,255,255,.45);
+  transition:transform .15s ease;
+}
+
+.plan-save-btn:active{
+  transform:scale(.97);
 }
 
 .plan-list{
   list-style:none;
   padding:0;
-  margin:14px 0 0;
+  margin:10px 0 0;
 }
 
 .plan-item{
   display:flex;
   align-items:center;
   gap:10px;
-  padding:12px 0;
+  padding:9px 0;
   border-bottom:1px solid rgba(255,255,255,.06);
 }
 
