@@ -88,7 +88,7 @@ async def main():
     dp.include_router(community_router)
 
     # --- ПЛАНИРОВЩИК ---
-    scheduler.add_job(send_reminders, "interval", minutes=120, args=[bot])
+    scheduler.add_job(send_reminders, "cron", hour="8,12,16,20", minute=0, args=[bot])
     scheduler.add_job(run_task_reminder_check, "interval", minutes=15, args=[bot])
     scheduler.add_job(run_streak_risk_check, "cron", hour=20, minute=0, args=[bot])
     scheduler.add_job(run_hard_deadline_check, "cron", hour=21, minute=0, args=[bot])

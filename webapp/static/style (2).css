@@ -1715,6 +1715,11 @@ body {
   font-size:13px;
 }
 
+/* 5-я задача — нечётная, ставим на всю ширину, чтобы не висела одна в колонке */
+.plan-task-input:last-child:nth-child(odd){
+  grid-column:1 / -1;
+}
+
 .plan-save-btn{
   width:100%;
   padding:11px 16px;

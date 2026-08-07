@@ -49,6 +49,7 @@ from keyboards import (
 )
 
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
+from habit_intents import try_handle_habit_intent
 
 router = Router()
 logger = logging.getLogger("handlers.ai")
@@ -157,13 +158,24 @@ async def ai_chat(message: Message, state: FSMContext):
         )
         return
 
+    user_id = message.from_user.id
+
+    # ✅ Команды управления привычками («добавь привычку …», «удали привычку
+    # …» и т.п.) выполняются напрямую, в обход мультиагентного пайплайна —
+    # быстро и без риска, что модель что-то не так поймёт.
+    habit_reply = try_handle_habit_intent(user_id, message.text)
+    if habit_reply is not None:
+        add_ai_message(user_id, "user", message.text)
+        add_ai_message(user_id, "assistant", habit_reply)
+        await message.answer(habit_reply, reply_markup=ai_keyboard())
+        return
+
     await message.bot.send_chat_action(
         chat_id=message.chat.id,
         action="typing"
     )
 
     thinking_msg = await message.answer("🤔 Думаю над ответом...")
-    user_id = message.from_user.id
 
     # ✅ ЛОКАЛЬНЫЙ импорт chat — только здесь, внутри функции
     from webapp.services.ai_service import chat
