@@ -230,6 +230,24 @@ def create_tables():
         )
     """)
 
+    # Миграция: колонка темы оформления могла отсутствовать в старой БД.
+    cur.execute("PRAGMA table_info(users)")
+    user_columns = {row["name"] for row in cur.fetchall()}
+    if "theme" not in user_columns:
+        cur.execute("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'violet'")
+
+    # Заполняем магазин один раз, если пусто (на новой БД).
+    cur.execute("SELECT COUNT(*) AS c FROM shop_items")
+    if cur.fetchone()["c"] == 0:
+        cur.executemany("""
+            INSERT INTO shop_items(id, name, description, price)
+            VALUES (?, ?, ?, ?)
+        """, [
+            (1, "👑 Premium", "Премиум-доступ на 7 дней", 1000),
+            (2, "🎨 Тема оформления", "Кастомная тема профиля", 100),
+            (3, "🏅 Особый значок", "Значок в профиле", 150),
+        ])
+
     conn.commit()
     conn.close()
     logger.info("✅ Все таблицы созданы (или уже существовали)")
@@ -533,6 +551,48 @@ def get_user_items(telegram_id: int) -> List[int]:
     rows = cur.fetchall()
     conn.close()
     return [r["item_id"] for r in rows]
+
+def has_item(telegram_id: int, item_id: int) -> bool:
+    """Владеет ли пользователь конкретным товаром магазина (куплен ли он)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM user_items WHERE telegram_id = ? AND item_id = ? LIMIT 1",
+        (telegram_id, item_id)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row is not None
+
+def get_item_owner_ids(item_id: int) -> set:
+    """Множество telegram_id всех пользователей, купивших данный товар —
+    используется, например, чтобы показать значок 🏅 в рейтинге у всех
+    владельцев товара «Особый значок», без запроса на каждую строку."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT telegram_id FROM user_items WHERE item_id = ?", (item_id,))
+    ids = {row["telegram_id"] for row in cur.fetchall()}
+    conn.close()
+    return ids
+
+def get_theme(telegram_id: int) -> str:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT theme FROM users WHERE telegram_id = ?", (telegram_id,))
+    row = cur.fetchone()
+    conn.close()
+    return (row["theme"] if row and row["theme"] else "violet")
+
+def update_theme(telegram_id: int, theme: str) -> bool:
+    valid_themes = {"violet", "blue", "green", "pink"}
+    if theme not in valid_themes:
+        return False
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET theme = ? WHERE telegram_id = ?", (theme, telegram_id))
+    conn.commit()
+    conn.close()
+    return True
 
 def buy_shop_item(telegram_id: int, item_id: int) -> bool:
     conn = get_db_connection()

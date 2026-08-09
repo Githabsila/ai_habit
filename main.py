@@ -12,7 +12,7 @@ from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 
 from config import BOT_TOKEN, WEBAPP_URL, PORT
 from db import create_tables
-from webapp.server import run_webapp
+from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
 from scheduler import scheduler, new_day
 from reminders import send_reminders

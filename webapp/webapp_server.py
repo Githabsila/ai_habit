@@ -16,6 +16,7 @@ from db import (
     complete_habit, get_progress, get_settings,
     update_reminder_time, update_ai_style, get_ai_style,
     get_shop_items, buy_shop_item, get_user_items,
+    has_item, get_item_owner_ids, update_theme, get_theme,
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
 )
@@ -23,6 +24,11 @@ from db import (
 logger = logging.getLogger("webapp")
 BASE_DIR = Path(__file__).parent
 routes = web.RouteTableDef()
+
+# ID товаров магазина, у которых есть реальный эффект в мини-приложении
+# (см. посев в db.py: create_tables): 2 — тема оформления, 3 — значок в рейтинге.
+THEME_ITEM_ID = 2
+BADGE_ITEM_ID = 3
 
 # ====================== АВТОРИЗАЦИЯ ======================
 
@@ -96,6 +102,7 @@ async def bootstrap(request):
     leaderboard = get_rating()
     calendar_events = get_calendar(telegram_id)
     achievements = get_achievements(telegram_id)
+    badge_owner_ids = get_item_owner_ids(BADGE_ITEM_ID)
 
     return web.json_response({
         "user": {
@@ -105,6 +112,7 @@ async def bootstrap(request):
             "level": user["level"] if user else 1,
             "streak": user["streak"] if user else 0,
             "premium": bool(user["premium"]) if user else False,
+            "badge": telegram_id in badge_owner_ids,
             "is_admin": is_admin,
         },
         "habits": [{"id": h["id"], "title": h["title"], "completed": bool(h["completed"])} for h in habits],
@@ -114,6 +122,8 @@ async def bootstrap(request):
             "reminder_hour": settings_row["reminder_hour"] if settings_row else 9,
             "reminder_minute": settings_row["reminder_minute"] if settings_row else 0,
             "ai_style": get_ai_style(telegram_id),
+            "theme_owned": THEME_ITEM_ID in owned_item_ids,
+            "theme": get_theme(telegram_id),
         },
         "shop_items": [
             {
@@ -127,6 +137,7 @@ async def bootstrap(request):
                 "username": row["username"],
                 "first_name": row["first_name"],
                 "xp": row["xp"], "level": row["level"], "streak": row["streak"],
+                "badge": row["telegram_id"] in badge_owner_ids,
             } for row in leaderboard
         ],
         "calendar_events": [
@@ -197,6 +208,20 @@ async def set_ai_style(request):
     if style not in ("soft", "neutral", "strict"):
         return web.json_response({"error": "invalid_style"}, status=400)
     update_ai_style(telegram_id, style)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/settings/theme")
+async def set_theme(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    theme = body.get("theme")
+
+    if not has_item(telegram_id, THEME_ITEM_ID):
+        return web.json_response({"error": "theme_not_owned"}, status=403)
+
+    if not update_theme(telegram_id, theme):
+        return web.json_response({"error": "invalid_theme"}, status=400)
+
     return web.json_response({"ok": True})
 
 @routes.get("/")
