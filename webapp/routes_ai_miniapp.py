@@ -125,18 +125,27 @@ async def ai_chat_miniapp(request):
     try:
         data = await request.json()
     except json.JSONDecodeError:
-        return web.json_response({"error": "invalid_json"}, status=400)
+        return web.json_response(
+            {"error": "invalid_json", "message": "Не получилось прочитать сообщение, попробуй ещё раз."},
+            status=400
+        )
 
     init_data = data.get("init_data", "")
     message_text = data.get("message", "").strip()
 
     if not message_text:
-        return web.json_response({"error": "empty_message"}, status=400)
+        return web.json_response(
+            {"error": "empty_message", "message": "Напиши что-нибудь :)"},
+            status=400
+        )
 
     # Аутентификация через Telegram
     tg_user = validate_init_data(init_data, BOT_TOKEN)
     if tg_user is None:
-        return web.json_response({"error": "unauthorized"}, status=401)
+        return web.json_response(
+            {"error": "unauthorized", "message": "Не получилось подтвердить, что это ты. Закрой и открой Mini App заново."},
+            status=401
+        )
 
     user_id = tg_user["id"]
 
@@ -144,7 +153,11 @@ async def ai_chat_miniapp(request):
     wait = _is_throttled(user_id)
     if wait is not None:
         return web.json_response(
-            {"error": "throttled", "wait_seconds": wait},
+            {
+                "error": "throttled",
+                "wait_seconds": wait,
+                "message": f"⏳ Не так быстро — подожди {wait} сек. и напиши ещё раз.",
+            },
             status=429
         )
 

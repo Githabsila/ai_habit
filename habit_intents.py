@@ -50,6 +50,22 @@ _LIST_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Местоименные команды без явного названия привычки — «выполни её»,
+# «удали это», «отметь то» и т.п. Обычно так пишут сразу после того, как
+# привычка была упомянута/добавлена в этом же диалоге. Если у пользователя
+# ровно ОДНА привычка — действие однозначно, выполняем сразу. Если их
+# несколько — просим уточнить название явно (гадать по местоимению между
+# несколькими привычками рискованно).
+_COMPLETE_PRONOUN_RE = re.compile(
+    r"^(?:отметь|выполни|сделай)\s+(?:её|ее|это|то)(?:\s+выполненн\w*)?[.!?]*$",
+    re.IGNORECASE,
+)
+
+_DELETE_PRONOUN_RE = re.compile(
+    r"^(?:удали|убери|сноси)\s+(?:её|ее|это|то)[.!?]*$",
+    re.IGNORECASE,
+)
+
 # ===== ПЛАН ДНЯ / ЦЕЛИ (Главная задача + до 5 задач в Mini App) =====
 
 _LIST_PLAN_RE = re.compile(
@@ -160,6 +176,28 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
         if ambiguous:
             return _ambiguous_reply(ambiguous)
         return _not_found_reply(query)
+
+    if _COMPLETE_PRONOUN_RE.match(text):
+        habits = get_habits(user_id)
+        if len(habits) == 1:
+            habit = habits[0]
+            done = complete_habit(habit["id"])
+            if done:
+                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!"
+            return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
+        if len(habits) > 1:
+            return "🤔 У тебя несколько привычек — уточни, какую из них: напиши «выполни привычку <название>»."
+        return "У тебя пока нет ни одной привычки."
+
+    if _DELETE_PRONOUN_RE.match(text):
+        habits = get_habits(user_id)
+        if len(habits) == 1:
+            habit = habits[0]
+            delete_habit(habit["id"])
+            return f"🗑 Привычка «{habit['title']}» удалена."
+        if len(habits) > 1:
+            return "🤔 У тебя несколько привычек — уточни, какую из них: напиши «удали привычку <название>»."
+        return "У тебя пока нет ни одной привычки."
 
     if _LIST_RE.match(text):
         habits = get_habits(user_id)
