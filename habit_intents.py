@@ -6,6 +6,8 @@ from db import (
     edit_habit,
     delete_habit,
     complete_habit,
+    get_daily_plan,
+    toggle_daily_task,
 )
 
 # =====================================
@@ -38,13 +40,27 @@ _DELETE_RE = re.compile(
 )
 
 _COMPLETE_RE = re.compile(
-    r"^(?:отметь|выполнил[аи]?|сделал[аи]?)\s+привычку\s*[:\-—]?\s*(.+)$",
+    r"^(?:отметь|выполни|выполнил[аи]?|сделай|сделал[аи]?)\s+привычку\s*[:\-—]?\s*(.+)$",
     re.IGNORECASE,
 )
 
 _LIST_RE = re.compile(
     r"^(?:покажи|выведи|список)\s+(?:мои\s+)?привычки[.!?]*$"
     r"|^какие\s+у\s+меня\s+привычки[.!?]*$",
+    re.IGNORECASE,
+)
+
+# ===== ПЛАН ДНЯ / ЦЕЛИ (Главная задача + до 5 задач в Mini App) =====
+
+_LIST_PLAN_RE = re.compile(
+    r"^(?:покажи|выведи)\s+(?:мой\s+|мои\s+)?(?:план(?:\s+на\s+(?:сегодня|день))?|цели(?:\s+на\s+(?:сегодня|день))?)[.!?]*$"
+    r"|^какой\s+у\s+меня\s+план(?:\s+на\s+(?:сегодня|день))?[.!?]*$"
+    r"|^какая\s+у\s+меня\s+главная\s+задача[.!?]*$",
+    re.IGNORECASE,
+)
+
+_COMPLETE_TASK_RE = re.compile(
+    r"^(?:отметь|выполни|сделай)\s+задачу\s*[:\-—]?\s*(\d+)\s*(?:в\s+плане)?[.!?]*$",
     re.IGNORECASE,
 )
 
@@ -154,5 +170,124 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
             mark = "✅" if h["completed"] else "⬜"
             lines.append(f"{mark} {h['title']}")
         return "\n".join(lines)
+
+    if _LIST_PLAN_RE.match(text):
+        plan = get_daily_plan(user_id)
+        if not plan or not (plan["main_goal"] or plan["tasks"]):
+            return "На сегодня план ещё не составлен. Заполни его во вкладке «План дня» в приложении."
+        lines = ["🎯 Твой план на сегодня:"]
+        if plan["main_goal"]:
+            lines.append(f"Главная задача: {plan['main_goal']}")
+        if plan["tasks"]:
+            lines.append("")
+            for i, t in enumerate(plan["tasks"], start=1):
+                if not t["text"]:
+                    continue
+                mark = "✅" if t["completed"] else "⬜"
+                lines.append(f"{mark} {i}. {t['text']}")
+        return "\n".join(lines)
+
+    m = _COMPLETE_TASK_RE.match(text)
+    if m:
+        idx = int(m.group(1))
+        plan = get_daily_plan(user_id)
+        tasks = [t for t in (plan["tasks"] if plan else []) if t["text"]]
+        if not tasks:
+            return "В сегодняшнем плане пока нет задач. Заполни его во вкладке «План дня»."
+        if idx < 1 or idx > len(tasks):
+            return f"⚠️ В плане на сегодня только {len(tasks)} задач(и) — укажи номер от 1 до {len(tasks)}."
+        task = tasks[idx - 1]
+        toggle_daily_task(task["id"])
+        new_state = not task["completed"]
+        if new_state:
+            return f"🔥 Задача «{task['text']}» отмечена выполненной!"
+        return f"↩️ Отметка выполнения снята с задачи «{task['text']}»."
+
+    return None
+
+
+# =====================================
+# РЕЗЕРВНОЕ РАСПОЗНАВАНИЕ ЧЕРЕЗ AI-КЛАССИФИКАТОР
+# =====================================
+#
+# Жёсткие regex-шаблоны выше ловят только явные, предсказуемые формулировки
+# («выполни привычку X», «удали привычку X»). Если человек пишет иначе —
+# «я сделал зарядку», «забей на привычку с чтением», «готово, я
+# пробежался» — ни один regex не совпадёт, и БЕЗ этой функции сообщение
+# ушло бы в обычный AI-чат, который может РАЗГОВОРНО подтвердить действие
+# ("Привычка отмечена выполненной!"), ничего на самом деле не изменив в
+# базе — у обычного чата нет доступа к БД. Эта функция вызывается ПОСЛЕ
+# try_handle_habit_intent() (только если та вернула None) и использует
+# лёгкую модель-классификатор, которая видит реальный список привычек/задач
+# пользователя и выбирает цель строго из него — не выдумывая.
+
+async def try_handle_habit_intent_ai(user_id: int, text: str) -> str | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+
+    from multi_agent import classify_habit_action
+
+    habits = get_habits(user_id)
+    if not habits:
+        # Без привычек единственное осмысленное действие классификатора —
+        # add_habit, но для этого он не нужен: сообщения вида "добавь
+        # привычку X" и так ловятся regex-шаблоном выше. Не тратим вызов
+        # модели впустую.
+        return None
+
+    plan = get_daily_plan(user_id)
+    plan_tasks = [t["text"] for t in (plan["tasks"] if plan else []) if t["text"]]
+
+    try:
+        decision = await classify_habit_action(
+            text,
+            habits=[h["title"] for h in habits],
+            plan_tasks=plan_tasks,
+        )
+    except Exception:
+        return None
+
+    action = decision.get("action")
+
+    if action == "complete_habit":
+        target = (decision.get("habit") or "").strip().lower()
+        habit = next((h for h in habits if h["title"].strip().lower() == target), None)
+        if not habit:
+            return None
+        done = complete_habit(habit["id"])
+        if done:
+            return f"🔥 Привычка «{habit['title']}» отмечена выполненной!"
+        return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
+
+    if action == "delete_habit":
+        target = (decision.get("habit") or "").strip().lower()
+        habit = next((h for h in habits if h["title"].strip().lower() == target), None)
+        if not habit:
+            return None
+        delete_habit(habit["id"])
+        return f"🗑 Привычка «{habit['title']}» удалена."
+
+    if action == "add_habit":
+        title = _clean(decision.get("title") or "")
+        if not title:
+            return None
+        add_habit(user_id, title)
+        return f"✅ Привычка «{title}» добавлена!"
+
+    if action == "complete_task":
+        try:
+            idx = int(decision.get("task_number"))
+        except (TypeError, ValueError):
+            return None
+        tasks = [t for t in (plan["tasks"] if plan else []) if t["text"]]
+        if idx < 1 or idx > len(tasks):
+            return None
+        task = tasks[idx - 1]
+        toggle_daily_task(task["id"])
+        new_state = not task["completed"]
+        if new_state:
+            return f"🔥 Задача «{task['text']}» отмечена выполненной!"
+        return f"↩️ Отметка выполнения снята с задачи «{task['text']}»."
 
     return None

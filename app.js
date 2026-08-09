@@ -173,14 +173,7 @@
 
     const owned = !!state.settings.theme_owned;
     const current = state.settings.theme || "violet";
-
-    // Тема применяется только тем, кто её купил — иначе все пользователи
-    // по умолчанию получили бы новый вид профиля вместо оригинального.
-    if (owned) {
-      document.body.setAttribute("data-theme", current);
-    } else {
-      document.body.removeAttribute("data-theme");
-    }
+    document.body.setAttribute("data-theme", current);
 
     picker.innerHTML = THEMES.map(t => `
       <button
@@ -232,7 +225,7 @@
       return `
         <li class="rating-item ${isMe ? "is-me" : ""} rank-${rank}">
           <span class="rating-item__rank">${rank}</span>
-          <span class="rating-item__name">${escapeHtml(name)}${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? " (ты)" : ""}</span>
+          <span class="rating-item__name">${escapeHtml(name)}${r.badge ? " 🏅" : ""}${isMe ? " (ты)" : ""}</span>
           <span class="rating-item__meta">
     <span class="rating-stat">
         <span class="material-symbols-rounded stat-icon">local_fire_department</span>

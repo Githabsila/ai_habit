@@ -26,7 +26,11 @@ async def chat(user_id: int, message: str):
     user_context = build_user_context(user_id)
     style = get_ai_style(user_id)
 
-    cache_key = _cache_key(message, style)
+    # ⚠️ Раньше ключ кэша не учитывал user_id — при одинаковом тексте
+    # вопроса и стиле разные пользователи могли получить чужой закэшированный
+    # ответ, посчитанный по чужим привычкам/плану дня. Теперь ключ
+    # индивидуальный для каждого пользователя.
+    cache_key = f"{user_id}:{_cache_key(message, style)}"
     cached = cache_get(cache_key)
 
     if cached is not None:

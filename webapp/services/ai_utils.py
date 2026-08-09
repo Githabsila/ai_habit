@@ -6,6 +6,7 @@ from db import (
     get_habits,
     get_user_profile,
     get_recent_negative_reasons,
+    get_daily_plan,
 )
 
 
@@ -64,6 +65,27 @@ def build_user_context(user_id: int) -> str:
     else:
         lines.append("")
         lines.append("Привычек пока не добавлено.")
+
+    # ✅ План на сегодня (главная задача + до 5 задач) из Mini App —
+    # чтобы AI-наставник видел не только привычки, но и текущие цели
+    # пользователя на день и мог давать советы с их учётом.
+    plan = get_daily_plan(user_id)
+
+    if plan and (plan["main_goal"] or plan["tasks"]):
+        lines.append("")
+        lines.append("План пользователя на сегодня:")
+
+        if plan["main_goal"]:
+            lines.append(f"• Главная задача дня: {plan['main_goal']}")
+
+        for task in plan["tasks"]:
+            if not task["text"]:
+                continue
+            status = "выполнено" if task["completed"] else "не выполнено"
+            lines.append(f"• Задача: {task['text']} — {status}")
+    else:
+        lines.append("")
+        lines.append("План на сегодня пока не составлен.")
 
     profile = get_user_profile(user_id)
 

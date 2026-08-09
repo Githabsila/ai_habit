@@ -37,6 +37,19 @@ from datetime import datetime
 import hashlib
 import asyncio
 
+# ✅ Общая (уже исправленная) логика вместо задублированных копий ниже —
+# раньше в этом файле были СВОИ копии build_user_context/build_history_text/
+# _cache_key, из-за чего вся правки для Telegram-бота (privычки+план дня в
+# контексте, исправленный кэш) не применялись к чату из Mini App ("/coach"),
+# и AI-наставник там не видел ни план дня, ни умел выполнять/удалять
+# привычки по просьбе — только разговаривал.
+from webapp.services.ai_utils import (
+    build_history_text,
+    build_user_context,
+    _cache_key,
+)
+from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
+
 logger = logging.getLogger("webapp.ai_miniapp")
 
 # ============ КОНФИГ ============
@@ -60,65 +73,6 @@ def _is_throttled(user_id: int) -> float | None:
             pass
     touch_last_ai_message(user_id)
     return None
-
-
-def _cache_key(text: str, style: str) -> str:
-    normalized = " ".join(text.strip().lower().split())
-    return hashlib.md5(f"{normalized}|{style}".encode("utf-8")).hexdigest()
-
-
-def build_user_context(user_id: int) -> str:
-    """Собирает контекст о пользователе для AI."""
-    progress = get_progress(user_id)
-    if not progress:
-        return ""
-
-    habits = get_habits(user_id)
-    lines = [
-        f"Уровень: {progress['level']}, Adam Coin: {progress['xp']}",
-        f"Серия дней подряд: {progress['streak']}",
-    ]
-
-    if habits:
-        lines.append("Привычки пользователя (выполнено сегодня?):")
-        for h in habits:
-            status = "да" if h["completed"] else "нет"
-            lines.append(f"  • {h['title']} — {status}")
-    else:
-        lines.append("Привычек пока не добавлено.")
-
-    profile = get_user_profile(user_id)
-    if profile and profile["summary"]:
-        lines.append("\nЧто известно о пользователе из прошлых разговоров:")
-        lines.append(profile["summary"])
-
-    reasons = get_recent_negative_reasons(user_id, limit=3)
-    if reasons:
-        unique_reasons = list(dict.fromkeys(reasons))
-        lines.append(
-            "\nВ недавних ответах пользователь отмечал проблемы: "
-            + "; ".join(unique_reasons)
-            + ". Постарайся их не повторять."
-        )
-
-    return "\n".join(lines)
-
-
-def build_history_text(user_id: int, limit: int = 4, max_chars_per_msg: int = 200) -> str:
-    """Берёт последние сообщения переписки из БД."""
-    history = get_ai_history(user_id)
-    if not history:
-        return ""
-
-    lines = []
-    for row in history[-limit:]:
-        role = "Пользователь" if row["role"] == "user" else "Наставник"
-        text = row["message"]
-        if len(text) > max_chars_per_msg:
-            text = text[:max_chars_per_msg] + "…"
-        lines.append(f"{role}: {text}")
-
-    return "\n".join(lines)
 
 
 async def _update_memory(user_id: int):
@@ -194,13 +148,35 @@ async def ai_chat_miniapp(request):
             status=429
         )
 
+    # ✅ Команды управления привычками и планом дня («добавь привычку …»,
+    # «выполни привычку …», «покажи план» и т.п.) — сначала жёсткие
+    # шаблоны, затем резервный AI-классификатор для более вольных
+    # формулировок («я сделал зарядку»). Выполняются напрямую в базе, в
+    # обход мультиагентного пайплайна — быстро и без риска, что модель
+    # РАЗГОВОРНО подтвердит действие, ничего на самом деле не изменив.
+    habit_reply = try_handle_habit_intent(user_id, message_text)
+    if habit_reply is None:
+        habit_reply = await try_handle_habit_intent_ai(user_id, message_text)
+
+    if habit_reply is not None:
+        add_ai_message(user_id, "user", message_text)
+        message_id = add_ai_message(user_id, "assistant", habit_reply)
+        return web.json_response({
+            "answer": habit_reply,
+            "is_crisis": False,
+            "suggested_habit": None,
+            "message_id": message_id,
+        })
+
     # Собирем контекст
     history_text = build_history_text(user_id)
     user_context = build_user_context(user_id)
     style = get_ai_style(user_id)
 
-    # Проверяем кэш
-    cache_key = _cache_key(message_text, style)
+    # Проверяем кэш (ключ включает user_id — иначе разные пользователи с
+    # одинаковым текстом вопроса получали бы чужой закэшированный ответ,
+    # посчитанный по чужим привычкам/плану дня)
+    cache_key = f"{user_id}:{_cache_key(message_text, style)}"
     cached_answer = cache_get(cache_key)
 
     if cached_answer is not None:
