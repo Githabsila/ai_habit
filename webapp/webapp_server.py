@@ -19,6 +19,7 @@ from db import (
     has_item, get_item_owner_ids, update_theme, get_theme,
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
+    get_daily_plan, save_daily_plan, toggle_daily_task,
 )
 
 logger = logging.getLogger("webapp")
@@ -103,6 +104,7 @@ async def bootstrap(request):
     calendar_events = get_calendar(telegram_id)
     achievements = get_achievements(telegram_id)
     badge_owner_ids = get_item_owner_ids(BADGE_ITEM_ID)
+    daily_plan = get_daily_plan(telegram_id)
 
     return web.json_response({
         "user": {
@@ -149,6 +151,13 @@ async def bootstrap(request):
                 "created_at": a["created_at"],
             } for a in achievements
         ],
+        "daily_plan": {
+            "main_goal": daily_plan["main_goal"],
+            "tasks": [
+                {"id": t["id"], "text": t["text"], "completed": bool(t["completed"])}
+                for t in daily_plan["tasks"]
+            ],
+        },
     })
 
 @routes.post("/api/habits")
@@ -222,6 +231,33 @@ async def set_theme(request):
     if not update_theme(telegram_id, theme):
         return web.json_response({"error": "invalid_theme"}, status=400)
 
+    return web.json_response({"ok": True})
+
+@routes.post("/api/plan/save")
+async def save_plan_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    main_goal = (body.get("main_goal") or "").strip()
+    tasks = body.get("tasks") or []
+    if not isinstance(tasks, list):
+        return web.json_response({"error": "invalid_tasks"}, status=400)
+    save_daily_plan(telegram_id, main_goal, [str(t) for t in tasks])
+    return web.json_response({"ok": True})
+
+@routes.post("/api/plan/task/toggle")
+async def toggle_plan_task_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    try:
+        task_id = int(body.get("task_id"))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_task_id"}, status=400)
+
+    plan = get_daily_plan(telegram_id)
+    if task_id not in {t["id"] for t in plan["tasks"]}:
+        raise web.HTTPNotFound()
+
+    toggle_daily_task(task_id)
     return web.json_response({"ok": True})
 
 @routes.get("/")
