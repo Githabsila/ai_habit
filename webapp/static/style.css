@@ -961,28 +961,64 @@ box-shadow:
     position:fixed;
     left:50%;
     bottom:112px;            /* выше над нижним меню */
-    transform:translateX(-50%) translateY(20px);
-    background:var(--surface-hi);
-    border:1px solid var(--border);
+    transform:translateX(-50%) translateY(20px) scale(.96);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:rgba(23,23,35,.55);
+    background-image:linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,0) 55%);
+    backdrop-filter:blur(24px) saturate(160%);
+    -webkit-backdrop-filter:blur(24px) saturate(160%);
+    border:1px solid rgba(255,255,255,.14);
     color:var(--text);
-    padding:16px 22px;       /* выше карточка */
+    padding:16px 24px;       /* выше карточка */
     border-radius:22px;
     font-size:15px;
+    font-weight:500;
     opacity:0;
     pointer-events:none;
-    transition:all .25s ease;
+    transition:opacity .25s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
     z-index:1000;
     min-width:280px;
     max-width:90%;
+    box-shadow:
+        0 12px 40px rgba(0,0,0,.45),
+        0 2px 8px rgba(0,0,0,.25),
+        inset 0 1px 0 rgba(255,255,255,.12);
+}
+
+.toast::before{
+    content:"";
+    flex:0 0 auto;
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:var(--primary-light);
+    box-shadow:0 0 10px var(--primary-light);
 }
 
 .toast.is-visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(-50%) translateY(0) scale(1);
 }
 
-.toast.is-error { border-color: rgba(255,90,107,0.5); color: var(--danger); }
-.toast.is-success { border-color: rgba(74,222,128,0.5); color: var(--success); }
+.toast.is-error {
+    border-color:rgba(239,68,68,.45);
+    box-shadow:
+        0 12px 40px rgba(239,68,68,.22),
+        0 2px 8px rgba(0,0,0,.25),
+        inset 0 1px 0 rgba(255,255,255,.12);
+}
+.toast.is-error::before{ background:var(--red); box-shadow:0 0 10px var(--red); }
+
+.toast.is-success {
+    border-color:rgba(34,197,94,.45);
+    box-shadow:
+        0 12px 40px rgba(34,197,94,.22),
+        0 2px 8px rgba(0,0,0,.25),
+        inset 0 1px 0 rgba(255,255,255,.12);
+}
+.toast.is-success::before{ background:var(--green); box-shadow:0 0 10px var(--green); }
 
 /* ===================== LOADING ===================== */
 .loading-overlay {
