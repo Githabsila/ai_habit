@@ -4,6 +4,23 @@
   const tg = window.Telegram ? window.Telegram.WebApp : null;
   const RING_CIRCUMFERENCE = 326.7; // 2 * PI * 52
 
+  // Иконка Adam Coin — инлайн SVG вместо шрифтовой иконки "diamond",
+  // чтобы совпадать с фирменным золотым логотипом монеты.
+  const ADAM_COIN_ICON = `<svg class="stat-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="adamCoinGrad" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#FFEDA6"/>
+        <stop offset="0.5" stop-color="#FFC93C"/>
+        <stop offset="1" stop-color="#E08E00"/>
+      </linearGradient>
+    </defs>
+    <circle cx="12" cy="12" r="10.4" fill="#B8720A"/>
+    <circle cx="12" cy="12" r="9.3" fill="url(#adamCoinGrad)"/>
+    <circle cx="12" cy="12" r="7.1" fill="none" stroke="#FFF3C4" stroke-width="0.9" opacity="0.55"/>
+    <text x="12" y="16.2" text-anchor="middle" font-family="'Space Grotesk', Arial, sans-serif" font-weight="800" font-size="11" fill="#9C5F06">A</text>
+    <path d="M6.3 6.8c1-1.4 2.5-2.3 3.8-2.6" stroke="#FFF8E4" stroke-width="1.5" stroke-linecap="round" opacity="0.7" fill="none"/>
+  </svg>`;
+
   let state = null; // последний bootstrap-снимок
   let knownLevel = null; // для детекта левел-апа между загрузками
 
@@ -130,7 +147,7 @@
       const canAfford = state.user.xp >= it.price;
       let btnLabel = `
 <span style="display:flex;align-items:center;gap:4px;justify-content:center">
-    <span class="material-symbols-rounded stat-icon">diamond</span>
+    ${ADAM_COIN_ICON}
     ${it.price}
 </span>`;
       let btnClass = "buy-btn";
@@ -148,7 +165,7 @@
             <div class="shop-item__name">${escapeHtml(it.name)}</div>
             <div class="shop-item__desc">${escapeHtml(it.description || "")}</div>
             <div class="shop-item__price">
-    <span class="material-symbols-rounded stat-icon">diamond</span>
+    ${ADAM_COIN_ICON}
     <span>${it.price}</span>
 </div>
           </div>
@@ -240,7 +257,7 @@
     </span>
 
     <span class="rating-stat">
-        <span class="material-symbols-rounded stat-icon">diamond</span>
+        ${ADAM_COIN_ICON}
         ${r.xp}
     </span>
 </span>

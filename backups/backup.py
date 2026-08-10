@@ -1,17 +1,26 @@
 import os
 import shutil
+import sys
 import threading
 import time
 
 from datetime import datetime
+
+# Даёт доступ к DATA_DIR/DB_PATH из db.py, чтобы бэкапы 100% указывали
+# на тот же файл, что и сама база, а не на случайную копию в другом месте.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db import DATA_DIR, DB_PATH
 
 
 # =====================================
 # НАСТРОЙКИ
 # =====================================
 
-BACKUP_FOLDER = "backups"
-DATABASE = "users.db"
+# Бэкапы кладём тоже внутрь постоянного Volume (в подпапку) — если положить
+# их рядом с кодом, как было раньше, они будут стираться при каждом
+# редеплое точно так же, как раньше стиралась сама users.db.
+BACKUP_FOLDER = os.path.join(DATA_DIR, "backups")
+DATABASE = DB_PATH
 MAX_BACKUPS = 10
 
 

@@ -1,10 +1,19 @@
+import os
 import sqlite3
 import json
 import logging
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 
-DB_PATH = "users.db"  # Файл будет создан в корне проекта
+# Каталог для данных, которые должны переживать рестарт/редеплой.
+# RAILWAY_VOLUME_MOUNT_PATH — переменная, которую Railway сам прописывает
+# в контейнер, когда к сервису подключён persistent Volume (см. README:
+# как создать и подключить Volume). Если её нет (например, запуск локально
+# для разработки), используем папку рядом с кодом — как было раньше.
+DATA_DIR = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", os.path.dirname(os.path.abspath(__file__)))
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DB_PATH = os.path.join(DATA_DIR, "users.db")
 
 logger = logging.getLogger("db")
 
@@ -19,6 +28,38 @@ def get_db_connection():
 def dict_from_row(row):
     """Преобразует sqlite3.Row в dict."""
     return dict(row) if row else None
+
+# ---------- УРОВЕНЬ / ОПЫТ ----------
+def _level_for_xp(total_xp: int) -> int:
+    """Уровень растёт бесконечно: каждые 100 total_xp — новый уровень.
+    Никакого потолка нет (100 -> 2, 1000 -> 11, 100000 -> 1001, ...)."""
+    if total_xp is None or total_xp < 0:
+        total_xp = 0
+    return total_xp // 100 + 1
+
+def add_xp(telegram_id: int, amount: int):
+    """Единая точка начисления опыта. Обновляет и тратимый xp (Adam Coin),
+    и total_xp (от которого считается уровень), и сам level — атомарно,
+    чтобы они никогда не расходились между собой."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT total_xp FROM users WHERE telegram_id = ?", (telegram_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return
+    new_total_xp = (row["total_xp"] or 0) + amount
+    new_level = _level_for_xp(new_total_xp)
+    cur.execute("""
+        UPDATE users SET xp = xp + ?, total_xp = ?, level = ?
+        WHERE telegram_id = ?
+    """, (amount, new_total_xp, new_level, telegram_id))
+    conn.commit()
+    conn.close()
+
+def give_xp_admin(telegram_id: int, amount: int):
+    """Начисление опыта администратором (handlers/admin.py)."""
+    add_xp(telegram_id, amount)
 
 # ---------- Создание таблиц ----------
 def create_tables():
@@ -236,6 +277,22 @@ def create_tables():
     if "theme" not in user_columns:
         cur.execute("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'violet'")
 
+    # Миграция: total_xp — весь опыт, заработанный за всё время (от него
+    # считается уровень). В отличие от xp (это тратимая валюта "Adam Coin",
+    # которая уменьшается при покупках в магазине), total_xp никогда не
+    # уменьшается, поэтому уровень не может "упасть" из-за покупки.
+    if "total_xp" not in user_columns:
+        cur.execute("ALTER TABLE users ADD COLUMN total_xp INTEGER DEFAULT 0")
+        # Бэкфилл для существующих пользователей: считаем, что весь текущий
+        # xp был когда-то заработан, и сразу пересчитываем уровень от него.
+        cur.execute("UPDATE users SET total_xp = xp")
+        cur.execute("SELECT telegram_id, total_xp FROM users")
+        for row in cur.fetchall():
+            cur.execute(
+                "UPDATE users SET level = ? WHERE telegram_id = ?",
+                (_level_for_xp(row["total_xp"]), row["telegram_id"]),
+            )
+
     # Заполняем магазин один раз, если пусто (на новой БД).
     cur.execute("SELECT COUNT(*) AS c FROM shop_items")
     if cur.fetchone()["c"] == 0:
@@ -366,12 +423,13 @@ def complete_habit(habit_id: int) -> bool:
     cur.execute("UPDATE habits SET completed = 1 WHERE id = ?", (habit_id,))
     # Обновляем progress
     cur.execute("UPDATE progress SET completed = completed + 1 WHERE telegram_id = ?", (tg_id,))
-    # Начисляем XP (+5 за каждую привычку)
-    cur.execute("UPDATE users SET xp = xp + 5 WHERE telegram_id = ?", (tg_id,))
     # Обновляем серию (простая логика: увеличиваем на 1)
     cur.execute("UPDATE users SET streak = streak + 1 WHERE telegram_id = ?", (tg_id,))
     conn.commit()
     conn.close()
+    # Начисляем XP (+5 за каждую привычку) через add_xp — это же пересчитает
+    # total_xp и level, чтобы уровень никогда не "зависал" на месте.
+    add_xp(tg_id, 5)
     return True
 
 # ---------- ПРОГРЕСС ----------
@@ -614,7 +672,8 @@ def buy_shop_item(telegram_id: int, item_id: int) -> bool:
     if cur.fetchone():
         conn.close()
         return False
-    # Списываем XP и добавляем предмет
+    # Списываем только тратимую валюту (xp / Adam Coin). total_xp и level
+    # НЕ трогаем — покупки в магазине не должны понижать уровень игрока.
     cur.execute("UPDATE users SET xp = xp - ? WHERE telegram_id = ?", (price, telegram_id))
     cur.execute("INSERT INTO user_items (telegram_id, item_id) VALUES (?, ?)", (telegram_id, item_id))
     conn.commit()

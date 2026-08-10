@@ -152,6 +152,13 @@ border-radius:50%;
     line-height:1;
 }
 
+svg.stat-icon{
+    width:22px;
+    height:22px;
+    flex-shrink:0;
+    vertical-align:middle;
+}
+
 .stat--coin .stat-icon{
     color:#FFD54F;
 
@@ -1691,6 +1698,11 @@ body {
     font-size:18px;
 }
 
+.shop-item__price svg.stat-icon{
+    width:18px;
+    height:18px;
+}
+
 .rating-stat{
     display:flex;
     align-items:center;
@@ -1699,6 +1711,11 @@ body {
 
 .rating-stat .stat-icon{
     font-size:16px;
+}
+
+.rating-stat svg.stat-icon{
+    width:16px;
+    height:16px;
 }
 
 /* ===================== DAILY PLAN ===================== */
