@@ -1794,7 +1794,9 @@ body {
 
 .plan-add-form{
   position:static;
-  margin-top:10px;
+  margin-top:14px;
+  padding-top:14px;
+  border-top:1px solid rgba(255,255,255,.08);
   flex-direction:column;
   gap:8px;
 }
@@ -1807,6 +1809,15 @@ body {
   font-weight:700;
   white-space:normal;
   line-height:1.2;
+  background:transparent;
+  border:1px solid rgba(240,180,41,.55);
+  color:#F0B429;
+  box-shadow:none;
+}
+
+.plan-add-form__btn:active{
+  transform:scale(.97);
+  background:rgba(240,180,41,.12);
 }
 
 .plan-list{
