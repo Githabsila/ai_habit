@@ -372,11 +372,22 @@ function renderPlan() {
     }
 });
 
+  // Собирает актуальный список задач: значения двух быстрых полей (2 и 3
+  // задача) + все задачи за пределами этих двух (index 2+), которые попали
+  // в план через форму «Добавить новую задачу» и не имеют своего поля.
+  function collectPlanTasks(extraText) {
+    const quickTasks = [...document.querySelectorAll(".plan-task-input")]
+      .map(i => i.value.trim());
+    const plan = state.daily_plan || { tasks: [] };
+    const restTasks = plan.tasks.slice(2).map(t => t.text);
+    const tasks = [...quickTasks, ...restTasks];
+    if (extraText) tasks.push(extraText);
+    return tasks.map(t => t.trim()).filter(Boolean);
+  }
+
   document.getElementById("savePlanBtn").addEventListener("click", async () => {
     const main_goal = document.getElementById("mainGoalInput").value.trim();
-    const tasks = [...document.querySelectorAll(".plan-task-input")]
-      .map(i => i.value.trim())
-      .filter(Boolean);
+    const tasks = collectPlanTasks();
 
     try {
       await api("/api/plan/save", {
@@ -384,6 +395,30 @@ function renderPlan() {
         body: JSON.stringify({ main_goal, tasks })
       });
       showToast("План сохранён");
+      await loadBootstrap();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+
+  document.getElementById("addPlanTaskForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const input = document.getElementById("newPlanTaskInput");
+    const text = input.value.trim();
+    if (!text) return;
+
+    const plan = state.daily_plan || { main_goal: "" };
+    const main_goal = document.getElementById("mainGoalInput").value.trim() || plan.main_goal || "";
+    const tasks = collectPlanTasks(text);
+
+    try {
+      await api("/api/plan/save", {
+        method: "POST",
+        body: JSON.stringify({ main_goal, tasks })
+      });
+      input.value = "";
+      haptic("light");
       await loadBootstrap();
     } catch (err) {
       showToast(friendlyError(err), "error");

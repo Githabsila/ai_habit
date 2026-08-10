@@ -145,11 +145,8 @@ style="width:0%">
 
   <div class="plan-tasks">
 
-    <input class="plan-task-input" placeholder="Задача 1">
-    <input class="plan-task-input" placeholder="Задача 2">
-    <input class="plan-task-input" placeholder="Задача 3">
-    <input class="plan-task-input" placeholder="Задача 4">
-    <input class="plan-task-input" placeholder="Задача 5">
+    <input class="plan-task-input" placeholder="2 задача">
+    <input class="plan-task-input" placeholder="3 задача">
 
   </div>
 
@@ -158,6 +155,24 @@ style="width:0%">
     Сохранить план
 
   </button>
+
+  <form class="add-form plan-add-form" id="addPlanTaskForm">
+
+  <input
+  type="text"
+  id="newPlanTaskInput"
+  placeholder="Новая задача..."
+  >
+
+  <button
+  type="submit"
+  class="btn btn--accent plan-add-form__btn">
+
+  Добавить новую задачу
+
+  </button>
+
+  </form>
 
   <ul class="plan-list" id="planList"></ul>
 

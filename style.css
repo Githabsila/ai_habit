@@ -1739,6 +1739,19 @@ body {
   transform:scale(.97);
 }
 
+.plan-add-form{
+  position:static;
+  margin-top:10px;
+}
+
+.plan-add-form__btn{
+  width:auto;
+  padding:0 16px;
+  font-size:13px;
+  font-weight:700;
+  white-space:nowrap;
+}
+
 .plan-list{
   list-style:none;
   padding:0;
