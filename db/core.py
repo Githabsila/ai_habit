@@ -1,6 +1,29 @@
+import os
 import sqlite3
 
 DB_NAME = "users.db"
+
+# =====================================
+# ПУТЬ К БАЗЕ (постоянный Volume на Railway)
+# =====================================
+#
+# ВАЖНО: Railway монтирует подключённый Volume в контейнер по пути из
+# переменной окружения RAILWAY_VOLUME_MOUNT_PATH (её Railway выставляет
+# автоматически, если Volume подключён к сервису). Файловая система
+# контейнера ВНЕ этого пути — эфемерная и полностью стирается при каждом
+# редеплое/рестарте. Раньше DB_NAME использовался как относительный путь
+# ("users.db" рядом с кодом) — то есть база физически лежала на эфемерном
+# диске и обнулялась при каждом деплое (см. backups/backup.py — он уже
+# был написан в расчёте на DATA_DIR/DB_PATH отсюда, но эти два имени тут
+# отсутствовали, из-за чего бэкапы вообще не запускались).
+#
+# Если Volume не подключён (например, при локальном запуске) —
+# используем папку рядом с кодом, как раньше.
+DATA_DIR = os.environ.get(
+    "RAILWAY_VOLUME_MOUNT_PATH",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+)
+DB_PATH = os.path.join(DATA_DIR, DB_NAME)
 
 
 # =====================================
@@ -8,7 +31,8 @@ DB_NAME = "users.db"
 # =====================================
 
 def connect():
-    conn = sqlite3.connect(DB_NAME)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -75,6 +99,17 @@ def create_tables():
 
     if is_first_deploy_of_access_gate:
         cursor.execute("UPDATE users SET access_status='approved' WHERE access_status='new'")
+
+    # Миграция: total_xp — весь опыт, заработанный за всё время, от него
+    # считается уровень. В отличие от xp (тратимая валюта "Adam Coin",
+    # уменьшается при покупках в магазине) total_xp никогда не уменьшается,
+    # поэтому уровень больше не может "упасть" из-за покупки в магазине.
+    if "total_xp" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN total_xp INTEGER DEFAULT 0")
+        # Бэкфилл для уже существующих пользователей: считаем весь текущий
+        # xp когда-то заработанным и сразу пересчитываем уровень от него.
+        cursor.execute("UPDATE users SET total_xp = xp")
+        cursor.execute("UPDATE users SET level = total_xp / 100 + 1")
 
     # ---------------- SETTINGS ----------------
     cursor.execute("""

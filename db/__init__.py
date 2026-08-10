@@ -1,6 +1,6 @@
 
 
-from .core import DB_NAME, connect, create_tables
+from .core import DB_NAME, DATA_DIR, DB_PATH, connect, create_tables
 
 from .users import (
     add_user,
@@ -134,7 +134,7 @@ from .onboarding import (
 
 
 __all__ = [
-    "DB_NAME", "connect", "create_tables",
+    "DB_NAME", "DATA_DIR", "DB_PATH", "connect", "create_tables",
     "add_user", "get_user", "get_users_count", "get_all_users", "get_all_users_info",
     "has_premium", "was_premium_purchased", "give_premium", "give_premium_admin",
     "add_xp", "give_xp_admin",

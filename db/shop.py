@@ -66,6 +66,10 @@ def buy_shop_item(user_id, item_id):
         conn.close()
         return False
 
+    # Списываем только тратимую валюту (xp / Adam Coin). total_xp и level
+    # НЕ трогаем — покупки в магазине не должны понижать уровень игрока
+    # (раньше level считался прямо от xp, и покупка вещи буквально
+    # отбрасывала игрока на уровень назад).
     cursor.execute("""
         UPDATE users SET xp = xp - ? WHERE telegram_id=?
     """, (item["price"], user_id))

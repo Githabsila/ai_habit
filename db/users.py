@@ -195,22 +195,27 @@ def give_premium_admin(user_id):
 # =====================================
 
 def add_xp(user_id, amount):
+    """Единая точка начисления опыта. total_xp — весь опыт, заработанный
+    за всё время, от него считается level (растёт бесконечно, потолка
+    нет). xp — тратимая валюта ("Adam Coin"), уменьшается в магазине
+    (db/shop.py), но на level больше не влияет — иначе покупка предмета
+    отбрасывала бы игрока на уровень назад."""
     conn = connect()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT xp FROM users WHERE telegram_id=?", (user_id,))
+    cursor.execute("SELECT total_xp FROM users WHERE telegram_id=?", (user_id,))
     user = cursor.fetchone()
 
     if not user:
         conn.close()
         return
 
-    xp = user["xp"] + amount
-    level = xp // 100 + 1
+    total_xp = (user["total_xp"] or 0) + amount
+    level = total_xp // 100 + 1
 
     cursor.execute("""
-        UPDATE users SET xp=?, level=? WHERE telegram_id=?
-    """, (xp, level, user_id))
+        UPDATE users SET xp = xp + ?, total_xp=?, level=? WHERE telegram_id=?
+    """, (amount, total_xp, level, user_id))
 
     conn.commit()
     conn.close()
@@ -257,7 +262,7 @@ def reset_progress(user_id):
 
     cursor.execute("""
         UPDATE users
-        SET xp=0, level=1, streak=0, total_completed=0, last_completed=NULL
+        SET xp=0, total_xp=0, level=1, streak=0, total_completed=0, last_completed=NULL
         WHERE telegram_id=?
     """, (user_id,))
 
