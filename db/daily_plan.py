@@ -50,11 +50,100 @@ def get_daily_plan(user_id, plan_date=None):
     return {
         "id": plan["id"],
         "main_goal": plan["main_goal"] or "",
+        "main_goal_completed": bool(plan["main_goal_completed"]),
         "tasks": [
             {"id": t["id"], "text": t["text"], "completed": bool(t["completed"])}
             for t in tasks
         ]
     }
+
+
+def set_daily_main_goal(user_id, text):
+    """Создаёт/обновляет главную задачу дня без пересоздания списка обычных задач."""
+    plan = get_daily_plan(user_id)
+    text = (text or "").strip()
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE daily_plans
+        SET main_goal=?, main_goal_completed=0, goal_reminder_sent=0
+        WHERE id=?
+    """, (text, plan["id"]))
+    conn.commit()
+    conn.close()
+
+
+def delete_daily_main_goal(user_id):
+    plan = get_daily_plan(user_id)
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE daily_plans
+        SET main_goal='', main_goal_completed=0, goal_reminder_sent=0
+        WHERE id=?
+    """, (plan["id"],))
+    conn.commit()
+    conn.close()
+
+
+def toggle_daily_main_goal(user_id):
+    plan = get_daily_plan(user_id)
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE daily_plans
+        SET main_goal_completed = CASE main_goal_completed WHEN 1 THEN 0 ELSE 1 END
+        WHERE id=? AND TRIM(main_goal) != ''
+    """, (plan["id"],))
+    conn.commit()
+    conn.close()
+
+
+def add_daily_task(user_id, text, max_tasks=5):
+    text = (text or "").strip()
+    if not text:
+        return None
+    plan = get_daily_plan(user_id)
+    if len(plan["tasks"]) >= max_tasks:
+        raise ValueError("task_limit")
+
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO daily_plan_tasks(plan_id, text, created_at, reminder_sent)
+        VALUES (?, ?, CURRENT_TIMESTAMP, 0)
+    """, (plan["id"], text))
+    task_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return task_id
+
+
+def update_daily_plan_task(user_id, task_id, text):
+    text = (text or "").strip()
+    plan = get_daily_plan(user_id)
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE daily_plan_tasks
+        SET text=?, reminder_sent=0
+        WHERE id=? AND plan_id=?
+    """, (text, int(task_id), plan["id"]))
+    updated = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return bool(updated)
+
+
+def delete_daily_task(user_id, task_id):
+    plan = get_daily_plan(user_id)
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM daily_plan_tasks WHERE id=? AND plan_id=?", (int(task_id), plan["id"]))
+    deleted = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return bool(deleted)
 
 
 def save_daily_plan(user_id, main_goal, tasks):
@@ -68,7 +157,7 @@ def save_daily_plan(user_id, main_goal, tasks):
     # 2-часовой отсчёт для напоминаний (см. get_plan_tasks_needing_reminder /
     # get_plans_needing_goal_reminder) начинается заново.
     cursor.execute("""
-        UPDATE daily_plans SET main_goal=?, goal_reminder_sent=0
+        UPDATE daily_plans SET main_goal=?, main_goal_completed=0, goal_reminder_sent=0
         WHERE id=?
     """, ((main_goal or "").strip(), plan_id))
 

@@ -1719,7 +1719,6 @@ body {
 }
 
 /* ===================== DAILY PLAN ===================== */
-
 .plan-card{
   background:#171322;
   border:1px solid rgba(255,255,255,.06);
@@ -1732,79 +1731,168 @@ body {
   background:#120F1B;
   border-radius:16px;
   padding:12px;
-  margin-bottom:10px;
+  margin-bottom:8px;
 }
 
 .plan-main__label{
   color:#F59E0B;
   font-size:12px;
-  margin-bottom:6px;
+  margin-bottom:8px;
 }
 
-#mainGoalInput{
+.plan-editor{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+#mainGoalInput,
+.plan-add-form input{
   width:100%;
+  min-width:0;
   background:#0E0B14;
   border:1px solid rgba(255,255,255,.08);
   color:#fff;
   border-radius:12px;
   padding:10px 12px;
   font-size:14px;
+  outline:none;
+  transition:border-color .18s ease, box-shadow .18s ease;
 }
 
-.plan-tasks{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:8px;
-  margin-bottom:10px;
+#mainGoalInput:focus,
+.plan-add-form input:focus{
+  border-color:rgba(240,180,41,.5);
+  box-shadow:0 0 0 3px rgba(240,180,41,.08);
 }
 
-.plan-task-input{
+.plan-main-view{
   width:100%;
-  background:#0E0B14;
-  border:1px solid rgba(255,255,255,.08);
+}
+
+.plan-list{
+  list-style:none;
+  padding:0;
+  margin:8px 0 0;
+}
+
+.plan-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+  padding:11px 2px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  animation:planItemIn .18s ease;
+}
+
+.plan-item:last-child{border-bottom:none;}
+
+.plan-item--main{
+  padding:2px 0;
+  border-bottom:none;
+}
+
+.plan-item__text{
+  flex:1;
+  min-width:0;
+  overflow-wrap:anywhere;
   color:#fff;
-  border-radius:12px;
-  padding:9px 10px;
-  font-size:13px;
-}
-
-/* 5-я задача — нечётная, ставим на всю ширину, чтобы не висела одна в колонке */
-.plan-task-input:last-child:nth-child(odd){
-  grid-column:1 / -1;
-}
-
-.plan-save-btn{
-  width:100%;
-  padding:11px 16px;
-  border-radius:14px;
-  background:linear-gradient(135deg,#FFD76A,#F0B429);
-  color:#201703;
   font-size:14px;
-  font-weight:700;
-  white-space:nowrap;
-  box-shadow:
-    0 8px 20px rgba(240,180,41,.3),
-    inset 0 1px 0 rgba(255,255,255,.45);
-  transition:transform .15s ease;
+  line-height:1.35;
+  transition:opacity .18s ease, text-decoration-color .18s ease;
 }
 
-.plan-save-btn:active{
-  transform:scale(.97);
+.plan-item.is-done .plan-item__text{
+  opacity:.55;
+  text-decoration:line-through;
 }
+
+.plan-item__actions{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  flex:0 0 auto;
+}
+
+.plan-icon-btn{
+  width:32px;
+  height:32px;
+  border:0;
+  border-radius:10px;
+  background:transparent;
+  color:rgba(255,255,255,.58);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  font-size:18px;
+  line-height:1;
+  cursor:pointer;
+  transition:background .16s ease, color .16s ease, transform .16s ease;
+}
+
+.plan-icon-btn:hover{background:rgba(255,255,255,.06); color:#fff;}
+.plan-icon-btn:active{transform:scale(.92);}
+.plan-icon-btn--delete{color:rgba(255,120,120,.75);}
+.plan-icon-btn--delete:hover{background:rgba(255,90,90,.1); color:#ff8f8f;}
+.plan-icon-btn--confirm{
+  flex:0 0 38px;
+  width:38px;
+  height:38px;
+  border-radius:11px;
+  background:rgba(240,180,41,.12);
+  color:#F0B429;
+  font-size:20px;
+}
+
+.plan-toggle{
+  appearance:none;
+  -webkit-appearance:none;
+  width:20px;
+  height:20px;
+  flex:0 0 20px;
+  margin:0;
+  border:1.5px solid rgba(255,255,255,.35);
+  border-radius:6px;
+  background:transparent;
+  position:relative;
+  cursor:pointer;
+  transition:background .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.plan-toggle:checked{
+  background:#F0B429;
+  border-color:#F0B429;
+}
+
+.plan-toggle:checked::after{
+  content:"✓";
+  position:absolute;
+  inset:-1px 0 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#201703;
+  font-size:13px;
+  font-weight:800;
+}
+
+.plan-toggle:active{transform:scale(.9);}
 
 .plan-add-form{
   position:static;
-  margin-top:14px;
-  padding-top:14px;
+  margin-top:8px;
+  padding-top:12px;
   border-top:1px solid rgba(255,255,255,.08);
+  display:flex;
   flex-direction:column;
   gap:8px;
 }
 
 .plan-add-form input{
   flex:0 0 auto;
-  width:100%;
-  height:58px;
+  height:52px;
   font-size:15px;
 }
 
@@ -1820,34 +1908,15 @@ body {
   border:1px solid rgba(240,180,41,.55);
   color:#F0B429;
   box-shadow:none;
+  transition:transform .16s ease, background .16s ease, opacity .16s ease;
 }
 
-.plan-add-form__btn:active{
-  transform:scale(.97);
-  background:rgba(240,180,41,.12);
-}
+.plan-add-form__btn:active{transform:scale(.97); background:rgba(240,180,41,.12);}
+.plan-add-form__btn:disabled{opacity:.4; cursor:not-allowed;}
 
-.plan-list{
-  list-style:none;
-  padding:0;
-  margin:10px 0 0;
-}
-
-.plan-item{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:9px 0;
-  border-bottom:1px solid rgba(255,255,255,.06);
-}
-
-.plan-item:last-child{
-  border-bottom:none;
-}
-
-.plan-item.is-done .plan-item__text{
-  opacity:.6;
-  text-decoration:line-through;
+@keyframes planItemIn{
+  from{opacity:0; transform:translateY(4px)}
+  to{opacity:1; transform:translateY(0)}
 }
 
 /* ===================== МАГАЗИН: ЗНАЧОК В РЕЙТИНГЕ/ПРОФИЛЕ ===================== */

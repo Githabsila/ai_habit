@@ -179,6 +179,13 @@ def create_tables():
     )
     """)
 
+    # Миграция: состояние выполнения главной задачи хранится вместе с планом,
+    # чтобы галочка не сбрасывалась после перезагрузки Mini App.
+    cursor.execute("PRAGMA table_info(daily_plans)")
+    daily_plan_columns = {row[1] for row in cursor.fetchall()}
+    if "main_goal_completed" not in daily_plan_columns:
+        cursor.execute("ALTER TABLE daily_plans ADD COLUMN main_goal_completed INTEGER DEFAULT 0")
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS daily_plan_tasks(
         id INTEGER PRIMARY KEY AUTOINCREMENT,

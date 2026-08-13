@@ -291,166 +291,217 @@
 
 // ===================== DAILY PLAN =====================
 function renderPlan() {
-  const plan = state.daily_plan || { main_goal: "", tasks: [] };
+  const plan = state.daily_plan || { main_goal: "", main_goal_completed: false, tasks: [] };
   const list = document.getElementById("planList");
+  const mainInput = document.getElementById("mainGoalInput");
+  const mainEditor = document.getElementById("mainGoalEditor");
+  const mainView = document.getElementById("mainGoalView");
+  const mainConfirm = document.getElementById("saveMainGoalBtn");
+  const addInput = document.getElementById("newPlanTaskInput");
+  const addBtn = document.getElementById("addPlanTaskBtn");
 
-  document.getElementById("mainGoalInput").value = plan.main_goal || "";
+  const done = (plan.tasks || []).filter(t => t.completed).length + (plan.main_goal && plan.main_goal_completed ? 1 : 0);
+  const total = (plan.tasks || []).length + (plan.main_goal ? 1 : 0);
+  document.getElementById("planProgressLabel").textContent = `${done}/${total}`;
 
-  const inputs = document.querySelectorAll(".plan-task-input");
-  inputs.forEach((i, idx) => {
-    i.value = plan.tasks[idx] ? plan.tasks[idx].text : "";
-  });
+  // Главная задача: режим ввода или режим отображения.
+  if (plan.main_goal) {
+    mainEditor.hidden = true;
+    mainView.hidden = false;
+    mainView.innerHTML = `
+      <div class="plan-item plan-item--main ${plan.main_goal_completed ? "is-done" : ""}">
+        <input type="checkbox" class="plan-toggle plan-toggle--main" data-main-toggle="1" ${plan.main_goal_completed ? "checked" : ""} aria-label="Отметить главную задачу выполненной">
+        <span class="plan-item__text">${escapeHtml(plan.main_goal)}</span>
+        <div class="plan-item__actions">
+          <button type="button" class="plan-icon-btn" data-main-action="edit" aria-label="Редактировать">✎</button>
+          <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-main-action="delete" aria-label="Удалить">✕</button>
+        </div>
+      </div>`;
+    mainInput.value = "";
+    mainConfirm.hidden = true;
+  } else {
+    mainEditor.hidden = false;
+    mainView.hidden = true;
+    mainInput.value = mainInput.dataset.editingValue || mainInput.value || "";
+    mainConfirm.hidden = !mainInput.value.trim();
+    delete mainInput.dataset.editingValue;
+  }
 
-  const done = plan.tasks.filter(t => t.completed).length;
-  document.getElementById("planProgressLabel").textContent = `${done}/${plan.tasks.length}`;
-
-  list.innerHTML = plan.tasks.map(t => `
-    <li class="plan-item ${t.completed ? "is-done" : ""}">
-      <input type="checkbox" class="plan-toggle" data-id="${t.id}" ${t.completed ? "checked" : ""}>
+  list.innerHTML = (plan.tasks || []).map(t => `
+    <li class="plan-item ${t.completed ? "is-done" : ""}" data-id="${t.id}">
+      <input type="checkbox" class="plan-toggle" data-id="${t.id}" ${t.completed ? "checked" : ""} aria-label="Отметить задачу выполненной">
       <span class="plan-item__text">${escapeHtml(t.text)}</span>
+      <div class="plan-item__actions">
+        <button type="button" class="plan-icon-btn" data-action="edit" aria-label="Редактировать">✎</button>
+        <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-action="delete" aria-label="Удалить">✕</button>
+      </div>
     </li>
   `).join("");
+
+  const editingId = addInput.dataset.editingTaskId;
+  if (editingId) {
+    const task = plan.tasks.find(t => String(t.id) === String(editingId));
+    if (!task) {
+      delete addInput.dataset.editingTaskId;
+      addInput.value = "";
+      addBtn.textContent = "Добавить новую задачу";
+    } else {
+      addBtn.textContent = "✓ Сохранить изменения";
+    }
+  } else {
+    addBtn.textContent = "Добавить новую задачу";
+  }
+
+  addBtn.disabled = plan.tasks.length >= 5 && !editingId;
+  if (plan.tasks.length >= 5 && !editingId) {
+    addBtn.textContent = "Максимум 5 задач";
+  }
 }
 
+function startMainGoalEdit() {
+  const plan = state.daily_plan || { main_goal: "" };
+  const input = document.getElementById("mainGoalInput");
+  const editor = document.getElementById("mainGoalEditor");
+  const view = document.getElementById("mainGoalView");
+  input.value = plan.main_goal || "";
+  editor.hidden = false;
+  view.hidden = true;
+  document.getElementById("saveMainGoalBtn").hidden = !input.value.trim();
+  input.focus();
+  input.select();
+}
 
-  function renderAll() {
-    renderPlayerCard();
-    renderPlan();
-    renderHabits();
-    renderShop();
-    renderThemePicker();
-    renderAchievements();
-    renderRating();
-    renderCalendar();
-  }
+function resetPlanTaskEditor() {
+  const input = document.getElementById("newPlanTaskInput");
+  const btn = document.getElementById("addPlanTaskBtn");
+  delete input.dataset.editingTaskId;
+  input.value = "";
+  btn.textContent = "Добавить новую задачу";
+  if (state?.daily_plan?.tasks) btn.disabled = state.daily_plan.tasks.length >= 5;
+}
 
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str == null ? "" : String(str);
-    return div.innerHTML;
-  }
+function initPlanActions() {
+  const mainInput = document.getElementById("mainGoalInput");
+  const mainConfirm = document.getElementById("saveMainGoalBtn");
+  const mainView = document.getElementById("mainGoalView");
+  const mainEditor = document.getElementById("mainGoalEditor");
+  const taskForm = document.getElementById("addPlanTaskForm");
+  const taskInput = document.getElementById("newPlanTaskInput");
 
-  // ===================== TABS =====================
-  function initTabs() {
-    document.getElementById("tabBar").addEventListener("click", (e) => {
-      const btn = e.target.closest(".tab-bar__item");
-      if (!btn) return;
-      const tab = btn.dataset.tab;
-      if (!tab) return; // кнопки без data-tab (например ИИ) не переключают панели
-      document.querySelectorAll(".tab-bar__item").forEach(b => b.classList.toggle("is-active", b === btn));
-      document.querySelectorAll(".tab-panel").forEach(p => { p.hidden = p.dataset.tab !== tab; });
+  mainInput.addEventListener("input", () => {
+    mainConfirm.hidden = !mainInput.value.trim();
+  });
+
+  mainInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && mainInput.value.trim()) {
+      e.preventDefault();
+      mainConfirm.click();
+    }
+  });
+
+  mainConfirm.addEventListener("click", async () => {
+    const text = mainInput.value.trim();
+    if (!text) return;
+    try {
+      await api("/api/plan/main/save", {
+        method: "POST",
+        body: JSON.stringify({ text })
+      });
+      delete mainInput.dataset.editingValue;
       haptic("light");
-    });
-  }
+      await loadBootstrap();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
 
-  // ===================== HABIT ACTIONS =====================
-  function initHabitActions() {
-    document.getElementById("habitList").addEventListener("click", async (e) => {
-      const btn = e.target.closest("button[data-action]");
-      if (!btn) return;
-      const li = btn.closest(".habit-item");
-      const habitId = li.dataset.id;
-      const action = btn.dataset.action;
+  mainView.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-main-action]");
+    if (!btn) return;
+    const action = btn.dataset.mainAction;
+    try {
+      if (action === "edit") {
+        startMainGoalEdit();
+      } else if (action === "delete") {
+        await api("/api/plan/main", { method: "DELETE" });
+        document.getElementById("mainGoalInput").value = "";
+        haptic("light");
+        await loadBootstrap();
+        document.getElementById("mainGoalInput").focus();
+      }
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
 
+  taskForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = taskInput.value.trim();
+    if (!text) {
+      taskInput.focus();
+      return;
+    }
+    const editingId = taskInput.dataset.editingTaskId;
+
+    try {
+      if (editingId) {
+        await api(`/api/plan/task/${editingId}`, {
+          method: "PUT",
+          body: JSON.stringify({ text })
+        });
+        showToast("Задача обновлена", "success");
+      } else {
+        await api("/api/plan/task", {
+          method: "POST",
+          body: JSON.stringify({ text })
+        });
+      }
+      resetPlanTaskEditor();
+      haptic("light");
+      await loadBootstrap();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+
+  document.getElementById("planList").addEventListener("click", async (e) => {
+    const li = e.target.closest(".plan-item");
+    if (!li) return;
+
+    const actionBtn = e.target.closest("button[data-action]");
+    if (actionBtn) {
+      const taskId = li.dataset.id;
       try {
-        if (action === "complete") {
-          btn.disabled = true;
-          await api(`/api/habits/${habitId}/complete`, { method: "POST" });
-          haptic("medium");
-          await loadBootstrap();
-          showToast("+10 Adam Coin", "success");
-        } else if (action === "delete") {
-          if (!confirm("Удалить эту привычку?")) return;
-          await api(`/api/habits/${habitId}`, { method: "DELETE" });
+        if (actionBtn.dataset.action === "edit") {
+          const task = (state.daily_plan?.tasks || []).find(t => String(t.id) === String(taskId));
+          if (!task) return;
+          taskInput.value = task.text;
+          taskInput.dataset.editingTaskId = task.id;
+          document.getElementById("addPlanTaskBtn").textContent = "✓ Сохранить изменения";
+          taskInput.focus();
+          taskInput.select();
+          taskInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else if (actionBtn.dataset.action === "delete") {
+          await api(`/api/plan/task/${taskId}`, { method: "DELETE" });
+          if (String(taskInput.dataset.editingTaskId) === String(taskId)) resetPlanTaskEditor();
           await loadBootstrap();
         }
       } catch (err) {
         showToast(friendlyError(err), "error");
-        await loadBootstrap();
       }
-    });
-
- document.getElementById("addHabitForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const input = document.getElementById("newHabitInput");
-    const title = input.value.trim();
-
-    if (title.length < 2) {
-        showToast("Название слишком короткое", "error");
-        return;
-    }
-
-    try {
-        await api("/api/habits", {
-            method: "POST",
-            body: JSON.stringify({ title })
-        });
-
-        input.value = "";
-        haptic("light");
-        await loadBootstrap();
-
-    } catch (err) {
-        showToast(friendlyError(err), "error");
-    }
-});
-
-  // Собирает актуальный список задач: значения двух быстрых полей (2 и 3
-  // задача) + все задачи за пределами этих двух (index 2+), которые попали
-  // в план через форму «Добавить новую задачу» и не имеют своего поля.
-  function collectPlanTasks(extraText) {
-    const quickTasks = [...document.querySelectorAll(".plan-task-input")]
-      .map(i => i.value.trim());
-    const plan = state.daily_plan || { tasks: [] };
-    const restTasks = plan.tasks.slice(2).map(t => t.text);
-    const tasks = [...quickTasks, ...restTasks];
-    if (extraText) tasks.push(extraText);
-    return tasks.map(t => t.trim()).filter(Boolean);
-  }
-
-  document.getElementById("savePlanBtn").addEventListener("click", async () => {
-    const main_goal = document.getElementById("mainGoalInput").value.trim();
-    const tasks = collectPlanTasks();
-
-    try {
-      await api("/api/plan/save", {
-        method: "POST",
-        body: JSON.stringify({ main_goal, tasks })
-      });
-      showToast("План сохранён");
-      await loadBootstrap();
-    } catch (err) {
-      showToast(friendlyError(err), "error");
-    }
-  });
-
-  document.getElementById("addPlanTaskForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const input = document.getElementById("newPlanTaskInput");
-    const text = input.value.trim();
-    if (!text) return;
-
-    const plan = state.daily_plan || { main_goal: "" };
-    const main_goal = document.getElementById("mainGoalInput").value.trim() || plan.main_goal || "";
-    const tasks = collectPlanTasks(text);
-
-    try {
-      await api("/api/plan/save", {
-        method: "POST",
-        body: JSON.stringify({ main_goal, tasks })
-      });
-      input.value = "";
-      haptic("light");
-      await loadBootstrap();
-    } catch (err) {
-      showToast(friendlyError(err), "error");
     }
   });
 
   document.addEventListener("change", async (e) => {
-    if (e.target.classList.contains("plan-toggle")) {
+    if (e.target.classList.contains("plan-toggle--main")) {
+      try {
+        await api("/api/plan/main/toggle", { method: "POST" });
+        await loadBootstrap();
+      } catch (err) {
+        showToast(friendlyError(err), "error");
+        await loadBootstrap();
+      }
+    } else if (e.target.classList.contains("plan-toggle")) {
       try {
         await api("/api/plan/task/toggle", {
           method: "POST",
@@ -459,12 +510,13 @@ function renderPlan() {
         await loadBootstrap();
       } catch (err) {
         showToast(friendlyError(err), "error");
+        await loadBootstrap();
       }
     }
   });
 }
 
-  // ===================== SHOP ACTIONS =====================
+// ===================== SHOP ACTIONS =====================
   function initShopActions() {
     document.getElementById("shopList").addEventListener("click", async (e) => {
       const btn = e.target.closest("button[data-action=buy]");
@@ -516,6 +568,7 @@ function renderPlan() {
         banned: "Доступ ограничен",
         theme_not_owned: "Сначала купи «Тема оформления» в магазине",
         invalid_theme: "Такой темы не существует",
+        task_limit: "Можно добавить не больше 5 задач",
         invalid_init_data: "Telegram не передал данные авторизации. Закройте Mini App и откройте его снова."
     };
 
@@ -565,6 +618,7 @@ async function boot() {
         initTelegram();
         initTabs();
         initHabitActions();
+        initPlanActions();
         initShopActions();
         initThemeActions();
         await loadBootstrap();

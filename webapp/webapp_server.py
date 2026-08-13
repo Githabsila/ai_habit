@@ -19,7 +19,7 @@ from db import (
     has_item, get_item_owner_ids, update_theme, get_theme,
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
-    get_daily_plan, save_daily_plan, toggle_daily_task,
+    get_daily_plan, save_daily_plan, set_daily_main_goal, delete_daily_main_goal, toggle_daily_main_goal, add_daily_task, update_daily_plan_task, delete_daily_task, toggle_daily_task,
 )
 
 logger = logging.getLogger("webapp")
@@ -258,6 +258,72 @@ async def toggle_plan_task_route(request):
         raise web.HTTPNotFound()
 
     toggle_daily_task(task_id)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/plan/main/save")
+async def save_main_goal_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    if not text:
+        return web.json_response({"error": "empty_text"}, status=400)
+    set_daily_main_goal(telegram_id, text)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/plan/main/toggle")
+async def toggle_main_goal_route(request):
+    telegram_id, _ = await _authenticate(request)
+    plan = get_daily_plan(telegram_id)
+    if not plan["main_goal"]:
+        raise web.HTTPNotFound()
+    toggle_daily_main_goal(telegram_id)
+    return web.json_response({"ok": True})
+
+@routes.delete("/api/plan/main")
+async def delete_main_goal_route(request):
+    telegram_id, _ = await _authenticate(request)
+    delete_daily_main_goal(telegram_id)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/plan/task")
+async def add_plan_task_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    if not text:
+        return web.json_response({"error": "empty_text"}, status=400)
+    try:
+        task_id = add_daily_task(telegram_id, text)
+    except ValueError as exc:
+        if str(exc) == "task_limit":
+            return web.json_response({"error": "task_limit"}, status=400)
+        raise
+    return web.json_response({"ok": True, "task_id": task_id})
+
+@routes.put("/api/plan/task/{task_id}")
+async def edit_plan_task_route(request):
+    telegram_id, _ = await _authenticate(request)
+    try:
+        task_id = int(request.match_info["task_id"])
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_task_id"}, status=400)
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    if not text:
+        return web.json_response({"error": "empty_text"}, status=400)
+    if not update_daily_plan_task(telegram_id, task_id, text):
+        raise web.HTTPNotFound()
+    return web.json_response({"ok": True})
+
+@routes.delete("/api/plan/task/{task_id}")
+async def delete_plan_task_route(request):
+    telegram_id, _ = await _authenticate(request)
+    try:
+        task_id = int(request.match_info["task_id"])
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_task_id"}, status=400)
+    if not delete_daily_task(telegram_id, task_id):
+        raise web.HTTPNotFound()
     return web.json_response({"ok": True})
 
 @routes.get("/")

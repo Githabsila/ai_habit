@@ -139,42 +139,35 @@ style="width:0%">
 
     <div class="plan-main__label">🎯 Главная задача</div>
 
-    <input id="mainGoalInput" type="text" placeholder="Главная задача дня">
+    <div id="mainGoalEditor" class="plan-editor">
+      <input id="mainGoalInput" type="text" placeholder="Главная задача дня" autocomplete="off">
+      <button type="button" class="plan-icon-btn plan-icon-btn--confirm" id="saveMainGoalBtn" aria-label="Сохранить главную задачу" hidden>✓</button>
+    </div>
+
+    <div id="mainGoalView" class="plan-main-view" hidden></div>
 
   </div>
 
-  <div class="plan-tasks">
-
-    <input class="plan-task-input" placeholder="2 задача">
-    <input class="plan-task-input" placeholder="3 задача">
-
-  </div>
-
-  <button class="btn plan-save-btn" id="savePlanBtn">
-
-    Сохранить план
-
-  </button>
+  <ul class="plan-list" id="planList"></ul>
 
   <form class="add-form plan-add-form" id="addPlanTaskForm">
 
-  <input
-  type="text"
-  id="newPlanTaskInput"
-  placeholder="Новая задача..."
-  >
+    <input
+      type="text"
+      id="newPlanTaskInput"
+      placeholder="Новая задача..."
+      autocomplete="off"
+    >
 
-  <button
-  type="submit"
-  class="btn btn--accent plan-add-form__btn">
-
-  Добавить новую задачу
-
-  </button>
+    <button
+      type="submit"
+      class="btn btn--accent plan-add-form__btn"
+      id="addPlanTaskBtn"
+    >
+      Добавить новую задачу
+    </button>
 
   </form>
-
-  <ul class="plan-list" id="planList"></ul>
 
 </div>
 
