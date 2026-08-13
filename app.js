@@ -553,14 +553,20 @@ async function boot() {
     }
 }
 
-document.addEventListener("DOMContentLoaded", boot);
+document.addEventListener("DOMContentLoaded", () => {
+    boot();
 
-document.getElementById("aiCoachBtn").addEventListener("click", () => {
-    haptic("light");
-    const overlay = document.getElementById("loadingOverlay");
-    if (overlay) overlay.hidden = false;
-    // небольшая пауза, чтобы браузер успел отрисовать монетку до ухода со страницы
-    setTimeout(() => { window.location.href = "/coach"; }, 60);
+    const aiCoachBtn = document.getElementById("aiCoachBtn");
+    if (aiCoachBtn) {
+        aiCoachBtn.addEventListener("click", () => {
+            haptic("light");
+            const overlay = document.getElementById("loadingOverlay");
+            if (overlay) overlay.hidden = false;
+            setTimeout(() => {
+                window.location.href = "/coach";
+            }, 60);
+        });
+    }
 });
 
 })();
