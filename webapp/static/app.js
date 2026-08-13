@@ -25,6 +25,18 @@
   let knownLevel = null; // для детекта левел-апа между загрузками
 
 
+  // Безопасный вывод пользовательского текста в HTML.
+  // Эта функция используется рейтингом, достижениями и задачами.
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+
   
   // ===================== TELEGRAM WEBAPP INIT =====================
 
@@ -248,7 +260,20 @@
   // ===================== RENDER: RATING =====================
   function renderRating() {
     const list = document.getElementById("ratingList");
-    const rows = state.leaderboard;
+    if (!list) return;
+    let rows = Array.isArray(state.leaderboard) ? state.leaderboard.slice() : [];
+    // Если сервер временно вернул пустой рейтинг, всё равно показываем текущего пользователя.
+    if (rows.length === 0 && state.user) {
+      rows = [{
+        telegram_id: state.user.telegram_id,
+        username: "",
+        first_name: state.user.first_name || "Игрок",
+        xp: state.user.xp || 0,
+        level: state.user.level || 1,
+        streak: state.user.streak || 0,
+        badge: !!state.user.badge
+      }];
+    }
     if (rows.length === 0) {
       list.innerHTML = `<li class="empty-hint">Рейтинг пока пуст</li>`;
       return;
@@ -281,6 +306,7 @@
   // ===================== RENDER: CALENDAR =====================
   function renderCalendar() {
     const grid = document.getElementById("calendarGrid");
+    if (!grid) return;
     const byDay = {};
     (state.calendar_events || []).forEach(ev => { byDay[ev.day] = ev.completed; });
 
