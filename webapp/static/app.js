@@ -84,6 +84,18 @@
     renderAll();
   }
 
+  // ===================== RENDER ALL =====================
+  function renderAll() {
+    renderPlayerCard();
+    renderHabits();
+    renderShop();
+    renderThemePicker();
+    renderAchievements();
+    renderRating();
+    renderCalendar();
+    renderPlan();
+  }
+
   // ===================== TOAST =====================
   let toastTimer = null;
   function showToast(message, kind) {
