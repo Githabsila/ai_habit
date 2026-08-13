@@ -289,6 +289,71 @@
 
 
 
+// ===================== TABS =====================
+function initTabs() {
+  const tabBar = document.getElementById("tabBar");
+  if (!tabBar) return;
+  tabBar.addEventListener("click", (e) => {
+    const btn = e.target.closest(".tab-bar__item");
+    if (!btn) return;
+    const tab = btn.dataset.tab;
+    if (!tab) return;
+    document.querySelectorAll(".tab-bar__item").forEach(b => b.classList.toggle("is-active", b === btn));
+    document.querySelectorAll(".tab-panel").forEach(panel => { panel.hidden = panel.dataset.tab !== tab; });
+    haptic("light");
+  });
+}
+
+// ===================== HABIT ACTIONS =====================
+function initHabitActions() {
+  const habitList = document.getElementById("habitList");
+  const addHabitForm = document.getElementById("addHabitForm");
+  if (!habitList || !addHabitForm) return;
+
+  habitList.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const li = btn.closest(".habit-item");
+    if (!li) return;
+    const habitId = li.dataset.id;
+    const action = btn.dataset.action;
+    try {
+      if (action === "complete") {
+        btn.disabled = true;
+        await api(`/api/habits/${habitId}/complete`, { method: "POST" });
+        haptic("medium");
+        await loadBootstrap();
+        showToast("+10 Adam Coin", "success");
+      } else if (action === "delete") {
+        if (!confirm("Удалить эту привычку?")) return;
+        await api(`/api/habits/${habitId}`, { method: "DELETE" });
+        await loadBootstrap();
+      }
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+      await loadBootstrap();
+    }
+  });
+
+  addHabitForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("newHabitInput");
+    const title = input.value.trim();
+    if (title.length < 2) {
+      showToast("Название слишком короткое", "error");
+      return;
+    }
+    try {
+      await api("/api/habits", { method: "POST", body: JSON.stringify({ title }) });
+      input.value = "";
+      haptic("light");
+      await loadBootstrap();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
 // ===================== DAILY PLAN =====================
 function renderPlan() {
   const plan = state.daily_plan || { main_goal: "", main_goal_completed: false, tasks: [] };
