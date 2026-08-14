@@ -441,8 +441,6 @@ async def fast_answer(
 
     system = FAST_SYSTEM + "\n\n" + _combine_notes(mood_note, style_note)
     return await _ask(system, user, temperature=0.6, max_tokens=300)
-    role_prompt = await detect_role(task)
-    system = WORKER_SYSTEM + "\n\n" + role_prompt
 
 
 # ============ 0c. КРИЗИС-ГЕЙТ ============
@@ -1292,7 +1290,7 @@ if __name__ == "__main__":
 
     asyncio.run(_demo())
 
-def detect_role(text: str):
+def detect_role_by_keywords(text: str):
 
     text = text.lower()
 

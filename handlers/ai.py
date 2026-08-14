@@ -197,7 +197,6 @@ async def ai_chat(message: Message, state: FSMContext):
         answer = result["answer"]
         is_crisis = result["is_crisis"]
         suggested_habit = result["suggested_habit"]
-        complexity = result["complexity"]
     except Exception as e:
         logger.exception(f"Ошибка AI-пайплайна для {user_id}")
         log_error("ai_pipeline", e, user_id)
@@ -207,7 +206,6 @@ async def ai_chat(message: Message, state: FSMContext):
         )
         is_crisis = False
         suggested_habit = None
-        complexity = None
 
     add_ai_message(user_id, "user", message.text)
     assistant_message_id = add_ai_message(user_id, "assistant", answer)

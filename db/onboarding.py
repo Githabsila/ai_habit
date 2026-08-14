@@ -161,7 +161,6 @@ def get_users_by_tags(tags):
     conn = connect()
     cursor = conn.cursor()
     telegram_ids = set()
-    rows_by_id = {}
     for tag in tags:
         cursor.execute("""
             SELECT u.telegram_id FROM user_survey s
