@@ -487,7 +487,6 @@ function initPlanActions() {
   const mainInput = document.getElementById("mainGoalInput");
   const mainConfirm = document.getElementById("saveMainGoalBtn");
   const mainView = document.getElementById("mainGoalView");
-  const mainEditor = document.getElementById("mainGoalEditor");
   const taskForm = document.getElementById("addPlanTaskForm");
   const taskInput = document.getElementById("newPlanTaskInput");
 

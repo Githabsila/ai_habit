@@ -1,5 +1,5 @@
 import asyncio
-from webapp.server import run_webapp
+from webapp.webapp_server import run_webapp
 
 async def main():
     print("Запускаем...")
