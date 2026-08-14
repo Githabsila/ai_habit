@@ -1795,16 +1795,16 @@ body {
 .plan-item--main{
   margin-bottom:8px;
   border-bottom:none;
-  border:1px solid rgba(240,180,41,.35);
+  border:1px solid rgba(240,180,41,.4);
   border-radius:14px;
-  background:linear-gradient(90deg, rgba(240,180,41,.1), rgba(240,180,41,.02) 60%);
-  box-shadow:0 8px 20px rgba(240,180,41,.08);
+  background:rgba(240,180,41,.09);
+  box-shadow:0 8px 20px rgba(240,180,41,.1);
 }
 
 .plan-item--main.is-done{
   border-color:rgba(74,222,128,.45);
-  background:linear-gradient(90deg, rgba(74,222,128,.08), rgba(20,16,31,.72) 60%);
-  box-shadow:0 8px 20px rgba(74,222,128,.1);
+  background:rgba(74,222,128,.08);
+  box-shadow:0 8px 20px rgba(74,222,128,.12);
 }
 
 .plan-item__text{
