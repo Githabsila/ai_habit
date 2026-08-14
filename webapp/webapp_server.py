@@ -154,6 +154,7 @@ async def bootstrap(request):
         ],
         "daily_plan": {
             "main_goal": daily_plan["main_goal"],
+            "main_goal_completed": bool(daily_plan["main_goal_completed"]),
             "tasks": [
                 {"id": t["id"], "text": t["text"], "completed": bool(t["completed"])}
                 for t in daily_plan["tasks"]
