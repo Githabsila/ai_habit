@@ -381,9 +381,21 @@ def create_tables():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
         day TEXT,
-        completed INTEGER DEFAULT 0
+        completed INTEGER DEFAULT 0,
+        total INTEGER DEFAULT 0
     )
     """)
+
+    # Миграция: раньше клетка календаря красилась по абсолютному числу
+    # выполненных привычек за день (0/1/2-3/4+), из-за чего при малом
+    # количестве привычек клетка никогда не становилась полностью золотой,
+    # даже если пользователь выполнил ВСЕ привычки за день. Теперь хранится
+    # ещё и total (сколько привычек было у пользователя на момент отметки),
+    # чтобы красить по проценту completed/total, а не по голому счётчику.
+    cursor.execute("PRAGMA table_info(calendar)")
+    calendar_columns = {row[1] for row in cursor.fetchall()}
+    if "total" not in calendar_columns:
+        cursor.execute("ALTER TABLE calendar ADD COLUMN total INTEGER DEFAULT 0")
 
     # ---------------- HABIT LOGS (посуточный журнал по каждой привычке) ----------------
     # Снимок состояния каждой привычки за каждый прошедший день — в отличие

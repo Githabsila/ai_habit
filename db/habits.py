@@ -229,13 +229,16 @@ def complete_habit(habit_id):
         WHERE telegram_id=?
     """, (habit["user_id"],))
 
+    cursor.execute("SELECT COUNT(*) AS cnt FROM habits WHERE user_id=?", (habit["user_id"],))
+    total_habits = cursor.fetchone()["cnt"]
+
     conn.commit()
     conn.close()
 
     update_streak(habit["user_id"])
     add_xp(habit["user_id"], 10)
     add_statistics(habit["user_id"], completed=1, xp=10)
-    update_calendar(habit["user_id"])
+    update_calendar(habit["user_id"], total_habits)
     update_daily_task(habit["user_id"], "Выполнить привычку")
     update_daily_task(habit["user_id"], "Получить 20 Adam Coin", 10)
     check_achievements(habit["user_id"])

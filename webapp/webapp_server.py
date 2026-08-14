@@ -144,7 +144,7 @@ async def bootstrap(request):
             } for row in leaderboard
         ],
         "calendar_events": [
-            {"day": row["day"], "completed": row["completed"]} for row in calendar_events
+            {"day": row["day"], "completed": row["completed"], "total": row["total"]} for row in calendar_events
         ],
         "achievements": [
             {

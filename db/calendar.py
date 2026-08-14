@@ -3,7 +3,7 @@ from datetime import date
 from .core import connect
 
 
-def update_calendar(user_id):
+def update_calendar(user_id, total_habits):
     conn = connect()
     cursor = conn.cursor()
 
@@ -17,13 +17,13 @@ def update_calendar(user_id):
 
     if row:
         cursor.execute(
-            "UPDATE calendar SET completed = completed + 1 WHERE id=?",
-            (row["id"],)
+            "UPDATE calendar SET completed = completed + 1, total = ? WHERE id=?",
+            (total_habits, row["id"])
         )
     else:
         cursor.execute(
-            "INSERT INTO calendar(user_id, day, completed) VALUES (?, ?, 1)",
-            (user_id, today)
+            "INSERT INTO calendar(user_id, day, completed, total) VALUES (?, ?, 1, ?)",
+            (user_id, today, total_habits)
         )
 
     conn.commit()

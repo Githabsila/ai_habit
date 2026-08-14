@@ -308,7 +308,7 @@
     const grid = document.getElementById("calendarGrid");
     if (!grid) return;
     const byDay = {};
-    (state.calendar_events || []).forEach(ev => { byDay[ev.day] = ev.completed; });
+    (state.calendar_events || []).forEach(ev => { byDay[ev.day] = { completed: ev.completed, total: ev.total }; });
 
     const days = [];
     const today = new Date();
@@ -316,12 +316,21 @@
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const key = d.toISOString().slice(0, 10);
-      days.push({ key, count: byDay[key] || 0, dayNum: d.getDate() });
+      const info = byDay[key] || { completed: 0, total: 0 };
+      days.push({ key, ...info, dayNum: d.getDate() });
     }
 
     grid.innerHTML = days.map(d => {
-      const level = d.count === 0 ? 0 : d.count <= 1 ? 1 : d.count <= 3 ? 2 : 3;
-      return `<div class="cal-cell cal-cell--${level}" title="${d.key}: ${d.count}"></div>`;
+      // Красим по ДОЛЕ выполненных привычек за день, а не по абсолютному
+      // числу — иначе при малом количестве привычек клетка никогда не
+      // становилась полностью золотой, даже если всё было выполнено.
+      let level = 0;
+      if (d.completed > 0 && d.total > 0) {
+        const ratio = d.completed / d.total;
+        level = ratio >= 1 ? 3 : ratio >= 0.5 ? 2 : 1;
+      }
+      const label = d.total > 0 ? `${d.key}: ${d.completed}/${d.total}` : `${d.key}: 0`;
+      return `<div class="cal-cell cal-cell--${level}" title="${label}"></div>`;
     }).join("");
   }
 
