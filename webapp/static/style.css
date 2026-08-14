@@ -1783,16 +1783,28 @@ body {
   align-items:center;
   gap:10px;
   min-width:0;
-  padding:11px 2px;
+  min-height:20px;
+  padding:11px 10px;
   border-bottom:1px solid rgba(255,255,255,.06);
+  border-radius:12px;
   animation:planItemIn .18s ease;
 }
 
 .plan-item:last-child{border-bottom:none;}
 
 .plan-item--main{
-  padding:2px 0;
+  margin-bottom:8px;
   border-bottom:none;
+  border:1px solid rgba(240,180,41,.35);
+  border-radius:14px;
+  background:linear-gradient(90deg, rgba(240,180,41,.1), rgba(240,180,41,.02) 60%);
+  box-shadow:0 8px 20px rgba(240,180,41,.08);
+}
+
+.plan-item--main.is-done{
+  border-color:rgba(74,222,128,.45);
+  background:linear-gradient(90deg, rgba(74,222,128,.08), rgba(20,16,31,.72) 60%);
+  box-shadow:0 8px 20px rgba(74,222,128,.1);
 }
 
 .plan-item__text{
