@@ -111,6 +111,7 @@ async def bootstrap(request):
             "telegram_id": telegram_id,
             "first_name": user["first_name"] if user else "",
             "xp": user["xp"] if user else 0,
+            "total_xp": user["total_xp"] if user else 0,
             "level": user["level"] if user else 1,
             "streak": user["streak"] if user else 0,
             "premium": bool(user["premium"]) if user else False,

@@ -129,7 +129,7 @@
     const badgeEl = document.getElementById("playerBadge");
     if (badgeEl) badgeEl.style.display = u.badge ? "inline" : "none";
 
-    const xpIntoLevel = u.xp % 100;
+    const xpIntoLevel = (u.total_xp ?? u.xp) % 100;
     document.getElementById("xpLabel").textContent = `${xpIntoLevel} / 100 XP`;
     document.getElementById("xpBarFill").style.width = xpIntoLevel + "%";
 
