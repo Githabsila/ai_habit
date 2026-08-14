@@ -88,11 +88,12 @@ def build_user_context(user_id: int) -> str:
         lines.append("План на сегодня пока не составлен.")
 
     profile = get_user_profile(user_id)
+    profile_summary = profile["summary"] if profile else None
 
-    if profile and profile.get("summary"):
+    if profile_summary:
         lines.append("")
         lines.append("Что известно о пользователе:")
-        lines.append(profile["summary"])
+        lines.append(profile_summary)
 
     reasons = get_recent_negative_reasons(user_id, limit=3)
 
