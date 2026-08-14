@@ -1792,16 +1792,17 @@ body {
 
 .plan-item:last-child{border-bottom:none;}
 
-.plan-item--main{
+.plan-item--main,
+.plan-item--main:last-child{
   margin-bottom:8px;
-  border-bottom:none;
   border:1px solid rgba(240,180,41,.4);
   border-radius:14px;
   background:rgba(240,180,41,.09);
   box-shadow:0 8px 20px rgba(240,180,41,.1);
 }
 
-.plan-item--main.is-done{
+.plan-item--main.is-done,
+.plan-item--main.is-done:last-child{
   border-color:rgba(74,222,128,.45);
   background:rgba(74,222,128,.08);
   box-shadow:0 8px 20px rgba(74,222,128,.12);
