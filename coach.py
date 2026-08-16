@@ -32,8 +32,20 @@ from db import (
     mark_plan_task_reminder_sent,
     get_plans_needing_goal_reminder,
     mark_goal_reminder_sent,
+    get_daily_plan,
 )
 from multi_agent import generate_weekly_habit_feedback
+from adam_messages import (
+    format_day_progress_message,
+    format_evening_progress_message,
+    format_habit_reminder_message,
+    format_habit_final_motivation_message,
+    format_goal_reminder_message,
+    format_week_start_message,
+    format_week_end_message,
+    format_month_start_message,
+    format_month_end_message,
+)
 
 logger = logging.getLogger("coach")
 
@@ -235,13 +247,14 @@ async def run_task_reminder_check(bot):
             continue
 
         # -- привычки ("Ваши привычки") --
+        # ВАЖНО: текст не должен содержать "Уже N ч." — только название
+        # привычки (см. промт п.5), поэтому используем пул варьирующихся
+        # формулировок из adam_messages вместо фиксированного шаблона.
         for habit in get_habits_needing_reminder(telegram_id, hours=REMINDER_AFTER_HOURS):
             try:
                 await bot.send_message(
                     telegram_id,
-                    f"⏰ <b>Напоминание о задаче</b>\n\n"
-                    f"Уже {REMINDER_AFTER_HOURS} ч., а привычка «{habit['title']}» "
-                    f"ещё не отмечена выполненной сегодня. Не забудьте закрыть её 💪",
+                    format_habit_reminder_message(habit["title"]),
                     parse_mode="HTML"
                 )
                 sent += 1
@@ -256,8 +269,8 @@ async def run_task_reminder_check(bot):
                 await bot.send_message(
                     telegram_id,
                     f"⏰ <b>Напоминание о задаче</b>\n\n"
-                    f"Уже {REMINDER_AFTER_HOURS} ч., а задача «{task['text']}» из "
-                    f"плана на сегодня ещё не выполнена. Самое время вернуться к ней 🙂",
+                    f"Задача «{task['text']}» из плана на сегодня ещё не выполнена. "
+                    f"Самое время вернуться к ней 🙂",
                     parse_mode="HTML"
                 )
                 sent += 1
@@ -271,9 +284,7 @@ async def run_task_reminder_check(bot):
             try:
                 await bot.send_message(
                     telegram_id,
-                    f"🎯 <b>Напоминание о цели дня</b>\n\n"
-                    f"Уже {REMINDER_AFTER_HOURS} ч., а по сегодняшней цели «{plan['main_goal']}» "
-                    f"пока нет прогресса. Начните хотя бы с малого шага 🌱",
+                    format_goal_reminder_message(plan["main_goal"]),
                     parse_mode="HTML"
                 )
                 sent += 1
@@ -283,6 +294,177 @@ async def run_task_reminder_check(bot):
                 mark_goal_reminder_sent(plan["id"])
 
     logger.info(f"Индивидуальные напоминания по задачам: отправлено {sent} сообщений")
+
+
+# =====================================
+# УТРЕННИЕ НАПОМИНАНИЯ ПО ПРИВЫЧКАМ (06:00)
+# =====================================
+#
+# В отличие от run_task_reminder_check (точечно, через REMINDER_AFTER_HOURS
+# часов бездействия), это фиксированная утренняя проверка (промт п.5):
+# в 06:00 — по одному сообщению на каждую ещё не отмеченную привычку, и
+# только если такие привычки вообще есть (п.4/11 — не слать, если всё уже
+# выполнено), плюс одно финальное мотивационное сообщение в конце.
+
+async def run_morning_habit_reminders(bot):
+    users = get_all_users()
+    sent = 0
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+
+        settings = get_settings(telegram_id)
+        if not settings or settings["reminders"] == 0:
+            continue
+
+        incomplete = get_incomplete_habits(telegram_id)
+        if not incomplete:
+            # Все привычки уже выполнены — напоминаний быть не должно.
+            continue
+
+        try:
+            for habit in incomplete:
+                await bot.send_message(
+                    telegram_id,
+                    format_habit_reminder_message(habit["title"]),
+                    parse_mode="HTML"
+                )
+                sent += 1
+
+            await bot.send_message(
+                telegram_id,
+                format_habit_final_motivation_message(),
+                parse_mode="HTML"
+            )
+            sent += 1
+        except Exception as e:
+            log_error("morning_habit_reminders", e, telegram_id)
+
+    logger.info(f"Утренние напоминания по привычкам: отправлено {sent} сообщений")
+
+
+# =====================================
+# ДНЕВНОЕ / ВЕЧЕРНЕЕ НАПОМИНАНИЕ ПО ПЛАНУ ДНЯ (15:00 / 20:00)
+# =====================================
+#
+# Промт п.2: если к 15:00 из плана дня выполнено <= половины задач — придёт
+# мотивационное сообщение; если к 20:00 осталась хотя бы 1 невыполненная
+# задача — тоже. Если план дня пуст (нет ни одной задачи) — проверять
+# нечего, писать не будем (п.4/11).
+
+async def run_day_progress_check(bot):
+    """15:00 — мотивационное сообщение, если выполнено <= половины задач
+    сегодняшнего плана дня."""
+    users = get_all_users()
+    sent = 0
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+
+        settings = get_settings(telegram_id)
+        if not settings or settings["reminders"] == 0:
+            continue
+
+        plan = get_daily_plan(telegram_id)
+        tasks = plan["tasks"]
+        if not tasks:
+            continue
+
+        done = sum(1 for t in tasks if t["completed"])
+        total = len(tasks)
+
+        if done > total / 2:
+            continue
+
+        try:
+            await bot.send_message(
+                telegram_id,
+                format_day_progress_message(done, total),
+                parse_mode="HTML"
+            )
+            sent += 1
+        except Exception as e:
+            log_error("day_progress_check", e, telegram_id)
+
+    logger.info(f"Дневное напоминание по плану дня (15:00): отправлено {sent} сообщений")
+
+
+async def run_evening_progress_check(bot):
+    """20:00 — мотивационное сообщение, если осталась хотя бы 1
+    невыполненная задача сегодняшнего плана дня."""
+    users = get_all_users()
+    sent = 0
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+
+        settings = get_settings(telegram_id)
+        if not settings or settings["reminders"] == 0:
+            continue
+
+        plan = get_daily_plan(telegram_id)
+        tasks = plan["tasks"]
+        if not tasks:
+            continue
+
+        done = sum(1 for t in tasks if t["completed"])
+        total = len(tasks)
+
+        if done >= total:
+            continue
+
+        try:
+            await bot.send_message(
+                telegram_id,
+                format_evening_progress_message(done, total),
+                parse_mode="HTML"
+            )
+            sent += 1
+        except Exception as e:
+            log_error("evening_progress_check", e, telegram_id)
+
+    logger.info(f"Вечернее напоминание по плану дня (20:00): отправлено {sent} сообщений")
+
+
+# =====================================
+# ПЕРИОДИЧЕСКИЕ МОТИВАЦИОННЫЕ СООБЩЕНИЯ
+# (начало/конец недели, начало/конец месяца) — промт п.8
+# =====================================
+
+async def _broadcast(bot, text_fn, job_name):
+    users = get_all_users()
+    sent = 0
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+
+        settings = get_settings(telegram_id)
+        if not settings or settings["reminders"] == 0:
+            continue
+
+        try:
+            await bot.send_message(telegram_id, text_fn(), parse_mode="HTML")
+            sent += 1
+        except Exception as e:
+            log_error(job_name, e, telegram_id)
+
+    logger.info(f"{job_name}: отправлено {sent} сообщений")
+
+
+async def run_week_start_ping(bot):
+    await _broadcast(bot, format_week_start_message, "week_start_ping")
+
+
+async def run_week_end_ping(bot):
+    await _broadcast(bot, format_week_end_message, "week_end_ping")
+
+
+async def run_month_start_ping(bot):
+    await _broadcast(bot, format_month_start_message, "month_start_ping")
+
+
+async def run_month_end_ping(bot):
+    await _broadcast(bot, format_month_end_message, "month_end_ping")
 
 
 # =====================================

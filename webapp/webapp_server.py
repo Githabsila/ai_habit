@@ -9,6 +9,7 @@ from aiohttp.web import Application
 from config import BOT_TOKEN, ADMIN_IDS
 from webapp.telegram_auth import validate_init_data
 from webapp.services.ai_coach import ask_ai
+from adam_messages import format_all_tasks_done_message, format_main_goal_done_message
 
 from db import (
     get_user, add_user, is_banned, get_access_status,
@@ -76,6 +77,19 @@ def _owned_habit_or_404(habit_id, telegram_id):
     habit = get_habit(habit_id)
     if not habit or habit["user_id"] != telegram_id:
         raise web.HTTPNotFound()
+
+
+async def _push(app, telegram_id, text):
+    """Проактивное сообщение из Mini App в чат с ботом (поздравления —
+    промт п.3 и п.7). Молча пропускаем, если бот недоступен или пользователь
+    закрыл чат с ботом — это не должно ронять сам API-запрос."""
+    bot = app.get("bot")
+    if not bot:
+        return
+    try:
+        await bot.send_message(telegram_id, text, parse_mode="HTML")
+    except Exception:
+        logger.warning(f"Не удалось отправить push-уведомление {telegram_id}", exc_info=True)
 
 # ====================== MIDDLEWARE ======================
 
@@ -260,6 +274,14 @@ async def toggle_plan_task_route(request):
         raise web.HTTPNotFound()
 
     toggle_daily_task(task_id)
+
+    # Промт п.3: поздравление сразу после того, как отмечена ПОСЛЕДНЯЯ
+    # незакрытая задача плана дня (а не при каждой отдельной задаче).
+    updated_plan = get_daily_plan(telegram_id)
+    tasks = updated_plan["tasks"]
+    if tasks and all(t["completed"] for t in tasks):
+        await _push(request.app, telegram_id, format_all_tasks_done_message())
+
     return web.json_response({"ok": True})
 
 @routes.post("/api/plan/main/save")
@@ -278,7 +300,15 @@ async def toggle_main_goal_route(request):
     plan = get_daily_plan(telegram_id)
     if not plan["main_goal"]:
         raise web.HTTPNotFound()
+
+    was_completed = plan["main_goal_completed"]
     toggle_daily_main_goal(telegram_id)
+
+    # Промт п.7: поощрение отправляем только когда цель ПЕРЕХОДИТ в
+    # выполненное состояние (не при повторном снятии галочки).
+    if not was_completed:
+        await _push(request.app, telegram_id, format_main_goal_done_message())
+
     return web.json_response({"ok": True})
 
 @routes.delete("/api/plan/main")
@@ -378,8 +408,9 @@ async def health(request):
 
 # ====================== СОЗДАНИЕ ПРИЛОЖЕНИЯ ======================
 
-def create_app():
+def create_app(bot=None):
     app = web.Application(middlewares=[error_middleware])
+    app["bot"] = bot
     app.add_routes(routes)
     
     # Добавляем маршруты для AI мини-приложения
@@ -391,8 +422,8 @@ def create_app():
 
 # ====================== ЗАПУСК СЕРВЕРА ======================
 
-async def run_webapp(port):
-    app = create_app()
+async def run_webapp(port, bot=None):
+    app = create_app(bot)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, host="0.0.0.0", port=port)

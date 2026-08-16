@@ -207,11 +207,14 @@ window.onerror = function(msg, url, line, col, error) {
     .message.assistant { justify-content: flex-start; }
 
     .message-bubble {
-        max-width: 80%;
+        /* Промт п.9: расширено, чтобы длинные ответы Адама помещались
+           полностью и не выглядели обрезанными по ширине. */
+        max-width: 92%;
         padding: 13px 17px;
         border-radius: var(--radius);
         font-size: 14px;
         line-height: 1.5;
+        white-space: pre-wrap;
     }
 
     .message.user .message-bubble {
@@ -351,7 +354,10 @@ window.onerror = function(msg, url, line, col, error) {
         font-size: 14px;
         font-family: 'Inter', sans-serif;
         resize: none;
-        max-height: 100px;
+        /* Промт п.9: поле ввода расширено по высоте, чтобы длинный текст
+           не обрезался и был виден целиком при наборе. */
+        min-height: 22px;
+        max-height: 180px;
         outline: none;
     }
 

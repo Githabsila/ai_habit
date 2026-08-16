@@ -1943,37 +1943,31 @@ body {
 
 /* ===================== МАГАЗИН: ЗНАЧОК В РЕЙТИНГЕ/ПРОФИЛЕ ===================== */
 
+/* Промт п.9: значок медали — чистый эмодзи без обводки/фона/подложки,
+   как в Telegram, а не кружок с градиентом и свечением. */
 .player-badge{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: auto;
+  height: auto;
   margin-left: 6px;
-  font-size: 12px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #FFD76A, #F0B429);
-  box-shadow: 0 0 10px rgba(240,180,41,.6), 0 0 18px rgba(240,180,41,.3);
+  font-size: 16px;
+  background: none;
+  box-shadow: none;
   vertical-align: middle;
-  animation: badgePulse 2.4s ease-in-out infinite;
-}
-
-@keyframes badgePulse{
-  0%, 100% { transform: scale(1); box-shadow: 0 0 10px rgba(240,180,41,.6), 0 0 18px rgba(240,180,41,.3); }
-  50% { transform: scale(1.15); box-shadow: 0 0 14px rgba(240,180,41,.85), 0 0 26px rgba(240,180,41,.5); }
 }
 
 .rating-item__badge{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 17px;
-  height: 17px;
+  width: auto;
+  height: auto;
   margin-left: 4px;
-  font-size: 10px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #FFD76A, #F0B429);
-  box-shadow: 0 0 8px rgba(240,180,41,.55);
+  font-size: 13px;
+  background: none;
+  box-shadow: none;
   vertical-align: middle;
 }
 

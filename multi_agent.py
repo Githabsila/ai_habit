@@ -713,7 +713,9 @@ async def generate_variant(task: str, draft: str, persona: str, temperature: flo
         f"Черновой ответ (предложен другим агентом): {draft}\n\n"
         "Предложи свой вариант финального ответа пользователю."
     )
-    return await _ask(system, user, temperature=temperature, max_tokens=600)
+    # Промт п.9/13: сообщения не должны обрываться на полуслове — подняли
+    # потолок токенов для черновых вариантов ответа.
+    return await _ask(system, user, temperature=temperature, max_tokens=900)
 
 
 async def generate_all_variants(task: str, draft: str, style_note: str = "") -> list:
@@ -743,7 +745,9 @@ async def judge_variants(task: str, variants: list, style_note: str = "") -> str
         system = system + "\n\n" + style_note
     joined = "\n\n".join(f"Вариант {i + 1}:\n{v}" for i, v in enumerate(variants))
     user = f"Исходная задача: {task}\n\n{joined}"
-    return await _ask(system, user, temperature=0.3, max_tokens=1000)
+    # Промт п.9/13: финальный (судейский) ответ уходит пользователю напрямую —
+    # именно его чаще всего обрезало, потолок токенов увеличен с запасом.
+    return await _ask(system, user, temperature=0.3, max_tokens=1500)
 
 
 # ============ 6. HABIT EXTRACTOR ============
