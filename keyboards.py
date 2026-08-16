@@ -186,7 +186,7 @@ def main_menu():
 
             [
                 InlineKeyboardButton(
-                    text="🤖 AI-наставник",
+                    text="🤖 AI ADAM",
                     callback_data="ai"
                 )
             ],
