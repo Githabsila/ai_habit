@@ -110,12 +110,12 @@
 
   // ===================== TOAST =====================
   let toastTimer = null;
-  function showToast(message, kind) {
+  function showToast(message, kind, duration) {
     const el = document.getElementById("toast");
     el.textContent = message;
     el.className = "toast is-visible" + (kind ? " is-" + kind : "");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.classList.remove("is-visible"); }, 2200);
+    toastTimer = setTimeout(() => { el.classList.remove("is-visible"); }, duration || 2200);
   }
 
   // ===================== RENDER: PLAYER CARD =====================
@@ -606,7 +606,8 @@ function initPlanActions() {
   document.addEventListener("change", async (e) => {
     if (e.target.classList.contains("plan-toggle--main")) {
       try {
-        await api("/api/plan/main/toggle", { method: "POST" });
+        const res = await api("/api/plan/main/toggle", { method: "POST" });
+        if (res && res.message) showToast(res.message, "success", 4500);
         await loadBootstrap();
       } catch (err) {
         showToast(friendlyError(err), "error");
@@ -614,10 +615,11 @@ function initPlanActions() {
       }
     } else if (e.target.classList.contains("plan-toggle")) {
       try {
-        await api("/api/plan/task/toggle", {
+        const res = await api("/api/plan/task/toggle", {
           method: "POST",
           body: JSON.stringify({ task_id: e.target.dataset.id })
         });
+        if (res && res.message) showToast(res.message, "success", 4500);
         await loadBootstrap();
       } catch (err) {
         showToast(friendlyError(err), "error");

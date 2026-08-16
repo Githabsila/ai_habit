@@ -279,10 +279,11 @@ async def toggle_plan_task_route(request):
     # незакрытая задача плана дня (а не при каждой отдельной задаче).
     updated_plan = get_daily_plan(telegram_id)
     tasks = updated_plan["tasks"]
+    message = None
     if tasks and all(t["completed"] for t in tasks):
-        await _push(request.app, telegram_id, format_all_tasks_done_message())
+        message = format_all_tasks_done_message()
 
-    return web.json_response({"ok": True})
+    return web.json_response({"ok": True, "message": message})
 
 @routes.post("/api/plan/main/save")
 async def save_main_goal_route(request):
@@ -304,12 +305,13 @@ async def toggle_main_goal_route(request):
     was_completed = plan["main_goal_completed"]
     toggle_daily_main_goal(telegram_id)
 
-    # Промт п.7: поощрение отправляем только когда цель ПЕРЕХОДИТ в
-    # выполненное состояние (не при повторном снятии галочки).
-    if not was_completed:
-        await _push(request.app, telegram_id, format_main_goal_done_message())
+    # Промт п.7: поощрение показываем только когда цель ПЕРЕХОДИТ в
+    # выполненное состояние (не при повторном снятии галочки). Отдаём
+    # текст в ответе API — фронт мини-аппа показывает его тостом, в чат
+    # с ботом больше не шлём.
+    message = format_main_goal_done_message() if not was_completed else None
 
-    return web.json_response({"ok": True})
+    return web.json_response({"ok": True, "message": message})
 
 @routes.delete("/api/plan/main")
 async def delete_main_goal_route(request):
