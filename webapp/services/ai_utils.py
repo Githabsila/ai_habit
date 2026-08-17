@@ -76,7 +76,12 @@ def build_user_context(user_id: int) -> str:
         lines.append("План пользователя на сегодня:")
 
         if plan["main_goal"]:
-            lines.append(f"• Главная задача дня: {plan['main_goal']}")
+            # ✅ Проблема №2: раньше сюда не попадал статус главной задачи
+            # (plan["main_goal_completed"] из БД просто игнорировался), из-за
+            # чего ИИ не мог узнать, что пользователь её уже отметил
+            # выполненной, и советовал сделать то, что уже сделано.
+            status = "выполнена" if plan.get("main_goal_completed") else "НЕ выполнена"
+            lines.append(f"• Главная задача дня: {plan['main_goal']} — {status}")
 
         for task in plan["tasks"]:
             if not task["text"]:

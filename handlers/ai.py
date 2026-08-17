@@ -50,6 +50,7 @@ from keyboards import (
 
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
+from handlers.helpers import send_long_message, edit_or_split_message
 
 router = Router()
 logger = logging.getLogger("handlers.ai")
@@ -221,7 +222,12 @@ async def ai_chat(message: Message, state: FSMContext):
         keyboard = ai_feedback_keyboard(assistant_message_id, suggested_habit)
 
     try:
-        await thinking_msg.edit_text(answer, reply_markup=keyboard)
+        # Проблема №1/№3: если ответ всё-таки длиннее лимита Telegram
+        # (обычный случай — влезает и редактируется одним сообщением, как
+        # раньше), edit_or_split_message редактирует thinking_msg первой
+        # частью и, если нужно, досылает остальные части отдельными
+        # сообщениями, не обрывая ни слова, ни предложения.
+        await edit_or_split_message(thinking_msg, message, answer, reply_markup=keyboard)
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
@@ -298,10 +304,12 @@ async def ai_daily_tip(callback: CallbackQuery):
             tip = "❌ Не получилось сформировать совет, попробуйте позже."
         if tip and "[ошибка агента" not in tip:
             cache_set(cache_key, tip)
-    await callback.message.answer(
-        f"💡 <b>Совет дня</b>\n\n{tip}",
+    await send_long_message(
+        callback.message,
+        tip,
         parse_mode="HTML",
-        reply_markup=back_menu_keyboard()
+        reply_markup=back_menu_keyboard(),
+        header="💡 <b>Совет дня</b>",
     )
 
 

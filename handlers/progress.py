@@ -17,6 +17,7 @@ from db import (
 from keyboards import progress_keyboard, back_menu_keyboard
 from multi_agent import generate_progress_analysis
 from handlers.ai import build_user_context
+from handlers.helpers import send_long_message
 
 router = Router()
 logger = logging.getLogger("handlers.progress")
@@ -125,8 +126,10 @@ async def progress_ai_analysis(callback: CallbackQuery):
         if text and "[ошибка агента" not in text:
             cache_set(cache_key, text)
 
-    await callback.message.answer(
-        f"🤖 <b>AI-анализ прогресса</b>\n\n{text}",
+    await send_long_message(
+        callback.message,
+        text,
         parse_mode="HTML",
-        reply_markup=back_menu_keyboard()
+        reply_markup=back_menu_keyboard(),
+        header="🤖 <b>AI-анализ прогресса</b>",
     )

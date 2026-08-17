@@ -114,7 +114,17 @@ BASE_PERSONA = (
     "**вот так** или *вот так*, не используй решётки для заголовков, обратные "
     "кавычки для кода или дефисы-буллеты. Это обычный текстовый чат, разметка "
     "там не отображается и превращается в мусорные символы. Если нужно что-то "
-    "выделить — используй сами слова или уместный эмодзи, без звёздочек."
+    "выделить — используй сами слова или уместный эмодзи, без звёздочек.\n\n"
+
+    "Прежде чем давать любой совет по задачам, целям или привычкам "
+    "пользователя — сначала проверь в переданных данных о пользователе "
+    "статус каждой из них (там прямо написано 'выполнено' / 'не выполнено' "
+    "или 'выполнена' / 'НЕ выполнена'). Если что-то уже отмечено как "
+    "выполненное — НИКОГДА не говори, что это ещё нужно сделать, и не "
+    "включай это в список того, что предстоит. Вместо этого похвали "
+    "пользователя за выполнение и, если в данных есть невыполненные задачи "
+    "или привычки, предложи заняться следующей из них. Если абсолютно всё "
+    "выполнено — так и скажи и похвали, не выдумывай несуществующую задачу."
 )
 
 ROLE_ROUTER_SYSTEM = """
@@ -326,6 +336,21 @@ def _strip_markdown(text: str) -> str:
     return text.strip()
 
 
+# Граница конца предложения: точка/!/?/… (с опциональной закрывающей кавычкой
+# или скобкой) и пробел после неё. Используется только как аварийная подрезка
+# ответа, который модель всё равно не смогла уместить в лимит токенов даже
+# после повтора — чтобы пользователь увидел целое предложение, а не обрыв
+# на полуслове.
+_SENTENCE_END_RE = re.compile(r'[.!?…]["\')\]]?\s')
+
+
+def _trim_to_last_sentence(text: str) -> str:
+    matches = list(_SENTENCE_END_RE.finditer(text))
+    if not matches:
+        return text.rstrip()
+    return text[:matches[-1].end()].rstrip()
+
+
 async def _ask(
     system: str,
     user: str,
@@ -334,7 +359,18 @@ async def _ask(
     model: str = MODEL,
 ) -> str:
     """Базовый вызов LLM с обработкой ошибок, ограничением параллелизма
-    и автоповтором при превышении лимита токенов в минуту (429)."""
+    и автоповтором при превышении лимита токенов в минуту (429).
+
+    Проблема №1 (обрыв текста на полуслове): раньше здесь просто бралось
+    response.choices[0].message.content и отдавалось как есть — если модель
+    упиралась в max_tokens, ответ обрывался ровно там, где кончился лимит,
+    иногда посреди слова. Само по себе это не про Telegram (лимит в 4096
+    символов тут ни при чём — эти ответы в разы короче), это про то, что
+    ГЕНЕРАЦИЯ обрывалась раньше, чем модель успевала закончить мысль.
+    Теперь: 1) смотрим finish_reason, 2) если это 'length' — на этой же
+    попытке повторяем запрос с увеличенным потолком токенов, 3) если и
+    после этого не уложились — аварийно подрезаем по границе последнего
+    целого предложения, а не как попало."""
     async with _semaphore:
         for attempt in range(MAX_RETRIES + 1):
             try:
@@ -347,7 +383,35 @@ async def _ask(
                         {"role": "user", "content": user},
                     ],
                 )
-                return _strip_markdown(response.choices[0].message.content.strip())
+                choice = response.choices[0]
+                text = _strip_markdown(choice.message.content.strip())
+
+                if choice.finish_reason == "length":
+                    retry_tokens = min(max_tokens + 500, max_tokens * 2)
+                    logger.warning(
+                        f"Ответ обрезан по max_tokens={max_tokens} (модель {model}), "
+                        f"повторяю с лимитом {retry_tokens}"
+                    )
+                    response2 = await client.chat.completions.create(
+                        model=model,
+                        temperature=temperature,
+                        max_tokens=retry_tokens,
+                        messages=[
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                    )
+                    choice2 = response2.choices[0]
+                    text2 = _strip_markdown(choice2.message.content.strip())
+                    if choice2.finish_reason == "length":
+                        logger.warning(
+                            f"Ответ всё ещё обрезан даже с лимитом {retry_tokens} — "
+                            f"подрезаю по границе предложения"
+                        )
+                        text2 = _trim_to_last_sentence(text2)
+                    text = text2
+
+                return text
             except RateLimitError as e:
                 wait = _extract_wait_seconds(str(e))
                 if attempt < MAX_RETRIES:
@@ -440,7 +504,11 @@ async def fast_answer(
         user = f"История переписки:\n{history}\n\n{user}"
 
     system = FAST_SYSTEM + "\n\n" + _combine_notes(mood_note, style_note)
-    return await _ask(system, user, temperature=0.6, max_tokens=300)
+    # Было 300 — для "1-3 предложений" по-русски модели иногда впритык не
+    # хватало, и это резало ответ на полуслове (Проблема №1). У _ask теперь
+    # есть свой аварийный повтор/подрезка, но на первом заходе лучше сразу
+    # дать реальный запас.
+    return await _ask(system, user, temperature=0.6, max_tokens=500)
 
 
 # ============ 0c. КРИЗИС-ГЕЙТ ============
@@ -1159,7 +1227,9 @@ async def generate_daily_tip(user_context: str, style: str = DEFAULT_STYLE) -> s
     else:
         user = "Данных о пользователе пока нет — дай общий полезный совет по формированию привычек."
 
-    return await _ask(system, user, temperature=0.6, max_tokens=250, model=FAST_MODEL)
+    # Было 250 — впритык для "2-4 предложений" по-русски, резало ответ
+    # на полуслове (Проблема №1).
+    return await _ask(system, user, temperature=0.6, max_tokens=400, model=FAST_MODEL)
 
 
 # ============ АНАЛИЗ ПРОГРЕССА ============
@@ -1187,7 +1257,9 @@ async def generate_progress_analysis(user_context: str, weekly_stats_text: str, 
     parts.append(f"Статистика за последнюю неделю:\n{weekly_stats_text}")
     user = "\n\n".join(parts)
 
-    return await _ask(system, user, temperature=0.5, max_tokens=350, model=FAST_MODEL)
+    # Было 350 — впритык для "3-5 предложений" по-русски, резало ответ
+    # на полуслове (Проблема №1).
+    return await _ask(system, user, temperature=0.5, max_tokens=500, model=FAST_MODEL)
 
 
 # ============ ЕЖЕНЕДЕЛЬНЫЙ AI-РАЗБОР ПО ПРИВЫЧКАМ (закрашенные дни) ============
