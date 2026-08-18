@@ -67,6 +67,106 @@
     renderAll();
   }
 
+  // ===================== ЕЖЕДНЕВНЫЙ «УДАРНЫЙ ДЕНЬ» =====================
+  // Показываем специальное окно один раз в день на пользователя.
+  // Дата хранится локально, поэтому повторные открытия Mini App в тот же день
+  // не раздражают пользователя. На следующий календарный день окно появляется снова.
+  let impactDayTimer = null;
+
+  function impactDayStorageKey() {
+    const userId = state?.user?.telegram_id || "guest";
+    return `adam_impact_day_seen_${userId}`;
+  }
+
+  function getLocalDayKey() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function openImpactDayPopup() {
+    const overlay = document.getElementById("impactDayOverlay");
+    if (!overlay || !state?.user) return;
+
+    const habits = state.habits || [];
+    const done = habits.filter(h => h.completed).length;
+    const streak = Number(state.user.streak || 0);
+    const streakEl = document.getElementById("impactDayStreak");
+    const progressEl = document.getElementById("impactDayProgress");
+    const messageEl = document.getElementById("impactDayMessage");
+
+    if (streakEl) streakEl.textContent = streak;
+    if (progressEl) progressEl.textContent = `${done}/${habits.length}`;
+    if (messageEl) {
+      if (habits.length === 0) {
+        messageEl.textContent = "Добавь первую привычку и сделай сегодняшний день первым в своей серии.";
+      } else if (done === habits.length) {
+        messageEl.textContent = "Все привычки уже закрыты. Отличное начало — продолжай в том же духе!";
+      } else if (streak > 0) {
+        messageEl.textContent = `Твоя серия — ${streak} дн. Не дай ей прерваться сегодня.`;
+      } else {
+        messageEl.textContent = "Начни с одного простого действия — именно так появляется новая серия.";
+      }
+    }
+
+    overlay.hidden = false;
+    overlay.setAttribute("aria-hidden", "false");
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    haptic("medium");
+  }
+
+  function closeImpactDayPopup() {
+    const overlay = document.getElementById("impactDayOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    clearTimeout(impactDayTimer);
+    impactDayTimer = setTimeout(() => { overlay.hidden = true; }, 250);
+  }
+
+  function markImpactDaySeen() {
+    try { localStorage.setItem(impactDayStorageKey(), getLocalDayKey()); } catch (e) {}
+  }
+
+  function scheduleImpactDayPopup() {
+    if (!state?.user) return;
+    const today = getLocalDayKey();
+    let seen = null;
+    try { seen = localStorage.getItem(impactDayStorageKey()); } catch (e) {}
+    if (seen === today) return;
+
+    // Небольшая задержка после загрузки, чтобы пользователь успел увидеть главный экран.
+    clearTimeout(impactDayTimer);
+    impactDayTimer = setTimeout(() => {
+      openImpactDayPopup();
+      markImpactDaySeen();
+    }, 650);
+  }
+
+  function initImpactDayPopup() {
+    const overlay = document.getElementById("impactDayOverlay");
+    if (!overlay) return;
+
+    const close = () => closeImpactDayPopup();
+    document.getElementById("impactDayClose")?.addEventListener("click", close);
+    document.getElementById("impactDayLater")?.addEventListener("click", close);
+    document.getElementById("impactDayStart")?.addEventListener("click", () => {
+      haptic("light");
+      closeImpactDayPopup();
+      document.querySelector('[data-tab="home"]')?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.querySelector('[data-tab="home"]')?.classList.add("impactday-highlight");
+      setTimeout(() => document.querySelector('[data-tab="home"]')?.classList.remove("impactday-highlight"), 900);
+    });
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !overlay.hidden) close();
+    });
+  }
+
   // ===================== TOAST =====================
   let toastTimer = null;
   function showToast(message, kind) {
@@ -543,6 +643,7 @@ async function boot() {
         initHabitActions();
         initShopActions();
         initThemeActions();
+        initImpactDayPopup();
         await loadBootstrap();
     } catch (err) {
         console.error("boot() failed:", err);

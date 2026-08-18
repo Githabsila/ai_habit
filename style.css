@@ -1910,3 +1910,54 @@ body[data-theme="pink"] .buy-btn:not(.is-owned):not(:disabled){
 body[data-theme="pink"] .add-form input:focus{
   outline: 1px solid #EC4899;
 }
+
+/* ===== ЕЖЕДНЕВНЫЙ «УДАРНЫЙ ДЕНЬ» ===== */
+.impactday-overlay{
+  position:fixed;
+  inset:0;
+  z-index:250;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:rgba(6,4,12,.78);
+  backdrop-filter:blur(12px);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s ease;
+}
+.impactday-overlay.show{opacity:1;pointer-events:auto}
+.impactday-card{
+  position:relative;
+  width:min(390px,100%);
+  padding:30px 24px 22px;
+  border:1px solid rgba(255,215,106,.18);
+  border-radius:30px;
+  text-align:center;
+  background:linear-gradient(180deg,rgba(35,25,48,.98),rgba(15,11,25,.98));
+  box-shadow:0 28px 80px rgba(0,0,0,.55),0 0 55px rgba(240,180,41,.16);
+  transform:translateY(18px) scale(.96);
+  transition:transform .35s cubic-bezier(.2,.9,.2,1);
+}
+.impactday-overlay.show .impactday-card{transform:translateY(0) scale(1)}
+.impactday-close{
+  position:absolute;right:12px;top:10px;width:36px;height:36px;border:0;border-radius:50%;
+  background:rgba(255,255,255,.07);color:rgba(255,255,255,.72);font-size:26px;line-height:1;cursor:pointer;
+}
+.impactday-fire{font-size:46px;line-height:1;margin:2px 0 14px;filter:drop-shadow(0 0 18px rgba(255,150,0,.35));animation:impactFire 1.7s ease-in-out infinite}
+.impactday-kicker{font-size:11px;letter-spacing:.16em;color:#F0B429;font-weight:800;margin-bottom:7px}
+.impactday-title{font-size:32px;font-weight:800;letter-spacing:-.03em;color:#fff}
+.impactday-subtitle{margin:9px auto 20px;max-width:320px;color:var(--text-muted);font-size:14px;line-height:1.45}
+.impactday-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px}
+.impactday-stat{padding:12px 8px;border-radius:16px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.06)}
+.impactday-stat strong{display:block;font-size:22px;color:#fff}
+.impactday-stat span{display:block;margin-top:2px;font-size:11px;color:var(--text-muted)}
+.impactday-message{min-height:40px;margin:0 4px 18px;color:#e9e4f3;font-size:14px;line-height:1.45}
+.impactday-start{width:100%;border:0;border-radius:16px;padding:14px 16px;cursor:pointer;font-weight:800;font-size:15px;color:#241704;background:linear-gradient(135deg,#FFE08A,#F0B429);box-shadow:0 10px 28px rgba(240,180,41,.24)}
+.impactday-start:active{transform:scale(.98)}
+.impactday-later{margin-top:9px;border:0;background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;padding:6px 12px}
+.impactday-highlight{animation:impactHighlight .9s ease}
+@keyframes impactFire{0%,100%{transform:scale(1) rotate(-2deg)}50%{transform:scale(1.08) rotate(2deg)}}
+@keyframes impactHighlight{0%{box-shadow:none}40%{box-shadow:0 0 0 5px rgba(240,180,41,.16),0 0 35px rgba(240,180,41,.18)}100%{box-shadow:none}}
+@media (prefers-reduced-motion:reduce){.impactday-fire,.impactday-card,.impactday-overlay{animation:none;transition:none}}
+
