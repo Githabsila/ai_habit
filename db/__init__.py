@@ -139,6 +139,16 @@ from .onboarding import (
 
 
 
+from .streak import (
+    ensure_tables as ensure_streak_tables,
+    get_streak_status, set_timezone, get_timezone,
+    register_completion, rollover_user, rollover_all_users,
+    buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
+    should_show_onboarding, onboarding_message, mark_onboarding_seen,
+    RISK_15, RISK_23, claim_notification, has_completed_today, get_streak_users, consume_completion_event,
+)
+
+
 __all__ = [
     "DB_NAME", "DATA_DIR", "DB_PATH", "connect", "create_tables",
     "add_user", "get_user", "get_users_count", "get_all_users", "get_all_users_info",
@@ -174,4 +184,8 @@ __all__ = [
     "search_users_by_tag", "get_users_by_tags",
     "get_surveys_due_for_feedback", "mark_feedback_sent",
     "find_match_by_tags", "save_milestones", "get_milestones", "toggle_milestone",
+    "ensure_streak_tables", "get_streak_status", "set_timezone", "get_timezone",
+    "register_completion", "rollover_user", "rollover_all_users", "buy_freeze",
+    "claim_weekly_reward", "get_weekly_bonus_available", "should_show_onboarding",
+    "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "has_completed_today", "get_streak_users", "consume_completion_event",
 ]

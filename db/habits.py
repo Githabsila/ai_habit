@@ -168,39 +168,10 @@ def get_weekly_habit_breakdown(user_id):
 # =====================================
 
 def update_streak(user_id):
-    conn = connect()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT streak, last_completed FROM users WHERE telegram_id=?",
-        (user_id,)
-    )
-    row = cursor.fetchone()
-
-    if not row:
-        conn.close()
-        return
-
-    today = str(date.today())
-    yesterday = str(date.today() - timedelta(days=1))
-    last = row["last_completed"]
-    streak = row["streak"]
-
-    if last == today:
-        # уже засчитано сегодня — ничего не делаем
-        conn.close()
-        return
-    elif last == yesterday:
-        streak += 1
-    else:
-        streak = 1
-
-    cursor.execute("""
-        UPDATE users SET streak=?, last_completed=? WHERE telegram_id=?
-    """, (streak, today, user_id))
-
-    conn.commit()
-    conn.close()
+    # Новая реализация хранит отдельную запись за каждый локальный день.
+    # Старое имя функции оставлено для совместимости с остальным проектом.
+    from .streak import register_completion
+    return register_completion(user_id)
 
 
 # =====================================
@@ -235,6 +206,10 @@ def complete_habit(habit_id):
     conn.commit()
     conn.close()
 
+    # Перед первым действием нового локального дня проверяем вчерашний день,
+    # применяем freeze или сбрасываем серию, затем считаем сегодняшний день.
+    from .streak import rollover_user
+    rollover_user(habit["user_id"])
     update_streak(habit["user_id"])
     add_xp(habit["user_id"], 10)
     add_statistics(habit["user_id"], completed=1, xp=10)

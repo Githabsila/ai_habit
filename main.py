@@ -15,6 +15,7 @@ from db import create_tables
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
 from scheduler import scheduler, new_day
+from streak_scheduler import run_streak_rollover, run_streak_risk_notifications, run_weekly_streak_bonus
 from reminders import send_reminders
 from coach import (
     run_streak_risk_check, run_weekly_report, run_hard_deadline_check,
@@ -103,7 +104,12 @@ async def main():
     scheduler.add_job(run_morning_ping, "cron", hour=6, minute=0, args=[bot])
     scheduler.add_job(run_goal_feedback, "cron", day_of_week="mon", hour=10, minute=0, args=[bot])
     scheduler.add_job(run_auto_approve, "interval", minutes=15, args=[bot])
-    scheduler.add_job(new_day, "cron", hour=0, minute=0)
+    # Ударный режим работает по локальному времени каждого пользователя.
+    # Rollover идёт каждую минуту и идемпотентно обрабатывает только тех,
+    # у кого наступил новый локальный день.
+    scheduler.add_job(run_streak_rollover, "interval", minutes=1)
+    scheduler.add_job(run_streak_risk_notifications, "interval", minutes=1, args=[bot])
+    scheduler.add_job(run_weekly_streak_bonus, "interval", minutes=1, args=[bot])
 
     # --- Промт: умные напоминания по плану дня и привычкам (п.2, п.5) ---
     scheduler.add_job(run_morning_habit_reminders, "cron", hour=6, minute=5, args=[bot])

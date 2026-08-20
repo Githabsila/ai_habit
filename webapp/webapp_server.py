@@ -21,6 +21,8 @@ from db import (
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
     get_daily_plan, save_daily_plan, set_daily_main_goal, delete_daily_main_goal, toggle_daily_main_goal, add_daily_task, update_daily_plan_task, delete_daily_task, toggle_daily_task,
+    get_streak_status, set_timezone, buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
+    should_show_onboarding, onboarding_message, mark_onboarding_seen, consume_completion_event,
 )
 
 logger = logging.getLogger("webapp")
@@ -119,6 +121,7 @@ async def bootstrap(request):
     achievements = get_achievements(telegram_id)
     badge_owner_ids = get_item_owner_ids(BADGE_ITEM_ID)
     daily_plan = get_daily_plan(telegram_id)
+    streak = get_streak_status(telegram_id)
 
     return web.json_response({
         "user": {
@@ -134,6 +137,11 @@ async def bootstrap(request):
         },
         "habits": [{"id": h["id"], "title": h["title"], "completed": bool(h["completed"])} for h in habits],
         "progress": progress,
+        "streak": streak,
+        "streak_onboarding": {
+            "show": bool(habits) and should_show_onboarding(telegram_id),
+            "message": onboarding_message(telegram_id) if habits and should_show_onboarding(telegram_id) else None,
+        },
         "settings": {
             "reminders": bool(settings_row["reminders"]) if settings_row else True,
             "reminder_hour": settings_row["reminder_hour"] if settings_row else 9,
@@ -155,6 +163,7 @@ async def bootstrap(request):
                 "first_name": row["first_name"],
                 "xp": row["xp"], "level": row["level"], "streak": row["streak"],
                 "badge": row["telegram_id"] in badge_owner_ids,
+                "streak_status": get_streak_status(row["telegram_id"]),
             } for row in leaderboard
         ],
         "calendar_events": [
@@ -183,8 +192,14 @@ async def create_habit(request):
     title = body.get("title", "").strip()
     if len(title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)
+    had_habits = bool(get_habits(telegram_id))
     add_habit(telegram_id, title)
-    return web.json_response({"ok": True})
+    first_habit = not had_habits
+    return web.json_response({
+        "ok": True,
+        "first_habit": first_habit,
+        "onboarding_message": onboarding_message(telegram_id) if first_habit else None,
+    })
 
 @routes.put("/api/habits/{habit_id}")
 async def rename_habit(request):
@@ -206,7 +221,23 @@ async def complete_habit_route(request):
     success = complete_habit(habit_id)
     if not success:
         return web.json_response({"error": "already_completed"}, status=409)
-    return web.json_response({"ok": True, "progress": get_progress(telegram_id)})
+
+    event = consume_completion_event(telegram_id)
+    # Если событие уже было доставлено в боте, Mini App всё равно получает
+    # состояние streak, но не показывает повторное сообщение.
+    streak = get_streak_status(telegram_id)
+    if event:
+        try:
+            phrase = event["message"]
+            await _push(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{phrase}")
+        except Exception:
+            logger.exception("Не удалось отправить streak-сообщение")
+    return web.json_response({
+        "ok": True,
+        "progress": get_progress(telegram_id),
+        "streak": streak,
+        "streak_event": event,
+    })
 
 @routes.delete("/api/habits/{habit_id}")
 async def delete_habit_route(request):
@@ -215,6 +246,43 @@ async def delete_habit_route(request):
     _owned_habit_or_404(habit_id, telegram_id)
     delete_habit(habit_id)
     return web.json_response({"ok": True})
+
+
+@routes.get("/api/streak/status")
+async def streak_status_route(request):
+    telegram_id, _ = await _authenticate(request)
+    status = get_streak_status(telegram_id)
+    status["weekly_bonus_available"] = get_weekly_bonus_available(telegram_id)
+    return web.json_response(status)
+
+@routes.post("/api/streak/timezone")
+async def set_streak_timezone(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    timezone = str(body.get("timezone", "UTC"))
+    set_timezone(telegram_id, timezone)
+    return web.json_response({"ok": True, "timezone": timezone})
+
+@routes.post("/api/streak/onboarding/seen")
+async def streak_onboarding_seen(request):
+    telegram_id, _ = await _authenticate(request)
+    mark_onboarding_seen(telegram_id)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/streak/freeze/buy")
+async def streak_buy_freeze(request):
+    telegram_id, _ = await _authenticate(request)
+    result = buy_freeze(telegram_id)
+    status = 200 if result.get("ok") else 400
+    return web.json_response(result, status=status)
+
+@routes.post("/api/streak/weekly-reward")
+async def streak_weekly_reward(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    result = claim_weekly_reward(telegram_id, body.get("reward"))
+    status = 200 if result.get("ok") else 400
+    return web.json_response(result, status=status)
 
 @routes.post("/api/settings/reminder-time")
 async def set_reminder_time(request):

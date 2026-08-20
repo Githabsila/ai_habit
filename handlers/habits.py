@@ -10,7 +10,10 @@ from db import (
     get_habits,
     complete_habit,
     update_daily_task,
-    get_user
+    get_user,
+    consume_completion_event,
+    get_streak_status,
+    onboarding_message, mark_onboarding_seen,
 )
 
 from keyboards import (
@@ -60,6 +63,8 @@ async def save_habit(message: Message, state: FSMContext):
         await message.answer("❌ Название слишком короткое.")
         return
 
+    was_first_habit = len(get_habits(message.from_user.id)) == 0
+
     add_habit(
         message.from_user.id,
         title
@@ -76,6 +81,15 @@ async def save_habit(message: Message, state: FSMContext):
         parse_mode="HTML",
         reply_markup=habits_keyboard()
     )
+
+    if was_first_habit:
+        await message.answer(
+            "🔥 УДАРНЫЙ РЕЖИМ\n\n"
+            "Каждый день выполняй хотя бы одну привычку, чтобы не потерять серию. "
+            "За рубежи ты получишь уникальные рамки и статусы, которые нельзя купить.\n\n"
+            f"🤖 Адам: {onboarding_message(message.from_user.id)}"
+        )
+        mark_onboarding_seen(message.from_user.id)
 
 
 # =====================================
@@ -240,6 +254,15 @@ async def complete(callback: CallbackQuery):
         text,
         parse_mode="HTML"
     )
+
+    event = consume_completion_event(callback.from_user.id)
+    if event:
+        try:
+            await callback.message.answer(
+                f"🔥 +1 день ударного режима!\n\n{event['message']}"
+            )
+        except Exception:
+            pass
 
     await callback.answer(
         "🔥 Отличная работа!"

@@ -323,7 +323,7 @@ def get_rating(limit=10):
         SELECT telegram_id, username, first_name, xp, level, streak
         FROM users
         WHERE banned=0
-        ORDER BY xp DESC
+        ORDER BY streak DESC, xp DESC
         LIMIT ?
     """, (limit,))
 

@@ -434,5 +434,71 @@ def create_tables():
         "ON habit_logs(user_id, day)"
     )
 
+    # ---------------- УДАРНЫЙ РЕЖИМ / STREAK ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS streak_meta(
+        user_id INTEGER PRIMARY KEY,
+        timezone TEXT DEFAULT 'UTC',
+        rollover_day TEXT,
+        onboarding_seen INTEGER DEFAULT 0,
+        freeze_balance INTEGER DEFAULT 0,
+        freeze_purchased_week TEXT,
+        freeze_purchased_count INTEGER DEFAULT 0,
+        temp_frame TEXT,
+        temp_status TEXT
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS streak_days(
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        status TEXT NOT NULL,
+        streak_after INTEGER DEFAULT 0,
+        ai_message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(user_id, day)
+    )
+    """)
+    cursor.execute("PRAGMA table_info(streak_days)")
+    streak_day_columns = {row[1] for row in cursor.fetchall()}
+    if "event_delivered" not in streak_day_columns:
+        cursor.execute("ALTER TABLE streak_days ADD COLUMN event_delivered INTEGER DEFAULT 0")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS streak_rewards(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        milestone INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        frame TEXT NOT NULL,
+        permanent INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, milestone)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS streak_weekly_choices(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        week_key TEXT NOT NULL,
+        reward_type TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, week_key)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS streak_notifications(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, day, kind)
+    )
+    """)
+    # Старые пользователи не должны внезапно увидеть onboarding.
+    cursor.execute("""
+        INSERT OR IGNORE INTO streak_meta(user_id, onboarding_seen)
+        SELECT telegram_id, 1 FROM users
+    """)
     conn.commit()
     conn.close()

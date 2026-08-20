@@ -8,7 +8,7 @@
 
 <title>Project ADAM</title>
 
-<link rel="stylesheet" href="/static/style.css?v=1003">
+<link rel="stylesheet" href="/static/style.css?v=1100">
 </head>
 <body>
 
@@ -119,7 +119,20 @@ style="width:0%">
 
 </div>
 
-
+<div class="streak-widget" id="streakWidget">
+  <div class="streak-widget__top">
+    <div>
+      <div class="streak-widget__eyebrow">УДАРНЫЙ РЕЖИМ</div>
+      <div class="streak-widget__title">🔥 <span id="streakWidgetDays">0</span> дней</div>
+    </div>
+    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button">❄️ Заморозка · 200</button>
+  </div>
+  <div class="streak-days" id="streakDays"></div>
+  <div class="streak-widget__bottom">
+    <span id="freezeBalanceLabel">Заморозок: 0/2</span>
+    <span id="streakStatusLabel">Не дай огню погаснуть.</span>
+  </div>
+</div>
 
 <div class="plan-card">
 
@@ -225,6 +238,15 @@ class="btn btn--accent">
 <!-- ===================== PROFILE ===================== -->
 <section class="tab-panel" data-tab="profile" hidden>
 
+<div class="streak-profile-card" id="streakProfileCard">
+  <div class="streak-profile-avatar" id="profileAvatar">A</div>
+  <div class="streak-profile-info">
+    <div class="streak-profile-status" id="profileStreakStatus">Огонь 0 дн.</div>
+    <div class="streak-profile-frame" id="profileStreakFrame">🔥 Ударный режим</div>
+    <button class="share-achievement-btn" id="shareAchievementBtn" type="button">↗ Поделиться достижением</button>
+  </div>
+</div>
+
 <div class="section-heading">
 
 <h2>Достижения</h2>
@@ -305,20 +327,44 @@ class="btn btn--accent">
 
 
 
-<div class="impactday-overlay" id="impactDayOverlay" hidden aria-hidden="true">
-  <div class="impactday-card" role="dialog" aria-modal="true" aria-labelledby="impactDayTitle">
-    <button class="impactday-close" id="impactDayClose" type="button" aria-label="Закрыть">×</button>
-    <div class="impactday-fire">🔥</div>
-    <div class="impactday-kicker">ЕЖЕДНЕВНЫЙ ЧЕЛЛЕНДЖ</div>
-    <div class="impactday-title" id="impactDayTitle">Ударный день</div>
-    <div class="impactday-subtitle">Сегодня — ещё один день, чтобы не прервать свой прогресс.</div>
-    <div class="impactday-stats">
-      <div class="impactday-stat"><strong id="impactDayStreak">0</strong><span>дней серии</span></div>
-      <div class="impactday-stat"><strong id="impactDayProgress">0/0</strong><span>привычек сегодня</span></div>
+<div class="streak-celebration-overlay" id="streakCelebrationOverlay" hidden aria-hidden="true">
+  <div class="streak-celebration">
+    <div class="fire-orbit fire-orbit--1"></div>
+    <div class="fire-orbit fire-orbit--2"></div>
+    <div class="streak-flame" id="streakCelebrationFire">🔥</div>
+    <div class="streak-flash"></div>
+    <div class="streak-celebration__kicker">УДАРНЫЙ РЕЖИМ</div>
+    <div class="streak-celebration__title">🔥 +1 день ударного режима!</div>
+    <div class="streak-celebration__message" id="streakCelebrationMessage"></div>
+    <div class="streak-seven" id="celebrationSeven"></div>
+    <button class="streak-continue" id="streakCelebrationContinue" type="button">Продолжить</button>
+  </div>
+</div>
+
+<div class="streak-onboarding-overlay" id="streakOnboardingOverlay" hidden aria-hidden="true">
+  <div class="streak-onboarding-card">
+    <div class="streak-onboarding-fire">🔥</div>
+    <div class="streak-onboarding__eyebrow">ТВОЙ УДАРНЫЙ РЕЖИМ</div>
+    <h2>Не дай серии погаснуть</h2>
+    <p>Каждый день достаточно выполнить хотя бы одну привычку. Ты собираешь Adam Coin, открываешь уникальные рамки и статусы и показываешь свой результат в рейтинге.</p>
+    <div class="streak-onboarding__rewards">
+      <span>🪙 Коины</span><span>🔥 Серия</span><span>🏆 Рамки</span><span>👑 Статусы</span>
     </div>
-    <div class="impactday-message" id="impactDayMessage">Сделай хотя бы один шаг прямо сейчас.</div>
-    <button class="impactday-start" id="impactDayStart" type="button">Начать ударный день</button>
-    <button class="impactday-later" id="impactDayLater" type="button">Напомнить позже</button>
+    <div class="streak-onboarding__coach" id="streakOnboardingCoach"></div>
+    <button class="streak-continue" id="streakOnboardingContinue" type="button">Я в игре</button>
+  </div>
+</div>
+
+<div class="streak-weekly-overlay" id="streakWeeklyOverlay" hidden aria-hidden="true">
+  <div class="streak-weekly-card">
+    <div class="streak-onboarding-fire">🎁</div>
+    <div class="streak-onboarding__eyebrow">НЕДЕЛЯ В ОГНЕ</div>
+    <h2>Ты прошёл 7 дней без пропусков</h2>
+    <p>Выбери одну награду. Решение нельзя изменить после выбора.</p>
+    <div class="weekly-choice-grid">
+      <button data-weekly-reward="coins">🪙 200 Adam Coin</button>
+      <button data-weekly-reward="frame">🔥 Рамка на 7 дней</button>
+    </div>
   </div>
 </div>
 
@@ -339,7 +385,7 @@ class="btn btn--accent">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=1003"></script>
+<script type="module" src="/static/app.js?v=1100"></script>
 
 </body>
 </html>

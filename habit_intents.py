@@ -8,6 +8,7 @@ from db import (
     complete_habit,
     get_daily_plan,
     toggle_daily_task,
+    consume_completion_event,
 )
 
 # =====================================
@@ -171,7 +172,9 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
         if habit:
             done = complete_habit(habit["id"])
             if done:
-                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!"
+                event = consume_completion_event(user_id)
+                extra = f"\n\n🔥 +1 день ударного режима!\n{event['message']}" if event else ""
+                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!{extra}"
             return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
         if ambiguous:
             return _ambiguous_reply(ambiguous)
@@ -183,7 +186,9 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
             habit = habits[0]
             done = complete_habit(habit["id"])
             if done:
-                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!"
+                event = consume_completion_event(user_id)
+                extra = f"\n\n🔥 +1 день ударного режима!\n{event['message']}" if event else ""
+                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!{extra}"
             return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
         if len(habits) > 1:
             return "🤔 У тебя несколько привычек — уточни, какую из них: напиши «выполни привычку <название>»."

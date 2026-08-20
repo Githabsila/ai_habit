@@ -106,106 +106,219 @@
     renderRating();
     renderCalendar();
     renderPlan();
-    scheduleImpactDayPopup();
+    renderStreak();
+    maybeShowStreakOnboarding();
+    maybeShowWeeklyBonus();
   }
 
-  // ===================== ЕЖЕДНЕВНЫЙ «УДАРНЫЙ ДЕНЬ» =====================
-  // Показываем специальное окно один раз в день на пользователя.
-  // Дата хранится локально, поэтому повторные открытия Mini App в тот же день
-  // не раздражают пользователя. На следующий календарный день окно появляется снова.
-  let impactDayTimer = null;
+  // ===================== УДАРНЫЙ РЕЖИМ =====================
+  let streakCelebrationTimer = null;
 
-  function impactDayStorageKey() {
-    const userId = state?.user?.telegram_id || "guest";
-    return `adam_impact_day_seen_${userId}`;
-  }
+  function renderStreak() {
+    const streak = state?.streak;
+    if (!streak) return;
+    const daysEl = document.getElementById("streakWidgetDays");
+    if (daysEl) daysEl.textContent = streak.days || 0;
 
-  function getLocalDayKey() {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
-
-  function openImpactDayPopup() {
-    const overlay = document.getElementById("impactDayOverlay");
-    if (!overlay || !state?.user) return;
-
-    const habits = state.habits || [];
-    const done = habits.filter(h => h.completed).length;
-    const streak = Number(state.user.streak || 0);
-    const streakEl = document.getElementById("impactDayStreak");
-    const progressEl = document.getElementById("impactDayProgress");
-    const messageEl = document.getElementById("impactDayMessage");
-
-    if (streakEl) streakEl.textContent = streak;
-    if (progressEl) progressEl.textContent = `${done}/${habits.length}`;
-    if (messageEl) {
-      if (habits.length === 0) {
-        messageEl.textContent = "Добавь первую привычку и сделай сегодняшний день первым в своей серии.";
-      } else if (done === habits.length) {
-        messageEl.textContent = "Все привычки уже закрыты. Отличное начало — продолжай в том же духе!";
-      } else if (streak > 0) {
-        messageEl.textContent = `Твоя серия — ${streak} дн. Не дай ей прерваться сегодня.`;
-      } else {
-        messageEl.textContent = "Начни с одного простого действия — именно так появляется новая серия.";
-      }
+    const days = document.getElementById("streakDays");
+    if (days) {
+      days.innerHTML = (streak.last7 || []).map((d) => {
+        const cls = d.status === "completed" ? "is-done" :
+          d.status === "freeze" ? "is-freeze" :
+          d.status === "missed" ? "is-missed" : "is-empty";
+        const icon = d.status === "completed" ? "🔥" :
+          d.status === "freeze" ? "❄️" :
+          d.status === "missed" ? "·" : "○";
+        return `<button class="streak-day ${cls}" type="button" title="${escapeHtml(d.day)}: ${escapeHtml(d.status)}">
+          <span>${icon}</span><small>${d.label}</small>${d.bonus ? '<b>🎁</b>' : ''}
+        </button>`;
+      }).join("");
     }
 
+    const balance = document.getElementById("freezeBalanceLabel");
+    if (balance) balance.textContent = `Заморозок: ${streak.freeze_balance || 0}/2`;
+    const buy = document.getElementById("freezeBuyBtn");
+    if (buy) buy.disabled = (streak.freeze_balance || 0) >= 2 || (streak.freeze_purchased_count || 0) >= 2;
+
+    const status = document.getElementById("streakStatusLabel");
+    if (status) {
+      status.textContent = streak.days > 0
+        ? `Огонь горит. Не дай ему погаснуть.`
+        : `Серия сброшена. Сегодня можно начать заново.`;
+    }
+
+    const profileStatus = document.getElementById("profileStreakStatus");
+    const profileFrame = document.getElementById("profileStreakFrame");
+    if (profileStatus) profileStatus.textContent = streak.temp_status || (streak.days ? `Огонь ${streak.days} дн.` : "Серия не начата");
+    if (profileFrame) {
+      const reward = (streak.rewards || [])[0];
+      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : (streak.days ? "🔥 Текущая рамка серии" : "🔥 Ударный режим");
+      profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
+    }
+  }
+
+  function openStreakCelebration(event) {
+    const overlay = document.getElementById("streakCelebrationOverlay");
+    const message = document.getElementById("streakCelebrationMessage");
+    const seven = document.getElementById("celebrationSeven");
+    if (!overlay || !event) return;
+    if (message) {
+      const reward = (state.streak?.rewards || []).find(r => Number(r.milestone) === Number(event.streak));
+      message.textContent = reward
+        ? `🏆 ${reward.status} — открыта рамка «${reward.frame}». ${event.message || ""}`
+        : (event.message || "День закрыт. Продолжай.");
+    }
+    if (seven) {
+      seven.innerHTML = (state.streak?.last7 || []).map(d => {
+        const cls = d.status === "completed" ? "is-done" : d.status === "freeze" ? "is-freeze" : "is-empty";
+        return `<span class="streak-seven__day ${cls}">${d.status === "completed" ? "🔥" : d.status === "freeze" ? "❄️" : "○"}</span>`;
+      }).join("");
+    }
     overlay.hidden = false;
     overlay.setAttribute("aria-hidden", "false");
     requestAnimationFrame(() => overlay.classList.add("show"));
     haptic("medium");
+    try {
+      if (navigator.vibrate) navigator.vibrate([35, 25, 55]);
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) {
+        const ctx = new Ctx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(520, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(820, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.2);
+        osc.onended = () => ctx.close();
+      }
+    } catch (_) {}
+    const fire = document.getElementById("streakCelebrationFire");
+    fire?.classList.remove("ignite");
+    requestAnimationFrame(() => fire?.classList.add("ignite"));
+    clearTimeout(streakCelebrationTimer);
+    streakCelebrationTimer = setTimeout(closeStreakCelebration, 4200);
   }
 
-  function closeImpactDayPopup() {
-    const overlay = document.getElementById("impactDayOverlay");
+  function closeStreakCelebration() {
+    const overlay = document.getElementById("streakCelebrationOverlay");
     if (!overlay) return;
     overlay.classList.remove("show");
     overlay.setAttribute("aria-hidden", "true");
-    clearTimeout(impactDayTimer);
-    impactDayTimer = setTimeout(() => { overlay.hidden = true; }, 250);
+    clearTimeout(streakCelebrationTimer);
+    setTimeout(() => { overlay.hidden = true; }, 350);
   }
 
-  function markImpactDaySeen() {
-    try { localStorage.setItem(impactDayStorageKey(), getLocalDayKey()); } catch (e) {}
-  }
-
-  function scheduleImpactDayPopup() {
-    if (!state?.user) return;
-    const today = getLocalDayKey();
-    let seen = null;
-    try { seen = localStorage.getItem(impactDayStorageKey()); } catch (e) {}
-    if (seen === today) return;
-
-    // Небольшая задержка после загрузки, чтобы пользователь успел увидеть главный экран.
-    clearTimeout(impactDayTimer);
-    impactDayTimer = setTimeout(() => {
-      openImpactDayPopup();
-      markImpactDaySeen();
-    }, 650);
-  }
-
-  function initImpactDayPopup() {
-    const overlay = document.getElementById("impactDayOverlay");
+  function maybeShowStreakOnboarding() {
+    const data = state?.streak_onboarding;
+    if (!data?.show || !data.message) return;
+    const overlay = document.getElementById("streakOnboardingOverlay");
+    const coach = document.getElementById("streakOnboardingCoach");
     if (!overlay) return;
+    if (coach) coach.textContent = `🤖 Адам: ${data.message}`;
+    overlay.hidden = false;
+    overlay.classList.add("show");
+  }
 
-    const close = () => closeImpactDayPopup();
-    document.getElementById("impactDayClose")?.addEventListener("click", close);
-    document.getElementById("impactDayLater")?.addEventListener("click", close);
-    document.getElementById("impactDayStart")?.addEventListener("click", () => {
-      haptic("light");
-      closeImpactDayPopup();
-      document.querySelector('[data-tab="home"]')?.scrollIntoView({ behavior: "smooth", block: "start" });
-      document.querySelector('[data-tab="home"]')?.classList.add("impactday-highlight");
-      setTimeout(() => document.querySelector('[data-tab="home"]')?.classList.remove("impactday-highlight"), 900);
+  function closeStreakOnboarding() {
+    const overlay = document.getElementById("streakOnboardingOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("show");
+    setTimeout(() => { overlay.hidden = true; }, 300);
+    api("/api/streak/onboarding/seen", {method: "POST"}).catch(() => {});
+  }
+
+  async function maybeShowWeeklyBonus() {
+    // Воскресный бонус приходит из bootstrap через streak state; если он доступен,
+    // открываем выбор только один раз за текущую загрузку.
+    if (!state?.streak) return;
+    const now = new Date();
+    if (now.getDay() !== 0) return;
+    const overlay = document.getElementById("streakWeeklyOverlay");
+    if (!overlay) return;
+    try {
+      const available = await api("/api/streak/status");
+      if (!available?.weekly_bonus_available) return;
+    } catch (_) {
+      return;
+    }
+    overlay.hidden = false;
+    overlay.classList.add("show");
+  }
+
+  function initStreakUI() {
+    document.addEventListener("click", (e) => {
+      const day = e.target.closest(".streak-day");
+      if (!day) return;
+      showToast(day.getAttribute("title") || "День серии", "success", 1800);
     });
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) close();
+    document.getElementById("streakCelebrationContinue")?.addEventListener("click", closeStreakCelebration);
+    document.getElementById("streakOnboardingContinue")?.addEventListener("click", closeStreakOnboarding);
+    document.getElementById("shareAchievementBtn")?.addEventListener("click", async () => {
+      const days = Number(state?.streak?.days || 0);
+      const status = state?.streak?.temp_status || "Ударный режим";
+      const text = `🔥 Я держу ударный режим ADAM уже ${days} дней. ${status}`;
+      try {
+        if (navigator.share) {
+          await navigator.share({title: "Моё достижение ADAM", text});
+        } else if (navigator.clipboard) {
+          await navigator.clipboard.writeText(text);
+          showToast("Текст достижения скопирован", "success");
+        } else {
+          showToast(text, "success", 3500);
+        }
+      } catch (_) {}
     });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !overlay.hidden) close();
+    document.getElementById("freezeBuyBtn")?.addEventListener("click", async () => {
+      try {
+        const res = await api("/api/streak/freeze/buy", {method: "POST"});
+        haptic("light");
+        showToast("❄️ Заморозка куплена", "success");
+        await loadBootstrap();
+      } catch (e) {
+        const map = {
+          weekly_limit: "Лимит 2 заморозки на неделю уже достигнут",
+          max_balance: "У тебя уже максимум 2 заморозки",
+          not_enough_coins: "Нужно 200 Adam Coin",
+        };
+        showToast(map[e?.data?.error] || friendlyError(e), "error");
+      }
+    });
+    document.querySelectorAll("[data-weekly-reward]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        try {
+          await api("/api/streak/weekly-reward", {
+            method: "POST",
+            body: JSON.stringify({reward: btn.dataset.weeklyReward})
+          });
+          const overlay = document.getElementById("streakWeeklyOverlay");
+          overlay.classList.remove("show");
+          setTimeout(() => overlay.hidden = true, 300);
+          await loadBootstrap();
+        } catch (e) {
+          showToast("Награда пока недоступна", "error");
+        }
+      });
+    });
+  }
+
+  async function syncTimezone() {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      await api("/api/streak/timezone", {
+        method: "POST",
+        body: JSON.stringify({timezone: tz})
+      });
+    } catch (_) {}
+  }
+
+  function initStreakPopupClick() {
+    document.addEventListener("click", (e) => {
+      const overlay = document.getElementById("streakCelebrationOverlay");
+      if (overlay && e.target === overlay) closeStreakCelebration();
     });
   }
 
@@ -384,10 +497,15 @@
       const rank = i + 1;
       const isMe = r.telegram_id === myId;
       const name = r.first_name || r.username || "Игрок";
+      const ss = r.streak_status || {};
+      const reward = (ss.rewards || [])[0];
+      const frame = ss.temp_frame || "none";
+      const status = ss.temp_status || (reward ? reward.status : "");
       return `
         <li class="rating-item ${isMe ? "is-me" : ""} rank-${rank}">
           <span class="rating-item__rank">${rank}</span>
-          <span class="rating-item__name">${escapeHtml(name)}${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? " (ты)" : ""}</span>
+          <span class="rating-avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</span>
+          <span class="rating-item__name">${escapeHtml(name)}${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? " (ты)" : ""}${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}</span>
           <span class="rating-item__meta">
     <span class="rating-stat">
         <span class="material-symbols-rounded stat-icon">local_fire_department</span>
@@ -468,10 +586,13 @@ function initHabitActions() {
     try {
       if (action === "complete") {
         btn.disabled = true;
-        await api(`/api/habits/${habitId}/complete`, { method: "POST" });
+        const result = await api(`/api/habits/${habitId}/complete`, { method: "POST" });
         haptic("medium");
         await loadBootstrap();
         showToast("+10 Adam Coin", "success");
+        if (result.streak_event) {
+          openStreakCelebration(result.streak_event);
+        }
       } else if (action === "delete") {
         if (!confirm("Удалить эту привычку?")) return;
         await api(`/api/habits/${habitId}`, { method: "DELETE" });
@@ -492,10 +613,13 @@ function initHabitActions() {
       return;
     }
     try {
-      await api("/api/habits", { method: "POST", body: JSON.stringify({ title }) });
+      const result = await api("/api/habits", { method: "POST", body: JSON.stringify({ title }) });
       input.value = "";
       haptic("light");
       await loadBootstrap();
+      if (result.first_habit) {
+        maybeShowStreakOnboarding();
+      }
     } catch (err) {
       showToast(friendlyError(err), "error");
     }
@@ -835,8 +959,10 @@ async function boot() {
         initPlanActions();
         initShopActions();
         initThemeActions();
-        initImpactDayPopup();
+        initStreakUI();
+        initStreakPopupClick();
         await loadBootstrap();
+        await syncTimezone();
     } catch (err) {
         console.error("boot() failed:", err);
         showToast(friendlyError(err) || "Не удалось загрузить данные", "error");
