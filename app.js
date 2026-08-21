@@ -239,11 +239,15 @@
     const packs = items.filter(it => it.item_type === "answer_pack");
     const cosmetics = items.filter(it => ["premium", "avatar", "frame", "theme", "badge"].includes(it.item_type));
 
-    const section = (title, subtitle, arr) => `
-      <li class="shop-section-title">
-        <strong>${title}</strong>
-        <span>${subtitle}</span>
+    const section = (title, subtitle, arr, extraClass = "") => `
+      <li class="shop-section-title ${extraClass}">
+        <div class="shop-section-title__main">
+          <strong>${title}</strong>
+          <span>${subtitle}</span>
+        </div>
+        ${arr.length ? `<span class="shop-section-title__count">${arr.length}</span>` : ""}
       </li>
+      <li class="shop-grid ${extraClass}">
       ${arr.map(it => {
         const canAfford = state.user.xp >= it.price;
         const isCosmetic = it.item_type === "avatar" || it.item_type === "frame";
@@ -280,15 +284,32 @@
             </div>
             <button class="${btnClass}" data-action="${action}" ${disabled}>${btnLabel}</button>
           </li>`;
-      }).join('')}`;
+      }).join('')}
+      </li>`;
+
+    const modeTitle = quota.pro ? "ADAM PRO" : "ADAM Standard";
+    const modeSubtitle = quota.pro
+      ? "Расширенный режим активен"
+      : "Твой персональный режим ADAM";
+    const modeClass = quota.pro ? "is-pro" : "is-standard";
 
     list.innerHTML = `
-      <li class="shop-quota-card">
-        <div><span class="shop-quota-card__title">💬 Ответы ADAM</span><span class="shop-quota-card__sub">${quota.pro ? 'ADAM PRO' : 'Обычный ADAM'}</span></div>
-        <strong>${quota.remaining}</strong><span>осталось сегодня</span>
+      <li class="shop-quota-card ${modeClass}">
+        <div class="shop-quota-card__icon">
+          <span class="material-symbols-rounded">smart_toy</span>
+        </div>
+        <div class="shop-quota-card__identity">
+          <div class="shop-quota-card__eyebrow">ТВОЙ ADAM</div>
+          <div class="shop-quota-card__title">${modeTitle}</div>
+          <div class="shop-quota-card__sub">${modeSubtitle}</div>
+        </div>
+        <div class="shop-quota-card__quota">
+          <strong>${quota.remaining}</strong>
+          <span>ответов сегодня</span>
+        </div>
       </li>
-      ${section('💬 Ответы ADAM', 'Покупай дополнительные ответы здесь', packs)}
-      ${section('✨ PRO и персонализация', 'Доступ, аватарки и рамки', cosmetics)}
+      ${section('💬 Ответы ADAM', 'Пополни лимит, если хочешь больше ответов сегодня', packs, 'shop-section--packs')}
+      ${section('✨ PRO и персонализация', 'Открывай новые возможности и меняй стиль ADAM', cosmetics, 'shop-section--cosmetics')}
     `;
   }
 

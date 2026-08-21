@@ -593,46 +593,240 @@ opacity:.35;
   padding: 0;
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+
+/* Текущий режим ADAM */
+.shop-quota-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(240,180,41,.14), transparent 42%),
+    linear-gradient(145deg, rgba(36,34,48,.98), rgba(20,20,32,.98));
+  border: 1px solid rgba(240,180,41,.18);
+  box-shadow: 0 14px 34px rgba(0,0,0,.22);
+}
+
+.shop-quota-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: .8;
+}
+
+.shop-quota-card.is-pro {
+  border-color: rgba(139,92,246,.34);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(139,92,246,.18), transparent 42%),
+    linear-gradient(145deg, rgba(36,34,48,.98), rgba(20,20,32,.98));
+}
+
+.shop-quota-card.is-pro::after {
+  background: linear-gradient(90deg, transparent, #8B5CF6, transparent);
+}
+
+.shop-quota-card__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(240,180,41,.11);
+  border: 1px solid rgba(240,180,41,.22);
+  color: var(--gold);
+}
+
+.shop-quota-card.is-pro .shop-quota-card__icon {
+  background: rgba(139,92,246,.13);
+  border-color: rgba(139,92,246,.3);
+  color: #A78BFA;
+}
+
+.shop-quota-card__icon .material-symbols-rounded {
+  font-size: 25px;
+}
+
+.shop-quota-card__identity {
+  min-width: 0;
+}
+
+.shop-quota-card__eyebrow {
+  font-size: 9px;
+  letter-spacing: .14em;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.shop-quota-card__title {
+  font-size: 16px;
+  line-height: 1.15;
+  font-weight: 750;
+}
+
+.shop-quota-card__sub {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.shop-quota-card__quota {
+  min-width: 72px;
+  text-align: right;
+  padding-left: 8px;
+}
+
+.shop-quota-card__quota strong {
+  display: block;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 23px;
+  line-height: 1;
+  color: var(--gold);
+}
+
+.shop-quota-card.is-pro .shop-quota-card__quota strong {
+  color: #A78BFA;
+}
+
+.shop-quota-card__quota span {
+  display: block;
+  margin-top: 5px;
+  font-size: 9px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Заголовок категории */
+.shop-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 2px 2px 0;
+}
+
+.shop-section-title__main {
+  min-width: 0;
+}
+
+.shop-section-title strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.shop-section-title span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.shop-section-title__count {
+  flex-shrink: 0;
+  margin: 0 !important;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  font-size: 10px !important;
+  color: var(--text-muted);
+}
+
+/* Лоты с ответами — теперь рядом */
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  margin: -3px 0 2px;
+  padding: 0;
+  list-style: none;
 }
 
 .shop-item {
+  position: relative;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 11px;
+  background: linear-gradient(145deg, rgba(32,32,48,.98), rgba(23,23,36,.98));
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 20px;
   padding: 14px;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
 }
 
-.shop-item__body { flex: 1; min-width: 0; }
+.shop-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(240,180,41,.28);
+  box-shadow: 0 12px 28px rgba(0,0,0,.22);
+}
+
+.shop-item__body {
+  min-width: 0;
+  flex: 1;
+}
 
 .shop-item__name {
-  font-weight: 600;
-  font-size: 15px;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.25;
 }
 
 .shop-item__desc {
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.4;
   color: var(--text-muted);
-  margin-top: 2px;
+  margin-top: 5px;
+}
+
+.shop-item__meta {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  margin-top: 7px;
 }
 
 .shop-item__price {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: var(--gold);
-  margin-top: 6px;
-  font-weight: 600;
+  margin-top: 8px;
+  font-weight: 700;
 }
 
 .buy-btn {
+  width: 100%;
   flex-shrink: 0;
-  padding: 9px 14px;
-  font-size: 13px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 13px;
+  font-size: 12px;
+  font-weight: 700;
   background: var(--gold-soft);
   color: var(--gold);
   border: 1px solid rgba(240,180,41,0.4);
+  transition: transform .15s ease, background .15s ease;
+}
+
+.buy-btn:not(:disabled):active {
+  transform: scale(.97);
 }
 
 .buy-btn:disabled {
@@ -645,6 +839,47 @@ opacity:.35;
   background: rgba(74,222,128,0.12);
   color: var(--success);
   border-color: rgba(74,222,128,0.35);
+}
+
+/* Косметика может быть компактной сеткой так же */
+.shop-section--cosmetics + .shop-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 420px) {
+  .shop-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .shop-item {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .shop-item__name {
+    font-size: 13px;
+  }
+
+  .shop-item__desc {
+    font-size: 10px;
+  }
+
+  .shop-quota-card {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .shop-quota-card__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  .shop-quota-card__quota strong {
+    font-size: 21px;
+  }
 }
 
 /* ===================== ACHIEVEMENTS ===================== */
