@@ -870,6 +870,12 @@ INTENT_CLASSIFY_SYSTEM = (
     '{"action": "delete_habit", "habit": "<точное название привычки из списка ниже>"}\n'
     '{"action": "add_habit", "title": "<короткое новое название, 2-5 слов>"}\n'
     '{"action": "complete_task", "task_number": <номер задачи из списка задач ниже>}\n'
+    '{"action": "add_task", "title": "<текст новой задачи плана дня>"}\n'
+    '{"action": "edit_task", "task_number": <номер задачи из списка задач ниже>, "title": "<новый текст>"}\n'
+    '{"action": "delete_task", "task_number": <номер задачи из списка задач ниже>}\n'
+    '{"action": "set_main_goal", "title": "<текст главной задачи дня>"}\n'
+    '{"action": "delete_main_goal"}\n'
+    '{"action": "complete_main_goal"}\n'
     '{"action": "none"}\n\n'
     "Правила:\n"
     "— Для complete_habit и delete_habit поле \"habit\" ДОЛЖНО дословно "
@@ -884,6 +890,16 @@ INTENT_CLASSIFY_SYSTEM = (
     "— add_habit — когда явно просит завести/добавить новую привычку.\n"
     "— complete_task — когда говорит, что выполнил конкретную задачу из "
     "плана на сегодня (номер задачи бери из списка).\n"
+    "— add_task — когда явно просит добавить новую задачу в план дня.\n"
+    "— edit_task — когда явно просит изменить задачу плана; используй её номер.\n"
+    "— delete_task — когда явно просит удалить задачу плана; используй её номер.\n"
+    "— set_main_goal — когда явно просит поставить/добавить/изменить "
+    "главную задачу или цель дня. Фразы «главная привычка дня» и "
+    "«главная задача дня» считаются одним и тем же объектом. Поле title "
+    "должно содержать только текст новой главной задачи.\n"
+    "— delete_main_goal — когда просит удалить главную задачу/цель дня.\n"
+    "— complete_main_goal — когда говорит, что сделал/выполнил главную "
+    "задачу/цель дня или просит отметить её выполненной.\n"
     "— Если сообщение — это просто вопрос, просьба совета или обсуждение "
     "(например 'как лучше выстроить привычку бегать?', 'посоветуй что-то "
     "по productивности') — ВСЕГДА верни {\"action\": \"none\"}, даже если там "
@@ -891,7 +907,12 @@ INTENT_CLASSIFY_SYSTEM = (
 )
 
 
-async def classify_habit_action(message: str, habits: list[str], plan_tasks: list[str]) -> dict:
+async def classify_habit_action(
+    message: str,
+    habits: list[str],
+    plan_tasks: list[str],
+    main_goal: str = "",
+) -> dict:
     """Возвращает dict с ключом "action" (см. INTENT_CLASSIFY_SYSTEM) — резерв
     на случай, если жёсткие regex-шаблоны в habit_intents.py не распознали
     команду. При любой ошибке/неуверенности возвращает {"action": "none"},
@@ -903,8 +924,10 @@ async def classify_habit_action(message: str, habits: list[str], plan_tasks: lis
         "\n".join(f"{i}. {t}" for i, t in enumerate(plan_tasks, start=1))
         if plan_tasks else "(задач нет)"
     )
+    main_goal_block = main_goal if main_goal else "(главная задача не задана)"
     user = (
         f"Привычки пользователя:\n{habits_block}\n\n"
+        f"Главная задача/цель дня:\n{main_goal_block}\n\n"
         f"Задачи плана на сегодня:\n{tasks_block}\n\n"
         f"Сообщение пользователя: {message}"
     )
@@ -915,7 +938,9 @@ async def classify_habit_action(message: str, habits: list[str], plan_tasks: lis
             cleaned = cleaned[4:].strip()
         data = json.loads(cleaned)
         if isinstance(data, dict) and data.get("action") in (
-            "complete_habit", "delete_habit", "add_habit", "complete_task", "none"
+            "complete_habit", "delete_habit", "add_habit", "complete_task",
+            "add_task", "edit_task", "delete_task",
+            "set_main_goal", "delete_main_goal", "complete_main_goal", "none"
         ):
             return data
     except Exception as e:
