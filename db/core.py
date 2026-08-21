@@ -104,6 +104,11 @@ def create_tables():
     # считается уровень. В отличие от xp (тратимая валюта "Adam Coin",
     # уменьшается при покупках в магазине) total_xp никогда не уменьшается,
     # поэтому уровень больше не может "упасть" из-за покупки в магазине.
+    if "avatar_id" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN avatar_id TEXT DEFAULT 'default'")
+    if "frame_id" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN frame_id TEXT DEFAULT 'default'")
+
     if "total_xp" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN total_xp INTEGER DEFAULT 0")
         # Бэкфилл для уже существующих пользователей: считаем весь текущий
@@ -162,6 +167,10 @@ def create_tables():
         cursor.execute("UPDATE habits SET assigned_at = created_at WHERE assigned_at IS NULL")
     if "reminder_sent" not in habits_columns:
         cursor.execute("ALTER TABLE habits ADD COLUMN reminder_sent INTEGER DEFAULT 0")
+    if "planned_time" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN planned_time TEXT")
+    if "time_window_minutes" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN time_window_minutes INTEGER DEFAULT 60")
 
     # ---------------- ПЛАН ДНЯ (Mini App) ----------------
     # main_goal — общая цель дня, tasks — до 5 отдельных задач (например
@@ -208,6 +217,15 @@ def create_tables():
     )
     """)
 
+    cursor.execute("PRAGMA table_info(shop_items)")
+    shop_columns = {row[1] for row in cursor.fetchall()}
+    if "item_type" not in shop_columns:
+        cursor.execute("ALTER TABLE shop_items ADD COLUMN item_type TEXT DEFAULT 'cosmetic'")
+    if "payload" not in shop_columns:
+        cursor.execute("ALTER TABLE shop_items ADD COLUMN payload TEXT DEFAULT ''")
+    if "repeatable" not in shop_columns:
+        cursor.execute("ALTER TABLE shop_items ADD COLUMN repeatable INTEGER DEFAULT 0")
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS user_items(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -236,7 +254,31 @@ def create_tables():
             (1, "👑 Premium", "Премиум-доступ на 7 дней", 1000),
             (2, "🎨 Тема оформления", "Кастомная тема профиля", 100),
             (3, "🏅 Особый значок", "Значок в профиле", 150),
+            (4, "🧑‍🚀 Аватар: ADAM", "Аватар профиля", 250),
+            (5, "🪐 Рамка: Neon", "Рамка аватара", 200),
+            (6, "✨ Рамка: Gold", "Рамка аватара", 350),
+            (20, "💬 +5 ответов ADAM", "Пять дополнительных ответов AI", 100),
+            (21, "💬 +20 ответов ADAM", "Двадцать дополнительных ответов AI", 300),
         ])
+
+    # ---------------- AI QUOTA ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ai_quota(
+        user_id INTEGER PRIMARY KEY,
+        day TEXT NOT NULL,
+        used INTEGER DEFAULT 0,
+        bonus_answers INTEGER DEFAULT 0
+    )
+    """)
+
+    cursor.execute("UPDATE shop_items SET item_type='premium' WHERE id=1")
+    cursor.execute("UPDATE shop_items SET item_type='theme' WHERE id=2")
+    cursor.execute("UPDATE shop_items SET item_type='badge' WHERE id=3")
+    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (4,'🧑‍🚀 Аватар: ADAM','Аватар профиля',250,'avatar','adam',0)")
+    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (5,'🪐 Рамка: Neon','Рамка аватара',200,'frame','neon',0)")
+    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (6,'✨ Рамка: Gold','Рамка аватара',350,'frame','gold',0)")
+    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (20,'💬 +5 ответов ADAM','Пять дополнительных ответов AI',100,'answer_pack','5',1)")
+    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (21,'💬 +20 ответов ADAM','Двадцать дополнительных ответов AI',300,'answer_pack','20',1)")
 
     # ---------------- DAILY TASKS ----------------
     cursor.execute("""

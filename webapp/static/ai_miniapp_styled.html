@@ -106,6 +106,7 @@ window.onerror = function(msg, url, line, col, error) {
         box-shadow: 0 8px 20px rgba(124,92,252,.4), inset 0 1px 0 rgba(255,255,255,.15);
     }
 
+    .quota-badge{font-size:11px;color:var(--gold);margin-top:3px}
     .header-status {
         display: flex;
         align-items: center;
@@ -472,11 +473,15 @@ window.onerror = function(msg, url, line, col, error) {
             const [input, setInput] = useState('');
             const [loading, setLoading] = useState(false);
             const [throttle, setThrottle] = useState(null);
+            const [quota, setQuota] = useState(null);
             const messagesEnd = useRef(null);
 
             const scroll = () => { messagesEnd.current?.scrollIntoView({ behavior: 'smooth' }); };
             useEffect(scroll, [messages]);
             useEffect(() => { saveStoredMessages(messages); }, [messages]);
+            useEffect(() => {
+                fetch('/api/ai/quota', {headers:{'X-Telegram-Init-Data':tg.initData}}).then(r=>r.json()).then(setQuota).catch(()=>{});
+            }, []);
 
             const sendMsg = useCallback(async () => {
                 if (!input.trim() || loading || throttle) return;
@@ -505,6 +510,7 @@ window.onerror = function(msg, url, line, col, error) {
                     const data = await res.json();
 
                     if (!res.ok) {
+                        if (data.quota) setQuota(data.quota);
                         if (res.status === 429) {
                             setThrottle(data.wait_seconds);
                             setTimeout(() => setThrottle(null), data.wait_seconds * 1000);
@@ -518,6 +524,7 @@ window.onerror = function(msg, url, line, col, error) {
                         return;
                     }
 
+                    if (data.quota) setQuota(data.quota);
                     setMessages(p => [...p, {
                         id: data.message_id,
                         role: 'assistant',
@@ -603,6 +610,7 @@ window.onerror = function(msg, url, line, col, error) {
                                     <div className="status-dot"></div>
                                     онлайн
                                 </div>
+                                {quota && <div className="quota-badge">{quota.pro ? 'ADAM PRO' : 'ADAM'} · {quota.remaining} ответов</div>}
                             </div>
                         </div>
                         <div className="header-buttons">

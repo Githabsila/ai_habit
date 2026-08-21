@@ -12,13 +12,13 @@ from .achievements import check_achievements
 # ПРИВЫЧКИ
 # =====================================
 
-def add_habit(user_id, title):
+def add_habit(user_id, title, planned_time=None, time_window_minutes=60):
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO habits(user_id, title, assigned_at, reminder_sent)
-        VALUES (?, ?, CURRENT_TIMESTAMP, 0)
-    """, (user_id, title))
+        INSERT INTO habits(user_id, title, assigned_at, reminder_sent, planned_time, time_window_minutes)
+        VALUES (?, ?, CURRENT_TIMESTAMP, 0, ?, ?)
+    """, (user_id, title, planned_time, int(time_window_minutes or 60)))
     conn.commit()
     conn.close()
 
@@ -41,10 +41,10 @@ def get_habit(habit_id):
     return habit
 
 
-def edit_habit(habit_id, new_title):
+def edit_habit(habit_id, new_title, planned_time=None, time_window_minutes=None):
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute("UPDATE habits SET title=? WHERE id=?", (new_title, habit_id))
+    cursor.execute("UPDATE habits SET title=?, planned_time=COALESCE(?, planned_time), time_window_minutes=COALESCE(?, time_window_minutes), reminder_sent=0 WHERE id=?", (new_title, planned_time, time_window_minutes, habit_id))
     conn.commit()
     conn.close()
 

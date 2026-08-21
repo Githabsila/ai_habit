@@ -115,6 +115,7 @@ from .shop import (
     get_user_items,
     has_item,
     get_item_owner_ids,
+    get_shop_item, set_cosmetic, add_ai_bonus_answers, get_ai_quota, consume_ai_answer,
 )
 
 from .onboarding import (

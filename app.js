@@ -177,10 +177,18 @@
     toastTimer = setTimeout(() => { el.classList.remove("is-visible"); }, 2200);
   }
 
+  function cosmeticEmoji(id) {
+    return id === "adam" ? "🤖" : "A";
+  }
+
   // ===================== RENDER: PLAYER CARD =====================
   function renderPlayerCard() {
     const u = state.user;
     document.getElementById("playerName").textContent = u.first_name || "Игрок";
+    const avatar = document.getElementById("adamAvatar");
+    const avatarWrap = document.getElementById("adamAvatarWrap");
+    if (avatar) avatar.textContent = cosmeticEmoji(u.avatar_id);
+    if (avatarWrap) avatarWrap.dataset.frame = u.frame_id || "default";
     document.getElementById("levelNumber").textContent = u.level;
     document.getElementById("streakValue").textContent = u.streak;
     document.getElementById("coinValue").textContent = u.xp;
@@ -212,7 +220,7 @@
     list.innerHTML = habits.map(h => `
       <li class="habit-item ${h.completed ? "is-done" : ""}" data-id="${h.id}">
         <button class="habit-item__check" data-action="complete" ${h.completed ? "disabled" : ""}>${h.completed ? "✓" : ""}</button>
-        <span class="habit-item__title">${escapeHtml(h.title)}</span>
+        <span class="habit-item__title">${escapeHtml(h.title)}${h.planned_time ? `<small class="habit-item__time">⏰ ${escapeHtml(h.planned_time)}</small>` : ""}</span>
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
       </li>
     `).join("");

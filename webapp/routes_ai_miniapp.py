@@ -31,6 +31,7 @@ from db import (
     log_error,
     get_last_ai_message_at,
     touch_last_ai_message,
+    has_premium, get_ai_quota, consume_ai_answer,
 )
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
 from datetime import datetime
@@ -149,6 +150,8 @@ async def ai_chat_miniapp(request):
 
     user_id = tg_user["id"]
 
+    pro = has_premium(user_id)
+
     # Проверка троттлинга
     wait = _is_throttled(user_id)
     if wait is not None:
@@ -179,7 +182,22 @@ async def ai_chat_miniapp(request):
             "is_crisis": False,
             "suggested_habit": None,
             "message_id": message_id,
+            "quota": get_ai_quota(user_id, pro),
         })
+
+    # Обычные свободные ответы расходуют дневной лимит; управление привычками/планом — нет.
+    quota = get_ai_quota(user_id, pro)
+    if quota["remaining"] <= 0:
+        return web.json_response({
+            "error":"ai_quota_exceeded",
+            "message": "💬 Лимит ответов ADAM на сегодня исчерпан. Купи дополнительные ответы или активируй ADAM PRO.",
+            "quota": quota,
+        }, status=402)
+
+    # Списываем один ответ только для обычного AI-пайплайна.
+    if not consume_ai_answer(user_id, pro):
+        quota = get_ai_quota(user_id, pro)
+        return web.json_response({"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}, status=402)
 
     # Собирем контекст
     history_text = build_history_text(user_id)
@@ -235,6 +253,7 @@ async def ai_chat_miniapp(request):
         "is_crisis": is_crisis,
         "suggested_habit": suggested_habit,
         "message_id": message_id,
+        "quota": get_ai_quota(user_id, pro),
     })
 
 
@@ -409,3 +428,15 @@ async def ai_add_habit_miniapp(request):
     except Exception:
         logger.exception(f"Ошибка при добавлении привычки для {user_id}")
         return web.json_response({"error": "internal_error"}, status=500)
+
+
+@routes.get("/api/ai/quota")
+async def ai_quota_endpoint(request):
+    from webapp.telegram_auth import validate_init_data
+    from config import BOT_TOKEN
+    init_data = request.headers.get("X-Telegram-Init-Data", "")
+    tg_user = validate_init_data(init_data, BOT_TOKEN)
+    if tg_user is None:
+        return web.json_response({"error":"unauthorized"}, status=401)
+    pro=has_premium(tg_user["id"])
+    return web.json_response(get_ai_quota(tg_user["id"], pro))

@@ -17,7 +17,7 @@ from db import (
     update_reminder_time, update_ai_style, get_ai_style,
     update_theme, get_theme,
     get_shop_items, buy_shop_item, get_user_items,
-    has_item, get_item_owner_ids,
+    has_item, get_item_owner_ids, get_shop_item, set_cosmetic,
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
     get_daily_plan, save_daily_plan, toggle_daily_task,
@@ -115,10 +115,13 @@ async def bootstrap(request):
             "level": user["level"] if user else 1,
             "streak": user["streak"] if user else 0,
             "premium": bool(user["premium"]) if user else False,
+            "premium_until": user["premium_until"] if user else None,
+            "avatar_id": user["avatar_id"] if user else "default",
+            "frame_id": user["frame_id"] if user else "default",
             "is_admin": is_admin,
             "badge": telegram_id in badge_owner_ids,
         },
-        "habits": [{"id": h["id"], "title": h["title"], "completed": bool(h["completed"])} for h in habits],
+        "habits": [{"id": h["id"], "title": h["title"], "completed": bool(h["completed"]), "planned_time": h["planned_time"] if "planned_time" in h.keys() else None, "time_window_minutes": h["time_window_minutes"] if "time_window_minutes" in h.keys() else 60} for h in habits],
         "progress": progress,
         "settings": {
             "reminders": bool(settings_row["reminders"]) if settings_row else True,
@@ -132,6 +135,9 @@ async def bootstrap(request):
             {
                 "id": it["id"], "name": it["name"], "description": it["description"],
                 "price": it["price"], "owned": it["id"] in owned_item_ids,
+                "item_type": it["item_type"] if "item_type" in it.keys() else "cosmetic",
+                "payload": it["payload"] if "payload" in it.keys() else "",
+                "repeatable": bool(it["repeatable"]) if "repeatable" in it.keys() else False,
             } for it in shop_items
         ],
         "leaderboard": [
@@ -160,9 +166,13 @@ async def create_habit(request):
     telegram_id, _ = await _authenticate(request)
     body = await request.json()
     title = body.get("title", "").strip()
+    planned_time = body.get("planned_time") or None
+    window = int(body.get("time_window_minutes", 60) or 60)
+    if planned_time and (len(planned_time) != 5 or planned_time[2] != ":"):
+        return web.json_response({"error":"invalid_time"}, status=400)
     if len(title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)
-    add_habit(telegram_id, title)
+    add_habit(telegram_id, title, planned_time=planned_time, time_window_minutes=window)
     return web.json_response({"ok": True})
 
 @routes.put("/api/habits/{habit_id}")
@@ -172,9 +182,11 @@ async def rename_habit(request):
     _owned_habit_or_404(habit_id, telegram_id)
     body = await request.json()
     new_title = body.get("title", "").strip()
+    planned_time = body.get("planned_time") or None
+    window = body.get("time_window_minutes")
     if len(new_title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)
-    edit_habit(habit_id, new_title)
+    edit_habit(habit_id, new_title, planned_time=planned_time, time_window_minutes=window)
     return web.json_response({"ok": True})
 
 @routes.post("/api/habits/{habit_id}/complete")
@@ -287,12 +299,35 @@ async def buy_route(request):
     if item_id == 1 and was_premium_purchased(telegram_id):
         return web.json_response({"error": "premium_already_purchased"}, status=400)
 
+    item = get_shop_item(item_id)
+    if not item:
+        return web.json_response({"error":"not_found"}, status=404)
+
+    # Повторяемые пакеты ответов не записываются как ownership.
+    if item["item_type"] == "answer_pack":
+        user = get_user(telegram_id)
+        if not user or user["xp"] < item["price"]:
+            return web.json_response({"error":"not_enough_xp"}, status=400)
+        from db import add_ai_bonus_answers
+        from db.core import connect
+        conn=connect(); cur=conn.cursor(); cur.execute("UPDATE users SET xp=xp-? WHERE telegram_id=?", (item["price"],telegram_id)); conn.commit(); conn.close()
+        add_ai_bonus_answers(telegram_id, int(item["payload"] or 0))
+        user=get_user(telegram_id)
+        return web.json_response({"ok":True,"xp":user["xp"] if user else 0})
+
+    if item["item_type"] in ("avatar","frame"):
+        if has_item(telegram_id, item_id):
+            set_cosmetic(telegram_id, item["item_type"], item["payload"])
+            return web.json_response({"ok":True,"xp":get_user(telegram_id)["xp"]})
+
     success = buy_shop_item(telegram_id, item_id)
     if not success:
         return web.json_response({"error": "not_enough_xp_or_not_found"}, status=400)
 
     if item_id == 1:
         give_premium(telegram_id)
+    elif item["item_type"] in ("avatar","frame"):
+        set_cosmetic(telegram_id, item["item_type"], item["payload"])
 
     user = get_user(telegram_id)
     return web.json_response({

@@ -263,6 +263,27 @@ async def run_task_reminder_check(bot):
         # Теперь для привычек есть одна общая контрольная точка в 12:00,
         # чтобы несколько отдельных сообщений не превращались в спам.
 
+        # -- привычки с учётом времени выполнения --
+        now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+        current_minutes = now_local.hour * 60 + now_local.minute
+        for habit in get_habits_needing_reminder(telegram_id, hours=REMINDER_AFTER_HOURS):
+            planned = habit["planned_time"] if "planned_time" in habit.keys() else None
+            if planned:
+                try:
+                    hh, mm = map(int, planned[:5].split(":"))
+                    planned_minutes = hh * 60 + mm
+                    if current_minutes < planned_minutes:
+                        continue
+                except Exception:
+                    pass
+            try:
+                await bot.send_message(telegram_id, format_habit_reminder_message(habit["title"]), parse_mode="HTML")
+                sent += 1
+            except Exception as e:
+                log_error("task_reminder_habit", e, telegram_id)
+            finally:
+                mark_habit_reminder_sent(habit["id"])
+
         # -- задачи из плана дня (Mini App) --
         for task in get_plan_tasks_needing_reminder(telegram_id, hours=REMINDER_AFTER_HOURS):
             try:

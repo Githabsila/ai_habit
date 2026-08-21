@@ -1961,3 +1961,13 @@ body[data-theme="pink"] .add-form input:focus{
 @keyframes impactHighlight{0%{box-shadow:none}40%{box-shadow:0 0 0 5px rgba(240,180,41,.16),0 0 35px rgba(240,180,41,.18)}100%{box-shadow:none}}
 @media (prefers-reduced-motion:reduce){.impactday-fire,.impactday-card,.impactday-overlay{animation:none;transition:none}}
 
+
+
+/* ADAM PRO cosmetics + habit timing */
+.adam-avatar-wrap{width:58px;height:58px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:10px;flex:none}
+.adam-avatar{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:25px;font-weight:800;background:linear-gradient(135deg,#7c5cfc,#a78bfa);box-shadow:0 8px 24px rgba(124,92,252,.35)}
+.adam-avatar-wrap[data-frame="neon"]{padding:3px;background:linear-gradient(135deg,#00f5ff,#7c5cfc,#ff2bd6)}
+.adam-avatar-wrap[data-frame="gold"]{padding:3px;background:linear-gradient(135deg,#fff1a8,#f0b429,#8a5a00)}
+.habit-item__title{display:flex;flex-direction:column;gap:2px}
+.habit-item__time{font-size:11px;opacity:.65;font-weight:500}
+#newHabitTime{max-width:125px}

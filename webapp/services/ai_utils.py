@@ -7,6 +7,7 @@ from db import (
     get_user_profile,
     get_recent_negative_reasons,
     get_daily_plan,
+    get_timezone,
 )
 
 
@@ -49,7 +50,15 @@ def build_user_context(user_id: int) -> str:
 
     habits = get_habits(user_id)
 
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    try:
+        local_now = datetime.now(ZoneInfo(get_timezone(user_id)))
+        now_text = local_now.strftime('%H:%M')
+    except Exception:
+        now_text = datetime.now().strftime('%H:%M')
     lines = [
+        f"Текущее локальное время пользователя: {now_text}",
         f"Уровень: {progress['level']}",
         f"Adam Coin: {progress['xp']}",
         f"Серия дней подряд: {progress['streak']}",
@@ -61,7 +70,9 @@ def build_user_context(user_id: int) -> str:
 
         for habit in habits:
             status = "да" if habit["completed"] else "нет"
-            lines.append(f"• {habit['title']} — {status}")
+            planned = habit["planned_time"] if "planned_time" in habit.keys() else None
+            timing = f" — время: {planned}" if planned else ""
+            lines.append(f"• {habit['title']} — {status}{timing}")
     else:
         lines.append("")
         lines.append("Привычек пока не добавлено.")

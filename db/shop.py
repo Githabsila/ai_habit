@@ -83,3 +83,37 @@ def buy_shop_item(user_id, item_id):
     conn.close()
 
     return True
+
+
+def get_shop_item(item_id):
+    conn=connect(); cur=conn.cursor(); cur.execute("SELECT * FROM shop_items WHERE id=?", (item_id,)); row=cur.fetchone(); conn.close(); return row
+
+def set_cosmetic(user_id, item_type, payload):
+    conn=connect(); cur=conn.cursor();
+    col = "avatar_id" if item_type == "avatar" else "frame_id"
+    cur.execute(f"UPDATE users SET {col}=? WHERE telegram_id=?", (payload, user_id)); conn.commit(); conn.close()
+
+def add_ai_bonus_answers(user_id, amount):
+    from datetime import date
+    conn=connect(); cur=conn.cursor(); day=str(date.today())
+    cur.execute("INSERT OR IGNORE INTO ai_quota(user_id, day, used, bonus_answers) VALUES (?, ?, 0, 0)", (user_id, day))
+    cur.execute("UPDATE ai_quota SET bonus_answers=bonus_answers+? WHERE user_id=? AND day=?", (amount,user_id,day)); conn.commit(); conn.close()
+
+def get_ai_quota(user_id, is_pro=False):
+    from datetime import date
+    conn=connect(); cur=conn.cursor(); day=str(date.today())
+    cur.execute("INSERT OR IGNORE INTO ai_quota(user_id, day, used, bonus_answers) VALUES (?, ?, 0, 0)", (user_id, day))
+    cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=? AND day=?", (user_id,day)); r=cur.fetchone(); conn.commit(); conn.close()
+    base=50 if is_pro else 10
+    used=int(r["used"] if r else 0); bonus=int(r["bonus_answers"] if r else 0)
+    return {"used":used,"bonus":bonus,"limit":base+bonus,"remaining":max(0,base+bonus-used),"pro":is_pro}
+
+def consume_ai_answer(user_id, is_pro=False):
+    from datetime import date
+    conn=connect(); cur=conn.cursor(); day=str(date.today())
+    cur.execute("INSERT OR IGNORE INTO ai_quota(user_id, day, used, bonus_answers) VALUES (?, ?, 0, 0)", (user_id,day))
+    cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=? AND day=?", (user_id,day)); r=cur.fetchone();
+    base=50 if is_pro else 10; total=base+int(r["bonus_answers"] or 0)
+    if int(r["used"] or 0) >= total:
+        conn.close(); return False
+    cur.execute("UPDATE ai_quota SET used=used+1 WHERE user_id=? AND day=?", (user_id,day)); conn.commit(); conn.close(); return True
