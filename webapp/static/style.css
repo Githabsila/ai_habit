@@ -660,37 +660,6 @@ opacity:.35;
   font-size:12px;
 }
 
-.shop-section-title{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  margin:18px 2px 10px;
-}
-
-.shop-section-icon{
-  width:34px;
-  height:34px;
-  display:grid;
-  place-items:center;
-  border-radius:11px;
-  background:rgba(139,92,246,.12);
-  border:1px solid rgba(139,92,246,.18);
-  font-size:17px;
-}
-
-.shop-section-title strong{
-  display:block;
-  font-size:14px;
-  font-weight:800;
-}
-
-.shop-section-title small{
-  display:block;
-  margin-top:2px;
-  color:var(--text-muted);
-  font-size:11px;
-}
-
 .shop-list{
   list-style:none;
   margin:0;
@@ -2582,8 +2551,6 @@ body[data-theme="violet"] .player-card{
 
 
 /* ADAM SHOP / COSMETICS */
-.shop-section-title{list-style:none;display:flex;flex-direction:column;gap:3px;padding:14px 4px 7px}
-.shop-section-title strong{font-size:15px}.shop-section-title span{font-size:11px;color:var(--text-muted,#999)}
 .shop-quota-card{list-style:none;display:flex;align-items:center;gap:9px;padding:14px 16px;margin-bottom:4px;border:1px solid rgba(124,92,252,.25);border-radius:18px;background:linear-gradient(135deg,rgba(124,92,252,.14),rgba(255,213,79,.07))}
 .shop-quota-card>div{display:flex;flex-direction:column;flex:1}.shop-quota-card__title{font-weight:800}.shop-quota-card__sub{font-size:11px;color:var(--text-muted,#999);margin-top:3px}.shop-quota-card strong{font-size:22px}.shop-quota-card>span:last-child{font-size:10px;color:var(--text-muted,#999)}
 .shop-item__meta{font-size:10px;color:var(--text-muted,#999);margin-top:6px}
