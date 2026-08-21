@@ -215,7 +215,7 @@ def register_completion(user_id):
         # milestone-награды хранятся отдельно и не исчезают.
         conn = connect()
         conn.execute("""UPDATE streak_meta SET temp_frame=?, temp_status=? WHERE user_id=?""",
-                     ("streak_flame", f"Огонь {streak} дн.", user_id))
+                     ("streak_flame", f"В ударе {streak} дн.", user_id))
         conn.commit()
         conn.close()
 

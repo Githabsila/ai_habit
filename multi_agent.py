@@ -508,7 +508,7 @@ async def fast_answer(
     # хватало, и это резало ответ на полуслове (Проблема №1). У _ask теперь
     # есть свой аварийный повтор/подрезка, но на первом заходе лучше сразу
     # дать реальный запас.
-    return await _ask(system, user, temperature=0.6, max_tokens=500)
+    return await _ask(system, user, temperature=0.55, max_tokens=320)
 
 
 # ============ 0c. КРИЗИС-ГЕЙТ ============
@@ -925,6 +925,25 @@ async def classify_habit_action(message: str, habits: list[str], plan_tasks: lis
 
 # ============ ОРКЕСТРАТОР ============
 
+
+
+def _needs_deep_pipeline(task: str) -> bool:
+    """Локальный роутер без сетевого запроса.
+    Большинство коротких реплик сразу идут в один быстрый вызов FAST_MODEL.
+    Это убирает отдельный LLM-вызов классификатора и обычно экономит 1–3 сек."""
+    text = (task or "").strip()
+    if len(text) > 500:
+        return True
+    deep_markers = (
+        "разбери", "проанализируй", "сравни", "почему", "пошагово",
+        "подробно", "стратеги", "архитектур", "напиши код", "код ",
+        "план на", "как лучше выстроить", "несколько вариантов",
+        "плюсы и минусы", "что делать, если",
+    )
+    lowered = text.lower()
+    return any(marker in lowered for marker in deep_markers)
+
+
 async def solve_task_multiagent(
     task: str,
     history: str = "",
@@ -967,8 +986,28 @@ async def solve_task_multiagent(
 
     style_note = STYLE_NOTES.get(style, "")
 
-    # Настроение, триаж и кризис-гейт — теперь ОДИН вызов вместо трёх
-    # (см. classify_message выше), с безопасным откатом при сбое парсинга.
+    # Быстрый локальный роутинг: обычные короткие сообщения не тратят
+    # отдельный LLM-вызов на классификацию — сразу идут в FAST_MODEL.
+    # Явный кризисный сигнал остаётся под отдельной проверкой безопасности.
+    if not _needs_deep_pipeline(task) and not _has_crisis_signal(task):
+        mood = "нейтрально"
+        complexity = "просто"
+        is_crisis = False
+        trace.mood = mood
+        trace.complexity = complexity
+        trace.is_crisis = False
+        answer = await fast_answer(task, history, user_context, "", style_note)
+        trace.final_answer = answer
+        return {
+            "answer": answer,
+            "mood": mood,
+            "is_crisis": False,
+            "suggested_habit": None,
+            "complexity": "просто",
+        }
+
+    # Для потенциально сложных сообщений или сообщений с явным кризисным
+    # сигналом оставляем полноценный классификатор.
     mood, complexity, is_crisis = await classify_message(task)
     trace.mood = mood
     trace.complexity = complexity

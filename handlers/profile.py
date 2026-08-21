@@ -3,6 +3,7 @@ from aiogram.types import CallbackQuery
 
 from db import get_user, get_habits
 from keyboards import back_menu_keyboard
+from handlers.helpers import day_phrase
 
 router = Router()
 
@@ -62,7 +63,7 @@ async def profile(callback: CallbackQuery):
 {completed}
 
 🔥 Серия:
-{user["streak"]} дней
+{day_phrase(user["streak"])}
 
 ⭐ Adam Coin:
 {user["xp"]}

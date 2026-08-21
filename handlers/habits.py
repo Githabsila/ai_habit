@@ -16,6 +16,8 @@ from db import (
     onboarding_message, mark_onboarding_seen,
 )
 
+from handlers.helpers import day_phrase
+
 from keyboards import (
     habits_keyboard,
     complete_keyboard
@@ -247,7 +249,7 @@ async def complete(callback: CallbackQuery):
 
 🏆 Уровень: {user['level']}
 
-🔥 Серия: {user['streak']} дней
+🔥 Серия: {day_phrase(user['streak'])}
 """
 
     await callback.message.edit_text(

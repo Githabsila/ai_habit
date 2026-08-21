@@ -2270,3 +2270,124 @@ body[data-theme="violet"] .player-card{
 .rating-item__status{display:block;color:#FFB36F;font-size:9px;font-weight:700;margin-top:2px}
 
 .share-achievement-btn{margin-top:9px;border:0;background:transparent;color:#FF9D52;font-size:11px;font-weight:800;padding:0}
+
+
+/* ===== ADAM: аккуратный статус серии и экран достижения ===== */
+.rating-item__name{
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+.rating-item__name-line{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  min-width:0;
+  white-space:nowrap;
+}
+.rating-item__name-text{
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.rating-item__badge{
+  display:inline-flex;
+  align-items:center;
+  flex:0 0 auto;
+  line-height:1;
+  margin-left:2px;
+}
+.rating-item__me{font-size:11px;color:var(--text-muted);font-weight:600}
+
+.streak-profile-frame{
+  color:#D95B1E;
+  font-weight:800;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  padding:0!important;
+}
+.streak-profile-frame::first-letter{color:#D95B1E}
+
+.achievement-share-overlay{
+  position:fixed;
+  inset:0;
+  z-index:10000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:22px;
+  background:rgba(6,6,12,.94);
+  backdrop-filter:blur(18px);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .22s ease;
+}
+.achievement-share-overlay.show{
+  opacity:1;
+  pointer-events:auto;
+}
+.achievement-share-overlay[hidden]{display:none}
+.achievement-share-card{
+  width:min(520px,100%);
+  min-height:min(720px,88vh);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:36px 24px;
+  border-radius:34px;
+  background:
+    radial-gradient(circle at 50% 20%,rgba(255,122,24,.22),transparent 34%),
+    linear-gradient(150deg,#201922,#0e0e16);
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 30px 90px rgba(0,0,0,.55);
+}
+.achievement-share-fire{
+  font-size:94px;
+  line-height:1;
+  filter:drop-shadow(0 0 28px rgba(255,122,24,.5));
+  margin-bottom:24px;
+}
+.achievement-share-kicker{
+  font-size:10px;
+  letter-spacing:.22em;
+  font-weight:800;
+  color:#FF9D52;
+}
+.achievement-share-title{
+  margin-top:12px;
+  font:800 30px 'Space Grotesk',sans-serif;
+}
+.achievement-share-days{
+  margin-top:18px;
+  font:800 48px 'Space Grotesk',sans-serif;
+  background:linear-gradient(135deg,#FFD27A,#FF6A32);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.achievement-share-status{
+  margin-top:7px;
+  color:#FFD8B4;
+  font-weight:800;
+  font-size:16px;
+}
+.achievement-share-note{
+  max-width:340px;
+  margin:22px 0 34px;
+  color:#B8B8C9;
+  line-height:1.55;
+  font-size:14px;
+}
+.achievement-share-close{
+  width:min(360px,100%);
+  border:0;
+  border-radius:17px;
+  padding:15px 18px;
+  background:linear-gradient(135deg,#FF8A00,#EF4444);
+  color:#fff;
+  font-weight:800;
+  font-size:15px;
+  box-shadow:0 12px 30px rgba(239,68,68,.22);
+}

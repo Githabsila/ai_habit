@@ -17,7 +17,7 @@ from db import (
 from keyboards import progress_keyboard, back_menu_keyboard
 from multi_agent import generate_progress_analysis
 from handlers.ai import build_user_context
-from handlers.helpers import send_long_message
+from handlers.helpers import send_long_message, day_phrase
 
 router = Router()
 logger = logging.getLogger("handlers.progress")
@@ -51,7 +51,7 @@ async def progress(callback: CallbackQuery):
 {progress["level"]}
 
 🔥 Серия:
-{progress["streak"]} дней
+{day_phrase(progress["streak"])}
 
 🎯 Выполнено привычек:
 {progress["completed"]}/{progress["total"]}

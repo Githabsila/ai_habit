@@ -82,6 +82,18 @@ _COMPLETE_TASK_RE = re.compile(
 )
 
 
+def _task_word(n: int) -> str:
+    n = abs(int(n))
+    if 11 <= n % 100 <= 14:
+        return "задач"
+    last = n % 10
+    if last == 1:
+        return "задача"
+    if 2 <= last <= 4:
+        return "задачи"
+    return "задач"
+
+
 def _clean(text: str) -> str:
     return text.strip().strip(".,!?\"'«»").strip()
 
@@ -238,7 +250,7 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
         if not tasks:
             return "В сегодняшнем плане пока нет задач. Заполни его во вкладке «План дня»."
         if idx < 1 or idx > len(tasks):
-            return f"⚠️ В плане на сегодня только {len(tasks)} задач(и) — укажи номер от 1 до {len(tasks)}."
+            return f"⚠️ В плане на сегодня только {len(tasks)} {_task_word(len(tasks))} — укажи номер от 1 до {len(tasks)}."
         task = tasks[idx - 1]
         toggle_daily_task(task["id"])
         new_state = not task["completed"]

@@ -123,7 +123,7 @@ style="width:0%">
   <div class="streak-widget__top">
     <div>
       <div class="streak-widget__eyebrow">УДАРНЫЙ РЕЖИМ</div>
-      <div class="streak-widget__title">🔥 <span id="streakWidgetDays">0</span> дней</div>
+      <div class="streak-widget__title">🔥 <span id="streakWidgetDays">0 дней</span></div>
     </div>
     <button class="freeze-buy-btn" id="freezeBuyBtn" type="button">❄️ Заморозка · 200</button>
   </div>
@@ -241,8 +241,8 @@ class="btn btn--accent">
 <div class="streak-profile-card" id="streakProfileCard">
   <div class="streak-profile-avatar" id="profileAvatar">A</div>
   <div class="streak-profile-info">
-    <div class="streak-profile-status" id="profileStreakStatus">Огонь 0 дн.</div>
-    <div class="streak-profile-frame" id="profileStreakFrame">🔥 Ударный режим</div>
+    <div class="streak-profile-status" id="profileStreakStatus">В ударе 0 дн.</div>
+    <div class="streak-profile-frame" id="profileStreakFrame">🔥 Твоя ударная серия!</div>
     <button class="share-achievement-btn" id="shareAchievementBtn" type="button">↗ Поделиться достижением</button>
   </div>
 </div>
@@ -319,6 +319,18 @@ class="btn btn--accent">
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="achievement-share-overlay" id="achievementShareOverlay" hidden aria-hidden="true">
+  <div class="achievement-share-card">
+    <div class="achievement-share-fire">🔥</div>
+    <div class="achievement-share-kicker">МОЙ РЕЗУЛЬТАТ ADAM</div>
+    <div class="achievement-share-title">Ударный режим</div>
+    <div class="achievement-share-days" id="achievementShareDays">1 день</div>
+    <div class="achievement-share-status" id="achievementShareStatus">В ударе</div>
+    <div class="achievement-share-note">Я не жду идеальных дней. Я просто продолжаю.</div>
+    <button class="achievement-share-close" id="achievementShareClose" type="button">Класно, так держать 💪</button>
+  </div>
+</div>
 
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-overlay__coin">🪙</div>

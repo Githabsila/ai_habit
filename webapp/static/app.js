@@ -4,6 +4,20 @@
   const tg = window.Telegram ? window.Telegram.WebApp : null;
   const RING_CIRCUMFERENCE = 326.7; // 2 * PI * 52
 
+  function pluralRu(n, one, few, many) {
+    n = Math.abs(Number(n) || 0);
+    if (n % 100 >= 11 && n % 100 <= 14) return many;
+    const last = n % 10;
+    if (last === 1) return one;
+    if (last >= 2 && last <= 4) return few;
+    return many;
+  }
+
+  function formatDays(n) {
+    return `${Number(n) || 0} ${pluralRu(n, "день", "дня", "дней")}`;
+  }
+
+
   // Иконка Adam Coin — инлайн SVG вместо шрифтовой иконки "diamond",
   // чтобы совпадать с фирменным золотым логотипом монеты.
   const ADAM_COIN_ICON = `<svg class="stat-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -118,7 +132,7 @@
     const streak = state?.streak;
     if (!streak) return;
     const daysEl = document.getElementById("streakWidgetDays");
-    if (daysEl) daysEl.textContent = streak.days || 0;
+    if (daysEl) daysEl.textContent = formatDays(streak.days || 0);
 
     const days = document.getElementById("streakDays");
     if (days) {
@@ -149,10 +163,14 @@
 
     const profileStatus = document.getElementById("profileStreakStatus");
     const profileFrame = document.getElementById("profileStreakFrame");
-    if (profileStatus) profileStatus.textContent = streak.temp_status || (streak.days ? `Огонь ${streak.days} дн.` : "Серия не начата");
+    let streakStatus = streak.temp_status || "";
+    if (/^Огонь\s+/i.test(streakStatus)) {
+      streakStatus = streakStatus.replace(/^Огонь/i, "В ударе");
+    }
+    if (profileStatus) profileStatus.textContent = streakStatus || (streak.days ? `В ударе ${streak.days} дн.` : "Серия не начата");
     if (profileFrame) {
       const reward = (streak.rewards || [])[0];
-      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : (streak.days ? "🔥 Текущая рамка серии" : "🔥 Ударный режим");
+      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "🔥 Твоя ударная серия!";
       profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
     }
   }
@@ -260,17 +278,23 @@
     document.getElementById("shareAchievementBtn")?.addEventListener("click", async () => {
       const days = Number(state?.streak?.days || 0);
       const status = state?.streak?.temp_status || "Ударный режим";
-      const text = `🔥 Я держу ударный режим ADAM уже ${days} дней. ${status}`;
-      try {
-        if (navigator.share) {
-          await navigator.share({title: "Моё достижение ADAM", text});
-        } else if (navigator.clipboard) {
-          await navigator.clipboard.writeText(text);
-          showToast("Текст достижения скопирован", "success");
-        } else {
-          showToast(text, "success", 3500);
-        }
-      } catch (_) {}
+      const overlay = document.getElementById("achievementShareOverlay");
+      const daysEl = document.getElementById("achievementShareDays");
+      const statusEl = document.getElementById("achievementShareStatus");
+      if (daysEl) daysEl.textContent = formatDays(days);
+      if (statusEl) statusEl.textContent = status;
+      if (overlay) {
+        overlay.hidden = false;
+        requestAnimationFrame(() => overlay.classList.add("show"));
+        overlay.setAttribute("aria-hidden", "false");
+      }
+    });
+    document.getElementById("achievementShareClose")?.addEventListener("click", () => {
+      const overlay = document.getElementById("achievementShareOverlay");
+      if (!overlay) return;
+      overlay.classList.remove("show");
+      overlay.setAttribute("aria-hidden", "true");
+      setTimeout(() => { overlay.hidden = true; }, 220);
     });
     document.getElementById("freezeBuyBtn")?.addEventListener("click", async () => {
       try {
@@ -500,12 +524,16 @@
       const ss = r.streak_status || {};
       const reward = (ss.rewards || [])[0];
       const frame = ss.temp_frame || "none";
-      const status = ss.temp_status || (reward ? reward.status : "");
+      let status = ss.temp_status || (reward ? reward.status : "");
+      if (/^Огонь\s+/i.test(status)) status = status.replace(/^Огонь/i, "В ударе");
       return `
         <li class="rating-item ${isMe ? "is-me" : ""} rank-${rank}">
           <span class="rating-item__rank">${rank}</span>
           <span class="rating-avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</span>
-          <span class="rating-item__name">${escapeHtml(name)}${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? " (ты)" : ""}${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}</span>
+          <span class="rating-item__name">
+            <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
+            ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
+          </span>
           <span class="rating-item__meta">
     <span class="rating-stat">
         <span class="material-symbols-rounded stat-icon">local_fire_department</span>

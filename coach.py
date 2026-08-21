@@ -16,6 +16,8 @@ coach.py
 """
 
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from db import (
     get_all_users,
@@ -33,6 +35,8 @@ from db import (
     get_plans_needing_goal_reminder,
     mark_goal_reminder_sent,
     get_daily_plan,
+    get_timezone,
+    claim_notification,
 )
 from multi_agent import generate_weekly_habit_feedback
 from adam_messages import (
@@ -40,6 +44,8 @@ from adam_messages import (
     format_evening_progress_message,
     format_habit_reminder_message,
     format_habit_final_motivation_message,
+    format_habit_noon_message,
+    format_plan_task_reminder_message,
     format_goal_reminder_message,
     format_week_start_message,
     format_week_end_message,
@@ -203,6 +209,12 @@ async def run_hard_deadline_check(bot):
         if not incomplete:
             continue
 
+        # Пользователи с действующей серией уже получили отдельный
+        # риск-пинг в 20:00. Не дублируем его контрольной рассылкой в 21:00.
+        progress = get_progress(telegram_id)
+        if progress and progress.get("streak", 0) > 0:
+            continue
+
         try:
             await bot.send_message(
                 telegram_id,
@@ -246,31 +258,17 @@ async def run_task_reminder_check(bot):
         if not settings or settings["reminders"] == 0:
             continue
 
-        # -- привычки ("Ваши привычки") --
-        # ВАЖНО: текст не должен содержать "Уже N ч." — только название
-        # привычки (см. промт п.5), поэтому используем пул варьирующихся
-        # формулировок из adam_messages вместо фиксированного шаблона.
-        for habit in get_habits_needing_reminder(telegram_id, hours=REMINDER_AFTER_HOURS):
-            try:
-                await bot.send_message(
-                    telegram_id,
-                    format_habit_reminder_message(habit["title"]),
-                    parse_mode="HTML"
-                )
-                sent += 1
-            except Exception as e:
-                log_error("task_reminder_habit", e, telegram_id)
-            finally:
-                mark_habit_reminder_sent(habit["id"])
+        # -- привычки --
+        # Индивидуальные 2-часовые пинги по привычкам отключены.
+        # Теперь для привычек есть одна общая контрольная точка в 12:00,
+        # чтобы несколько отдельных сообщений не превращались в спам.
 
         # -- задачи из плана дня (Mini App) --
         for task in get_plan_tasks_needing_reminder(telegram_id, hours=REMINDER_AFTER_HOURS):
             try:
                 await bot.send_message(
                     telegram_id,
-                    f"⏰ <b>Напоминание о задаче</b>\n\n"
-                    f"Задача «{task['text']}» из плана на сегодня ещё не выполнена. "
-                    f"Самое время вернуться к ней 🙂",
+                    format_plan_task_reminder_message(task["text"]),
                     parse_mode="HTML"
                 )
                 sent += 1
@@ -306,41 +304,43 @@ async def run_task_reminder_check(bot):
 # только если такие привычки вообще есть (п.4/11 — не слать, если всё уже
 # выполнено), плюс одно финальное мотивационное сообщение в конце.
 
-async def run_morning_habit_reminders(bot):
+async def run_noon_habit_reminders(bot):
+    """Единая контрольная точка по привычкам в 12:00 локального времени.
+    Один пользователь получает максимум одно сообщение в сутки и только
+    если хотя бы одна привычка ещё не выполнена."""
     users = get_all_users()
     sent = 0
 
     for user in users:
         telegram_id = user["telegram_id"]
-
         settings = get_settings(telegram_id)
         if not settings or settings["reminders"] == 0:
             continue
 
-        incomplete = get_incomplete_habits(telegram_id)
-        if not incomplete:
-            # Все привычки уже выполнены — напоминаний быть не должно.
-            continue
-
         try:
-            for habit in incomplete:
-                await bot.send_message(
-                    telegram_id,
-                    format_habit_reminder_message(habit["title"]),
-                    parse_mode="HTML"
-                )
-                sent += 1
+            tz_name = get_timezone(telegram_id)
+            now = datetime.now(ZoneInfo(tz_name))
+            if now.hour != 12:
+                continue
+
+            incomplete = get_incomplete_habits(telegram_id)
+            if not incomplete:
+                continue
+
+            day = now.date().isoformat()
+            if not claim_notification(telegram_id, day, "habit_noon"):
+                continue
 
             await bot.send_message(
                 telegram_id,
-                format_habit_final_motivation_message(),
+                format_habit_noon_message(incomplete),
                 parse_mode="HTML"
             )
             sent += 1
         except Exception as e:
-            log_error("morning_habit_reminders", e, telegram_id)
+            log_error("noon_habit_reminders", e, telegram_id)
 
-    logger.info(f"Утренние напоминания по привычкам: отправлено {sent} сообщений")
+    logger.info(f"Контрольная точка привычек 12:00: отправлено {sent} сообщений")
 
 
 # =====================================
@@ -416,7 +416,7 @@ async def run_evening_progress_check(bot):
         try:
             await bot.send_message(
                 telegram_id,
-                format_evening_progress_message(done, total),
+                format_evening_progress_message(done, total, [t["text"] for t in tasks if not t["completed"]]),
                 parse_mode="HTML"
             )
             sent += 1

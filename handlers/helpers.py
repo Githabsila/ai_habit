@@ -163,3 +163,19 @@ async def edit_or_split_message(
         )
 
     return sent
+
+
+def plural_ru(n: int, one: str, few: str, many: str) -> str:
+    n = abs(int(n))
+    if 11 <= n % 100 <= 14:
+        return many
+    last = n % 10
+    if last == 1:
+        return one
+    if 2 <= last <= 4:
+        return few
+    return many
+
+
+def day_phrase(n: int) -> str:
+    return f"{n} {plural_ru(n, 'день', 'дня', 'дней')}"
