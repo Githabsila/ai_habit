@@ -106,7 +106,28 @@ window.onerror = function(msg, url, line, col, error) {
         box-shadow: 0 8px 20px rgba(124,92,252,.4), inset 0 1px 0 rgba(255,255,255,.15);
     }
 
-    .quota-badge{font-size:11px;color:var(--gold);margin-top:3px}.quota-panel{margin-top:6px;padding:7px 9px;border:1px solid rgba(255,213,79,.18);background:rgba(255,213,79,.06);border-radius:10px;font-size:11px;line-height:1.35}.quota-panel strong{font-size:13px;color:#fff}.quota-panel .quota-action{color:#A78BFA;margin-left:5px}
+    .quota-badge{font-size:11px;color:var(--gold);margin-top:3px}
+    .quota-panel{
+        margin-top:8px;
+        padding:10px 11px;
+        border:1px solid rgba(139,92,246,.22);
+        background:linear-gradient(145deg,rgba(139,92,246,.13),rgba(255,255,255,.035));
+        border-radius:13px;
+        font-size:10px;
+        line-height:1.35;
+        box-shadow:inset 0 1px rgba(255,255,255,.05);
+    }
+    .quota-panel--pro{
+        border-color:rgba(255,213,79,.22);
+        background:linear-gradient(145deg,rgba(255,213,79,.11),rgba(139,92,246,.06));
+    }
+    .quota-panel__title{display:flex;align-items:center;gap:6px}
+    .quota-panel__title strong{font-size:12px;letter-spacing:.04em;color:#fff}
+    .quota-panel__spark{color:#FFD54F;font-size:13px}
+    .quota-panel__subtitle{margin-top:2px;color:#A9A8BA;font-size:9px}
+    .quota-panel__count{margin-top:7px;color:#D4D2DE;font-size:10px}
+    .quota-panel__count b{color:#fff;font-size:12px}
+    .quota-panel .quota-action{display:inline-block;color:#A78BFA;margin-top:4px;font-size:9px}
     .header-status {
         display: flex;
         align-items: center;
@@ -610,7 +631,15 @@ window.onerror = function(msg, url, line, col, error) {
                                     <div className="status-dot"></div>
                                     онлайн
                                 </div>
-                                {quota && <div className="quota-panel"><strong>{quota.pro ? 'ADAM PRO' : 'Обычный ADAM'}</strong><br/><span>Осталось сегодня: {quota.remaining} из {quota.limit} ответов</span>{quota.bonus > 0 && <span className="quota-action">+{quota.bonus} купленных</span>}</div>}
+                                {quota && <div className={`quota-panel ${quota.pro ? 'quota-panel--pro' : ''}`}>
+  <div className="quota-panel__title">
+    <span className="quota-panel__spark">✦</span>
+    <strong>{quota.pro ? 'ADAM PRO' : 'ADAM STANDARD'}</strong>
+  </div>
+  <div className="quota-panel__subtitle">{quota.pro ? 'Расширенный режим ADAM' : 'Твой ежедневный лимит ответов'}</div>
+  <div className="quota-panel__count"><b>{quota.remaining}</b> из {quota.limit} ответов осталось</div>
+  {quota.bonus > 0 && <span className="quota-action">+{quota.bonus} куплено в магазине</span>}
+</div>}
                             </div>
                         </div>
                         <div className="header-buttons">

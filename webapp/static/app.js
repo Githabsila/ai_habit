@@ -400,41 +400,78 @@
   // ===================== RENDER: SHOP =====================
   function renderShop() {
     const list = document.getElementById("shopList");
-    const items = state.shop_items;
+    const balance = document.getElementById("shopBalanceValue");
+    const items = Array.isArray(state.shop_items) ? state.shop_items : [];
+
+    if (balance) balance.textContent = Number(state.user?.xp || 0).toLocaleString("ru-RU");
+
+    if (!list) return;
     if (items.length === 0) {
       list.innerHTML = `<li class="empty-hint">Магазин пока пуст</li>`;
       return;
     }
-    list.innerHTML = items.map(it => {
-      const canAfford = state.user.xp >= it.price;
+
+    // Сначала показываем лоты ответов — это основная покупка магазина.
+    const answerItems = items.filter(it => it.item_type === "answer_pack" || /ответ/i.test(it.name || ""));
+    const otherItems = items.filter(it => !answerItems.includes(it));
+
+    const renderItem = (it) => {
+      const canAfford = Number(state.user?.xp || 0) >= Number(it.price || 0);
+      const isAnswer = it.item_type === "answer_pack" || /ответ/i.test(it.name || "");
+      const amountMatch = String(it.payload || it.name || "").match(/(\d+)/);
+      const amount = amountMatch ? amountMatch[1] : "";
+
+      let title = escapeHtml(it.name || "Товар ADAM");
+      let desc = escapeHtml(it.description || "");
+
+      if (isAnswer) {
+        title = amount ? `+${amount} ответов` : title;
+        desc = amount ? `Ещё ${amount} запросов к ADAM сегодня` : desc;
+      }
+
       let btnLabel = `
-<span style="display:flex;align-items:center;gap:4px;justify-content:center">
-    ${ADAM_COIN_ICON}
-    ${it.price}
-</span>`;
+        <span class="buy-btn__price">
+          ${ADAM_COIN_ICON}
+          <b>${Number(it.price || 0).toLocaleString("ru-RU")}</b>
+        </span>`;
+
       let btnClass = "buy-btn";
       let disabled = "";
-      if (it.owned) {
-        btnLabel = "Куплено";
+
+      if (it.owned && !isAnswer) {
+        btnLabel = "✓ Куплено";
         btnClass += " is-owned";
         disabled = "disabled";
       } else if (!canAfford) {
+        btnLabel = "Не хватает";
+        btnClass += " is-unavailable";
         disabled = "disabled";
       }
+
       return `
-        <li class="shop-item" data-id="${it.id}">
-          <div class="shop-item__body">
-            <div class="shop-item__name">${escapeHtml(it.name)}</div>
-            <div class="shop-item__desc">${escapeHtml(it.description || "")}</div>
-            <div class="shop-item__price">
-    ${ADAM_COIN_ICON}
-    <span>${it.price}</span>
-</div>
+        <li class="shop-item ${isAnswer ? "shop-item--answers" : ""}" data-id="${it.id}">
+          <div class="shop-item__top">
+            <span class="shop-item__icon">${isAnswer ? "💬" : "✦"}</span>
+            ${isAnswer ? `<span class="shop-item__tag">ДОП. ОТВЕТЫ</span>` : ""}
           </div>
-          <button class="${btnClass}" data-action="buy" ${disabled}>${btnLabel}</button>
+          <div class="shop-item__name">${title}</div>
+          <div class="shop-item__desc">${desc}</div>
+          <div class="shop-item__footer">
+            <div class="shop-item__price">
+              ${ADAM_COIN_ICON}
+              <span>${Number(it.price || 0).toLocaleString("ru-RU")}</span>
+            </div>
+            <button class="${btnClass}" data-action="buy" ${disabled}>${btnLabel}</button>
+          </div>
         </li>
       `;
-    }).join("");
+    };
+
+    list.innerHTML = answerItems.map(renderItem).join("") +
+      (otherItems.length ? `
+        <li class="shop-divider" aria-hidden="true"></li>
+        ${otherItems.map(renderItem).join("")}
+      ` : "");
   }
 
   // ===================== RENDER: THEME PICKER =====================
