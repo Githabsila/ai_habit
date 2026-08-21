@@ -229,41 +229,67 @@
   // ===================== RENDER: SHOP =====================
   function renderShop() {
     const list = document.getElementById("shopList");
-    const items = state.shop_items;
+    const items = state.shop_items || [];
     if (items.length === 0) {
       list.innerHTML = `<li class="empty-hint">Магазин пока пуст</li>`;
       return;
     }
-    list.innerHTML = items.map(it => {
-      const canAfford = state.user.xp >= it.price;
-      let btnLabel = `
-<span style="display:flex;align-items:center;gap:4px;justify-content:center">
-    <span class="material-symbols-rounded stat-icon">diamond</span>
-    ${it.price}
-</span>`;
-      let btnClass = "buy-btn";
-      let disabled = "";
-      if (it.owned) {
-        btnLabel = "Куплено";
-        btnClass += " is-owned";
-        disabled = "disabled";
-      } else if (!canAfford) {
-        disabled = "disabled";
-      }
-      return `
-        <li class="shop-item" data-id="${it.id}">
-          <div class="shop-item__body">
-            <div class="shop-item__name">${escapeHtml(it.name)}</div>
-            <div class="shop-item__desc">${escapeHtml(it.description || "")}</div>
-            <div class="shop-item__price">
-    <span class="material-symbols-rounded stat-icon">diamond</span>
-    <span>${it.price}</span>
-</div>
-          </div>
-          <button class="${btnClass}" data-action="buy" ${disabled}>${btnLabel}</button>
-        </li>
-      `;
-    }).join("");
+
+    const quota = state.user.ai_quota || {pro: !!state.user.premium, remaining: 0, limit: 0, bonus: 0};
+    const packs = items.filter(it => it.item_type === "answer_pack");
+    const cosmetics = items.filter(it => ["premium", "avatar", "frame", "theme", "badge"].includes(it.item_type));
+
+    const section = (title, subtitle, arr) => `
+      <li class="shop-section-title">
+        <strong>${title}</strong>
+        <span>${subtitle}</span>
+      </li>
+      ${arr.map(it => {
+        const canAfford = state.user.xp >= it.price;
+        const isCosmetic = it.item_type === "avatar" || it.item_type === "frame";
+        const equipped = isCosmetic && ((it.item_type === "avatar" && state.user.avatar_id === it.payload) || (it.item_type === "frame" && state.user.frame_id === it.payload));
+        let btnLabel = `<span class="shop-buy-price"><span class="material-symbols-rounded stat-icon">diamond</span>${it.price}</span>`;
+        let btnClass = "buy-btn";
+        let disabled = "";
+        let action = "buy";
+        if (equipped) {
+          btnLabel = "Надето";
+          btnClass += " is-owned is-equipped";
+          disabled = "disabled";
+          action = "none";
+        } else if (it.owned && isCosmetic) {
+          btnLabel = "Надеть";
+          btnClass += " is-owned";
+          action = "equip";
+        } else if (it.owned && !it.repeatable) {
+          btnLabel = "Куплено";
+          btnClass += " is-owned";
+          disabled = "disabled";
+          action = "none";
+        } else if (!canAfford) {
+          disabled = "disabled";
+        }
+        return `
+          <li class="shop-item ${isCosmetic ? 'shop-item--cosmetic' : ''}" data-id="${it.id}">
+            <div class="shop-item__body">
+              <div class="shop-item__name">${escapeHtml(it.name)}</div>
+              <div class="shop-item__desc">${escapeHtml(it.description || "")}</div>
+              ${it.item_type === 'answer_pack' ? `<div class="shop-item__meta">Добавит ${escapeHtml(it.payload)} ответов к сегодняшнему лимиту</div>` : ''}
+              ${isCosmetic ? `<div class="shop-item__meta">${equipped ? 'Сейчас используется' : (it.owned ? 'Куплено — можно надеть' : 'После покупки можно надеть')}</div>` : ''}
+              <div class="shop-item__price"><span class="material-symbols-rounded stat-icon">diamond</span><span>${it.price}</span></div>
+            </div>
+            <button class="${btnClass}" data-action="${action}" ${disabled}>${btnLabel}</button>
+          </li>`;
+      }).join('')}`;
+
+    list.innerHTML = `
+      <li class="shop-quota-card">
+        <div><span class="shop-quota-card__title">💬 Ответы ADAM</span><span class="shop-quota-card__sub">${quota.pro ? 'ADAM PRO' : 'Обычный ADAM'}</span></div>
+        <strong>${quota.remaining}</strong><span>осталось сегодня</span>
+      </li>
+      ${section('💬 Ответы ADAM', 'Покупай дополнительные ответы здесь', packs)}
+      ${section('✨ PRO и персонализация', 'Доступ, аватарки и рамки', cosmetics)}
+    `;
   }
 
   // ===================== RENDER: THEME PICKER =====================
@@ -551,15 +577,21 @@ function renderPlan() {
   // ===================== SHOP ACTIONS =====================
   function initShopActions() {
     document.getElementById("shopList").addEventListener("click", async (e) => {
-      const btn = e.target.closest("button[data-action=buy]");
-      if (!btn || btn.disabled) return;
+      const btn = e.target.closest("button[data-action]");
+      if (!btn || btn.disabled || btn.dataset.action === "none") return;
       const li = btn.closest(".shop-item");
       const itemId = li.dataset.id;
       try {
         btn.disabled = true;
-        await api(`/api/buy/${itemId}`, { method: "POST" });
-        haptic("medium");
-        showToast("Покупка совершена!", "success");
+        if (btn.dataset.action === "equip") {
+          await api("/api/cosmetics/equip", { method: "POST", body: JSON.stringify({ item_id: Number(itemId) }) });
+          haptic("light");
+          showToast("✨ Предмет надет", "success");
+        } else {
+          await api(`/api/buy/${itemId}`, { method: "POST" });
+          haptic("medium");
+          showToast("Покупка совершена!", "success");
+        }
         await loadBootstrap();
       } catch (err) {
         showToast(friendlyError(err), "error");

@@ -48,7 +48,7 @@ def get_item_owner_ids(item_id):
     return ids
 
 
-def buy_shop_item(user_id, item_id):
+def buy_shop_item(user_id, item_id, allow_repeatable=False):
     conn = connect()
     cursor = conn.cursor()
 
@@ -74,10 +74,18 @@ def buy_shop_item(user_id, item_id):
         UPDATE users SET xp = xp - ? WHERE telegram_id=?
     """, (item["price"], user_id))
 
-    cursor.execute("""
-        INSERT INTO user_items(user_id, item_id, purchased_at)
-        VALUES (?, ?, ?)
-    """, (user_id, item_id, str(date.today())))
+    if allow_repeatable or ("repeatable" in item.keys() and bool(item["repeatable"])):
+        # Повторяемый товар не должен упираться в уникальность user_items.
+        # Сохраняем каждую покупку отдельной записью, если схема это позволяет.
+        cursor.execute("""
+            INSERT INTO user_items(user_id, item_id, purchased_at)
+            VALUES (?, ?, ?)
+        """, (user_id, item_id, str(date.today())))
+    else:
+        cursor.execute("""
+            INSERT OR IGNORE INTO user_items(user_id, item_id, purchased_at)
+            VALUES (?, ?, ?)
+        """, (user_id, item_id, str(date.today())))
 
     conn.commit()
     conn.close()

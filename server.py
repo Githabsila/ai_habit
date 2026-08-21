@@ -21,6 +21,7 @@ from db import (
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
     get_daily_plan, save_daily_plan, set_daily_main_goal, delete_daily_main_goal, toggle_daily_main_goal, add_daily_task, update_daily_plan_task, delete_daily_task, toggle_daily_task,
+    get_shop_item, set_cosmetic, add_ai_bonus_answers, get_ai_quota,
 )
 
 # ID товаров магазина, у которых есть реальный эффект в мини-приложении
@@ -214,6 +215,34 @@ async def set_ai_style(request):
     update_ai_style(telegram_id, style)
     return web.json_response({"ok": True})
 
+@routes.post("/api/cosmetics/equip")
+async def equip_cosmetic(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    item_id = int(body.get("item_id"))
+    item = get_shop_item(item_id)
+    if not item:
+        return web.json_response({"error": "shop_item_not_found"}, status=404)
+    item_type = item["item_type"] if "item_type" in item.keys() else "cosmetic"
+    if item_type not in ("avatar", "frame"):
+        return web.json_response({"error": "not_cosmetic"}, status=400)
+    if not has_item(telegram_id, item_id):
+        return web.json_response({"error": "not_owned"}, status=403)
+    set_cosmetic(telegram_id, item_type, item["payload"] or "default")
+    user = get_user(telegram_id)
+    return web.json_response({"ok": True, "avatar_id": user["avatar_id"], "frame_id": user["frame_id"]})
+
+@routes.post("/api/cosmetics/reset")
+async def reset_cosmetic(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    item_type = body.get("item_type")
+    if item_type not in ("avatar", "frame"):
+        return web.json_response({"error": "invalid_type"}, status=400)
+    set_cosmetic(telegram_id, item_type, "default")
+    user = get_user(telegram_id)
+    return web.json_response({"ok": True, "avatar_id": user["avatar_id"], "frame_id": user["frame_id"]})
+
 @routes.post("/api/settings/theme")
 async def set_theme(request):
     telegram_id, _ = await _authenticate(request)
@@ -340,6 +369,7 @@ async def get_shop(request):
 async def buy_route(request):
     telegram_id, _ = await _authenticate(request)
     item_id = int(request.match_info["item_id"])
+    owned_item_ids = set(get_user_items(telegram_id))
 
     # Premium (id=1) — как и в боте: только один раз, и после покупки
     # реально активируем сам premium (buy_shop_item только списывает
@@ -347,17 +377,42 @@ async def buy_route(request):
     if item_id == 1 and was_premium_purchased(telegram_id):
         return web.json_response({"error": "premium_already_purchased"}, status=400)
 
-    success = buy_shop_item(telegram_id, item_id)
+    item = get_shop_item(item_id)
+    if not item:
+        return web.json_response({"error": "shop_item_not_found"}, status=404)
+
+    item_type = item["item_type"] if "item_type" in item.keys() else "cosmetic"
+    repeatable = bool(item["repeatable"]) if "repeatable" in item.keys() else False
+    payload = item["payload"] if "payload" in item.keys() else ""
+
+    # Косметика и PRO покупаются один раз; пакеты ответов — повторно.
+    if not repeatable and item_id != 1 and item_id in owned_item_ids:
+        return web.json_response({"error": "already_owned"}, status=400)
+
+    if item_id == 1 and was_premium_purchased(telegram_id):
+        return web.json_response({"error": "premium_already_purchased"}, status=400)
+
+    success = buy_shop_item(telegram_id, item_id, allow_repeatable=repeatable)
     if not success:
         return web.json_response({"error": "not_enough_xp_or_not_found"}, status=400)
 
-    if item_id == 1:
+    if item_type == "premium":
         give_premium(telegram_id)
+    elif item_type in ("avatar", "frame"):
+        set_cosmetic(telegram_id, item_type, payload)
+    elif item_type == "answer_pack":
+        try:
+            add_ai_bonus_answers(telegram_id, int(payload))
+        except (TypeError, ValueError):
+            return web.json_response({"error": "invalid_answer_pack"}, status=400)
 
     user = get_user(telegram_id)
     return web.json_response({
         "ok": True,
-        "xp": user["xp"] if user else 0
+        "xp": user["xp"] if user else 0,
+        "quota": get_ai_quota(telegram_id, bool(user["premium"]) if user else False),
+        "avatar_id": user["avatar_id"] if user else "default",
+        "frame_id": user["frame_id"] if user else "default",
     })
 
 @routes.get("/health")

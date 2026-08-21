@@ -106,7 +106,7 @@ window.onerror = function(msg, url, line, col, error) {
         box-shadow: 0 8px 20px rgba(124,92,252,.4), inset 0 1px 0 rgba(255,255,255,.15);
     }
 
-    .quota-badge{font-size:11px;color:var(--gold);margin-top:3px}
+    .quota-badge{font-size:11px;color:var(--gold);margin-top:3px}.quota-panel{margin-top:6px;padding:7px 9px;border:1px solid rgba(255,213,79,.18);background:rgba(255,213,79,.06);border-radius:10px;font-size:11px;line-height:1.35}.quota-panel strong{font-size:13px;color:#fff}.quota-panel .quota-action{color:#A78BFA;margin-left:5px}
     .header-status {
         display: flex;
         align-items: center;
@@ -610,7 +610,7 @@ window.onerror = function(msg, url, line, col, error) {
                                     <div className="status-dot"></div>
                                     онлайн
                                 </div>
-                                {quota && <div className="quota-badge">{quota.pro ? 'ADAM PRO' : 'ADAM'} · {quota.remaining} ответов</div>}
+                                {quota && <div className="quota-panel"><strong>{quota.pro ? 'ADAM PRO' : 'Обычный ADAM'}</strong><br/><span>Осталось сегодня: {quota.remaining} из {quota.limit} ответов</span>{quota.bonus > 0 && <span className="quota-action">+{quota.bonus} купленных</span>}</div>}
                             </div>
                         </div>
                         <div className="header-buttons">
