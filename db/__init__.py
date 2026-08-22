@@ -26,6 +26,7 @@ from .users import (
     claim_daily_bonus,
     get_last_ai_message_at,
     touch_last_ai_message,
+    claim_ai_first_message,
 )
 
 from .settings import (
