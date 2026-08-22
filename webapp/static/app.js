@@ -229,7 +229,8 @@
     fire?.classList.remove("ignite");
     requestAnimationFrame(() => fire?.classList.add("ignite"));
     clearTimeout(streakCelebrationTimer);
-    streakCelebrationTimer = setTimeout(closeStreakCelebration, 4200);
+    // Окно не закрывается само: пользователь должен осознанно нажать «Продолжить».
+    streakCelebrationTimer = null;
   }
 
   function closeStreakCelebration() {
@@ -351,10 +352,8 @@
   }
 
   function initStreakPopupClick() {
-    document.addEventListener("click", (e) => {
-      const overlay = document.getElementById("streakCelebrationOverlay");
-      if (overlay && e.target === overlay) closeStreakCelebration();
-    });
+    // Важное окно первого достижения закрывается только кнопкой «Продолжить».
+    // Клик по затемнённому фону ничего не делает — случайное закрытие исключено.
   }
 
   // ===================== TOAST =====================

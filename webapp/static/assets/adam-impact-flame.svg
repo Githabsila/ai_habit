@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 280" role="img" aria-label="Пламя ADAM">
+  <defs>
+    <linearGradient id="outer" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF7B0"/>
+      <stop offset=".28" stop-color="#FFD34E"/>
+      <stop offset=".62" stop-color="#FF7A18"/>
+      <stop offset="1" stop-color="#EF3F24"/>
+    </linearGradient>
+    <linearGradient id="inner" x1=".5" y1="0" x2=".5" y2="1">
+      <stop offset="0" stop-color="#FFFBE0"/>
+      <stop offset=".55" stop-color="#FFE26B"/>
+      <stop offset="1" stop-color="#FF8A00"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-50%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 .95  0 1 0 0 .35  0 0 1 0 .03  0 0 0 .7 0"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#glow)">
+    <path fill="url(#outer)" d="M112 5c12 37-10 50 20 78 18 17 38 42 38 76 0 58-42 101-91 101S0 218 0 159c0-36 16-65 42-92 4 34 18 47 37 58-2-34 11-65 33-120Z" transform="translate(14 0) scale(.87)"/>
+    <path fill="url(#inner)" d="M111 81c-4 26 15 39 18 60 4 25-10 45-31 45-22 0-38-19-36-43 2-23 16-39 30-53 7-7 13-17 19-29Z"/>
+    <path fill="#FFF9D9" d="M105 133c-3 15 7 22 7 33 0 12-8 21-18 21-11 0-18-10-17-21 1-10 8-18 15-25 5-5 9-10 13-18Z" opacity=".92"/>
+  </g>
+</svg>

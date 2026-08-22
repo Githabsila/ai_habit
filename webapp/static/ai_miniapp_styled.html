@@ -845,7 +845,7 @@ window.onerror = function(msg, url, line, col, error) {
                             <div className="header-status"><span className="status-dot"></span>{online?'онлайн':'нет соединения'}</div>
                         </div>
                     </div>
-                    <div className="header-buttons"><button className="icon-btn" onClick={getTip} title="Совет дня">💡</button><button className="icon-btn" onClick={goHome} title="В меню">🏠</button></div>
+                    <div className="header-buttons"><button className="icon-btn" onClick={getTip} title="Совет дня">💡</button><button className="icon-btn" onClick={goHome} title="В меню">⌂</button></div>
                 </div>
 
                 <div className="chat-toolbar"><div className="chat-toolbar-title">Твой личный наставник</div><button onClick={()=>{setShowTools(v=>!v);vibrate('light')}}>{showTools?'Скрыть':'Быстрые действия'} <span>⌄</span></button></div>
