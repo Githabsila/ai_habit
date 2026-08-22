@@ -218,3 +218,23 @@ def get_error_stats(hours=24, limit=5):
 
     conn.close()
     return {"total": total, "by_scope": by_scope, "hours": hours}
+
+
+def claim_ai_first_message(user_id):
+    """Атомарно отмечает первое обработанное сообщение AI.
+
+    Возвращает True только для самого первого вызова для пользователя.
+    Это надёжнее, чем проверять длину истории: история может очищаться,
+    а одноразовая отметка должна оставаться.
+    """
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE users
+        SET ai_intro_shown=1
+        WHERE telegram_id=? AND COALESCE(ai_intro_shown, 0)=0
+    """, (user_id,))
+    claimed = cursor.rowcount == 1
+    conn.commit()
+    conn.close()
+    return claimed

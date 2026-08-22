@@ -827,21 +827,20 @@ window.onerror = function(msg, url, line, col, error) {
                             <div className="header-title-icon">
     <img src="/static/assets/adam-avatar.png" alt="" style={{width: '24px', height: '24px', borderRadius: '50%', display: 'block'}} />
 </div>
-                            <div>
-                                <div>AI ADAM</div>
+                            <div className="header-title-copy">
+                                <div className="header-title-top">
+                                    <div className="header-brand">AI ADAM</div>
+                                    {quota && <div className={`quota-panel ${quota.pro ? 'quota-panel--pro' : ''}`}>
+                                        <span className="quota-panel__spark">✦</span>
+                                        <strong>{quota.pro ? 'PRO' : 'STANDARD'}</strong>
+                                        <span className="quota-panel__count"><b>{quota.remaining}</b>/{quota.limit}</span>
+                                        {quota.bonus > 0 && <span className="quota-action">+{quota.bonus}</span>}
+                                    </div>}
+                                </div>
                                 <div className="header-status">
                                     <div className="status-dot"></div>
                                     онлайн
                                 </div>
-                                {quota && <div className={`quota-panel ${quota.pro ? 'quota-panel--pro' : ''}`}>
-  <div className="quota-panel__title">
-    <span className="quota-panel__spark">✦</span>
-    <strong>{quota.pro ? 'ADAM PRO' : 'ADAM STANDARD'}</strong>
-  </div>
-  <div className="quota-panel__subtitle">{quota.pro ? 'Расширенный режим ADAM' : 'Твой ежедневный лимит ответов'}</div>
-  <div className="quota-panel__count"><b>{quota.remaining}</b> из {quota.limit} ответов осталось</div>
-  {quota.bonus > 0 && <span className="quota-action">+{quota.bonus} куплено в магазине</span>}
-</div>}
                             </div>
                         </div>
                         <div className="header-buttons">
@@ -1077,4 +1076,38 @@ body::before{
   .send-btn{width:47px;height:47px}
 }
 @media(prefers-reduced-motion:reduce){body::before,.header-title-icon::after,.empty-icon,.message{animation:none!important}}
+
+/* Compact ADAM subscription badge: keeps the header clean and premium. */
+.header-title-copy{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.header-title-top{display:flex;align-items:center;gap:8px;min-width:0}
+.header-brand{font:700 18px/1 'Space Grotesk',sans-serif;letter-spacing:.01em;white-space:nowrap}
+.quota-panel{
+  margin:0;
+  padding:4px 7px 4px 6px;
+  min-height:25px;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  border-radius:9px;
+  font-size:9px;
+  line-height:1;
+  white-space:nowrap;
+  box-shadow:0 5px 14px rgba(0,0,0,.13),inset 0 1px rgba(255,255,255,.06);
+}
+.quota-panel__spark{font-size:10px;line-height:1}
+.quota-panel__title{display:contents}
+.quota-panel__title strong{font-size:9px;letter-spacing:.06em}
+.quota-panel__subtitle{display:none}
+.quota-panel__count{margin:0;color:#BDB9C9;font-size:9px}
+.quota-panel__count b{font-size:10px;color:#fff}
+.quota-panel .quota-action{margin:0;padding-left:3px;font-size:8px;color:#C4B5FD}
+.quota-panel--pro{border-color:rgba(255,213,79,.24);background:linear-gradient(135deg,rgba(255,213,79,.12),rgba(124,92,252,.09));box-shadow:0 5px 16px rgba(240,180,41,.10),inset 0 1px rgba(255,255,255,.08)}
+.quota-panel--pro .quota-panel__spark{color:#FFD54F}
+@media(max-width:430px){
+  .header-title-top{gap:6px}
+  .header-brand{font-size:16px}
+  .quota-panel{padding:4px 6px;min-height:23px}
+  .quota-panel__count{font-size:8px}
+  .quota-panel__count b{font-size:9px}
+}
 </style>

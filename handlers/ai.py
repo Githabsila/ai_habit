@@ -38,6 +38,7 @@ from db import (
     log_error,
     get_last_ai_message_at,
     touch_last_ai_message,
+    claim_ai_first_message,
 )
 
 from keyboards import (
@@ -160,6 +161,7 @@ async def ai_chat(message: Message, state: FSMContext):
         return
 
     user_id = message.from_user.id
+    first_message = claim_ai_first_message(user_id)
 
     await message.bot.send_chat_action(
         chat_id=message.chat.id,

@@ -31,6 +31,7 @@ from db import (
     log_error,
     get_last_ai_message_at,
     touch_last_ai_message,
+    claim_ai_first_message,
     has_premium, get_ai_quota, consume_ai_answer,
 )
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
@@ -164,6 +165,10 @@ async def ai_chat_miniapp(request):
             status=429
         )
 
+    # Фиксируем первое реально обработанное сообщение только после
+    # успешного прохождения троттлинга.
+    first_message = claim_ai_first_message(user_id)
+
     # ✅ Команды управления привычками и планом дня («добавь привычку …»,
     # «выполни привычку …», «покажи план» и т.п.) — сначала жёсткие
     # шаблоны, затем резервный AI-классификатор для более вольных
@@ -222,6 +227,7 @@ async def ai_chat_miniapp(request):
                 history=history_text,
                 user_context=user_context,
                 style=style,
+                first_message=first_message,
             )
             answer = result["answer"]
             is_crisis = result["is_crisis"]

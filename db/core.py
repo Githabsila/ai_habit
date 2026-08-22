@@ -85,6 +85,11 @@ def create_tables():
     if "last_ai_message_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN last_ai_message_at TIMESTAMP")
 
+    # Одноразовое приветственное замечание AI: после первого обработанного
+    # сообщения автоматически больше не показываем его.
+    if "ai_intro_shown" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN ai_intro_shown INTEGER DEFAULT 0")
+
     # Premium теперь временный (на неделю), а не навсегда — нужна дата
     # окончания. premium_purchased хранится отдельно и НИКОГДА не сбрасывается
     # даже после истечения premium — это флаг "уже покупал когда-либо",
@@ -257,8 +262,8 @@ def create_tables():
             (4, "🧑‍🚀 Аватар: ADAM", "Аватар профиля", 250),
             (5, "🪐 Рамка: Neon", "Рамка аватара", 200),
             (6, "✨ Рамка: Gold", "Рамка аватара", 350),
-            (20, "💬 +5 ответов ADAM", "Пять дополнительных ответов AI", 100),
-            (21, "💬 +20 ответов ADAM", "Двадцать дополнительных ответов AI", 300),
+            (20, "💬 +5 ответов ADAM", "5 дополнительных ответов ADAM к вашему текущему лимиту", 100),
+            (21, "💬 +20 ответов ADAM", "20 дополнительных ответов ADAM к вашему текущему лимиту", 300),
         ])
 
     # ---------------- AI QUOTA ----------------
@@ -277,8 +282,8 @@ def create_tables():
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (4,'🧑‍🚀 Аватар: ADAM','Аватар профиля',250,'avatar','adam',0)")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (5,'🪐 Рамка: Neon','Рамка аватара',200,'frame','neon',0)")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (6,'✨ Рамка: Gold','Рамка аватара',350,'frame','gold',0)")
-    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (20,'💬 +5 ответов ADAM','Пять дополнительных ответов AI',100,'answer_pack','5',1)")
-    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (21,'💬 +20 ответов ADAM','Двадцать дополнительных ответов AI',300,'answer_pack','20',1)")
+    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (20,'💬 +5 ответов ADAM','5 дополнительных ответов ADAM к вашему текущему лимиту',100,'answer_pack','5',1)")
+    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (21,'💬 +20 ответов ADAM','20 дополнительных ответов ADAM к вашему текущему лимиту',300,'answer_pack','20',1)")
 
     # ---------------- DAILY TASKS ----------------
     cursor.execute("""

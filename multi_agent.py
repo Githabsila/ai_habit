@@ -1011,10 +1011,10 @@ def _needs_deep_pipeline(task: str) -> bool:
 
 
 
-def _apply_first_response_note(answer: str, history: str, user_context: str) -> str:
+def _apply_first_response_note(answer: str, first_message: bool, user_context: str) -> str:
     """Одноразовая фраза в первом ответе и только при фактически выполненных
     всех привычках. Детерминированно, чтобы модель не могла повторять её."""
-    if history.strip() or not answer:
+    if not first_message or not answer:
         return answer
     lines = [line.strip().lower() for line in user_context.splitlines()]
     habit_lines = [line for line in lines if " — да" in line and "привычки пользователя" not in line]
@@ -1033,6 +1033,7 @@ async def solve_task_multiagent(
     user_context: str = "",
     style: str = DEFAULT_STYLE,
     trace: Optional[AgentTrace] = None,
+    first_message: bool = False,
 ) -> dict:
     """
     Полный пайплайн:
@@ -1072,7 +1073,7 @@ async def solve_task_multiagent(
     # Первое сообщение пользователя — единственный момент, когда ADAM
     # может коротко отметить текущий прогресс. Дальше эта фраза не повторяется,
     # пока пользователь сам снова не спросит о выполнении привычек.
-    if not history.strip():
+    if first_message:
         style_note = _combine_notes(
             style_note,
             "Это первый вопрос пользователя в этой переписке. Если по данным "
@@ -1095,7 +1096,7 @@ async def solve_task_multiagent(
         trace.complexity = complexity
         trace.is_crisis = False
         answer = await fast_answer(task, history, user_context, "", style_note)
-        answer = _apply_first_response_note(answer, history, user_context)
+        answer = _apply_first_response_note(answer, first_message, user_context)
         trace.final_answer = answer
         return {
             "answer": answer,
@@ -1126,7 +1127,7 @@ async def solve_task_multiagent(
 
     if complexity == "просто":
         answer = await fast_answer(task, history, user_context, mood_note, style_note)
-        answer = _apply_first_response_note(answer, history, user_context)
+        answer = _apply_first_response_note(answer, first_message, user_context)
         trace.final_answer = answer
         return {
             "answer": answer,
@@ -1159,7 +1160,7 @@ async def solve_task_multiagent(
         logger.warning("Обнаружена ошибка агента в пайплайне — откат на fast_answer")
         final_answer = await fast_answer(task, history, user_context, mood_note, style_note)
 
-    final_answer = _apply_first_response_note(final_answer, history, user_context)
+    final_answer = _apply_first_response_note(final_answer, first_message, user_context)
     trace.final_answer = final_answer
 
     suggested_habit = None if broken else await extract_suggested_habit(final_answer)
