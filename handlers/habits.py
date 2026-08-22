@@ -1,7 +1,8 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
+from pathlib import Path
 
 from db import (
     add_habit,
@@ -34,6 +35,19 @@ router = Router()
 class HabitState(StatesGroup):
     title = State()
     edit_title = State()
+
+
+@router.callback_query(F.data == "streak_continue")
+async def streak_continue(callback: CallbackQuery):
+    """Закрывает праздничное сообщение после осознанного нажатия."""
+    try:
+        await callback.message.delete()
+    except Exception:
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+    await callback.answer("Продолжаем 🚀")
 
 
 # =====================================
@@ -205,6 +219,40 @@ async def save_new_title(message: Message, state: FSMContext):
 
 
 # =====================================
+# ПРАЗДНИЧНОЕ ОКНО НОВОГО УДАРНОГО ДНЯ
+# =====================================
+
+async def send_streak_celebration(message: Message, event: dict, user: dict | None = None):
+    """Показывает красивое сообщение о новом ударном дне в Telegram."""
+    streak = int(event.get("streak") or (user["streak"] if user else 1) or 1)
+    first_name = ((user["first_name"] if user else "") or "").strip()
+    name_line = f" {first_name}," if first_name else ""
+    phrase = (event.get("message") or "День закрыт. Продолжай в том же духе.").strip()
+
+    caption = (
+        "⚡️ <b>НОВЫЙ УДАРНЫЙ ДЕНЬ</b>\n\n"
+        f"<b>+1 ДЕНЬ</b> твоей серии\n\n"
+        f"{name_line} ты только что сделал ещё один шаг вперёд.\n"
+        f"🔥 <b>Серия: {streak} дн.</b>\n\n"
+        f"{phrase}\n\n"
+        "Не сбавляй темп. Завтра продолжаем."
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Продолжить", callback_data="streak_continue")]
+    ])
+    asset = Path(__file__).resolve().parents[1] / "webapp" / "static" / "assets" / "adam-impact-flame.png"
+    if asset.exists():
+        await message.answer_photo(
+            photo=FSInputFile(asset),
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+    else:
+        await message.answer(caption, parse_mode="HTML", reply_markup=keyboard)
+
+
+# =====================================
 # ВЫПОЛНИТЬ ПРИВЫЧКУ
 # =====================================
 
@@ -260,11 +308,9 @@ async def complete(callback: CallbackQuery):
     event = consume_completion_event(callback.from_user.id)
     if event:
         try:
-            await callback.message.answer(
-                f"🔥 +1 день ударного режима!\n\n{event['message']}"
-            )
-        except Exception:
-            pass
+            await send_streak_celebration(callback.message, event, user)
+        except Exception as exc:
+            print("Не удалось показать красивое окно ударного дня:", exc)
 
     await callback.answer(
         "🔥 Отличная работа!"
