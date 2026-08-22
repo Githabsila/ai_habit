@@ -3172,3 +3172,248 @@ section[data-tab="home"] .plan-main::before{
   .rating-podium-card.rank-2{transform:translateY(1px) scale(.98)}
   .rating-podium-card.rank-3{transform:translateY(10px) scale(.95)}
 }
+
+
+
+/* ===== FINAL UI POLISH: PODIUM + ADAM AI + TODAY ===== */
+
+.rating-podium,
+.leaderboard-podium,
+.top-three,
+.rating-top-three {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: 1fr 1.12fr 1fr !important;
+  align-items: end !important;
+  gap: clamp(10px, 2vw, 24px) !important;
+  min-height: 250px;
+  padding: 28px 10px 8px;
+}
+
+.rating-podium > :nth-child(1),
+.leaderboard-podium > :nth-child(1),
+.top-three > :nth-child(1),
+.rating-top-three > :nth-child(1) {
+  grid-column: 2;
+  grid-row: 1;
+  transform: translateY(-24px);
+}
+
+.rating-podium > :nth-child(2),
+.leaderboard-podium > :nth-child(2),
+.top-three > :nth-child(2),
+.rating-top-three > :nth-child(2) {
+  grid-column: 1;
+  grid-row: 1;
+  transform: translateY(2px);
+}
+
+.rating-podium > :nth-child(3),
+.leaderboard-podium > :nth-child(3),
+.top-three > :nth-child(3),
+.rating-top-three > :nth-child(3) {
+  grid-column: 3;
+  grid-row: 1;
+  transform: translateY(28px);
+}
+
+.rating-podium > *,
+.leaderboard-podium > *,
+.top-three > *,
+.rating-top-three > * {
+  transition: transform .35s ease, filter .35s ease;
+}
+
+.rating-podium > :nth-child(1):hover,
+.leaderboard-podium > :nth-child(1):hover,
+.top-three > :nth-child(1):hover,
+.rating-top-three > :nth-child(1):hover {
+  transform: translateY(-31px) scale(1.025);
+}
+
+.rating-podium > :nth-child(2):hover,
+.leaderboard-podium > :nth-child(2):hover,
+.top-three > :nth-child(2):hover,
+.rating-top-three > :nth-child(2):hover {
+  transform: translateY(-3px) scale(1.02);
+}
+
+.rating-podium > :nth-child(3):hover,
+.leaderboard-podium > :nth-child(3):hover,
+.top-three > :nth-child(3):hover,
+.rating-top-three > :nth-child(3):hover {
+  transform: translateY(23px) scale(1.02);
+}
+
+/* Remove rainbow/accent strips from the main-day/task area. */
+.main-day::before,
+.main-day::after,
+.today-section::before,
+.today-section::after,
+.daily-tasks::before,
+.daily-tasks::after,
+.main-tasks::before,
+.main-tasks::after,
+.today-card::before,
+.today-card::after,
+.day-card::before,
+.day-card::after {
+  background-image: none !important;
+  background: none !important;
+}
+
+.rainbow-bar,
+.rainbow-strip,
+.gradient-rainbow,
+.colorful-progress,
+.main-day .rainbow,
+.today-section .rainbow {
+  display: none !important;
+}
+
+/* Make the main-day/task cards feel separated from the background. */
+.main-day,
+.today-section,
+.daily-tasks,
+.main-tasks,
+.today-card,
+.day-card {
+  position: relative;
+  isolation: isolate;
+}
+
+.main-day,
+.today-section,
+.daily-tasks,
+.main-tasks,
+.today-card,
+.day-card {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.025)) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  box-shadow:
+    0 22px 60px rgba(0,0,0,.22),
+    inset 0 1px 0 rgba(255,255,255,.08) !important;
+  backdrop-filter: blur(18px);
+}
+
+/* ADAM AI chat */
+.ai-chat,
+.ai-chat-page,
+.chat-page,
+.adam-chat,
+.ai-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-chat::before,
+.ai-chat-page::before,
+.chat-page::before,
+.adam-chat::before,
+.ai-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(255,198,92,.10), transparent 28%),
+    radial-gradient(circle at 88% 85%, rgba(130,110,255,.08), transparent 30%);
+  z-index: 0;
+}
+
+.ai-chat > *,
+.ai-chat-page > *,
+.chat-page > *,
+.adam-chat > *,
+.ai-container > * {
+  position: relative;
+  z-index: 1;
+}
+
+.adam-message,
+.ai-message,
+.message.ai,
+.message.assistant,
+.chat-message.ai,
+.chat-bubble.ai {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.095), rgba(255,255,255,.045)) !important;
+  border: 1px solid rgba(255,255,255,.11) !important;
+  box-shadow:
+    0 12px 34px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.07) !important;
+  backdrop-filter: blur(18px);
+  border-radius: 18px !important;
+}
+
+.user-message,
+.message.user,
+.chat-message.user,
+.chat-bubble.user {
+  box-shadow: 0 10px 28px rgba(0,0,0,.14) !important;
+  border-radius: 18px !important;
+}
+
+.adam-avatar,
+.ai-avatar,
+.assistant-avatar {
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.13),
+    0 0 28px rgba(255,193,79,.20) !important;
+}
+
+.ai-input,
+.chat-input,
+.chat-composer,
+.ai-chat input,
+.ai-chat textarea {
+  background: rgba(255,255,255,.065) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 12px 34px rgba(0,0,0,.16) !important;
+  backdrop-filter: blur(18px);
+}
+
+.ai-send,
+.chat-send,
+.send-button,
+.ai-chat button[type="submit"] {
+  box-shadow:
+    0 10px 28px rgba(0,0,0,.18),
+    0 0 24px rgba(255,193,79,.15) !important;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.ai-send:hover,
+.chat-send:hover,
+.send-button:hover,
+.ai-chat button[type="submit"]:hover {
+  transform: translateY(-2px) scale(1.03);
+}
+
+@media (max-width: 650px) {
+  .rating-podium,
+  .leaderboard-podium,
+  .top-three,
+  .rating-top-three {
+    min-height: 215px;
+    gap: 7px !important;
+    padding-inline: 2px;
+  }
+
+  .rating-podium > :nth-child(1),
+  .leaderboard-podium > :nth-child(1),
+  .top-three > :nth-child(1),
+  .rating-top-three > :nth-child(1) {
+    transform: translateY(-16px);
+  }
+
+  .rating-podium > :nth-child(3),
+  .leaderboard-podium > :nth-child(3),
+  .top-three > :nth-child(3),
+  .rating-top-three > :nth-child(3) {
+    transform: translateY(18px);
+  }
+}
