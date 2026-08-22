@@ -224,43 +224,49 @@ class="btn btn--accent">
 <!-- ===================== RATING ===================== -->
 <section class="tab-panel" data-tab="rating" hidden>
 
-<div class="section-heading">
-
-<h2>Рейтинг</h2>
-
+<div class="rating-hero">
+  <div class="rating-hero__glow rating-hero__glow--one"></div>
+  <div class="rating-hero__glow rating-hero__glow--two"></div>
+  <div class="rating-hero__eyebrow"><span class="rating-live-dot"></span> ADAM LEAGUE · LIVE</div>
+  <h2>Рейтинг</h2>
+  <p>Кто сегодня держит темп — тот поднимается выше.</p>
+  <div class="rating-hero__stats">
+    <span><b id="ratingPlayerCount">0</b> игроков</span>
+    <span>🔥 серия решает</span>
+  </div>
 </div>
 
-<ul class="rating-list" id="ratingList">
-</ul>
+<div class="rating-podium" id="ratingPodium"></div>
+<div class="rating-rest-head"><span>Лидерборд</span><span>Серия · XP</span></div>
+<ul class="rating-list" id="ratingList"></ul>
 
 </section>
 
 <!-- ===================== PROFILE ===================== -->
 <section class="tab-panel" data-tab="profile" hidden>
 
-<div class="streak-profile-card" id="streakProfileCard">
-  <div class="streak-profile-avatar" id="profileAvatar">A</div>
+<div class="streak-profile-card streak-profile-card--premium" id="streakProfileCard">
+  <div class="streak-profile-card__particles"><i></i><i></i><i></i><i></i></div>
+  <div class="streak-profile-avatar-wrap">
+    <div class="streak-profile-ring"></div>
+    <div class="streak-profile-avatar" id="profileAvatar">A</div>
+  </div>
   <div class="streak-profile-info">
-    <div class="streak-profile-status" id="profileStreakStatus">В ударе 0 дн.</div>
+    <div class="streak-profile-kicker">ТВОЙ УДАРНЫЙ ДЕНЬ</div>
+    <div class="streak-profile-status" id="profileStreakStatus">В ударе</div>
+    <div class="streak-profile-days"><strong id="profileStreakDays">0</strong><span id="profileStreakDaysLabel">дней подряд</span></div>
     <div class="streak-profile-frame" id="profileStreakFrame">🔥 Твоя ударная серия!</div>
     <button class="share-achievement-btn" id="shareAchievementBtn" type="button">↗ Поделиться достижением</button>
   </div>
+  <div class="streak-profile-fire">🔥</div>
 </div>
 
-<div class="section-heading">
-
-<h2>Достижения</h2>
-
-<span class="section-heading__sub" id="achievementsCountLabel">
-
-0 наград
-
-</span>
-
+<div class="streak-profile-metrics">
+  <div class="streak-metric"><span>🔥</span><b id="profileMetricStreak">0</b><small>серия</small></div>
+  <div class="streak-metric"><span>❄️</span><b id="profileMetricFreeze">0/2</b><small>заморозки</small></div>
+  <div class="streak-metric"><span>🏆</span><b id="profileMetricReward">—</b><small>статус</small></div>
 </div>
 
-<ul class="achievement-list" id="achievementList">
-</ul>
 
 <div class="shop-head">
   <div>
@@ -282,6 +288,33 @@ class="btn btn--accent">
 
 <div class="theme-picker" id="themePicker"></div>
 <div class="theme-picker__hint" id="themeHint"></div>
+
+<div class="section-heading achievements-heading">
+
+  <div>
+    <h2>Достижения</h2>
+    <p class="achievements-heading__hint">Последние награды — сразу перед глазами</p>
+  </div>
+
+  <span class="section-heading__sub" id="achievementsCountLabel">0 наград</span>
+
+</div>
+
+<div class="achievement-latest-wrap">
+  <ul class="achievement-list achievement-list--latest" id="achievementList"></ul>
+</div>
+
+<div class="achievement-archive" id="achievementArchive" hidden>
+  <div class="achievement-archive__top">
+    <span>Все остальные</span>
+    <span class="achievement-archive__swipe">← листай →</span>
+  </div>
+  <div class="achievement-archive__viewport" id="achievementArchiveViewport">
+    <ul class="achievement-list achievement-list--archive" id="achievementArchiveList"></ul>
+  </div>
+</div>
+
+
 
 </section>
 
@@ -400,7 +433,7 @@ class="btn btn--accent">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=1101"></script>
+<script type="module" src="/static/app.js?v=1201"></script>
 
 </body>
 </html>

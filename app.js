@@ -345,23 +345,45 @@
   }
 
   // ===================== RENDER: ACHIEVEMENTS =====================
-  function renderAchievements() {
-    const list = document.getElementById("achievementList");
-    const items = state.achievements;
-    document.getElementById("achievementsCountLabel").textContent = `${items.length} наград`;
-    if (items.length === 0) {
-      list.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое 🏆</li>`;
-      return;
-    }
-    list.innerHTML = items.map(a => `
+  function renderAchievementItem(a) {
+    return `
       <li class="achievement-item">
         <span class="achievement-item__icon">🏆</span>
-        <div>
+        <div class="achievement-item__content">
           <div class="achievement-item__title">${escapeHtml(a.title)}</div>
           <div class="achievement-item__desc">${escapeHtml(a.description || "")}</div>
         </div>
       </li>
-    `).join("");
+    `;
+  }
+
+  function renderAchievements() {
+    const latestList = document.getElementById("achievementList");
+    const archive = document.getElementById("achievementArchive");
+    const archiveList = document.getElementById("achievementArchiveList");
+    const countLabel = document.getElementById("achievementsCountLabel");
+    const items = Array.isArray(state?.achievements) ? state.achievements : [];
+
+    if (countLabel) countLabel.textContent = `${items.length} наград`;
+
+    if (!latestList) return;
+
+    if (items.length === 0) {
+      latestList.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое 🏆</li>`;
+      if (archive) archive.hidden = true;
+      return;
+    }
+
+    // Backend отдаёт достижения от новых к старым, поэтому первые 3 — самые свежие.
+    const latest = items.slice(0, 3);
+    const older = items.slice(3);
+
+    latestList.innerHTML = latest.map(renderAchievementItem).join("");
+
+    if (archive && archiveList) {
+      archive.hidden = older.length === 0;
+      archiveList.innerHTML = older.map(renderAchievementItem).join("");
+    }
   }
 
   // ===================== RENDER: RATING =====================

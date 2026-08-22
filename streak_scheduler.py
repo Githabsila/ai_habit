@@ -132,38 +132,23 @@ async def run_streak_risk_notifications(bot):
             tz = ZoneInfo(tz_name)
             now = datetime.now(tz)
 
-            # Ночью ничего не отправляем. В 23:00 и 23:30 — две контрольные
-            # точки, но только если сегодня ещё не выполнена ни одна привычка.
-            if now.hour not in (23,) or now.minute not in (0, 30):
+            # Только одно напоминание — ровно в 23:00 по локальному времени
+            # пользователя. После полуночи уведомления об ударном режиме не отправляем.
+            if now.hour != 23 or now.minute != 0:
                 continue
             if has_completed_today(uid):
                 continue
 
             day = now.date().isoformat()
-            kind = "risk23" if now.minute == 0 else "risk2330"
-            if not claim_notification(uid, day, kind):
+            if not claim_notification(uid, day, "risk23"):
                 continue
 
-            if now.minute == 0:
-                await bot.send_message(
-                    uid,
-                    random.choice(RISK_23_FIRST),
-                    parse_mode="HTML",
-                )
-            else:
-                msg = await bot.send_message(
-                    uid,
-                    random.choice(RISK_23_30),
-                    parse_mode="HTML",
-                    reply_markup=_countdown_keyboard(),
-                )
-                key = (uid, msg.message_id)
-                old_task = _active_countdowns.get(key)
-                if old_task and not old_task.done():
-                    old_task.cancel()
-                _active_countdowns[key] = asyncio.create_task(
-                    _run_countdown(bot, uid, msg.message_id, tz_name, now.date())
-                )
+            await bot.send_message(
+                uid,
+                random.choice(RISK_23_FIRST),
+                parse_mode="HTML",
+                reply_markup=_countdown_keyboard(),
+            )
         except Exception:
             logger.exception("Ошибка streak-risk для %s", uid)
 

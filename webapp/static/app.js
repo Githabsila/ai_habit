@@ -167,12 +167,23 @@
     if (/^Огонь\s+/i.test(streakStatus)) {
       streakStatus = streakStatus.replace(/^Огонь/i, "В ударе");
     }
-    if (profileStatus) profileStatus.textContent = streakStatus || (streak.days ? `В ударе ${streak.days} дн.` : "Серия не начата");
+    const streakDays = Number(streak.days || 0);
+    const reward = (streak.rewards || [])[0];
+    if (profileStatus) profileStatus.textContent = streakStatus || (streakDays ? "В ударе" : "Серия не начата");
     if (profileFrame) {
-      const reward = (streak.rewards || [])[0];
       profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "🔥 Твоя ударная серия!";
       profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
     }
+    const profileDays = document.getElementById("profileStreakDays");
+    const profileDaysLabel = document.getElementById("profileStreakDaysLabel");
+    const metricStreak = document.getElementById("profileMetricStreak");
+    const metricFreeze = document.getElementById("profileMetricFreeze");
+    const metricReward = document.getElementById("profileMetricReward");
+    if (profileDays) profileDays.textContent = streakDays;
+    if (profileDaysLabel) profileDaysLabel.textContent = pluralRu(streakDays, "день подряд", "дня подряд", "дней подряд");
+    if (metricStreak) metricStreak.textContent = streakDays;
+    if (metricFreeze) metricFreeze.textContent = `${streak.freeze_balance || 0}/2`;
+    if (metricReward) metricReward.textContent = reward ? `${reward.milestone} дн.` : "—";
   }
 
   function openStreakCelebration(event) {
@@ -513,77 +524,100 @@
   }
 
   // ===================== RENDER: ACHIEVEMENTS =====================
-  function renderAchievements() {
-    const list = document.getElementById("achievementList");
-    const items = state.achievements;
-    document.getElementById("achievementsCountLabel").textContent = `${items.length} наград`;
-    if (items.length === 0) {
-      list.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое 🏆</li>`;
-      return;
-    }
-    list.innerHTML = items.map(a => `
+  function renderAchievementItem(a) {
+    return `
       <li class="achievement-item">
         <span class="achievement-item__icon">🏆</span>
-        <div>
+        <div class="achievement-item__content">
           <div class="achievement-item__title">${escapeHtml(a.title)}</div>
           <div class="achievement-item__desc">${escapeHtml(a.description || "")}</div>
         </div>
       </li>
-    `).join("");
+    `;
+  }
+
+  function renderAchievements() {
+    const latestList = document.getElementById("achievementList");
+    const archive = document.getElementById("achievementArchive");
+    const archiveList = document.getElementById("achievementArchiveList");
+    const countLabel = document.getElementById("achievementsCountLabel");
+    const items = Array.isArray(state?.achievements) ? state.achievements : [];
+
+    if (countLabel) countLabel.textContent = `${items.length} наград`;
+
+    if (!latestList) return;
+
+    if (items.length === 0) {
+      latestList.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое 🏆</li>`;
+      if (archive) archive.hidden = true;
+      return;
+    }
+
+    // Backend отдаёт достижения от новых к старым, поэтому первые 3 — самые свежие.
+    const latest = items.slice(0, 3);
+    const older = items.slice(3);
+
+    latestList.innerHTML = latest.map(renderAchievementItem).join("");
+
+    if (archive && archiveList) {
+      archive.hidden = older.length === 0;
+      archiveList.innerHTML = older.map(renderAchievementItem).join("");
+    }
   }
 
   // ===================== RENDER: RATING =====================
   function renderRating() {
     const list = document.getElementById("ratingList");
+    const podium = document.getElementById("ratingPodium");
+    const count = document.getElementById("ratingPlayerCount");
     if (!list) return;
     let rows = Array.isArray(state.leaderboard) ? state.leaderboard.slice() : [];
-    // Если сервер временно вернул пустой рейтинг, всё равно показываем текущего пользователя.
     if (rows.length === 0 && state.user) {
-      rows = [{
-        telegram_id: state.user.telegram_id,
-        username: "",
-        first_name: state.user.first_name || "Игрок",
-        xp: state.user.xp || 0,
-        level: state.user.level || 1,
-        streak: state.user.streak || 0,
-        badge: !!state.user.badge
-      }];
+      rows = [{ telegram_id: state.user.telegram_id, username: "", first_name: state.user.first_name || "Игрок", xp: state.user.xp || 0, level: state.user.level || 1, streak: state.user.streak || 0, badge: !!state.user.badge }];
     }
+    if (count) count.textContent = rows.length;
     if (rows.length === 0) {
+      if (podium) podium.innerHTML = "";
       list.innerHTML = `<li class="empty-hint">Рейтинг пока пуст</li>`;
       return;
     }
     const myId = state.user.telegram_id;
-    list.innerHTML = rows.map((r, i) => {
-      const rank = i + 1;
-      const isMe = r.telegram_id === myId;
-      const name = r.first_name || r.username || "Игрок";
+    const getStatus = (r) => {
       const ss = r.streak_status || {};
       const reward = (ss.rewards || [])[0];
-      const frame = ss.temp_frame || "none";
       let status = ss.temp_status || (reward ? reward.status : "");
       if (/^Огонь\s+/i.test(status)) status = status.replace(/^Огонь/i, "В ударе");
-      return `
-        <li class="rating-item ${isMe ? "is-me" : ""} rank-${rank}">
-          <span class="rating-item__rank">${rank}</span>
-          <span class="rating-avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</span>
-          <span class="rating-item__name">
-            <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
-            ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
-          </span>
-          <span class="rating-item__meta">
-    <span class="rating-stat">
-        <span class="material-symbols-rounded stat-icon">local_fire_department</span>
-        ${r.streak}
-    </span>
-
-    <span class="rating-stat">
-        ${ADAM_COIN_ICON}
-        ${r.xp}
-    </span>
-</span>
-        </li>
-      `;
+      return {ss, reward, status};
+    };
+    const medal = ["🥇", "🥈", "🥉"];
+    if (podium) {
+      podium.innerHTML = rows.slice(0, 3).map((r, idx) => {
+        const rank = idx + 1, isMe = r.telegram_id === myId, name = r.first_name || r.username || "Игрок";
+        const {ss, reward, status} = getStatus(r);
+        const frame = ss.temp_frame || "none";
+        return `<div class="rating-podium-card rank-${rank} ${isMe ? "is-me" : ""}">
+          <div class="rating-podium-card__crown">${medal[idx]}</div>
+          <div class="rating-podium-card__avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</div>
+          <div class="rating-podium-card__rank">#${rank}</div>
+          <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? "🏅" : ""}</div>
+          ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
+          <div class="rating-podium-card__stats"><span>🔥 ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
+        </div>`;
+      }).join("");
+    }
+    list.innerHTML = rows.slice(3).map((r, i) => {
+      const rank = i + 4, isMe = r.telegram_id === myId, name = r.first_name || r.username || "Игрок";
+      const {ss, status} = getStatus(r);
+      const frame = ss.temp_frame || "none";
+      return `<li class="rating-item ${isMe ? "is-me" : ""} rank-${rank}">
+        <span class="rating-item__rank">${rank}</span>
+        <span class="rating-avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</span>
+        <span class="rating-item__name">
+          <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
+          ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
+        </span>
+        <span class="rating-item__meta"><span class="rating-stat"><span class="material-symbols-rounded stat-icon">local_fire_department</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
+      </li>`;
     }).join("");
   }
 
