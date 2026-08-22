@@ -7,4 +7,5 @@ async def main():
     print("Сервер запущен.")
     await asyncio.Event().wait()
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

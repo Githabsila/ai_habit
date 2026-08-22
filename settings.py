@@ -1,4 +1,4 @@
-from .core import connect
+from db.core import connect
 
 
 def get_settings(user_id):

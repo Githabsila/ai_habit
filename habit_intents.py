@@ -7,6 +7,9 @@ from db import (
     delete_habit,
     complete_habit,
     get_daily_plan,
+    set_daily_main_goal,
+    delete_daily_main_goal,
+    toggle_daily_main_goal,
     toggle_daily_task,
     consume_completion_event,
 )
@@ -78,6 +81,27 @@ _DELETE_PRONOUN_RE = re.compile(
 )
 
 # ===== ПЛАН ДНЯ / ЦЕЛИ (Главная задача + до 5 задач в Mini App) =====
+
+_MAIN_GOAL_SET_RE = re.compile(
+    r"^(?:поставь|поставить|добавь|добавить)\s+главн(?:ую|ая)\s+(?:задачу|цель|привычку)\s+дня\s*[:\-—]?\s*(.+)$",
+    re.IGNORECASE,
+)
+
+_MAIN_GOAL_COMPLETE_RE = re.compile(
+    r"^(?:отметь|выполни|сделай)\s+главн(?:ую|ая)\s+(?:задачу|цель)\s+дня[.!?]*$",
+    re.IGNORECASE,
+)
+
+_MAIN_GOAL_DELETE_RE = re.compile(
+    r"^(?:удали|удалить|убери|убрать)\s+главн(?:ую|ая)\s+(?:задачу|цель)\s+дня[.!?]*$",
+    re.IGNORECASE,
+)
+
+_MAIN_GOAL_EDIT_RE = re.compile(
+    r"^(?:измени|поменяй|переименуй)\s+главн(?:ую|ая)\s+(?:задачу|цель)\s+дня\s+(?:на|в)\s+(.+)$",
+    re.IGNORECASE,
+)
+
 
 _LIST_PLAN_RE = re.compile(
     r"^(?:покажи|выведи)\s+(?:мой\s+|мои\s+)?(?:план(?:\s+на\s+(?:сегодня|день))?|цели(?:\s+на\s+(?:сегодня|день))?)[.!?]*$"
@@ -279,6 +303,38 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
             mark = "✅" if h["completed"] else "⬜"
             lines.append(f"{mark} {h['title']}" + (f" — {h['planned_time']}" if h['planned_time'] else ""))
         return "\n".join(lines)
+
+    m = _MAIN_GOAL_SET_RE.match(text)
+    if m:
+        goal = _clean(m.group(1))
+        if not goal:
+            return "⚠️ Напиши текст главной задачи дня."
+        set_daily_main_goal(user_id, goal)
+        return f"🎯 Главная задача дня: «{goal}»"
+
+    m = _MAIN_GOAL_EDIT_RE.match(text)
+    if m:
+        goal = _clean(m.group(1))
+        if not goal:
+            return "⚠️ Напиши новое название главной задачи."
+        set_daily_main_goal(user_id, goal)
+        return f"✏️ Главная задача дня изменена на «{goal}»."
+
+    if _MAIN_GOAL_COMPLETE_RE.match(text):
+        plan = get_daily_plan(user_id)
+        if not plan["main_goal"]:
+            return "⚠️ Главная задача дня пока не задана."
+        if plan["main_goal_completed"]:
+            return f"✅ Главная задача «{plan['main_goal']}» уже отмечена выполненной."
+        toggle_daily_main_goal(user_id)
+        return f"🔥 Главная задача «{plan['main_goal']}» отмечена выполненной!"
+
+    if _MAIN_GOAL_DELETE_RE.match(text):
+        plan = get_daily_plan(user_id)
+        if not plan["main_goal"]:
+            return "ℹ️ Главная задача дня уже пуста."
+        delete_daily_main_goal(user_id)
+        return "🗑 Главная задача дня удалена."
 
     if _LIST_PLAN_RE.match(text):
         plan = get_daily_plan(user_id)

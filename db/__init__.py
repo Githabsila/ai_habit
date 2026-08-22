@@ -26,7 +26,6 @@ from .users import (
     claim_daily_bonus,
     get_last_ai_message_at,
     touch_last_ai_message,
-    claim_ai_first_message,
 )
 
 from .settings import (
@@ -104,6 +103,7 @@ from .ai import (
     get_user_profile,
     update_user_profile,
     bump_profile_counter,
+    claim_ai_first_message,
     cache_get,
     cache_set,
     log_error,
