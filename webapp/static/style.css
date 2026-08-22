@@ -3025,3 +3025,150 @@ body[data-theme="violet"] .player-card{
 .streak-profile-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}.streak-metric{padding:13px 8px;text-align:center;border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018));border:1px solid rgba(255,255,255,.06);box-shadow:0 9px 22px rgba(0,0,0,.13)}.streak-metric span{display:block;font-size:16px;margin-bottom:3px}.streak-metric b{display:block;font:850 15px 'Space Grotesk',sans-serif;color:#F2EFF7}.streak-metric small{display:block;margin-top:2px;font-size:8px;color:#777586;text-transform:uppercase;letter-spacing:.08em;font-weight:800}
 @media(max-width:430px){.rating-hero{padding:20px 16px 15px}.rating-hero h2{font-size:29px}.rating-podium{gap:6px}.rating-podium-card{padding-left:5px;padding-right:5px}.rating-podium-card__avatar{width:45px;height:45px;border-radius:14px}.rank-1 .rating-podium-card__avatar{width:54px;height:54px}.rating-podium-card__name{font-size:10px}.rating-podium-card__stats{font-size:8px}.streak-profile-card--premium{min-height:145px;padding:16px 14px;gap:10px}.streak-profile-avatar-wrap{width:65px;height:65px}.streak-profile-avatar{width:55px;height:55px}.streak-profile-status{font-size:16px}.streak-profile-days strong{font-size:27px}.streak-profile-fire{right:10px;font-size:25px}.streak-profile-metrics{gap:6px}.streak-metric{padding:11px 5px}}
 @media(prefers-reduced-motion:reduce){.rating-hero::after,.rating-live-dot,.rating-hero__glow,.rating-item,.streak-profile-card--premium::before,.streak-profile-card__particles i,.streak-profile-ring,.streak-profile-fire{animation:none!important}}
+
+/* =========================================================
+   ADAM 10X HOME + RATING PODIUM POLISH
+   ========================================================= */
+/* Главное меню / Сегодня — отдельная сцена, а не просто фон */
+section[data-tab="home"]{
+  position:relative;
+  isolation:isolate;
+  padding:12px 10px 28px;
+  border-radius:32px;
+  background:
+    radial-gradient(circle at 8% 4%,rgba(124,92,252,.13),transparent 30%),
+    radial-gradient(circle at 92% 16%,rgba(240,180,41,.10),transparent 28%),
+    linear-gradient(180deg,rgba(18,14,29,.34),rgba(10,9,16,.10));
+}
+section[data-tab="home"]::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  border-radius:32px;
+  border:1px solid rgba(255,255,255,.045);
+  box-shadow:inset 0 1px rgba(255,255,255,.04),0 24px 70px rgba(0,0,0,.12);
+  pointer-events:none;
+}
+section[data-tab="home"] > .section-heading:first-child{
+  position:relative;
+  margin:2px 2px 14px;
+  padding:15px 16px 14px;
+  border-radius:22px;
+  overflow:hidden;
+  background:linear-gradient(135deg,rgba(255,255,255,.075),rgba(255,255,255,.025));
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 14px 35px rgba(0,0,0,.20),inset 0 1px rgba(255,255,255,.08);
+}
+section[data-tab="home"] > .section-heading:first-child::after{
+  content:"";
+  position:absolute;
+  width:130px;height:130px;
+  right:-55px;top:-75px;
+  border-radius:50%;
+  background:rgba(124,92,252,.18);
+  filter:blur(24px);
+  pointer-events:none;
+}
+section[data-tab="home"] > .section-heading:first-child h2{
+  font:900 29px/1 'Space Grotesk',sans-serif;
+  letter-spacing:-.045em;
+  text-shadow:0 8px 28px rgba(0,0,0,.25);
+}
+section[data-tab="home"] > .section-heading:first-child .section-heading__sub{
+  position:relative;
+  z-index:2;
+  padding:7px 10px;
+  border-radius:11px;
+  color:#D8D4E5;
+  background:rgba(255,255,255,.055);
+  border:1px solid rgba(255,255,255,.06);
+  box-shadow:inset 0 1px rgba(255,255,255,.05);
+}
+section[data-tab="home"] .streak-widget{
+  margin-bottom:14px;
+  background:
+    radial-gradient(circle at 88% 0%,rgba(255,122,24,.24),transparent 28%),
+    radial-gradient(circle at 4% 100%,rgba(124,92,252,.16),transparent 32%),
+    linear-gradient(145deg,#21161c,#12111a 72%);
+  border-color:rgba(255,122,24,.22);
+  box-shadow:0 22px 55px rgba(0,0,0,.30),inset 0 1px rgba(255,255,255,.07);
+  overflow:hidden;
+}
+section[data-tab="home"] .plan-card{
+  position:relative;
+  overflow:hidden;
+  background:linear-gradient(145deg,rgba(25,20,36,.97),rgba(13,11,20,.98));
+  border-color:rgba(255,255,255,.08);
+  border-radius:26px;
+  box-shadow:0 20px 48px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.05);
+}
+section[data-tab="home"] .plan-card > .section-heading h2{
+  font:850 20px/1 'Space Grotesk',sans-serif;
+}
+section[data-tab="home"] .plan-main{
+  position:relative;
+  background:linear-gradient(145deg,rgba(240,180,41,.11),rgba(124,92,252,.045) 55%,rgba(0,0,0,.12));
+  border:1px solid rgba(240,180,41,.18);
+  box-shadow:0 12px 30px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.045);
+}
+section[data-tab="home"] .plan-main::before{
+  content:"";
+  position:absolute;left:0;top:14px;bottom:14px;width:3px;
+  border-radius:0 4px 4px 0;
+  background:linear-gradient(#FFD76A,#F0B429,#7C5CFC);
+  box-shadow:0 0 16px rgba(240,180,41,.35);
+}
+
+/* Подиум: 1-е по центру выше, 2-е слева, 3-е справа ниже */
+.rating-podium{
+  position:relative;
+  display:grid;
+  grid-template-columns:1fr 1.12fr 1fr;
+  align-items:end;
+  gap:9px;
+  padding:18px 4px 8px;
+  margin:0 0 16px;
+}
+.rating-podium::before{
+  content:"";
+  position:absolute;
+  left:7%;right:7%;bottom:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(240,180,41,.32),transparent);
+}
+.rating-podium-card{
+  transform:translateY(8px);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.rating-podium-card.rank-1{
+  transform:translateY(-15px) scale(1.025);
+  z-index:3;
+}
+.rating-podium-card.rank-2{
+  transform:translateY(0) scale(.985);
+  z-index:2;
+}
+.rating-podium-card.rank-3{
+  transform:translateY(13px) scale(.96);
+  z-index:1;
+}
+.rating-podium-card.rank-1:hover{transform:translateY(-19px) scale(1.035)}
+.rating-podium-card.rank-2:hover{transform:translateY(-4px) scale(.995)}
+.rating-podium-card.rank-3:hover{transform:translateY(9px) scale(.97)}
+.rating-podium-card.rank-1::after,
+.rating-podium-card.rank-2::after,
+.rating-podium-card.rank-3::after{
+  content:"";position:absolute;left:12%;right:12%;bottom:-18px;height:30px;border-radius:50%;filter:blur(15px);opacity:.35;pointer-events:none;
+}
+.rating-podium-card.rank-1::after{background:#F0B429}
+.rating-podium-card.rank-2::after{background:#B9C0D8}
+.rating-podium-card.rank-3::after{background:#D98B4A}
+@media(max-width:430px){
+  section[data-tab="home"]{padding-left:7px;padding-right:7px}
+  section[data-tab="home"] > .section-heading:first-child h2{font-size:27px}
+  .rating-podium{gap:6px;padding-top:14px}
+  .rating-podium-card.rank-1{transform:translateY(-11px) scale(1.02)}
+  .rating-podium-card.rank-2{transform:translateY(1px) scale(.98)}
+  .rating-podium-card.rank-3{transform:translateY(10px) scale(.95)}
+}
