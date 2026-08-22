@@ -691,251 +691,203 @@ window.onerror = function(msg, url, line, col, error) {
             } catch (e) {}
         }
 
+        function formatTime(value) {
+            if (!value) return new Date().toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'});
+            const d = new Date(String(value).replace(' ', 'T') + (String(value).includes('Z') ? '' : 'Z'));
+            return isNaN(d.getTime()) ? String(value).slice(-5) : d.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'});
+        }
+
+        function vibrate(type='light') {
+            try { tg.HapticFeedback.impactOccurred(type); } catch(e) {}
+        }
+
         function AiChat() {
             const [messages, setMessages] = useState(loadStoredMessages);
             const [input, setInput] = useState('');
             const [loading, setLoading] = useState(false);
             const [throttle, setThrottle] = useState(null);
             const [quota, setQuota] = useState(null);
+            const [listening, setListening] = useState(false);
+            const [showTools, setShowTools] = useState(false);
+            const [copiedId, setCopiedId] = useState(null);
+            const [online, setOnline] = useState(navigator.onLine);
             const messagesEnd = useRef(null);
+            const textareaRef = useRef(null);
+            const recognitionRef = useRef(null);
 
-            const scroll = () => { messagesEnd.current?.scrollIntoView({ behavior: 'smooth' }); };
-            useEffect(scroll, [messages]);
-            useEffect(() => { saveStoredMessages(messages); }, [messages]);
-            useEffect(() => {
-                fetch('/api/ai/quota', {headers:{'X-Telegram-Init-Data':tg.initData}}).then(r=>r.json()).then(setQuota).catch(()=>{});
+            const scroll = (behavior='smooth') => messagesEnd.current?.scrollIntoView({behavior, block:'end'});
+            useEffect(() => { scroll('auto'); }, []);
+            useEffect(() => { saveStoredMessages(messages); scroll(); }, [messages]);
+
+            const loadHistory = useCallback(async () => {
+                try {
+                    const res = await fetch('/api/ai/history?init_data=' + encodeURIComponent(tg.initData) + '&limit=80');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (!Array.isArray(data.history)) return;
+                    const normalized = data.history.map((m, i) => ({
+                        id: m.id || `history-${i}`,
+                        role: m.role === 'assistant' ? 'assistant' : 'user',
+                        text: m.message || '',
+                        time: formatTime(m.timestamp || m.created_at),
+                        canRate: m.role === 'assistant'
+                    }));
+                    if (normalized.length) setMessages(normalized);
+                } catch(e) {}
             }, []);
 
-            const sendMsg = useCallback(async () => {
-                if (!input.trim() || loading || throttle) return;
+            useEffect(() => {
+                fetch('/api/ai/quota', {headers:{'X-Telegram-Init-Data':tg.initData}})
+                    .then(r=>r.json()).then(setQuota).catch(()=>{});
+                if (!loadStoredMessages().length) loadHistory();
+                const onOnline=()=>setOnline(true), onOffline=()=>setOnline(false);
+                window.addEventListener('online',onOnline); window.addEventListener('offline',onOffline);
+                return ()=>{ window.removeEventListener('online',onOnline); window.removeEventListener('offline',onOffline); };
+            }, [loadHistory]);
 
-                const text = input.trim();
+            const resizeInput = () => {
+                const el=textareaRef.current; if (!el) return;
+                el.style.height='auto'; el.style.height=Math.min(el.scrollHeight, 132)+'px';
+            };
+
+            const sendText = useCallback(async (rawText) => {
+                const text = (rawText || '').trim();
+                if (!text || loading || throttle) return;
+                vibrate('light');
                 setInput('');
-                setMessages(p => [...p, {
-                    id: Date.now(),
-                    role: 'user',
-                    text,
-                    time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })
-                }]);
-
+                if (textareaRef.current) textareaRef.current.style.height='40px';
+                setMessages(p => [...p, {id: Date.now(), role:'user', text, time:formatTime()}]);
                 setLoading(true);
-
                 try {
                     const res = await fetch('/api/ai/chat', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            init_data: tg.initData,
-                            message: text
-                        })
+                        method:'POST', headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({init_data:tg.initData, message:text})
                     });
-
-                    const data = await res.json();
-
+                    const data=await res.json();
                     if (!res.ok) {
                         if (data.quota) setQuota(data.quota);
-                        if (res.status === 429) {
+                        if (res.status===429) {
                             setThrottle(data.wait_seconds);
-                            setTimeout(() => setThrottle(null), data.wait_seconds * 1000);
+                            setTimeout(()=>setThrottle(null), data.wait_seconds*1000);
                         }
-                        setMessages(p => [...p, {
-                            id: Date.now(),
-                            role: 'system',
-                            text: data.message || 'Ошибка',
-                            type: 'error'
-                        }]);
+                        setMessages(p=>[...p,{id:Date.now(),role:'system',text:data.message||'Не получилось выполнить запрос.',type:'error'}]);
+                        vibrate('heavy');
                         return;
                     }
-
                     if (data.quota) setQuota(data.quota);
-                    setMessages(p => [...p, {
-                        id: data.message_id,
-                        role: 'assistant',
-                        text: data.answer,
-                        time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }),
-                        isCrisis: data.is_crisis,
-                        habit: data.suggested_habit,
-                        canRate: true
-                    }]);
-                } catch (e) {
-                    setMessages(p => [...p, {
-                        id: Date.now(),
-                        role: 'system',
-                        text: 'Ошибка подключения',
-                        type: 'error'
-                    }]);
-                } finally {
-                    setLoading(false);
-                }
-            }, [input, loading, throttle, tg.initData]);
+                    setMessages(p=>[...p,{id:data.message_id,role:'assistant',text:data.answer,time:formatTime(),isCrisis:data.is_crisis,habit:data.suggested_habit,canRate:true,sourcePrompt:text}]);
+                    vibrate('light');
+                } catch(e) {
+                    setMessages(p=>[...p,{id:Date.now(),role:'system',text:online?'Не удалось получить ответ ADAM. Попробуй ещё раз.':'Нет соединения с интернетом.',type:'error'}]);
+                    vibrate('heavy');
+                } finally { setLoading(false); }
+            }, [loading, throttle, online]);
+
+            const sendMsg = () => sendText(input);
 
             const rate = async (id, rating) => {
                 try {
-                    await fetch('/api/ai/feedback', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            init_data: tg.initData,
-                            message_id: id,
-                            rating
-                        })
-                    });
-                    setMessages(p => p.map(m => m.id === id ? { ...m, canRate: false, rated: rating } : m));
-                } catch (e) {}
+                    await fetch('/api/ai/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:tg.initData,message_id:id,rating})});
+                    setMessages(p=>p.map(m=>m.id===id?{...m,canRate:false,rated:rating}:m));
+                    vibrate('light');
+                } catch(e) {}
+            };
+
+            const copyMessage = async (text,id) => {
+                try { await navigator.clipboard.writeText(text); setCopiedId(id); setTimeout(()=>setCopiedId(null),1400); vibrate('light'); } catch(e) {}
+            };
+
+            const regenerate = (message) => {
+                if (message?.sourcePrompt) sendText(message.sourcePrompt);
             };
 
             const addHabit = async (id, habit) => {
                 try {
-                    await fetch('/api/ai/habit/add', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            init_data: tg.initData,
-                            habit_title: habit
-                        })
-                    });
-                    setMessages(p => p.map(m => m.id === id ? { ...m, habit: null } : m));
-                    tg.showPopup({ title: '✅ Успешно', message: `Привычка "${habit}" добавлена`, buttons: [{ type: 'ok' }] });
-                } catch (e) {}
+                    const res=await fetch('/api/ai/habit/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:tg.initData,habit_title:habit})});
+                    if (!res.ok) throw new Error();
+                    setMessages(p=>p.map(m=>m.id===id?{...m,habit:null}:m));
+                    tg.showPopup({title:'Привычка добавлена',message:`«${habit}» добавлена в твой план.`,buttons:[{type:'ok'}]});
+                    vibrate('medium');
+                } catch(e) { tg.showAlert('Не удалось добавить привычку. Попробуй ещё раз.'); }
             };
 
             const getTip = async () => {
-                setLoading(true);
+                if (loading) return;
+                setLoading(true); vibrate('light');
                 try {
-                    const res = await fetch('/api/ai/tip', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ init_data: tg.initData })
-                    });
-                    const data = await res.json();
-                    setMessages(p => [...p, {
-                        id: Date.now(),
-                        role: 'assistant',
-                        text: '💡 <b>Совет дня</b>\n\n' + data.tip,
-                        time: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }),
-                        isHtml: true
-                    }]);
-                } finally {
-                    setLoading(false);
-                }
+                    const res=await fetch('/api/ai/tip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:tg.initData})});
+                    const data=await res.json();
+                    setMessages(p=>[...p,{id:Date.now(),role:'assistant',text:'💡 Совет дня\n\n'+(data.tip||'Сделай сегодня один маленький шаг в сторону своей цели.'),time:formatTime(),canRate:false}]);
+                } catch(e) { setMessages(p=>[...p,{id:Date.now(),role:'system',text:'Не удалось получить совет дня.',type:'error'}]); }
+                finally { setLoading(false); }
             };
 
-            return (
-                <div className="app-container">
-                    <div className="header">
-                        <div className="header-title">
-                            <div className="header-title-icon">
-    <img src="/static/assets/adam-avatar.png" alt="" style={{width: '24px', height: '24px', borderRadius: '50%', display: 'block'}} />
-</div>
-                            <div className="header-title-copy">
-                                <div className="header-title-top">
-                                    <div className="header-brand">AI ADAM</div>
-                                    {quota && <div className={`quota-panel ${quota.pro ? 'quota-panel--pro' : ''}`}>
-                                        <span className="quota-panel__spark">✦</span>
-                                        <strong>{quota.pro ? 'PRO' : 'STANDARD'}</strong>
-                                        <span className="quota-panel__count"><b>{quota.remaining}</b>/{quota.limit}</span>
-                                        {quota.bonus > 0 && <span className="quota-action">+{quota.bonus}</span>}
-                                    </div>}
-                                </div>
-                                <div className="header-status">
-                                    <div className="status-dot"></div>
-                                    онлайн
-                                </div>
-                            </div>
-                        </div>
-                        <div className="header-buttons">
-                            <button className="icon-btn" onClick={goHome} title="В главное меню">🏠</button>
-                            <button className="icon-btn" onClick={getTip} title="Совет дня">💡</button>
+            const quickPrompts=[
+                ['🎯','Составь план дня'],['📊','Проанализируй мой день'],['🔥','Мотивируй меня'],['🧠','Помоги разобраться с задачей']
+            ];
+
+            const startVoice = () => {
+                const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+                if (!SR) { tg.showAlert('Голосовой ввод не поддерживается этим браузером.'); return; }
+                if (listening) { recognitionRef.current?.stop(); return; }
+                const r=new SR(); recognitionRef.current=r; r.lang='ru-RU'; r.interimResults=true; r.continuous=false;
+                r.onstart=()=>{setListening(true);vibrate('medium');};
+                r.onresult=e=>{let text='';for(let i=e.resultIndex;i<e.results.length;i++) text+=e.results[i][0].transcript;setInput(text);setTimeout(resizeInput,0);};
+                r.onerror=()=>setListening(false); r.onend=()=>setListening(false); r.start();
+            };
+
+            return <div className="app-container">
+                <div className="header">
+                    <div className="header-title">
+                        <div className="header-title-icon"><img src="/static/assets/adam-avatar.png" alt="ADAM" /></div>
+                        <div className="header-title-copy">
+                            <div className="header-title-top"><div className="header-brand">ADAM</div>{quota&&<div className={`quota-panel ${quota.pro?'quota-panel--pro':''}`}><span>✦</span><strong>{quota.pro?'PRO':'STANDARD'}</strong><span><b>{quota.remaining}</b>/{quota.limit}</span></div>}</div>
+                            <div className="header-status"><span className="status-dot"></span>{online?'онлайн':'нет соединения'}</div>
                         </div>
                     </div>
-
-                    <div className="messages-container">
-                        {messages.length === 0 ? (
-                            <div className="empty-state">
-                                <div className="empty-icon">
-    <img src="/static/assets/adam-avatar.png" alt="" style={{width: '46px', height: '46px', borderRadius: '50%', display: 'block'}} />
-</div>
-                                <div className="empty-text">
-                                    👋 Привет! Я твой персональный<br/>наставник по привычкам.<br/><br/>
-                                    Спроси меня что угодно!
-                                </div>
-                            </div>
-                        ) : (
-                            <>
-                                {messages.map(m => (
-                                    <div key={m.id}>
-                                        {m.type === 'error' && <div className="throttle-warning">{m.text}</div>}
-
-                                        {m.role === 'user' && (
-                                            <div className="message user">
-                                                <div>
-                                                    <div className="message-bubble">{m.text}</div>
-                                                    <div className="message-time" style={{textAlign: 'right'}}>{m.time}</div>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {m.role === 'assistant' && (
-                                            <div className="message assistant">
-                                                <div style={{maxWidth: '80%'}}>
-                                                    {m.isCrisis && <div className="crisis-alert">⚠️ Важно</div>}
-                                                   <div className="message-bubble">
-                                                        {m.isHtml ? React.createElement('div', {dangerouslySetInnerHTML: {__html: m.text}}) : 
-                                                        <div style={{whiteSpace: 'pre-wrap'}}>{m.text}</div>}
-                                                    </div>
-                                                    <div className="message-time">{m.time}</div>
-
-                                                    {m.canRate && !m.isCrisis && (
-                                                        <div className="message-actions">
-                                                            <button className="action-btn" onClick={() => rate(m.id, 'up')}>👍 Полезно</button>
-                                                            <button className="action-btn" onClick={() => rate(m.id, 'down')}>👎 Не понравилось</button>
-                                                        </div>
-                                                    )}
-
-                                                    {m.habit && (
-                                                        <div className="habit-suggestion">
-                                                            <span>➕ {m.habit}</span>
-                                                            <button className="add-habit-btn" onClick={() => addHabit(m.id, m.habit)}>Добавить</button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                                {loading && (
-                                    <div className="message assistant">
-                                        <div className="thinking">
-                                            <div className="spinner"></div>
-                                            <span>Думаю...</span>
-                                        </div>
-                                    </div>
-                                )}
-                                <div ref={messagesEnd} />
-                            </>
-                        )}
-                    </div>
-
-                    {throttle && <div className="throttle-warning">⏳ Подожди {throttle} сек...</div>}
-
-                    <div className="input-area">
-                        <div className="input-wrapper">
-                            <textarea
-                                value={input}
-                                onChange={e => setInput(e.target.value)}
-                                onKeyPress={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMsg())}
-                                placeholder="Напиши вопрос..."
-                                disabled={loading || throttle}
-                                rows="1"
-                                style={{minHeight: '40px'}}
-                            />
-                        </div>
-                        <button className="send-btn" onClick={sendMsg} disabled={!input.trim() || loading || throttle}>
-                            {loading ? <div className="spinner"></div> : '➤'}
-                        </button>
-                    </div>
+                    <div className="header-buttons"><button className="icon-btn" onClick={getTip} title="Совет дня">💡</button><button className="icon-btn" onClick={goHome} title="В меню">⌂</button></div>
                 </div>
-            );
+
+                <div className="chat-toolbar"><div className="chat-toolbar-title">Твой личный наставник</div><button onClick={()=>{setShowTools(v=>!v);vibrate('light')}}>{showTools?'Скрыть':'Быстрые действия'} <span>⌄</span></button></div>
+                {showTools && <div className="quick-prompts">{quickPrompts.map(([icon,label])=><button key={label} onClick={()=>sendText(label)}><span>{icon}</span>{label}</button>)}</div>}
+
+                <div className="messages-container">
+                    {messages.length===0 ? <div className="empty-state">
+                        <div className="empty-icon"><img src="/static/assets/adam-avatar.png" alt="ADAM" /></div>
+                        <div className="empty-title">Привет, я ADAM 👋</div>
+                        <div className="empty-text">Я помогаю планировать день, работать с привычками, разбирать проблемы и видеть твой прогресс.</div>
+                        <div className="welcome-prompts">{quickPrompts.slice(0,3).map(([icon,label])=><button key={label} onClick={()=>sendText(label)}>{icon} {label}</button>)}</div>
+                    </div> : <>
+                        {messages.map(m=><div key={m.id}>
+                            {m.type==='error'&&<div className="error-card">⚠️ {m.text}</div>}
+                            {m.role==='user'&&<div className="message user"><div><div className="message-bubble">{m.text}</div><div className="message-time user-time">{m.time}</div></div></div>}
+                            {m.role==='assistant'&&<div className="message assistant"><div className="assistant-message-wrap">
+                                {m.isCrisis&&<div className="crisis-alert">⚠️ Важно</div>}
+                                <div className="message-bubble"><div style={{whiteSpace:'pre-wrap'}}>{m.text}</div></div>
+                                <div className="message-meta"><span>{m.time}</span><div className="message-mini-actions">
+                                    <button onClick={()=>copyMessage(m.text,m.id)}>{copiedId===m.id?'✓ Скопировано':'⧉'}</button>
+                                    {!m.isCrisis&&<button onClick={()=>regenerate(m)} disabled={!m.sourcePrompt}>↻</button>}
+                                </div></div>
+                                {m.canRate&&!m.isCrisis&&<div className="message-actions"><button className="action-btn" onClick={()=>rate(m.id,'up')}>👍 Полезно</button><button className="action-btn" onClick={()=>rate(m.id,'down')}>👎 Можно лучше</button></div>}
+                                {m.rated&&<div className="rated-note">{m.rated==='up'?'Спасибо! Это помогает ADAM становиться лучше.':'Принял. Учту твой отзыв.'}</div>}
+                                {m.habit&&<div className="habit-suggestion"><div><span className="habit-label">ПРЕДЛОЖЕНИЕ</span><strong>➕ {m.habit}</strong></div><button className="add-habit-btn" onClick={()=>addHabit(m.id,m.habit)}>Добавить</button></div>}
+                            </div></div>}
+                        </div>)}
+                        {loading&&<div className="message assistant"><div className="thinking"><div className="thinking-avatar"><img src="/static/assets/adam-avatar.png" alt="" /></div><div><div className="thinking-title">ADAM думает</div><div className="thinking-dots"><i></i><i></i><i></i></div></div></div></div>}
+                        <div ref={messagesEnd}/>
+                    </>}
+                </div>
+
+                {throttle&&<div className="throttle-warning">⏳ Подожди {throttle} сек.</div>}
+                <div className="input-area">
+                    <div className="input-row">
+                        <div className="input-wrapper"><textarea ref={textareaRef} value={input} onChange={e=>{setInput(e.target.value);resizeInput()}} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()}}} placeholder="Напиши ADAM..." disabled={loading||throttle} rows="1" /></div>
+                        <button className={`voice-btn ${listening?'is-listening':''}`} onClick={startVoice} disabled={loading} title="Голосовой ввод">{listening?'●':'🎙'}</button>
+                        <button className="send-btn" onClick={sendMsg} disabled={!input.trim()||loading||throttle} aria-label="Отправить">{loading?<div className="spinner"></div>:'➤'}</button>
+                    </div>
+                    <div className="composer-hint">Enter — отправить · Shift+Enter — новая строка</div>
+                </div>
+            </div>;
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -1110,4 +1062,24 @@ body::before{
   .quota-panel__count{font-size:8px}
   .quota-panel__count b{font-size:9px}
 }
+
+/* =========================================================
+   ADAM CHAT MAX — UX layer
+   ========================================================= */
+.chat-toolbar{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;background:rgba(10,7,18,.62);border-bottom:1px solid rgba(255,255,255,.045);backdrop-filter:blur(16px);position:relative;z-index:3}
+.chat-toolbar-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8F8A9F}
+.chat-toolbar button{border:0;background:rgba(167,139,250,.08);color:#BBAEFF;border-radius:10px;padding:7px 10px;font-size:11px;font-weight:700}
+.quick-prompts{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;padding:9px 12px;background:rgba(10,7,18,.72);border-bottom:1px solid rgba(255,255,255,.05);animation:toolIn .2s ease-out;position:relative;z-index:2}
+.quick-prompts button,.welcome-prompts button{border:1px solid rgba(167,139,250,.13);background:rgba(255,255,255,.045);color:#C9C5D5;border-radius:13px;padding:10px 9px;font-size:11px;text-align:left}
+.quick-prompts button span{margin-right:6px}.quick-prompts button:active,.welcome-prompts button:active{transform:scale(.98)}
+@keyframes toolIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.empty-state{padding:28px 18px 30px;max-width:430px;margin:auto}.empty-title{font-size:19px;font-weight:800;color:#F4F1FA;margin-top:2px}.empty-text{max-width:310px;margin:7px auto 0}.welcome-prompts{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin-top:16px}.welcome-prompts button{padding:9px 11px;text-align:center}
+.assistant-message-wrap{max-width:88%}.message-mini-actions{display:flex;gap:5px}.message-meta{display:flex;align-items:center;justify-content:space-between;color:#737185;font-size:9px;margin-top:6px;padding:0 4px}.message-mini-actions button{border:0;background:transparent;color:#898397;font-size:11px;padding:3px 5px;border-radius:7px}.message-mini-actions button:active{background:rgba(255,255,255,.07)}
+.user-time{text-align:right}.rated-note{font-size:10px;color:#858093;margin-top:6px;padding-left:4px}.error-card{margin:4px 8px;padding:11px 13px;border-radius:13px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.14);color:#E6C7C7;font-size:12px}
+.habit-suggestion{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:12px;border-radius:15px}.habit-suggestion>div{min-width:0}.habit-suggestion strong{display:block;color:#F1EBCF;font-size:12px;margin-top:3px}.habit-label{display:block;color:#D7B94E;font-size:8px;font-weight:900;letter-spacing:.15em}.add-habit-btn{border:1px solid rgba(255,213,79,.24);background:rgba(255,213,79,.12);color:#FFE58A;border-radius:10px;padding:8px 11px;font-weight:800;font-size:11px;white-space:nowrap}
+.input-row{display:flex;align-items:flex-end;gap:7px}.voice-btn{flex:0 0 46px;width:46px;height:46px;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.045);color:#BDB8CA;font-size:17px}.voice-btn.is-listening{background:rgba(239,68,68,.13);border-color:rgba(239,68,68,.3);color:#FF8D8D;animation:micPulse 1.2s infinite}.voice-btn:disabled{opacity:.5}@keyframes micPulse{50%{box-shadow:0 0 0 7px rgba(239,68,68,.06)}}
+.composer-hint{font-size:9px;color:#666174;text-align:center;margin-top:6px}.thinking{display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:17px;width:max-content}.thinking-avatar{width:28px;height:28px;border-radius:10px;overflow:hidden;background:#6D4FE0}.thinking-avatar img{width:100%;height:100%;object-fit:cover}.thinking-title{font-size:10px;color:#A9A3B7;font-weight:700}.thinking-dots{display:flex;gap:3px;margin-top:4px}.thinking-dots i{width:4px;height:4px;border-radius:50%;background:#A78BFA;animation:dot 1s infinite}.thinking-dots i:nth-child(2){animation-delay:.15s}.thinking-dots i:nth-child(3){animation-delay:.3s}@keyframes dot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.header-title-icon img,.empty-icon img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}.header-title-icon img{padding:8px}.empty-icon img{padding:18px}
+@media(max-width:430px){.assistant-message-wrap{max-width:93%}.quick-prompts{grid-template-columns:1fr 1fr}.chat-toolbar{padding-left:11px;padding-right:11px}.composer-hint{display:none}.voice-btn{width:44px;height:44px;flex-basis:44px}.send-btn{width:46px;height:46px}}
+@media(prefers-reduced-motion:reduce){.quick-prompts,.voice-btn,.thinking-dots i{animation:none!important}}
 </style>

@@ -95,7 +95,7 @@ async def main():
     # --- ПЛАНИРОВЩИК ---
     scheduler.add_job(run_task_reminder_check, "interval", minutes=15, args=[bot])
     scheduler.add_job(run_streak_risk_check, "cron", hour=20, minute=0, args=[bot])
-    scheduler.add_job(run_hard_deadline_check, "cron", hour=21, minute=0, args=[bot])
+    scheduler.add_job(run_hard_deadline_check, "cron", hour=22, minute=0, args=[bot])
     scheduler.add_job(run_weekly_report, "cron", day_of_week="sun", hour=19, minute=0, args=[bot])
     scheduler.add_job(run_weekly_habit_analysis, "cron", day_of_week="sun", hour=19, minute=15, args=[bot])
     # Утреннее приветствие — в 06:00, не в 12:00/08:00 (промт п.12)

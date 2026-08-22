@@ -72,7 +72,7 @@ def reset_habits():
 
 def get_incomplete_habits(user_id):
     """Привычки пользователя, ещё не отмеченные выполненными сегодня —
-    используется для жёсткого дедлайна в 21:00 (coach.run_hard_deadline_check)."""
+    используется для контрольной точки в 22:00 (coach.run_hard_deadline_check)."""
     conn = connect()
     cursor = conn.cursor()
     cursor.execute(
