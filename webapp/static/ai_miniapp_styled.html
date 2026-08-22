@@ -433,6 +433,208 @@ window.onerror = function(msg, url, line, col, error) {
     @media (max-width: 600px) {
         .message-bubble { max-width: 90%; }
     }
+
+
+    /* =========================================================
+       ADAM CHAT — PREMIUM POLISH
+       ========================================================= */
+    .app-container{
+        position:relative;
+        isolation:isolate;
+        background:
+            radial-gradient(circle at 8% 18%, rgba(124,92,252,.12), transparent 28%),
+            radial-gradient(circle at 92% 52%, rgba(255,213,79,.07), transparent 26%),
+            linear-gradient(180deg, rgba(7,4,14,.15), rgba(7,4,14,.5));
+    }
+    .app-container::before{
+        content:"";
+        position:absolute;
+        inset:0;
+        pointer-events:none;
+        z-index:-1;
+        background:
+            radial-gradient(circle at 50% -8%, rgba(167,139,250,.14), transparent 34%),
+            radial-gradient(circle at 50% 108%, rgba(124,92,252,.08), transparent 36%);
+    }
+    .header{
+        background:rgba(10,7,18,.78);
+        border-bottom-color:rgba(255,255,255,.09);
+        box-shadow:0 14px 40px rgba(0,0,0,.38), inset 0 -1px rgba(255,255,255,.035);
+    }
+    .header-title{
+        gap:12px;
+    }
+    .header-title-icon{
+        position:relative;
+        width:46px;
+        height:46px;
+        border-radius:17px;
+        background:
+            linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.04)),
+            linear-gradient(135deg,#8B6CFF,#5B35C8);
+        border:1px solid rgba(255,255,255,.14);
+        box-shadow:
+            0 10px 28px rgba(91,53,200,.38),
+            0 0 24px rgba(255,213,79,.08),
+            inset 0 1px 0 rgba(255,255,255,.24);
+    }
+    .header-title-icon::after{
+        content:"";
+        position:absolute;
+        inset:5px;
+        border-radius:13px;
+        border:1px solid rgba(255,255,255,.12);
+        pointer-events:none;
+    }
+    .header-status{
+        color:#A8A5B8;
+        font-size:11px;
+    }
+    .status-dot{
+        width:6px;
+        height:6px;
+        background:#6EE7B7;
+        box-shadow:0 0 9px rgba(110,231,183,.85);
+    }
+    .quota-panel{
+        margin-top:7px;
+        border-radius:15px;
+        border-color:rgba(167,139,250,.20);
+        background:linear-gradient(145deg,rgba(124,92,252,.12),rgba(255,255,255,.035));
+        box-shadow:0 8px 22px rgba(0,0,0,.12), inset 0 1px rgba(255,255,255,.055);
+    }
+    .messages-container{
+        padding:22px 16px 24px;
+        gap:16px;
+        scroll-behavior:smooth;
+    }
+    .message{
+        position:relative;
+        animation:adamMessageIn .34s cubic-bezier(.2,.8,.2,1);
+    }
+    @keyframes adamMessageIn{
+        from{opacity:0;transform:translateY(9px) scale(.985)}
+        to{opacity:1;transform:translateY(0) scale(1)}
+    }
+    .message-bubble{
+        position:relative;
+        max-width:93%;
+        padding:14px 16px;
+        border-radius:21px;
+        line-height:1.58;
+        letter-spacing:.005em;
+    }
+    .message.assistant .message-bubble{
+        background:
+            linear-gradient(145deg,rgba(255,255,255,.095),rgba(255,255,255,.042));
+        border-color:rgba(255,255,255,.115);
+        box-shadow:
+            0 14px 36px rgba(0,0,0,.20),
+            inset 0 1px 0 rgba(255,255,255,.075);
+    }
+    .message.assistant .message-bubble::before{
+        content:"ADAM";
+        display:block;
+        margin:0 0 7px 1px;
+        color:#BBAEFF;
+        font:800 9px/1 'Space Grotesk',sans-serif;
+        letter-spacing:.19em;
+        opacity:.9;
+    }
+    .message.user .message-bubble{
+        background:
+            linear-gradient(145deg,#8A6CFF,#633DD2);
+        border:1px solid rgba(255,255,255,.12);
+        box-shadow:
+            0 14px 32px rgba(80,50,180,.30),
+            inset 0 1px 0 rgba(255,255,255,.18);
+    }
+    .message-time{
+        margin-top:6px;
+        padding:0 3px;
+        color:#777387;
+        font-size:10px;
+    }
+    .message-actions{
+        gap:7px;
+        margin-top:9px;
+    }
+    .action-btn{
+        border-radius:11px;
+        background:rgba(255,255,255,.045);
+        border-color:rgba(255,255,255,.08);
+    }
+    .thinking{
+        background:rgba(255,255,255,.055);
+        border-color:rgba(255,255,255,.09);
+        box-shadow:0 10px 28px rgba(0,0,0,.16), inset 0 1px rgba(255,255,255,.05);
+    }
+    .spinner{
+        border-color:rgba(167,139,250,.22);
+        border-top-color:#A78BFA;
+        box-shadow:0 0 10px rgba(167,139,250,.15);
+    }
+    .input-area{
+        padding:12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+        background:rgba(10,7,18,.82);
+        border-top-color:rgba(255,255,255,.08);
+        box-shadow:0 -14px 36px rgba(0,0,0,.22);
+    }
+    .input-wrapper{
+        min-height:50px;
+        border-radius:20px;
+        padding:9px 15px;
+        background:rgba(255,255,255,.055);
+        border-color:rgba(255,255,255,.10);
+        box-shadow:inset 0 1px rgba(255,255,255,.055);
+    }
+    .input-wrapper:focus-within{
+        border-color:rgba(167,139,250,.55);
+        box-shadow:
+            0 0 0 3px rgba(124,92,252,.12),
+            inset 0 1px rgba(255,255,255,.07);
+    }
+    .send-btn{
+        width:46px;
+        height:46px;
+        border-radius:17px;
+        background:linear-gradient(145deg,#FFE38A,#EFB331);
+        box-shadow:
+            0 10px 25px rgba(240,180,41,.28),
+            0 0 18px rgba(255,213,79,.10),
+            inset 0 1px 0 rgba(255,255,255,.45);
+    }
+    .empty-icon{
+        position:relative;
+        width:92px;
+        height:92px;
+        border-radius:30px;
+        background:
+            linear-gradient(145deg,rgba(255,255,255,.14),rgba(255,255,255,.035)),
+            linear-gradient(135deg,#8568F8,#5B35C8);
+        border:1px solid rgba(255,255,255,.13);
+        box-shadow:
+            0 20px 48px rgba(91,53,200,.34),
+            inset 0 1px 0 rgba(255,255,255,.22);
+    }
+    .empty-icon::after{
+        content:"";
+        position:absolute;
+        inset:-7px;
+        border:1px solid rgba(167,139,250,.16);
+        border-radius:35px;
+        pointer-events:none;
+    }
+    .empty-text{
+        color:#AAA7B8;
+        line-height:1.65;
+    }
+    .habit-suggestion{
+        border-color:rgba(255,213,79,.20);
+        background:linear-gradient(145deg,rgba(255,213,79,.075),rgba(255,255,255,.035));
+        box-shadow:0 10px 26px rgba(0,0,0,.13), inset 0 1px rgba(255,255,255,.045);
+    }
+
 </style>
 </head>
 <body>
