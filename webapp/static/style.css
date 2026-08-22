@@ -2764,3 +2764,52 @@ body[data-theme="violet"] .player-card{
 .buy-btn.is-equipped{border-color:rgba(255,213,79,.45);color:#FFD54F}
 .shop-item--cosmetic .shop-item__name{font-weight:800}
 .shop-buy-price{display:flex;align-items:center;gap:4px;justify-content:center}
+
+/* SHOP: цена сверху, кнопка снизу — единая вертикальная компоновка */
+.shop-item__footer{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  width:100% !important;
+  min-width:0 !important;
+  box-sizing:border-box !important;
+  margin-top:auto !important;
+  padding-top:13px !important;
+  min-height:0 !important;
+}
+
+.shop-item__price{
+  width:100% !important;
+  min-width:0 !important;
+  box-sizing:border-box !important;
+  justify-content:center !important;
+  overflow:visible !important;
+  white-space:nowrap !important;
+}
+
+.shop-item__price span{
+  min-width:0;
+}
+
+.buy-btn{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+  box-sizing:border-box !important;
+  flex:0 0 auto !important;
+}
+
+@media (max-width:390px){
+  .shop-item__footer{
+    display:flex !important;
+    flex-direction:column !important;
+    gap:7px !important;
+  }
+  .shop-item__price{justify-content:center !important;}
+  .buy-btn{width:100% !important;}
+}
