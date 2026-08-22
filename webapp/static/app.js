@@ -429,12 +429,10 @@
         desc = amount ? `Ещё ${amount} запросов к ADAM сегодня` : desc;
       }
 
-      let btnLabel = `
-        <span class="buy-btn__price">
-          ${ADAM_COIN_ICON}
-          <b>${Number(it.price || 0).toLocaleString("ru-RU")}</b>
-        </span>`;
-
+      // Цена всегда показывается слева в одном месте. Если денег хватает,
+      // сама кнопка становится жёлтой и содержит только «Купить» — без
+      // повторения цены/«100 A» внутри кнопки.
+      let btnLabel = "Купить";
       let btnClass = "buy-btn";
       let disabled = "";
 
@@ -446,6 +444,8 @@
         btnLabel = "Не хватает";
         btnClass += " is-unavailable";
         disabled = "disabled";
+      } else {
+        btnClass += " is-affordable";
       }
 
       return `

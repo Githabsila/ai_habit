@@ -783,6 +783,13 @@ opacity:.35;
   height:14px;
 }
 
+.buy-btn.is-affordable{
+  background:linear-gradient(135deg,rgba(255,213,79,.9),rgba(240,180,41,.72));
+  color:#17130a;
+  border-color:rgba(255,231,140,.95);
+  box-shadow:0 6px 18px rgba(240,180,41,.22);
+}
+
 .buy-btn.is-owned{
   background:rgba(74,222,128,.1);
   color:#4ADE80;

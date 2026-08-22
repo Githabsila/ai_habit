@@ -947,6 +947,24 @@ def _needs_deep_pipeline(task: str) -> bool:
     return any(marker in lowered for marker in deep_markers)
 
 
+
+
+def _apply_first_response_note(answer: str, history: str, user_context: str) -> str:
+    """Одноразовая фраза в первом ответе и только при фактически выполненных
+    всех привычках. Детерминированно, чтобы модель не могла повторять её."""
+    if history.strip() or not answer:
+        return answer
+    lines = [line.strip().lower() for line in user_context.splitlines()]
+    habit_lines = [line for line in lines if " — да" in line and "привычки пользователя" not in line]
+    has_habit_section = "привычки пользователя:" in lines
+    if has_habit_section and habit_lines:
+        # Если среди строк привычек нет ни одного статуса "нет", все привычки выполнены.
+        incomplete = any(" — нет" in line for line in lines if line and "привычки пользователя:" not in line)
+        if not incomplete:
+            prefix = "Отлично, все привычки уже выполнены — это заслуживает отдельного «плюсика»! 👏"
+            if not answer.startswith(prefix):
+                return prefix + "\n\n" + answer
+    return answer
 async def solve_task_multiagent(
     task: str,
     history: str = "",
@@ -989,6 +1007,21 @@ async def solve_task_multiagent(
 
     style_note = STYLE_NOTES.get(style, "")
 
+    # Первое сообщение пользователя — единственный момент, когда ADAM
+    # может коротко отметить текущий прогресс. Дальше эта фраза не повторяется,
+    # пока пользователь сам снова не спросит о выполнении привычек.
+    if not history.strip():
+        style_note = _combine_notes(
+            style_note,
+            "Это первый вопрос пользователя в этой переписке. Если по данным "
+            "пользователя действительно выполнены ВСЕ его привычки, в самом начале "
+            "первого ответа один раз добавь фразу: «Отлично, все привычки уже "
+            "выполнены — это заслуживает отдельного «плюсика»! 👏». Если выполнены "
+            "не все привычки, эту фразу не используй. После первого ответа никогда "
+            "не повторяй её автоматически и не начинай с неё следующие ответы, "
+            "если пользователь прямо не спросил о выполненных привычках."
+        )
+
     # Быстрый локальный роутинг: обычные короткие сообщения не тратят
     # отдельный LLM-вызов на классификацию — сразу идут в FAST_MODEL.
     # Явный кризисный сигнал остаётся под отдельной проверкой безопасности.
@@ -1000,6 +1033,7 @@ async def solve_task_multiagent(
         trace.complexity = complexity
         trace.is_crisis = False
         answer = await fast_answer(task, history, user_context, "", style_note)
+        answer = _apply_first_response_note(answer, history, user_context)
         trace.final_answer = answer
         return {
             "answer": answer,
@@ -1030,6 +1064,7 @@ async def solve_task_multiagent(
 
     if complexity == "просто":
         answer = await fast_answer(task, history, user_context, mood_note, style_note)
+        answer = _apply_first_response_note(answer, history, user_context)
         trace.final_answer = answer
         return {
             "answer": answer,
@@ -1062,6 +1097,7 @@ async def solve_task_multiagent(
         logger.warning("Обнаружена ошибка агента в пайплайне — откат на fast_answer")
         final_answer = await fast_answer(task, history, user_context, mood_note, style_note)
 
+    final_answer = _apply_first_response_note(final_answer, history, user_context)
     trace.final_answer = final_answer
 
     suggested_habit = None if broken else await extract_suggested_habit(final_answer)

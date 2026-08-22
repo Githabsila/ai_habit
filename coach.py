@@ -258,6 +258,12 @@ async def run_task_reminder_check(bot):
         if not settings or settings["reminders"] == 0:
             continue
 
+        # После полуночи и до 06:00 никаких напоминаний пользователю не отправляем.
+        # Это также защищает от старых/просроченных индивидуальных пингов.
+        now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+        if 0 <= now_local.hour < 6:
+            continue
+
         # -- привычки --
         # Индивидуальные 2-часовые пинги по привычкам отключены.
         # Теперь для привычек есть одна общая контрольная точка в 12:00,

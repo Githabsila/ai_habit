@@ -1,7 +1,10 @@
 from db import (
     get_all_users,
-    get_settings
+    get_settings,
+    get_timezone,
 )
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 # =====================================
@@ -17,6 +20,15 @@ async def send_reminders(bot):
     for user in users:
 
         telegram_id = user["telegram_id"]
+
+        # Ночью после 00:00 напоминания полностью запрещены.
+        # Утренний цикл снова разрешён с 06:00.
+        try:
+            now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+            if 0 <= now_local.hour < 6:
+                continue
+        except Exception:
+            pass
 
         settings = get_settings(telegram_id)
 
