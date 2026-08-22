@@ -1,6 +1,6 @@
 from datetime import date
 
-from .core import connect
+from db.core import connect
 
 
 def get_shop_items():

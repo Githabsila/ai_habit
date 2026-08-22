@@ -209,13 +209,17 @@ async def run_hard_deadline_check(bot):
         if not incomplete:
             continue
 
-        # Пользователи с действующей серией уже получили отдельный
-        # риск-пинг в 20:00. Не дублируем его контрольной рассылкой в 22:00.
-        progress = get_progress(telegram_id)
-        if progress and progress.get("streak", 0) > 0:
-            continue
-
+        # Контрольная точка должна приходить именно в 22:00 по локальному
+        # времени пользователя, а не по timezone сервера/Railway.
         try:
+            now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+            if now_local.hour != 22:
+                continue
+
+            day = now_local.date().isoformat()
+            if not claim_notification(telegram_id, day, "hard_deadline_22"):
+                continue
+
             await bot.send_message(
                 telegram_id,
                 format_hard_deadline_message(incomplete),

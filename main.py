@@ -14,7 +14,7 @@ from config import BOT_TOKEN, WEBAPP_URL, PORT
 from db import create_tables
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
-from scheduler import scheduler, new_day
+from scheduler import scheduler
 from streak_scheduler import run_streak_rollover, run_streak_risk_notifications, run_weekly_streak_bonus
 from coach import (
     run_streak_risk_check, run_weekly_report, run_hard_deadline_check,
@@ -95,7 +95,10 @@ async def main():
     # --- ПЛАНИРОВЩИК ---
     scheduler.add_job(run_task_reminder_check, "interval", minutes=15, args=[bot])
     scheduler.add_job(run_streak_risk_check, "cron", hour=20, minute=0, args=[bot])
-    scheduler.add_job(run_hard_deadline_check, "cron", hour=22, minute=0, args=[bot])
+    # Контрольная точка проверяется каждую минуту и сама учитывает
+    # локальный часовой пояс каждого пользователя. Это важно на Railway,
+    # где timezone контейнера может отличаться от timezone пользователя.
+    scheduler.add_job(run_hard_deadline_check, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_weekly_report, "cron", day_of_week="sun", hour=19, minute=0, args=[bot])
     scheduler.add_job(run_weekly_habit_analysis, "cron", day_of_week="sun", hour=19, minute=15, args=[bot])
     # Утреннее приветствие — в 06:00, не в 12:00/08:00 (промт п.12)
