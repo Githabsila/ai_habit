@@ -19,7 +19,7 @@ multi_agent.py
                  советуется конкретная новая привычка, достаёт короткое
                  название — чтобы бот мог предложить кнопку "Добавить".
 
-Работает через Groq API (AsyncGroq), полностью асинхронно. Независимые шаги
+Работает через Fireworks AI API, полностью асинхронно. Независимые шаги
 выполняются параллельно (asyncio.gather), чтобы задержка не росла кратно
 числу агентов.
 
@@ -44,25 +44,25 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-from groq import AsyncGroq, RateLimitError
+import aiohttp
 
 # Берём ключ из того же config.py, что уже использует остальной проект
 # (там он уже подгружен из .env) — так исчезает риск рассинхронизации
 # между тем, как ключ читается в ai.py и здесь.
-from config import GROQ_API_KEY
+from config import FIREWORKS_API_KEY
 
 logger = logging.getLogger("multi_agent")
 
 # ============ КОНФИГ ============
 
-client = AsyncGroq(api_key=GROQ_API_KEY)
+FIREWORKS_API_URL = "https://api.fireworks.ai/inference/v1/chat/completions"
 
-MODEL = "openai/gpt-oss-120b"           # для синтеза, спорщиков и судьи — тех этапов, что формируют текст пользователю
-FAST_MODEL = "openai/gpt-oss-20b"       # для декомпозиции, классификаторов и быстрого пути — Groq считает TPM ОТДЕЛЬНО по каждой модели, так что вынос сюда фактически даёт отдельный бюджет токенов, не пересекающийся с MODEL
+MODEL = "accounts/fireworks/models/muse-glimmer-30b"           # для синтеза, спорщиков и судьи — тех этапов, что формируют текст пользователю
+FAST_MODEL = "accounts/fireworks/models/gpt-oss-20b"       # для декомпозиции, классификаторов и быстрого пути — Fireworks считает TPM ОТДЕЛЬНО по каждой модели, так что вынос сюда фактически даёт отдельный бюджет токенов, не пересекающийся с MODEL
 
 MAX_SUBTASKS = 3          # было 4 — меньше подзадач = меньше запросов и токенов
 NUM_DEBATERS = 2          # было 3 — меньше "спорщиков" = меньше токенов на дебаты
-MAX_CONCURRENT_CALLS = 4  # ограничение параллельных запросов к Groq (защита от рейт-лимита)
+MAX_CONCURRENT_CALLS = 4  # ограничение параллельных запросов к Fireworks (защита от рейт-лимита)
 MAX_RETRIES = 3           # автоповтор при ошибке 429, вместо падения с текстом ошибки
 
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
@@ -304,7 +304,7 @@ _RETRY_S_RE = re.compile(r"try again in ([\d.]+)s")
 
 
 def _extract_wait_seconds(error_text: str, default: float = 2.0) -> float:
-    """Достаёт из текста ошибки Groq время ожидания ('try again in 860ms' / '2.3s')."""
+    """Достаёт из текста ошибки Fireworks время ожидания ('try again in 860ms' / '2.3s')."""
     m = _RETRY_MS_RE.search(error_text)
     if m:
         return float(m.group(1)) / 1000
@@ -361,73 +361,135 @@ async def _ask(
     max_tokens: int = 700,
     model: str = MODEL,
 ) -> str:
-    """Базовый вызов LLM с обработкой ошибок, ограничением параллелизма
-    и автоповтором при превышении лимита токенов в минуту (429).
+    """Асинхронный вызов Fireworks AI API с ограничением параллелизма
+    и повтором при rate limit (429)."""
+    if not FIREWORKS_API_KEY:
+        logger.error("FIREWORKS_API_KEY не задан")
+        return "[ошибка агента: не задан FIREWORKS_API_KEY]"
 
-    Проблема №1 (обрыв текста на полуслове): раньше здесь просто бралось
-    response.choices[0].message.content и отдавалось как есть — если модель
-    упиралась в max_tokens, ответ обрывался ровно там, где кончился лимит,
-    иногда посреди слова. Само по себе это не про Telegram (лимит в 4096
-    символов тут ни при чём — эти ответы в разы короче), это про то, что
-    ГЕНЕРАЦИЯ обрывалась раньше, чем модель успевала закончить мысль.
-    Теперь: 1) смотрим finish_reason, 2) если это 'length' — на этой же
-    попытке повторяем запрос с увеличенным потолком токенов, 3) если и
-    после этого не уложились — аварийно подрезаем по границе последнего
-    целого предложения, а не как попало."""
     async with _semaphore:
         for attempt in range(MAX_RETRIES + 1):
             try:
-                response = await client.chat.completions.create(
-                    model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    messages=[
+                payload = {
+                    "model": model,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},
                     ],
-                )
-                choice = response.choices[0]
-                text = _strip_markdown(choice.message.content.strip())
+                }
+                headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {FIREWORKS_API_KEY}",
+                }
 
-                if choice.finish_reason == "length":
-                    retry_tokens = min(max_tokens + 500, max_tokens * 2)
-                    logger.warning(
-                        f"Ответ обрезан по max_tokens={max_tokens} (модель {model}), "
-                        f"повторяю с лимитом {retry_tokens}"
-                    )
-                    response2 = await client.chat.completions.create(
-                        model=model,
-                        temperature=temperature,
-                        max_tokens=retry_tokens,
-                        messages=[
-                            {"role": "system", "content": system},
-                            {"role": "user", "content": user},
-                        ],
-                    )
-                    choice2 = response2.choices[0]
-                    text2 = _strip_markdown(choice2.message.content.strip())
-                    if choice2.finish_reason == "length":
-                        logger.warning(
-                            f"Ответ всё ещё обрезан даже с лимитом {retry_tokens} — "
-                            f"подрезаю по границе предложения"
-                        )
-                        text2 = _trim_to_last_sentence(text2)
-                    text = text2
+                timeout = aiohttp.ClientTimeout(total=120)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.post(
+                        FIREWORKS_API_URL,
+                        headers=headers,
+                        json=payload,
+                    ) as response:
+                        response_text = await response.text()
 
-                return text
-            except RateLimitError as e:
-                wait = _extract_wait_seconds(str(e))
+                        if response.status == 429:
+                            wait = _extract_wait_seconds(response_text)
+                            if attempt < MAX_RETRIES:
+                                logger.warning(
+                                    f"Fireworks rate limit (модель {model}), "
+                                    f"жду {wait:.1f}с и повторяю "
+                                    f"(попытка {attempt + 1}/{MAX_RETRIES})"
+                                )
+                                await asyncio.sleep(wait)
+                                continue
+                            logger.error(
+                                f"Fireworks rate limit не удалось обойти после "
+                                f"{MAX_RETRIES} попыток: {response_text}"
+                            )
+                            return (
+                                "[ошибка агента: превышен лимит запросов Fireworks, "
+                                "попробуй ещё раз через минуту]"
+                            )
+
+                        if response.status >= 400:
+                            logger.error(
+                                f"Ошибка Fireworks API {response.status}: {response_text}"
+                            )
+                            return f"[ошибка агента: Fireworks API {response.status}]"
+
+                        data = json.loads(response_text)
+                        choice = data["choices"][0]
+                        message = choice.get("message", {})
+                        content = message.get("content", "")
+
+                        # Некоторые модели/ответы могут вернуть content не строкой.
+                        if isinstance(content, list):
+                            content = "".join(
+                                part.get("text", "")
+                                for part in content
+                                if isinstance(part, dict)
+                            )
+
+                        text = _strip_markdown((content or "").strip())
+                        finish_reason = choice.get("finish_reason")
+
+                        if finish_reason == "length":
+                            retry_tokens = min(max_tokens + 500, max_tokens * 2)
+                            logger.warning(
+                                f"Ответ обрезан по max_tokens={max_tokens} "
+                                f"(модель {model}), повторяю с лимитом {retry_tokens}"
+                            )
+                            payload["max_tokens"] = retry_tokens
+
+                            async with session.post(
+                                FIREWORKS_API_URL,
+                                headers=headers,
+                                json=payload,
+                            ) as response2:
+                                response2_text = await response2.text()
+
+                                if response2.status >= 400:
+                                    logger.error(
+                                        f"Ошибка повторного запроса Fireworks "
+                                        f"{response2.status}: {response2_text}"
+                                    )
+                                    return text
+
+                                data2 = json.loads(response2_text)
+                                choice2 = data2["choices"][0]
+                                message2 = choice2.get("message", {})
+                                content2 = message2.get("content", "")
+
+                                if isinstance(content2, list):
+                                    content2 = "".join(
+                                        part.get("text", "")
+                                        for part in content2
+                                        if isinstance(part, dict)
+                                    )
+
+                                text2 = _strip_markdown((content2 or "").strip())
+
+                                if choice2.get("finish_reason") == "length":
+                                    logger.warning(
+                                        f"Ответ всё ещё обрезан даже с лимитом "
+                                        f"{retry_tokens} — подрезаю по границе предложения"
+                                    )
+                                    text2 = _trim_to_last_sentence(text2)
+
+                                text = text2
+
+                        return text
+
+            except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError, KeyError) as e:
+                logger.error(f"Ошибка вызова Fireworks API: {e}")
                 if attempt < MAX_RETRIES:
-                    logger.warning(
-                        f"Groq rate limit (модель {model}), жду {wait:.1f}с и повторяю "
-                        f"(попытка {attempt + 1}/{MAX_RETRIES})"
-                    )
-                    await asyncio.sleep(wait)
+                    await asyncio.sleep(1.5 * (attempt + 1))
                     continue
-                logger.error(f"Rate limit не удалось обойти после {MAX_RETRIES} попыток: {e}")
-                return "[ошибка агента: превышен лимит запросов Groq, попробуй ещё раз через минуту]"
+                return f"[ошибка агента: {e}]"
             except Exception as e:
-                logger.error(f"Ошибка вызова LLM: {e}")
+                logger.error(f"Неожиданная ошибка вызова Fireworks API: {e}")
                 return f"[ошибка агента: {e}]"
 
 
@@ -590,7 +652,7 @@ def _has_crisis_signal(task: str) -> bool:
 
 # ============ 0d. ОБЪЕДИНЁННЫЙ КЛАССИФИКАТОР ============
 # Этап 4 "Оптимизация" — настроение, триаж сложности и кризис-гейт раньше
-# были тремя отдельными вызовами Groq (пусть и параллельными). Здесь они
+# были тремя отдельными вызовами Fireworks (пусть и параллельными). Здесь они
 # объединены в ОДИН вызов: это втрое меньше запросов и заметно быстрее на
 # практике (даже параллельные вызовы всё равно ограничены семафором и
 # рейт-лимитом). Если модель вернёт не-JSON или что-то нераспознаваемое —
@@ -1089,7 +1151,7 @@ async def solve_task_multiagent(
     final_answer = await judge_variants(task, variants, style_note)
 
     # Fallback при ошибках API (этап 2): если где-то по цепочке всплыл
-    # текст ошибки агента (например, Groq не смог обойти рейт-лимит даже
+    # текст ошибки агента (например, Fireworks не смог обойти рейт-лимит даже
     # после ретраев), не показываем пользователю кривой текст — откатываемся
     # на один прямой вызов вместо всего пайплайна.
     broken = "[ошибка агента" in final_answer or "[ошибка агента" in draft
@@ -1284,7 +1346,7 @@ async def generate_morning_message(style: str, profile_summary: str, streak: int
 # Отдельная лёгкая функция (не весь мультиагентный пайплайн) для кнопки
 # "💡 Совет дня" — этап 3 AI Coach, "персональные советы". Результат
 # кэшируется на уровне хендлера (db.ai.cache_*) на день, поэтому повторное
-# нажатие не тратит новый вызов Groq.
+# нажатие не тратит новый вызов Fireworks.
 
 TIP_SYSTEM = (
     BASE_PERSONA + "\n\n"

@@ -740,7 +740,9 @@ opacity:.35;
   align-items:center;
   justify-content:space-between;
   gap:8px;
-  margin-top:13px;
+  margin-top:auto;
+  padding-top:13px;
+  min-height:34px;
 }
 
 .shop-item__price{
@@ -759,8 +761,10 @@ opacity:.35;
 }
 
 .buy-btn{
-  min-width:76px;
+  width:92px;
+  min-width:92px;
   min-height:34px;
+  flex:0 0 92px;
   padding:7px 9px;
   border-radius:10px;
   border:1px solid rgba(255,213,79,.28);
@@ -768,6 +772,7 @@ opacity:.35;
   color:var(--gold);
   font-size:11px;
   font-weight:800;
+  white-space:nowrap;
   box-shadow:0 5px 15px rgba(240,180,41,.08);
 }
 
@@ -818,7 +823,7 @@ opacity:.35;
   .shop-item{padding:12px}
   .shop-item__name{font-size:14px}
   .shop-item__desc{font-size:10px}
-  .buy-btn{min-width:68px;padding-left:7px;padding-right:7px}
+  .buy-btn{width:92px;min-width:92px;flex-basis:92px;padding-left:7px;padding-right:7px}
 }
 
 /* ===================== ACHIEVEMENTS ===================== */
@@ -915,37 +920,225 @@ opacity:.35;
 }
 
 /* ===================== CALENDAR ===================== */
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  margin-bottom: 12px;
+.calendar-grid{
+  margin:0;
+  padding:0;
 }
 
-.cal-cell {
-  aspect-ratio: 1;
-  border-radius: 6px;
-  background: var(--surface-hi);
-  border: 1px solid var(--border);
+.calendar-card{
+  padding:16px;
+  border-radius:24px;
+  border:1px solid rgba(255,255,255,.08);
+  background:
+    radial-gradient(circle at 100% 0%,rgba(124,92,252,.18),transparent 38%),
+    linear-gradient(145deg,rgba(31,30,46,.98),rgba(18,18,29,.98));
+  box-shadow:0 18px 45px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.04);
 }
 
-.cal-cell--0 { background: var(--surface-hi); }
-.cal-cell--1 { background: rgba(240,180,41,0.25); border-color: rgba(240,180,41,0.3); }
-.cal-cell--2 { background: rgba(240,180,41,0.55); border-color: rgba(240,180,41,0.55); }
-.cal-cell--3 { background: var(--gold); border-color: var(--gold); }
-
-.calendar-legend {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--text-muted);
+.calendar-card__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
 }
 
-.calendar-legend .cal-cell {
-  width: 12px;
-  height: 12px;
-  aspect-ratio: unset;
+.calendar-eyebrow{
+  color:#A78BFA;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.16em;
+  margin-bottom:5px;
+}
+
+.calendar-card__head h2{
+  margin:0;
+  font-size:21px;
+  font-weight:850;
+}
+
+.calendar-card__head p{
+  margin:5px 0 0;
+  max-width:280px;
+  color:var(--text-muted);
+  font-size:11px;
+  line-height:1.4;
+}
+
+.calendar-today-badge{
+  flex:0 0 auto;
+  min-width:52px;
+  padding:8px 7px;
+  text-align:center;
+  border-radius:14px;
+  background:rgba(255,213,79,.09);
+  border:1px solid rgba(255,213,79,.18);
+  color:var(--text-muted);
+  font-size:9px;
+  line-height:1.15;
+}
+.calendar-today-badge b{
+  display:block;
+  margin-top:2px;
+  color:var(--gold);
+  font-size:18px;
+}
+
+.calendar-stats{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px;
+  margin:16px 0;
+}
+
+.calendar-stat{
+  min-width:0;
+  padding:9px 6px;
+  text-align:center;
+  border-radius:14px;
+  background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.055);
+}
+.calendar-stat strong{
+  display:block;
+  color:var(--gold);
+  font-family:'Space Grotesk',sans-serif;
+  font-size:15px;
+  line-height:1.1;
+}
+.calendar-stat span{
+  display:block;
+  margin-top:3px;
+  color:var(--text-muted);
+  font-size:8px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.calendar-weekdays,
+.calendar-month-grid{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:5px;
+}
+
+.calendar-weekdays{
+  margin-bottom:6px;
+}
+.calendar-weekdays span{
+  text-align:center;
+  color:var(--text-muted);
+  font-size:9px;
+  font-weight:700;
+}
+
+.calendar-month-grid{
+  grid-auto-rows:minmax(40px,1fr);
+}
+
+.cal-cell{
+  min-width:0;
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  aspect-ratio:unset;
+  min-height:42px;
+  padding:4px 2px;
+  border-radius:10px;
+  background:var(--surface-hi);
+  border:1px solid var(--border);
+  color:var(--text);
+  font:inherit;
+  cursor:pointer;
+  transition:transform .15s ease,border-color .15s ease;
+}
+.cal-cell:active{transform:scale(.94)}
+.cal-cell--empty{
+  background:transparent;
+  border-color:transparent;
+  cursor:default;
+}
+.cal-cell--0{background:rgba(255,255,255,.035)}
+.cal-cell--1{background:rgba(240,180,41,.20);border-color:rgba(240,180,41,.25)}
+.cal-cell--2{background:rgba(240,180,41,.48);border-color:rgba(240,180,41,.45)}
+.cal-cell--3{background:linear-gradient(145deg,#FFD95A,#E8A91A);border-color:#FFE58A;color:#17130A}
+.cal-cell.is-today{
+  outline:2px solid rgba(167,139,250,.9);
+  outline-offset:1px;
+}
+.cal-cell.is-selected{
+  box-shadow:0 0 0 2px rgba(255,255,255,.75),0 7px 18px rgba(0,0,0,.18);
+}
+.cal-cell__day{
+  font-size:11px;
+  font-weight:800;
+  line-height:1;
+}
+.cal-cell__progress{
+  font-size:7px;
+  opacity:.72;
+}
+
+.calendar-selected{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-top:12px;
+  padding:11px 12px;
+  border-radius:15px;
+  background:rgba(124,92,252,.08);
+  border:1px solid rgba(124,92,252,.15);
+}
+.calendar-selected__icon{
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+  border-radius:10px;
+  background:rgba(255,213,79,.10);
+}
+.calendar-selected strong{
+  display:block;
+  font-size:12px;
+}
+.calendar-selected span{
+  display:block;
+  margin-top:2px;
+  color:var(--text-muted);
+  font-size:10px;
+}
+
+.calendar-legend{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:5px;
+  margin-top:11px;
+  color:var(--text-muted);
+  font-size:8px;
+}
+.calendar-legend .cal-cell{
+  width:12px;
+  min-width:12px;
+  min-height:12px;
+  height:12px;
+  padding:0;
+  border-radius:4px;
+  aspect-ratio:unset;
+  cursor:default;
+}
+
+@media (max-width:390px){
+  .calendar-card{padding:13px}
+  .calendar-card__head h2{font-size:19px}
+  .calendar-stats{gap:5px}
+  .calendar-stat{padding:8px 4px}
+  .calendar-month-grid,.calendar-weekdays{gap:4px}
+  .cal-cell{min-height:38px}
 }
 
 /* ===================== TAB BAR ===================== */

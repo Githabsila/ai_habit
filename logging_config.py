@@ -54,6 +54,6 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
     logging.getLogger("apscheduler").setLevel(logging.WARNING)
     logging.getLogger("aiogram").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("groq").setLevel(logging.WARNING)
+    logging.getLogger("fireworks").setLevel(logging.WARNING)
 
     return root

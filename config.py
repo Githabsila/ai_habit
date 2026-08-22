@@ -5,7 +5,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+FIREWORKS_API_KEY = os.getenv("FIREWORKS_API_KEY")
 
 # Можно указать несколько ID через запятую: ADMIN_ID=8695214950,123456789
 _admin_ids_raw = os.getenv("ADMIN_ID", "8695214950")

@@ -404,19 +404,20 @@
     const items = Array.isArray(state.shop_items) ? state.shop_items : [];
 
     if (balance) balance.textContent = Number(state.user?.xp || 0).toLocaleString("ru-RU");
-
     if (!list) return;
+
     if (items.length === 0) {
       list.innerHTML = `<li class="empty-hint">Магазин пока пуст</li>`;
       return;
     }
 
-    // Сначала показываем лоты ответов — это основная покупка магазина.
     const answerItems = items.filter(it => it.item_type === "answer_pack" || /ответ/i.test(it.name || ""));
     const otherItems = items.filter(it => !answerItems.includes(it));
 
     const renderItem = (it) => {
-      const canAfford = Number(state.user?.xp || 0) >= Number(it.price || 0);
+      const price = Number(it.price || 0);
+      const balanceValue = Number(state.user?.xp || 0);
+      const canAfford = balanceValue >= price;
       const isAnswer = it.item_type === "answer_pack" || /ответ/i.test(it.name || "");
       const amountMatch = String(it.payload || it.name || "").match(/(\d+)/);
       const amount = amountMatch ? amountMatch[1] : "";
@@ -429,9 +430,8 @@
         desc = amount ? `Ещё ${amount} запросов к ADAM сегодня` : desc;
       }
 
-      // Цена всегда показывается слева в одном месте. Если денег хватает,
-      // сама кнопка становится жёлтой и содержит только «Купить» — без
-      // повторения цены/«100 A» внутри кнопки.
+      // Цена находится только слева. На кнопке никогда не дублируем
+      // стоимость: если хватает коинов — только «Купить».
       let btnLabel = "Купить";
       let btnClass = "buy-btn";
       let disabled = "";
@@ -457,9 +457,9 @@
           <div class="shop-item__name">${title}</div>
           <div class="shop-item__desc">${desc}</div>
           <div class="shop-item__footer">
-            <div class="shop-item__price">
+            <div class="shop-item__price" aria-label="Цена">
               ${ADAM_COIN_ICON}
-              <span>${Number(it.price || 0).toLocaleString("ru-RU")}</span>
+              <span>${price.toLocaleString("ru-RU")}</span>
             </div>
             <button class="${btnClass}" data-action="buy" ${disabled}>${btnLabel}</button>
           </div>
@@ -591,36 +591,161 @@
   function renderCalendar() {
     const grid = document.getElementById("calendarGrid");
     if (!grid) return;
-    const byDay = {};
-    (state.calendar_events || []).forEach(ev => { byDay[ev.day] = { completed: ev.completed, total: ev.total }; });
 
-    const days = [];
+    const byDay = {};
+    (state.calendar_events || []).forEach(ev => {
+      byDay[ev.day] = { completed: Number(ev.completed || 0), total: Number(ev.total || 0) };
+    });
+
     const today = new Date();
-    for (let i = 34; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthName = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" })
+      .format(monthStart);
+    const monthTitle = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+    const todayKey = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0")
+    ].join("-");
+
+    // Текущий месяц + несколько последних дней предыдущего/следующего,
+    // чтобы календарь всегда выглядел как полноценная сетка.
+    const firstWeekday = (monthStart.getDay() + 6) % 7; // Пн = 0
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const cellsCount = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+
+    const monthEvents = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(today.getFullYear(), today.getMonth(), day);
+      const key = [
+        d.getFullYear(),
+        String(d.getMonth() + 1).padStart(2, "0"),
+        String(day).padStart(2, "0")
+      ].join("-");
       const info = byDay[key] || { completed: 0, total: 0 };
-      days.push({ key, ...info, dayNum: d.getDate() });
+      monthEvents.push({ key, day, ...info });
     }
 
-    grid.innerHTML = days.map(d => {
-      // Красим по ДОЛЕ выполненных привычек за день, а не по абсолютному
-      // числу — иначе при малом количестве привычек клетка никогда не
-      // становилась полностью золотой, даже если всё было выполнено.
+    const completedDays = monthEvents.filter(d => d.total > 0 && d.completed >= d.total).length;
+    const activeDays = monthEvents.filter(d => d.total > 0).length;
+    const completedTasks = monthEvents.reduce((sum, d) => sum + d.completed, 0);
+    const totalTasks = monthEvents.reduce((sum, d) => sum + d.total, 0);
+    const completion = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const todayInfo = byDay[todayKey] || { completed: 0, total: 0 };
+    const todayPercent = todayInfo.total
+      ? Math.round((todayInfo.completed / todayInfo.total) * 100)
+      : 0;
+
+    const stat = (value, label, extra = "") => `
+      <div class="calendar-stat ${extra}">
+        <strong>${value}</strong>
+        <span>${label}</span>
+      </div>`;
+
+    const cells = [];
+    for (let i = 0; i < cellsCount; i++) {
+      const dayNumber = i - firstWeekday + 1;
+      const inMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
+
+      if (!inMonth) {
+        cells.push(`<div class="cal-cell cal-cell--empty" aria-hidden="true"></div>`);
+        continue;
+      }
+
+      const d = monthEvents[dayNumber - 1];
       let level = 0;
       if (d.completed > 0 && d.total > 0) {
         const ratio = d.completed / d.total;
         level = ratio >= 1 ? 3 : ratio >= 0.5 ? 2 : 1;
       }
-      const label = d.total > 0 ? `${d.key}: ${d.completed}/${d.total}` : `${d.key}: 0`;
-      return `<div class="cal-cell cal-cell--${level}" title="${label}"></div>`;
-    }).join("");
+
+      const isToday = d.key === todayKey;
+      const label = d.total > 0
+        ? `${d.completed} из ${d.total} выполнено`
+        : "Нет отметок";
+
+      cells.push(`
+        <button class="cal-cell cal-cell--${level} ${isToday ? "is-today" : ""}"
+                type="button"
+                data-cal-day="${d.key}"
+                title="${d.key}: ${label}">
+          <span class="cal-cell__day">${d.day}</span>
+          ${d.total > 0 ? `<span class="cal-cell__progress">${d.completed}/${d.total}</span>` : ""}
+        </button>
+      `);
+    }
+
+    grid.innerHTML = `
+      <div class="calendar-card">
+        <div class="calendar-card__head">
+          <div>
+            <div class="calendar-eyebrow">ТВОЙ ПРОГРЕСС</div>
+            <h2>${monthTitle}</h2>
+            <p>Каждый день здесь показывает, насколько ты приблизился к своим целям.</p>
+          </div>
+          <div class="calendar-today-badge">Сегодня<br><b>${today.getDate()}</b></div>
+        </div>
+
+        <div class="calendar-stats">
+          ${stat(`${todayPercent}%`, "сегодня")}
+          ${stat(completedDays, "идеальных дней")}
+          ${stat(activeDays, "активных дней")}
+          ${stat(`${completion}%`, "за месяц")}
+        </div>
+
+        <div class="calendar-weekdays">
+          <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span>
+          <span>Пт</span><span>Сб</span><span>Вс</span>
+        </div>
+
+        <div class="calendar-month-grid">
+          ${cells.join("")}
+        </div>
+
+        <div class="calendar-selected" id="calendarSelected">
+          <div class="calendar-selected__icon">📅</div>
+          <div>
+            <strong>${today.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</strong>
+            <span>${todayInfo.total ? `${todayInfo.completed} из ${todayInfo.total} привычек выполнено` : "Сегодня пока нет отмеченных привычек"}</span>
+          </div>
+        </div>
+
+        <div class="calendar-legend">
+          <span>Меньше</span>
+          <i class="cal-cell cal-cell--0"></i>
+          <i class="cal-cell cal-cell--1"></i>
+          <i class="cal-cell cal-cell--2"></i>
+          <i class="cal-cell cal-cell--3"></i>
+          <span>Больше</span>
+        </div>
+      </div>
+    `;
+
+    // Детальная карточка выбранного дня.
+    grid.querySelectorAll("[data-cal-day]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.calDay;
+        const info = byDay[key] || { completed: 0, total: 0 };
+        const d = new Date(`${key}T12:00:00`);
+        const title = d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+        const selected = document.getElementById("calendarSelected");
+        if (selected) {
+          selected.innerHTML = `
+            <div class="calendar-selected__icon">${info.total && info.completed >= info.total ? "🔥" : "📅"}</div>
+            <div>
+              <strong>${title}</strong>
+              <span>${info.total ? `${info.completed} из ${info.total} привычек выполнено` : "В этот день нет отмеченных привычек"}</span>
+            </div>
+          `;
+        }
+        grid.querySelectorAll(".cal-cell.is-selected").forEach(x => x.classList.remove("is-selected"));
+        btn.classList.add("is-selected");
+      });
+    });
   }
 
-
-
-// ===================== TABS =====================
+  // ===================== TABS =====================
 function initTabs() {
   const tabBar = document.getElementById("tabBar");
   if (!tabBar) return;
