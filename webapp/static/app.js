@@ -482,7 +482,7 @@
       return `
         <li class="shop-item ${isAnswer ? "shop-item--answers" : ""}" data-id="${it.id}">
           <div class="shop-item__top">
-            <span class="shop-item__icon">${isAnswer ? "💬" : "✦"}</span>
+            <span class="shop-item__icon"><span class="material-symbols-rounded">${isAnswer ? "forum" : "auto_awesome"}</span></span>
             ${isAnswer ? `<span class="shop-item__tag">ДОП. ОТВЕТЫ</span>` : ""}
           </div>
           <div class="shop-item__name">${title}</div>
@@ -1100,7 +1100,32 @@ function initPlanActions() {
 
 // ===================== SHOP ACTIONS =====================
   function initShopActions() {
-    document.getElementById("shopList").addEventListener("click", async (e) => {
+    const shopList = document.getElementById("shopList");
+    if (!shopList) return;
+
+    // Subtle desktop 3D tilt: follows the pointer without jumping.
+    shopList.addEventListener("pointermove", (e) => {
+      if (e.pointerType === "touch") return;
+      const card = e.target.closest(".shop-item");
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      const y = (e.clientY - r.top) / r.height;
+      const ry = (x - 0.5) * 4.2;
+      const rx = (0.5 - y) * 3.2;
+      card.style.setProperty("--shop-x", `${x * 100}%`);
+      card.style.setProperty("--shop-y", `${y * 100}%`);
+      card.style.setProperty("--shop-rx", `${rx.toFixed(2)}deg`);
+      card.style.setProperty("--shop-ry", `${ry.toFixed(2)}deg`);
+    });
+    shopList.addEventListener("pointerleave", () => {
+      shopList.querySelectorAll(".shop-item").forEach(card => {
+        card.style.setProperty("--shop-rx", "0deg");
+        card.style.setProperty("--shop-ry", "0deg");
+      });
+    });
+
+    shopList.addEventListener("click", async (e) => {
       const btn = e.target.closest("button[data-action=buy]");
       if (!btn || btn.disabled) return;
       const li = btn.closest(".shop-item");

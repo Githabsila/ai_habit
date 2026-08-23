@@ -3758,3 +3758,199 @@ body::after{
   #app{padding:64px 9px 128px}.player-card{padding:18px 15px;border-radius:29px}.player-card__ring-wrap,.level-ring,.level-ring svg{width:84px;height:84px}.player-card__name{font-size:19px}.player-card__stats{gap:6px}.stat{padding:6px 8px}.streak-widget{padding:19px!important}.streak-widget__title{font-size:27px!important}.habit-item{min-height:72px!important}.tab-bar{height:74px!important;border-radius:26px!important}.tab-bar__item{font-size:10px!important}
 }
 @media(prefers-reduced-motion:reduce){body::before,.level-ring__fill,.xp-bar__fill::after,.habit-item,.achievement-item,.shop-item,.rating-item,.plan-list li,.streak-profile-avatar,.streak-profile-fire,.loading-overlay__coin{animation:none!important}}
+
+/* ============================================================
+   ADAM SIGNATURE LUX — FINAL VISUAL POLISH
+   Cohesive premium palette + restrained motion + precise geometry.
+   ============================================================ */
+:root{
+  --lux-obsidian:#08070d;
+  --lux-ink:#0f0d16;
+  --lux-panel:rgba(20,17,29,.82);
+  --lux-panel-2:rgba(27,23,39,.76);
+  --lux-line:rgba(255,255,255,.085);
+  --lux-line-soft:rgba(255,255,255,.055);
+  --lux-text:#f7f3ec;
+  --lux-muted:#a9a3b4;
+  --lux-platinum:#e9e2d4;
+  --lux-champagne:#f6d889;
+  --lux-gold:#d7a93d;
+  --lux-violet:#9a7bff;
+  --lux-violet-deep:#5e42b8;
+  --lux-emerald:#5fc6a0;
+  --lux-rose:#d89aa8;
+  --lux-ease:cubic-bezier(.22,1,.36,1);
+}
+
+html{scroll-behavior:smooth}
+body{
+  color:var(--lux-text);
+  background:
+    radial-gradient(900px 600px at -10% -10%,rgba(116,80,204,.18),transparent 58%),
+    radial-gradient(700px 520px at 110% 8%,rgba(221,170,66,.11),transparent 58%),
+    radial-gradient(900px 650px at 50% 115%,rgba(67,54,112,.12),transparent 60%),
+    linear-gradient(180deg,#08070d 0%,#0b0911 46%,#07060b 100%);
+}
+
+/* One geometry language across the app. */
+.player-card,.streak-widget,.plan-card,.calendar-card,.rating-hero,
+.rating-podium,.rating-list,.streak-profile-card--premium,.shop-head,
+.achievement-latest-wrap,.achievement-archive,.habit-item,.shop-item,
+.achievement-item,.streak-metric,.calendar-stat,.plan-main{
+  border-color:var(--lux-line)!important;
+}
+
+.player-card,.streak-widget,.plan-card,.calendar-card,.rating-hero,
+.streak-profile-card--premium,.shop-head,.achievement-latest-wrap,
+.achievement-archive{
+  background:
+    linear-gradient(145deg,rgba(31,27,43,.92),rgba(12,10,17,.90))!important;
+  box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.08)!important;
+}
+
+.player-card,.streak-widget,.plan-card,.calendar-card,.rating-hero,
+.streak-profile-card--premium,.shop-head{border-radius:30px!important}
+
+.player-card::before,.shop-head::before,.streak-widget::before,
+.plan-card::before,.calendar-card::before,.rating-hero::before,
+.streak-profile-card--premium::before{
+  opacity:.5!important;
+}
+
+/* Premium typography hierarchy. */
+.player-card__name,.section-heading h2,.shop-head h2,.rating-hero h2{
+  color:#fbf8f2!important;
+  text-shadow:0 6px 24px rgba(0,0,0,.24);
+}
+.section-heading__sub,.shop-item__desc,.xp-bar__label,.streak-widget__bottom,
+.calendar-stat small,.streak-metric small{color:var(--lux-muted)!important}
+
+/* Champagne instead of loud rainbow accents. */
+.stat--coin,.shop-item__price{color:var(--lux-champagne)!important}
+.stat--streak{color:#e8a95e!important}
+.shop-item__tag{color:var(--lux-champagne)!important;background:rgba(246,216,137,.08)!important;border-color:rgba(246,216,137,.12)!important}
+
+.xp-bar__fill{
+  background:linear-gradient(90deg,#f4e3a7 0%,#e5bb57 48%,#b97d26 100%)!important;
+  box-shadow:0 0 18px rgba(221,174,69,.32)!important;
+}
+
+/* Calm premium status green; no fluorescent UI. */
+.habit-item.is-done{
+  background:linear-gradient(145deg,rgba(72,156,124,.12),rgba(15,18,18,.90))!important;
+  border-color:rgba(95,198,160,.28)!important;
+}
+.habit-item.is-done .habit-item__check{
+  background:linear-gradient(145deg,#5fc6a0,#328a6d)!important;
+  box-shadow:0 0 26px rgba(95,198,160,.22),inset 0 1px rgba(255,255,255,.34)!important;
+}
+
+/* Buttons: soft lift, not a jump. */
+button,.btn,.buy-btn,.freeze-buy-btn,.share-achievement-btn{
+  -webkit-tap-highlight-color:transparent;
+}
+.buy-btn{
+  border-radius:13px!important;
+  border-color:rgba(246,216,137,.25)!important;
+  background:linear-gradient(145deg,rgba(246,216,137,.16),rgba(183,125,38,.08))!important;
+  color:var(--lux-champagne)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.12),0 8px 22px rgba(0,0,0,.18)!important;
+  transition:transform .45s var(--lux-ease),box-shadow .45s var(--lux-ease),background .45s ease,filter .45s ease!important;
+}
+@media (hover:hover){
+  .buy-btn:not(:disabled):hover{transform:translateY(-2px) scale(1.015)!important;filter:brightness(1.08)!important;box-shadow:inset 0 1px rgba(255,255,255,.18),0 14px 30px rgba(215,169,61,.16)!important}
+  .buy-btn:not(:disabled):active{transform:translateY(0) scale(.98)!important}
+}
+
+/* ================= SHOP — cinematic hover ================= */
+.shop-list{gap:14px!important}
+.shop-item{
+  isolation:isolate;
+  min-height:205px;
+  padding:17px!important;
+  border-radius:24px!important;
+  background:
+    radial-gradient(120% 90% at 100% 0%,rgba(154,123,255,.10),transparent 48%),
+    linear-gradient(145deg,rgba(31,27,43,.96),rgba(12,10,17,.94))!important;
+  border:1px solid rgba(255,255,255,.09)!important;
+  box-shadow:0 18px 45px rgba(0,0,0,.30),inset 0 1px rgba(255,255,255,.07)!important;
+  transform:perspective(900px) rotateX(var(--shop-rx,0deg)) rotateY(var(--shop-ry,0deg)) translate3d(0,0,0) scale(1);
+  transform-style:preserve-3d;
+  will-change:transform,box-shadow;
+  transition:transform .65s var(--lux-ease),box-shadow .65s var(--lux-ease),border-color .5s ease,background .5s ease!important;
+}
+.shop-item::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  border-radius:inherit;
+  background:radial-gradient(280px 180px at var(--shop-x,50%) var(--shop-y,0%),rgba(246,216,137,.13),transparent 68%);
+  opacity:0;
+  transition:opacity .55s ease;
+}
+.shop-item::after{
+  content:"";
+  position:absolute;
+  z-index:2;
+  top:-40%;
+  left:-70%;
+  width:42%;
+  height:180%;
+  pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);
+  transform:rotate(18deg) translateX(0);
+  opacity:0;
+  transition:transform .9s var(--lux-ease),opacity .35s ease;
+}
+@media (hover:hover){
+  .shop-item:hover{
+    transform:perspective(900px) rotateX(var(--shop-rx,0deg)) rotateY(var(--shop-ry,0deg)) translate3d(0,-8px,0) scale(1.018)!important;
+    border-color:rgba(246,216,137,.25)!important;
+    box-shadow:0 30px 65px rgba(0,0,0,.42),0 0 38px rgba(154,123,255,.10),inset 0 1px rgba(255,255,255,.12)!important;
+  }
+  .shop-item:hover::before{opacity:1}
+  .shop-item:hover::after{opacity:1;transform:rotate(18deg) translateX(520%)}
+  .shop-item:hover .shop-item__name{transform:translateX(2px);color:#fffaf0}
+  .shop-item:hover .shop-item__icon{transform:translateZ(14px) scale(1.10) rotate(-4deg)!important;box-shadow:0 12px 28px rgba(154,123,255,.18),inset 0 1px rgba(255,255,255,.15)!important}
+}
+.shop-item__top,.shop-item__name,.shop-item__desc,.shop-item__footer{position:relative;z-index:3}
+.shop-item__name{transition:transform .5s var(--lux-ease),color .45s ease!important}
+.shop-item__icon{
+  width:40px!important;height:40px!important;border-radius:14px!important;
+  background:linear-gradient(145deg,rgba(154,123,255,.18),rgba(255,255,255,.045))!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  color:var(--lux-champagne)!important;
+  transition:transform .55s var(--lux-ease),box-shadow .55s var(--lux-ease),background .45s ease!important;
+}
+.shop-item__icon .material-symbols-rounded{font-size:20px}
+.shop-item--answers{background:radial-gradient(120% 90% at 100% 0%,rgba(154,123,255,.15),transparent 50%),linear-gradient(145deg,rgba(32,27,48,.96),rgba(12,10,18,.94))!important}
+.shop-divider{height:1px!important;background:linear-gradient(90deg,transparent,rgba(246,216,137,.22),transparent)!important;margin:4px 0!important}
+
+/* All cards respond with the same motion language. */
+@media (hover:hover){
+  .player-card,.streak-widget,.plan-card,.calendar-card,.rating-hero,.streak-profile-card--premium,.achievement-item,.habit-item,.streak-metric,.calendar-stat{
+    transition:transform .55s var(--lux-ease),box-shadow .55s var(--lux-ease),border-color .45s ease,background .45s ease!important;
+  }
+  .player-card:hover,.streak-widget:hover,.plan-card:hover,.calendar-card:hover,.rating-hero:hover,.streak-profile-card--premium:hover{
+    transform:translateY(-4px)!important;
+    box-shadow:0 30px 80px rgba(0,0,0,.48),0 0 34px rgba(154,123,255,.07),inset 0 1px rgba(255,255,255,.09)!important;
+  }
+}
+
+/* Premium theme swatches. */
+.theme-swatch--violet{background:linear-gradient(135deg,#a487ff,#5c43b5)!important}
+.theme-swatch--blue{background:linear-gradient(135deg,#8295c8,#3d4f7c)!important}
+.theme-swatch--green{background:linear-gradient(135deg,#72b79e,#356e5d)!important}
+.theme-swatch--pink{background:linear-gradient(135deg,#d39aa9,#805263)!important}
+
+/* Better mobile proportions. */
+@media(max-width:430px){
+  .shop-list{gap:10px!important}
+  .shop-item{min-height:194px;padding:14px!important;border-radius:21px!important}
+  .shop-item__name{font-size:14px!important}
+  .shop-item__desc{font-size:10.5px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .shop-item,.shop-item::before,.shop-item::after,.shop-item__icon,.shop-item__name{transition:none!important;transform:none!important}
+}
