@@ -26,3 +26,6 @@ textarea:focus,.chat-input:focus,.message-input:focus{border-color:rgba(154,114,
 .status-dot{animation:statusPulse 2s ease-in-out infinite!important}.status-dot{box-shadow:0 0 0 0 rgba(255,213,79,.45)!important}@keyframes statusPulse{0%,100%{opacity:.75;box-shadow:0 0 0 0 rgba(255,213,79,.35)}50%{opacity:1;box-shadow:0 0 0 7px rgba(255,213,79,0)}}
 .error-card,.crisis-alert,.throttle-warning{border-radius:20px!important;background:rgba(45,19,27,.72)!important;border:1px solid rgba(255,110,110,.16)!important;box-shadow:0 18px 40px rgba(0,0,0,.22)!important}
 @media(prefers-reduced-motion:reduce){body::before,.header-title-icon,.message,.message-bubble,.chat-message,.status-dot{animation:none!important}}
+
+/* Signature navy/gold quick actions */
+.quick-prompts,.welcome-prompts{background:linear-gradient(180deg,rgba(4,16,31,.88),rgba(3,11,23,.74))!important}.quick-prompts button,.welcome-prompts button{color:#EAF0F7!important}.quick-prompts button:hover,.welcome-prompts button:hover{border-color:rgba(231,191,98,.34)!important;background:linear-gradient(145deg,rgba(18,52,88,.82),rgba(7,25,46,.68))!important}

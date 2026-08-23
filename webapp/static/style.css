@@ -4357,3 +4357,94 @@ input:focus,textarea:focus,select:focus,.chat-input:focus,.message-input:focus{
   body::before{animation:none!important}
   .shop-item,.shop-item::after,button,.btn,.action-btn,.primary-btn,.secondary-btn,.nav-btn,.quick-btn{transition:none!important}
 }
+
+
+/* =========================================================
+   ADAM SIGNATURE — DEEP NAVY + CHAMPAGNE GOLD / ALIGNMENT PASS
+   ========================================================= */
+:root{
+  --adam-navy-0:#030A16;
+  --adam-navy-1:#061226;
+  --adam-navy-2:#0A1B34;
+  --adam-navy-3:#102744;
+  --adam-gold-1:#FFF1B2;
+  --adam-gold-2:#E7BF62;
+  --adam-gold-3:#9C7427;
+  --adam-line:rgba(214,184,103,.20);
+  --adam-glass:rgba(8,24,45,.64);
+  --adam-glass-strong:rgba(8,21,40,.82);
+  --adam-ease:cubic-bezier(.22,1,.36,1);
+}
+body{
+  background:
+    radial-gradient(700px 480px at 8% -5%,rgba(42,103,177,.24),transparent 62%),
+    radial-gradient(620px 430px at 92% 5%,rgba(216,173,74,.10),transparent 60%),
+    linear-gradient(180deg,var(--adam-navy-0),#04101f 45%,#020811)!important;
+  color:#F4F7FB!important;
+}
+body::before{background:conic-gradient(from 210deg,rgba(33,104,184,.12),transparent 25%,rgba(231,191,98,.07),transparent 52%,rgba(29,82,150,.10),transparent 78%)!important;filter:blur(85px)!important;animation:adamDeepAurora 20s ease-in-out infinite alternate!important}
+@keyframes adamDeepAurora{from{transform:translate(-2%,-1%) rotate(-2deg) scale(1)}to{transform:translate(2%,2%) rotate(3deg) scale(1.06)}}
+.player-card,.streak-widget,.plan-card,.calendar-card,.rating-hero,.streak-profile-card--premium,.shop-head,.achievement-latest-wrap,.achievement-archive,.habit-item,.shop-item,.achievement-item{
+  background:linear-gradient(145deg,rgba(12,34,61,.74),rgba(4,16,31,.58))!important;
+  border-color:rgba(187,205,225,.11)!important;
+  box-shadow:0 24px 70px rgba(0,4,12,.42),inset 0 1px rgba(255,255,255,.10)!important;
+}
+.player-card::before,.streak-widget::before,.plan-card::before,.calendar-card::before,.rating-hero::before,.shop-head::before{background:linear-gradient(115deg,rgba(255,255,255,.08),transparent 30%,transparent 70%,rgba(226,190,100,.08))!important}
+.section-heading h2,.player-card__name,.rating-hero h2,.shop-head h2{color:#F7F4EC!important}
+.section-heading__sub,.shop-item__price,.stat--coin,.rating-hero__eyebrow{color:var(--adam-gold-1)!important}
+
+/* Level ring: exact center */
+.player-card__ring-wrap{position:relative!important;display:grid!important;place-items:center!important;align-self:center!important}
+.level-ring{position:absolute!important;inset:50% auto auto 50%!important;transform:translate(-50%,-50%) rotate(-90deg)!important;width:100%!important;height:100%!important}
+.level-ring svg{width:100%!important;height:100%!important}
+.level-ring__badge{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;display:grid!important;place-items:center!important;transform:none!important;text-align:center!important}
+.level-ring__badge span{display:block!important;line-height:1!important;transform:none!important;color:#FFF8DE!important;text-shadow:0 2px 12px rgba(0,0,0,.45)}
+.level-ring__badge small{margin:3px 0 0!important;line-height:1!important;color:#CDBA83!important}
+
+/* Streak week: full-width elegant days */
+.streak-widget{padding:20px!important;border-radius:28px!important;background:linear-gradient(145deg,rgba(8,29,54,.86),rgba(4,15,29,.76))!important;border:1px solid rgba(215,188,113,.16)!important}
+.streak-widget__top{align-items:center!important}
+.streak-widget__eyebrow{color:#D7B96A!important}
+.streak-widget__title{display:flex!important;align-items:center!important;gap:7px!important;color:#F7F7F4!important}
+.premium-fire-icon,.inline-premium-icon,.streak-day-icon,.streak-seven-icon{font-size:20px!important;line-height:1!important;vertical-align:middle!important;color:#E7BF62!important;filter:drop-shadow(0 0 8px rgba(231,191,98,.22))}
+.streak-days{width:100%!important;grid-template-columns:repeat(7,minmax(0,1fr))!important;gap:6px!important;margin-top:18px!important}
+.streak-day{width:100%!important;height:64px!important;border-radius:17px!important;background:linear-gradient(180deg,rgba(255,255,255,.065),rgba(255,255,255,.025))!important;border:1px solid rgba(188,208,231,.11)!important;color:#9EAEC2!important;transition:transform .45s var(--adam-ease),border-color .35s ease,box-shadow .35s ease,background .35s ease!important}
+.streak-day.is-done{background:linear-gradient(180deg,rgba(210,172,76,.18),rgba(210,172,76,.05))!important;border-color:rgba(231,191,98,.42)!important;color:#F5D98B!important;box-shadow:0 10px 28px rgba(205,162,63,.10)!important}
+.streak-day.is-freeze{background:linear-gradient(180deg,rgba(47,119,190,.20),rgba(32,76,126,.07))!important;border-color:rgba(99,163,224,.30)!important;color:#B9D9F7!important}
+.streak-day:hover{transform:translateY(-3px)!important;border-color:rgba(231,191,98,.30)!important}
+.freeze-buy-btn{background:rgba(44,94,148,.18)!important;border-color:rgba(119,167,213,.22)!important;color:#DCEBFA!important;display:inline-flex!important;align-items:center!important;gap:5px!important}
+
+/* Rating hero: compact header */
+.rating-hero{padding:16px 18px 14px!important;border-radius:24px!important}
+.rating-hero__eyebrow{font-size:8px!important;letter-spacing:.18em!important}
+.rating-hero h2{font-size:26px!important;margin:4px 0 2px!important}
+.rating-hero p{font-size:11px!important}
+.rating-hero__stats{margin-top:10px!important}
+.rating-hero__stats span{padding:6px 9px!important;background:rgba(255,255,255,.045)!important;border-color:rgba(255,255,255,.07)!important}
+
+/* Profile metrics: three independent tabs in one row */
+.streak-profile-metrics{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:9px!important;margin:12px 0 20px!important;background:transparent!important;padding:0!important;border:0!important;box-shadow:none!important}
+.streak-metric{min-width:0!important;padding:11px 7px!important;border-radius:17px!important;background:linear-gradient(145deg,rgba(13,37,66,.72),rgba(5,18,34,.56))!important;border:1px solid rgba(185,204,225,.10)!important;box-shadow:inset 0 1px rgba(255,255,255,.07),0 12px 28px rgba(0,4,12,.24)!important;text-align:center!important}
+.streak-metric>span{display:block!important;margin-bottom:5px!important;color:var(--adam-gold-2)!important}
+.streak-metric b{display:block!important;color:#F7F4EA!important}
+.streak-metric small{display:block!important;margin-top:2px!important;color:#8EA0B6!important}
+
+/* Achievements: first 3 visible, archive is horizontal columns of 3 */
+.achievement-list--latest{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:9px!important}
+.achievement-list--latest .achievement-item{min-height:94px!important;padding:10px!important;border-radius:17px!important}
+.achievement-list--archive{grid-template-rows:repeat(3,minmax(82px,auto))!important;grid-auto-columns:minmax(168px,calc((100% - 18px)/3))!important;gap:9px!important}
+.achievement-list--archive .achievement-item{min-height:82px!important;border-radius:17px!important}
+.achievement-item__icon .material-symbols-rounded{font-size:20px;color:var(--adam-gold-2)}
+
+/* Premium icon cleanup */
+.premium-ui-icon{font-size:17px!important;color:var(--adam-gold-2)!important;vertical-align:-3px!important}
+.streak-profile-fire .material-symbols-rounded{color:#E7BF62!important;font-size:48px!important;filter:drop-shadow(0 0 16px rgba(231,191,98,.24))}
+.achievement-share-fire .material-symbols-rounded,.streak-onboarding-fire .material-symbols-rounded{font-size:46px!important;color:#E7BF62!important}
+.streak-onboarding__rewards>span,.weekly-choice-grid button{display:flex!important;align-items:center!important;justify-content:center!important;gap:5px!important}
+
+@media(max-width:430px){
+  .streak-day{height:60px!important}
+  .achievement-list--latest .achievement-item{min-height:88px!important}
+  .achievement-list--archive{grid-template-rows:repeat(3,minmax(76px,auto))!important;grid-auto-columns:minmax(150px,calc((100vw - 32px)/3))!important}
+}
+@media(max-width:340px){.achievement-list--latest{grid-template-columns:1fr!important}.achievement-list--archive{grid-template-rows:repeat(3,minmax(72px,auto))!important;grid-auto-columns:145px!important}.streak-day{height:56px!important}}

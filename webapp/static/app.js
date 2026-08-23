@@ -141,8 +141,8 @@
         const cls = d.status === "completed" ? "is-done" :
           d.status === "freeze" ? "is-freeze" :
           d.status === "missed" ? "is-missed" : "is-empty";
-        const icon = d.status === "completed" ? "🔥" :
-          d.status === "freeze" ? "❄️" :
+        const icon = d.status === "completed" ? '<span class="material-symbols-rounded streak-day-icon">local_fire_department</span>' :
+          d.status === "freeze" ? '<span class="material-symbols-rounded streak-day-icon">ac_unit</span>' :
           d.status === "missed" ? "·" : "○";
         return `<button class="streak-day ${cls}" type="button" title="${escapeHtml(d.day)}: ${escapeHtml(d.status)}">
           <span>${icon}</span><small>${d.label}</small>${d.bonus ? '<b>🎁</b>' : ''}
@@ -181,7 +181,7 @@
     }
     if (profileStatus) profileStatus.textContent = streakStatus || (streakDays ? "В ударе" : "Серия не начата");
     if (profileFrame) {
-      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "🔥 Твоя ударная серия!";
+      profileFrame.innerHTML = reward ? `<span class="material-symbols-rounded inline-premium-icon">workspace_premium</span> ${escapeHtml(reward.frame)}` : `<span class="material-symbols-rounded inline-premium-icon">local_fire_department</span> Твоя ударная серия!`;
       profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
     }
     const profileDays = document.getElementById("profileStreakDays");
@@ -210,7 +210,7 @@
     if (seven) {
       seven.innerHTML = (state.streak?.last7 || []).map(d => {
         const cls = d.status === "completed" ? "is-done" : d.status === "freeze" ? "is-freeze" : "is-empty";
-        return `<span class="streak-seven__day ${cls}">${d.status === "completed" ? "🔥" : d.status === "freeze" ? "❄️" : "○"}</span>`;
+        return `<span class="streak-seven__day ${cls}">${d.status === "completed" ? '<span class="material-symbols-rounded streak-seven-icon">local_fire_department</span>' : d.status === "freeze" ? '<span class="material-symbols-rounded streak-seven-icon">ac_unit</span>' : '<span class="streak-empty-dot">•</span>'}</span>`;
       }).join("");
     }
     overlay.hidden = false;
@@ -258,7 +258,7 @@
     const overlay = document.getElementById("streakOnboardingOverlay");
     const coach = document.getElementById("streakOnboardingCoach");
     if (!overlay) return;
-    if (coach) coach.textContent = `🤖 Адам: ${data.message}`;
+    if (coach) coach.innerHTML = `<span class="material-symbols-rounded inline-premium-icon">smart_toy</span> Адам: ${escapeHtml(data.message || "")}`;
     overlay.hidden = false;
     overlay.classList.add("show");
   }
@@ -547,7 +547,7 @@
   function renderAchievementItem(a) {
     return `
       <li class="achievement-item">
-        <span class="achievement-item__icon">🏆</span>
+        <span class="achievement-item__icon"><span class="material-symbols-rounded">workspace_premium</span></span>
         <div class="achievement-item__content">
           <div class="achievement-item__title">${escapeHtml(a.title)}</div>
           <div class="achievement-item__desc">${escapeHtml(a.description || "")}</div>
@@ -568,14 +568,14 @@
     if (!latestList) return;
 
     if (items.length === 0) {
-      latestList.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое 🏆</li>`;
+      latestList.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое достижение</li>`;
       if (archive) archive.hidden = true;
       return;
     }
 
     // Backend отдаёт достижения от новых к старым, поэтому первые 3 — самые свежие.
-    const latest = items.slice(0, 2);
-    const older = items.slice(2);
+    const latest = items.slice(0, 3);
+    const older = items.slice(3);
 
     latestList.innerHTML = latest.map(renderAchievementItem).join("");
 
@@ -619,9 +619,9 @@
           <div class="rating-podium-card__crown">${medal[idx]}</div>
           <div class="rating-podium-card__avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</div>
           <div class="rating-podium-card__rank">#${rank}</div>
-          <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? "🏅" : ""}</div>
+          <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? '<span class="material-symbols-rounded inline-premium-icon">workspace_premium</span>' : ""}</div>
           ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
-          <div class="rating-podium-card__stats"><span>🔥 ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
+          <div class="rating-podium-card__stats"><span><span class="material-symbols-rounded inline-premium-icon">local_fire_department</span> ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
         </div>`;
       }).join("");
     }
@@ -633,7 +633,7 @@
         <span class="rating-item__rank">${rank}</span>
         <span class="rating-avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</span>
         <span class="rating-item__name">
-          <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
+          <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge material-symbols-rounded">workspace_premium</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
           ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
         </span>
         <span class="rating-item__meta"><span class="rating-stat"><span class="material-symbols-rounded stat-icon">local_fire_department</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
@@ -758,7 +758,7 @@
         </div>
 
         <div class="calendar-selected" id="calendarSelected">
-          <div class="calendar-selected__icon">📅</div>
+          <div class="calendar-selected__icon"><span class="material-symbols-rounded">calendar_month</span></div>
           <div>
             <strong>${today.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</strong>
             <span>${todayInfo.total ? `${todayInfo.completed} из ${todayInfo.total} привычек выполнено` : "Сегодня пока нет отмеченных привычек"}</span>
@@ -786,7 +786,7 @@
         const selected = document.getElementById("calendarSelected");
         if (selected) {
           selected.innerHTML = `
-            <div class="calendar-selected__icon">${info.total && info.completed >= info.total ? "🔥" : "📅"}</div>
+            <div class="calendar-selected__icon">${info.total && info.completed >= info.total ? '<span class="material-symbols-rounded">local_fire_department</span>' : '<span class="material-symbols-rounded">calendar_month</span>'}</div>
             <div>
               <strong>${title}</strong>
               <span>${info.total ? `${info.completed} из ${info.total} привычек выполнено` : "В этот день нет отмеченных привычек"}</span>
