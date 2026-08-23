@@ -160,6 +160,13 @@
         ? `Огонь горит. Не дай ему погаснуть.`
         : `Серия сброшена. Сегодня можно начать заново.`;
     }
+    const weekHint = document.getElementById("streakWeekHint");
+    if (weekHint) {
+      const last7 = Array.isArray(streak.last7) ? streak.last7 : [];
+      const done7 = last7.filter(d => d.status === "completed").length;
+      const frozen7 = last7.filter(d => d.status === "freeze").length;
+      weekHint.textContent = done7 === 7 ? "Неделя закрыта идеально" : frozen7 ? `${done7} выполнено · ${frozen7} замороз${frozen7 === 1 ? "ка" : "ки"}` : `${done7}/7 дней в огне`;
+    }
 
     const profileStatus = document.getElementById("profileStreakStatus");
     const profileFrame = document.getElementById("profileStreakFrame");

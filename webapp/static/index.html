@@ -8,7 +8,7 @@
 
 <title>Project ADAM</title>
 
-<link rel="stylesheet" href="/static/style.css?v=1202">
+<link rel="stylesheet" href="/static/style.css?v=1300">
 </head>
 <body>
 
@@ -107,18 +107,45 @@ style="width:0%">
 <!-- ===================== HOME ===================== -->
 <section class="tab-panel" data-tab="home">
 
-<div class="streak-widget" id="streakWidget">
+<div class="streak-widget streak-widget--hero" id="streakWidget">
+  <div class="streak-widget__glow streak-widget__glow--orange"></div>
+  <div class="streak-widget__glow streak-widget__glow--purple"></div>
+  <div class="streak-widget__spark streak-widget__spark--1"></div>
+  <div class="streak-widget__spark streak-widget__spark--2"></div>
   <div class="streak-widget__top">
-    <div>
-      <div class="streak-widget__eyebrow">УДАРНЫЙ РЕЖИМ</div>
-      <div class="streak-widget__title">🔥 <span id="streakWidgetDays">0 дней</span></div>
+    <div class="streak-widget__brand">
+      <div class="streak-widget__icon-wrap" aria-hidden="true">
+        <img src="/static/assets/adam-impact-flame.svg" alt="" class="streak-widget__icon">
+      </div>
+      <div>
+        <div class="streak-widget__eyebrow"><span class="streak-live-dot"></span> УДАРНЫЙ РЕЖИМ</div>
+        <div class="streak-widget__title">Твоя серия <span>в огне</span></div>
+      </div>
     </div>
-    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button">❄️ Заморозка · 200</button>
+    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button"><span>❄️</span><b>Заморозка</b><em>200</em></button>
+  </div>
+
+  <div class="streak-widget__hero-row">
+    <div class="streak-widget__count">
+      <strong id="streakWidgetDays">0 дней</strong>
+      <span>продолжай сегодня — не сбивай огонь</span>
+    </div>
+    <div class="streak-widget__flame-orbit" aria-hidden="true">
+      <div class="streak-orbit orbit-1"></div>
+      <div class="streak-orbit orbit-2"></div>
+      <div class="streak-widget__mini-flame">🔥</div>
+    </div>
+  </div>
+
+  <div class="streak-widget__week-head">
+    <span>ПОСЛЕДНИЕ 7 ДНЕЙ</span>
+    <span id="streakWeekHint">Траектория серии</span>
   </div>
   <div class="streak-days" id="streakDays"></div>
+
   <div class="streak-widget__bottom">
-    <span id="freezeBalanceLabel">Заморозок: 0/2</span>
-    <span id="streakStatusLabel">Не дай огню погаснуть.</span>
+    <div class="streak-widget__balance"><span class="streak-bottom-icon">❄</span><span id="freezeBalanceLabel">Заморозок: 0/2</span></div>
+    <div class="streak-widget__status"><span class="streak-status-dot"></span><span id="streakStatusLabel">Не дай огню погаснуть.</span></div>
   </div>
 </div>
 
