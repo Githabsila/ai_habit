@@ -151,7 +151,12 @@ async def bootstrap(request):
         ],
         "daily_plan": daily_plan,
         "calendar_events": [
-            {"day": row["day"], "completed": row["completed"]} for row in calendar_events
+            {
+                "day": row["day"],
+                "completed": int(row["completed"] or 0),
+                "total": int(row["total"] or 0) if "total" in row.keys() else 0,
+            }
+            for row in calendar_events
         ],
         "achievements": [
             {
