@@ -112,17 +112,18 @@
 
   // ===================== RENDER ALL =====================
   function renderAll() {
-    renderPlayerCard();
-    renderHabits();
-    renderShop();
-    renderThemePicker();
-    renderAchievements();
-    renderRating();
-    renderCalendar();
-    renderPlan();
-    renderStreak();
-    maybeShowStreakOnboarding();
-    maybeShowWeeklyBonus();
+    const sections = [
+      ["player", renderPlayerCard], ["habits", renderHabits], ["shop", renderShop],
+      ["themes", renderThemePicker], ["achievements", renderAchievements], ["rating", renderRating],
+      ["calendar", renderCalendar], ["plan", renderPlan], ["streak", renderStreak]
+    ];
+    for (const [name, fn] of sections) {
+      try { fn(); } catch (error) {
+        console.error(`[ADAM render:${name}]`, error);
+      }
+    }
+    try { maybeShowStreakOnboarding(); } catch (e) { console.error("[ADAM onboarding]", e); }
+    try { maybeShowWeeklyBonus(); } catch (e) { console.error("[ADAM weekly]", e); }
   }
 
   // ===================== УДАРНЫЙ РЕЖИМ =====================
@@ -369,6 +370,7 @@
   let toastTimer = null;
   function showToast(message, kind, duration) {
     const el = document.getElementById("toast");
+    if (!el) return;
     el.textContent = message;
     el.className = "toast is-visible" + (kind ? " is-" + kind : "");
     clearTimeout(toastTimer);
@@ -378,21 +380,27 @@
   // ===================== RENDER: PLAYER CARD =====================
   function renderPlayerCard() {
     const u = state.user;
-    document.getElementById("playerName").textContent = u.first_name || "Игрок";
-    document.getElementById("levelNumber").textContent = u.level;
-    document.getElementById("streakValue").textContent = u.streak;
-    document.getElementById("coinValue").textContent = u.xp;
+    const playerName = document.getElementById("playerName");
+    const levelNumber = document.getElementById("levelNumber");
+    const streakValue = document.getElementById("streakValue");
+    const coinValue = document.getElementById("coinValue");
+    if (playerName) playerName.textContent = u.first_name || "Игрок";
+    if (levelNumber) levelNumber.textContent = u.level ?? 1;
+    if (streakValue) streakValue.textContent = u.streak ?? 0;
+    if (coinValue) coinValue.textContent = u.xp ?? 0;
 
     const badgeEl = document.getElementById("playerBadge");
     if (badgeEl) badgeEl.style.display = u.badge ? "inline" : "none";
 
     const xpIntoLevel = (u.total_xp ?? u.xp) % 100;
-    document.getElementById("xpLabel").textContent = `${xpIntoLevel} / 100 XP`;
-    document.getElementById("xpBarFill").style.width = xpIntoLevel + "%";
+    const xpLabel = document.getElementById("xpLabel");
+    const xpBarFill = document.getElementById("xpBarFill");
+    if (xpLabel) xpLabel.textContent = `${xpIntoLevel} / 100 XP`;
+    if (xpBarFill) xpBarFill.style.width = xpIntoLevel + "%";
 
     const ringFill = document.getElementById("levelRingFill");
     const offset = RING_CIRCUMFERENCE * (1 - xpIntoLevel / 100);
-    ringFill.style.strokeDashoffset = offset;
+    if (ringFill) ringFill.style.strokeDashoffset = offset;
   }
 
   // ===================== RENDER: HABITS =====================

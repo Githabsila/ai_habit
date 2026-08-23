@@ -1,0 +1,28 @@
+
+/* =====================================================================
+   ADAM AI — NEO LUX V2
+   ===================================================================== */
+:root{--ai-v:#9b72ff;--ai-v2:#5d36d8;--ai-g:#ffd76a;--ai-bg:#07060d;--ai-glass:rgba(18,14,29,.72);--ai-line:rgba(255,255,255,.10);--ai-ease:cubic-bezier(.22,1,.36,1)}
+body{background:radial-gradient(850px 500px at 0% 0%,rgba(116,71,255,.25),transparent 60%),radial-gradient(700px 500px at 100% 15%,rgba(255,133,39,.13),transparent 58%),linear-gradient(180deg,#08070e,#0b0912 55%,#06050b)!important;position:relative;overflow:hidden}
+body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;background:conic-gradient(from 180deg,rgba(123,77,255,.12),transparent 22%,rgba(255,138,43,.08),transparent 50%,rgba(92,129,255,.08),transparent 78%);filter:blur(70px);animation:aiAurora 16s ease-in-out infinite alternate}
+@keyframes aiAurora{from{transform:translate(-2%,-1%) rotate(-2deg) scale(1)}to{transform:translate(2%,2%) rotate(2deg) scale(1.05)}}
+.header{background:rgba(11,9,18,.72)!important;border-bottom:1px solid rgba(255,255,255,.08)!important;box-shadow:0 18px 50px rgba(0,0,0,.34)!important;backdrop-filter:blur(28px) saturate(150%)!important;-webkit-backdrop-filter:blur(28px) saturate(150%)!important}
+.header-title-icon{background:linear-gradient(145deg,#9c73ff,#5a35d2)!important;box-shadow:0 12px 30px rgba(103,59,222,.36),inset 0 1px rgba(255,255,255,.25)!important;animation:aiIcon 3s ease-in-out infinite}
+@keyframes aiIcon{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(2deg)}}
+.messages-container{padding:24px 16px 18px!important;gap:16px!important;scroll-behavior:smooth}
+.message,.message-bubble,.chat-message{border-radius:22px!important;box-shadow:0 18px 42px rgba(0,0,0,.25),inset 0 1px rgba(255,255,255,.07)!important;backdrop-filter:blur(18px)!important;-webkit-backdrop-filter:blur(18px)!important;animation:messageIn .55s var(--ai-ease) both}
+@keyframes messageIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+.message.ai,.message.assistant,.assistant-message{background:linear-gradient(145deg,rgba(33,25,52,.82),rgba(14,12,23,.78))!important;border:1px solid rgba(154,114,255,.16)!important}
+.message.user,.user-message{background:linear-gradient(145deg,rgba(103,61,205,.92),rgba(70,40,151,.86))!important;border:1px solid rgba(192,168,255,.18)!important}
+.quick-prompts,.welcome-prompts{gap:9px!important}
+.quick-prompts button,.welcome-prompts button,.prompt-btn{border-radius:17px!important;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018))!important;border:1px solid rgba(255,255,255,.075)!important;box-shadow:inset 0 1px rgba(255,255,255,.06),0 12px 28px rgba(0,0,0,.16)!important;transition:transform .4s var(--ai-ease),background .3s ease,border-color .3s ease!important}
+.quick-prompts button:hover,.welcome-prompts button:hover,.prompt-btn:hover{transform:translateY(-4px)!important;background:linear-gradient(145deg,rgba(154,114,255,.15),rgba(255,255,255,.03))!important;border-color:rgba(154,114,255,.28)!important}
+.input-area,.composer,.chat-input-area{background:rgba(10,8,16,.76)!important;border-top:1px solid rgba(255,255,255,.08)!important;backdrop-filter:blur(28px) saturate(145%)!important;-webkit-backdrop-filter:blur(28px) saturate(145%)!important}
+textarea,.chat-input,.message-input{background:rgba(255,255,255,.045)!important;border:1px solid rgba(255,255,255,.085)!important;border-radius:20px!important;box-shadow:inset 0 1px rgba(255,255,255,.06),0 12px 30px rgba(0,0,0,.18)!important;transition:border-color .35s ease,box-shadow .35s ease,transform .35s var(--ai-ease)!important}
+textarea:focus,.chat-input:focus,.message-input:focus{border-color:rgba(154,114,255,.5)!important;box-shadow:0 0 0 4px rgba(139,92,246,.09),0 16px 36px rgba(0,0,0,.24)!important;transform:translateY(-1px)!important;outline:none!important}
+.voice-btn,.send-btn,.icon-btn,.action-btn{border-radius:16px!important;background:linear-gradient(145deg,rgba(154,114,255,.18),rgba(255,255,255,.035))!important;border:1px solid rgba(154,114,255,.18)!important;box-shadow:0 10px 25px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.10)!important;transition:transform .4s var(--ai-ease),filter .3s ease,box-shadow .3s ease!important}
+.voice-btn:hover,.send-btn:hover,.icon-btn:hover,.action-btn:hover{transform:translateY(-3px) scale(1.03)!important;filter:brightness(1.08)!important;box-shadow:0 16px 32px rgba(0,0,0,.25),0 0 22px rgba(139,92,246,.13)!important}
+.voice-btn:active,.send-btn:active,.icon-btn:active,.action-btn:active{transform:scale(.91)!important}
+.status-dot{animation:statusPulse 2s ease-in-out infinite!important}.status-dot{box-shadow:0 0 0 0 rgba(255,213,79,.45)!important}@keyframes statusPulse{0%,100%{opacity:.75;box-shadow:0 0 0 0 rgba(255,213,79,.35)}50%{opacity:1;box-shadow:0 0 0 7px rgba(255,213,79,0)}}
+.error-card,.crisis-alert,.throttle-warning{border-radius:20px!important;background:rgba(45,19,27,.72)!important;border:1px solid rgba(255,110,110,.16)!important;box-shadow:0 18px 40px rgba(0,0,0,.22)!important}
+@media(prefers-reduced-motion:reduce){body::before,.header-title-icon,.message,.message-bubble,.chat-message,.status-dot{animation:none!important}}
