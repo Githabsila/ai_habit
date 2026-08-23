@@ -113,6 +113,7 @@
   // ===================== RENDER ALL =====================
   function renderAll() {
     renderPlayerCard();
+    renderProfile();
     renderHabits();
     renderShop();
     renderThemePicker();
@@ -123,6 +124,25 @@
     renderStreak();
     maybeShowStreakOnboarding();
     maybeShowWeeklyBonus();
+  }
+
+  // ===================== ПРОФИЛЬ =====================
+  function renderProfile() {
+    const user = state?.user || {};
+    const avatar = document.getElementById("profileAvatar");
+    if (avatar) {
+      const name = String(user.first_name || "A").trim();
+      avatar.textContent = (name[0] || "A").toUpperCase();
+    }
+
+    const nameEl = document.getElementById("profileName");
+    if (nameEl) nameEl.textContent = user.first_name || "Пользователь ADAM";
+
+    const xpEl = document.getElementById("profileMetricXp");
+    if (xpEl) xpEl.textContent = Number(user.total_xp ?? user.xp ?? 0);
+
+    const coinsEl = document.getElementById("profileMetricCoins");
+    if (coinsEl) coinsEl.textContent = Number(user.coins ?? user.adam_coins ?? 0);
   }
 
   // ===================== УДАРНЫЙ РЕЖИМ =====================
@@ -169,15 +189,6 @@
     }
     const streakDays = Number(streak.days || 0);
     const reward = (streak.rewards || [])[0];
-
-    // Профиль использует тот же bootstrap-снимок, что и главный экран.
-    // Заполняем аватар/имя здесь, чтобы профиль не зависел от отдельного API.
-    const profileAvatar = document.getElementById("profileAvatar");
-    if (profileAvatar && state?.user) {
-      const firstName = String(state.user.first_name || "Игрок").trim();
-      profileAvatar.textContent = (firstName[0] || "A").toUpperCase();
-      profileAvatar.title = firstName;
-    }
     if (profileStatus) profileStatus.textContent = streakStatus || (streakDays ? "В ударе" : "Серия не начата");
     if (profileFrame) {
       profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "🔥 Твоя ударная серия!";
@@ -398,13 +409,9 @@
   // ===================== RENDER: HABITS =====================
   function renderHabits() {
     const list = document.getElementById("habitList");
-    const habits = Array.isArray(state?.habits) ? state.habits : [];
+    const habits = state.habits;
     const done = habits.filter(h => h.completed).length;
-    // Блок "Сегодня" был убран из главного меню, поэтому этого элемента
-    // может не быть. Отсутствие декоративного счётчика не должно ломать весь renderAll().
-    const progressLabel = document.getElementById("habitsProgressLabel");
-    if (progressLabel) progressLabel.textContent = `${done}/${habits.length} сегодня`;
-    if (!list) return;
+    document.getElementById("habitsProgressLabel").textContent = `${done}/${habits.length} сегодня`;
 
     if (habits.length === 0) {
       list.innerHTML = `<li class="empty-hint">Пока нет привычек — добавь первую ниже 👇</li>`;
@@ -638,8 +645,12 @@
     const grid = document.getElementById("calendarGrid");
     if (!grid) return;
 
+    // Календарь должен оставаться полноценным даже при пустой статистике:
+    // отсутствие событий — это нормальное состояние нового пользователя,
+    // а не повод оставлять вкладку пустой.
+    const sourceEvents = Array.isArray(state?.calendar_events) ? state.calendar_events : [];
     const byDay = {};
-    (state.calendar_events || []).forEach(ev => {
+    sourceEvents.forEach(ev => {
       byDay[ev.day] = { completed: Number(ev.completed || 0), total: Number(ev.total || 0) };
     });
 
