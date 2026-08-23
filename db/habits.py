@@ -19,8 +19,10 @@ def add_habit(user_id, title, planned_time=None, time_window_minutes=60):
         INSERT INTO habits(user_id, title, assigned_at, reminder_sent, planned_time, time_window_minutes)
         VALUES (?, ?, CURRENT_TIMESTAMP, 0, ?, ?)
     """, (user_id, title, planned_time, int(time_window_minutes or 60)))
+    habit_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    return habit_id
 
 
 def get_habits(user_id):

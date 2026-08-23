@@ -289,12 +289,9 @@
     document.getElementById("streakOnboardingContinue")?.addEventListener("click", closeStreakOnboarding);
     document.getElementById("shareAchievementBtn")?.addEventListener("click", async () => {
       const days = Number(state?.streak?.days || 0);
-      const status = state?.streak?.temp_status || "Ударный режим";
       const overlay = document.getElementById("achievementShareOverlay");
       const daysEl = document.getElementById("achievementShareDays");
-      const statusEl = document.getElementById("achievementShareStatus");
       if (daysEl) daysEl.textContent = formatDays(days);
-      if (statusEl) statusEl.textContent = status;
       if (overlay) {
         overlay.hidden = false;
         requestAnimationFrame(() => overlay.classList.add("show"));
