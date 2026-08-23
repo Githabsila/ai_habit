@@ -112,18 +112,17 @@
 
   // ===================== RENDER ALL =====================
   function renderAll() {
-    const sections = [
-      ["player", renderPlayerCard], ["habits", renderHabits], ["shop", renderShop],
-      ["themes", renderThemePicker], ["achievements", renderAchievements], ["rating", renderRating],
-      ["calendar", renderCalendar], ["plan", renderPlan], ["streak", renderStreak]
-    ];
-    for (const [name, fn] of sections) {
-      try { fn(); } catch (error) {
-        console.error(`[ADAM render:${name}]`, error);
-      }
-    }
-    try { maybeShowStreakOnboarding(); } catch (e) { console.error("[ADAM onboarding]", e); }
-    try { maybeShowWeeklyBonus(); } catch (e) { console.error("[ADAM weekly]", e); }
+    renderPlayerCard();
+    renderHabits();
+    renderShop();
+    renderThemePicker();
+    renderAchievements();
+    renderRating();
+    renderCalendar();
+    renderPlan();
+    renderStreak();
+    maybeShowStreakOnboarding();
+    maybeShowWeeklyBonus();
   }
 
   // ===================== УДАРНЫЙ РЕЖИМ =====================
@@ -141,8 +140,8 @@
         const cls = d.status === "completed" ? "is-done" :
           d.status === "freeze" ? "is-freeze" :
           d.status === "missed" ? "is-missed" : "is-empty";
-        const icon = d.status === "completed" ? '<span class="material-symbols-rounded streak-day-icon">local_fire_department</span>' :
-          d.status === "freeze" ? '<span class="material-symbols-rounded streak-day-icon">ac_unit</span>' :
+        const icon = d.status === "completed" ? "🔥" :
+          d.status === "freeze" ? "❄️" :
           d.status === "missed" ? "·" : "○";
         return `<button class="streak-day ${cls}" type="button" title="${escapeHtml(d.day)}: ${escapeHtml(d.status)}">
           <span>${icon}</span><small>${d.label}</small>${d.bonus ? '<b>🎁</b>' : ''}
@@ -181,7 +180,7 @@
     }
     if (profileStatus) profileStatus.textContent = streakStatus || (streakDays ? "В ударе" : "Серия не начата");
     if (profileFrame) {
-      profileFrame.innerHTML = reward ? `<span class="material-symbols-rounded inline-premium-icon">workspace_premium</span> ${escapeHtml(reward.frame)}` : `<span class="material-symbols-rounded inline-premium-icon">local_fire_department</span> Твоя ударная серия!`;
+      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "🔥 Твоя ударная серия!";
       profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
     }
     const profileDays = document.getElementById("profileStreakDays");
@@ -210,7 +209,7 @@
     if (seven) {
       seven.innerHTML = (state.streak?.last7 || []).map(d => {
         const cls = d.status === "completed" ? "is-done" : d.status === "freeze" ? "is-freeze" : "is-empty";
-        return `<span class="streak-seven__day ${cls}">${d.status === "completed" ? '<span class="material-symbols-rounded streak-seven-icon">local_fire_department</span>' : d.status === "freeze" ? '<span class="material-symbols-rounded streak-seven-icon">ac_unit</span>' : '<span class="streak-empty-dot">•</span>'}</span>`;
+        return `<span class="streak-seven__day ${cls}">${d.status === "completed" ? "🔥" : d.status === "freeze" ? "❄️" : "○"}</span>`;
       }).join("");
     }
     overlay.hidden = false;
@@ -258,7 +257,7 @@
     const overlay = document.getElementById("streakOnboardingOverlay");
     const coach = document.getElementById("streakOnboardingCoach");
     if (!overlay) return;
-    if (coach) coach.innerHTML = `<span class="material-symbols-rounded inline-premium-icon">smart_toy</span> Адам: ${escapeHtml(data.message || "")}`;
+    if (coach) coach.textContent = `🤖 Адам: ${data.message}`;
     overlay.hidden = false;
     overlay.classList.add("show");
   }
@@ -370,7 +369,6 @@
   let toastTimer = null;
   function showToast(message, kind, duration) {
     const el = document.getElementById("toast");
-    if (!el) return;
     el.textContent = message;
     el.className = "toast is-visible" + (kind ? " is-" + kind : "");
     clearTimeout(toastTimer);
@@ -380,27 +378,21 @@
   // ===================== RENDER: PLAYER CARD =====================
   function renderPlayerCard() {
     const u = state.user;
-    const playerName = document.getElementById("playerName");
-    const levelNumber = document.getElementById("levelNumber");
-    const streakValue = document.getElementById("streakValue");
-    const coinValue = document.getElementById("coinValue");
-    if (playerName) playerName.textContent = u.first_name || "Игрок";
-    if (levelNumber) levelNumber.textContent = u.level ?? 1;
-    if (streakValue) streakValue.textContent = u.streak ?? 0;
-    if (coinValue) coinValue.textContent = u.xp ?? 0;
+    document.getElementById("playerName").textContent = u.first_name || "Игрок";
+    document.getElementById("levelNumber").textContent = u.level;
+    document.getElementById("streakValue").textContent = u.streak;
+    document.getElementById("coinValue").textContent = u.xp;
 
     const badgeEl = document.getElementById("playerBadge");
     if (badgeEl) badgeEl.style.display = u.badge ? "inline" : "none";
 
     const xpIntoLevel = (u.total_xp ?? u.xp) % 100;
-    const xpLabel = document.getElementById("xpLabel");
-    const xpBarFill = document.getElementById("xpBarFill");
-    if (xpLabel) xpLabel.textContent = `${xpIntoLevel} / 100 XP`;
-    if (xpBarFill) xpBarFill.style.width = xpIntoLevel + "%";
+    document.getElementById("xpLabel").textContent = `${xpIntoLevel} / 100 XP`;
+    document.getElementById("xpBarFill").style.width = xpIntoLevel + "%";
 
     const ringFill = document.getElementById("levelRingFill");
     const offset = RING_CIRCUMFERENCE * (1 - xpIntoLevel / 100);
-    if (ringFill) ringFill.style.strokeDashoffset = offset;
+    ringFill.style.strokeDashoffset = offset;
   }
 
   // ===================== RENDER: HABITS =====================
@@ -482,7 +474,7 @@
       return `
         <li class="shop-item ${isAnswer ? "shop-item--answers" : ""}" data-id="${it.id}">
           <div class="shop-item__top">
-            <span class="shop-item__icon"><span class="material-symbols-rounded">${isAnswer ? "forum" : "auto_awesome"}</span></span>
+            <span class="shop-item__icon">${isAnswer ? "💬" : "✦"}</span>
             ${isAnswer ? `<span class="shop-item__tag">ДОП. ОТВЕТЫ</span>` : ""}
           </div>
           <div class="shop-item__name">${title}</div>
@@ -547,7 +539,7 @@
   function renderAchievementItem(a) {
     return `
       <li class="achievement-item">
-        <span class="achievement-item__icon"><span class="material-symbols-rounded">workspace_premium</span></span>
+        <span class="achievement-item__icon">🏆</span>
         <div class="achievement-item__content">
           <div class="achievement-item__title">${escapeHtml(a.title)}</div>
           <div class="achievement-item__desc">${escapeHtml(a.description || "")}</div>
@@ -568,14 +560,14 @@
     if (!latestList) return;
 
     if (items.length === 0) {
-      latestList.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое достижение</li>`;
+      latestList.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое 🏆</li>`;
       if (archive) archive.hidden = true;
       return;
     }
 
     // Backend отдаёт достижения от новых к старым, поэтому первые 3 — самые свежие.
-    const latest = items.slice(0, 3);
-    const older = items.slice(3);
+    const latest = items.slice(0, 2);
+    const older = items.slice(2);
 
     latestList.innerHTML = latest.map(renderAchievementItem).join("");
 
@@ -619,9 +611,9 @@
           <div class="rating-podium-card__crown">${medal[idx]}</div>
           <div class="rating-podium-card__avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</div>
           <div class="rating-podium-card__rank">#${rank}</div>
-          <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? '<span class="material-symbols-rounded inline-premium-icon">workspace_premium</span>' : ""}</div>
+          <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? "🏅" : ""}</div>
           ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
-          <div class="rating-podium-card__stats"><span><span class="material-symbols-rounded inline-premium-icon">local_fire_department</span> ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
+          <div class="rating-podium-card__stats"><span>🔥 ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
         </div>`;
       }).join("");
     }
@@ -633,7 +625,7 @@
         <span class="rating-item__rank">${rank}</span>
         <span class="rating-avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</span>
         <span class="rating-item__name">
-          <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge material-symbols-rounded">workspace_premium</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
+          <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
           ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
         </span>
         <span class="rating-item__meta"><span class="rating-stat"><span class="material-symbols-rounded stat-icon">local_fire_department</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
@@ -758,7 +750,7 @@
         </div>
 
         <div class="calendar-selected" id="calendarSelected">
-          <div class="calendar-selected__icon"><span class="material-symbols-rounded">calendar_month</span></div>
+          <div class="calendar-selected__icon">📅</div>
           <div>
             <strong>${today.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</strong>
             <span>${todayInfo.total ? `${todayInfo.completed} из ${todayInfo.total} привычек выполнено` : "Сегодня пока нет отмеченных привычек"}</span>
@@ -786,7 +778,7 @@
         const selected = document.getElementById("calendarSelected");
         if (selected) {
           selected.innerHTML = `
-            <div class="calendar-selected__icon">${info.total && info.completed >= info.total ? '<span class="material-symbols-rounded">local_fire_department</span>' : '<span class="material-symbols-rounded">calendar_month</span>'}</div>
+            <div class="calendar-selected__icon">${info.total && info.completed >= info.total ? "🔥" : "📅"}</div>
             <div>
               <strong>${title}</strong>
               <span>${info.total ? `${info.completed} из ${info.total} привычек выполнено` : "В этот день нет отмеченных привычек"}</span>
@@ -1100,32 +1092,7 @@ function initPlanActions() {
 
 // ===================== SHOP ACTIONS =====================
   function initShopActions() {
-    const shopList = document.getElementById("shopList");
-    if (!shopList) return;
-
-    // Subtle desktop 3D tilt: follows the pointer without jumping.
-    shopList.addEventListener("pointermove", (e) => {
-      if (e.pointerType === "touch") return;
-      const card = e.target.closest(".shop-item");
-      if (!card) return;
-      const r = card.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width;
-      const y = (e.clientY - r.top) / r.height;
-      const ry = (x - 0.5) * 4.2;
-      const rx = (0.5 - y) * 3.2;
-      card.style.setProperty("--shop-x", `${x * 100}%`);
-      card.style.setProperty("--shop-y", `${y * 100}%`);
-      card.style.setProperty("--shop-rx", `${rx.toFixed(2)}deg`);
-      card.style.setProperty("--shop-ry", `${ry.toFixed(2)}deg`);
-    });
-    shopList.addEventListener("pointerleave", () => {
-      shopList.querySelectorAll(".shop-item").forEach(card => {
-        card.style.setProperty("--shop-rx", "0deg");
-        card.style.setProperty("--shop-ry", "0deg");
-      });
-    });
-
-    shopList.addEventListener("click", async (e) => {
+    document.getElementById("shopList").addEventListener("click", async (e) => {
       const btn = e.target.closest("button[data-action=buy]");
       if (!btn || btn.disabled) return;
       const li = btn.closest(".shop-item");

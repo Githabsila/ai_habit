@@ -658,7 +658,6 @@ window.onerror = function(msg, url, line, col, error) {
     }
 
 </style>
-<link rel="stylesheet" href="/static/chat.css?v=1700">
 </head>
 <body>
     <div id="root"></div>
@@ -872,7 +871,7 @@ window.onerror = function(msg, url, line, col, error) {
                 </div>
 
                 <div className="chat-toolbar"><div className="chat-toolbar-title">Твой личный наставник</div><button onClick={()=>{setShowTools(v=>!v);vibrate('light')}}>{showTools?'Скрыть':'Быстрые действия'} <span>⌄</span></button></div>
-                {showTools && <div className="quick-prompts" aria-label="Быстрые действия">{quickPrompts.map(([icon,label])=><button key={label} onClick={()=>sendText(label)}><span className="premium-icon">{icon}</span>{label}</button>)}</div>}
+                {showTools && <div className="quick-prompts">{quickPrompts.map(([icon,label])=><button key={label} onClick={()=>sendText(label)}><span className="premium-icon">{icon}</span>{label}</button>)}</div>}
 
                 <div className="messages-container">
                     {messages.length===0 ? <div className="empty-state">
@@ -1143,17 +1142,4 @@ body::before{content:"";position:fixed;inset:-15%;pointer-events:none;background
 .icon-btn:active,.quick-prompts button:active,.welcome-prompts button:active{transform:scale(.94)!important}
 @media(prefers-reduced-motion:reduce){body::before,.header-title-icon,.empty-icon,.message,.voice-btn.is-listening{animation:none!important}}
 
-
-/* ADAM QUICK ACTIONS — DEEP NAVY / GOLD GLASS */
-.quick-prompts{padding:12px 13px 14px!important;gap:9px!important;background:linear-gradient(180deg,rgba(4,16,31,.88),rgba(3,11,23,.74))!important;border-top:1px solid rgba(211,184,105,.10)!important;border-bottom:1px solid rgba(211,184,105,.12)!important;backdrop-filter:blur(28px) saturate(140%)!important;-webkit-backdrop-filter:blur(28px) saturate(140%)!important}
-.quick-prompts::before{content:'БЫСТРЫЕ ДЕЙСТВИЯ';grid-column:1/-1;color:#D9BB70;font-size:8px;font-weight:900;letter-spacing:.20em;padding:1px 2px 1px}
-.quick-prompts button,.welcome-prompts button{position:relative!important;overflow:hidden!important;display:flex!important;align-items:center!important;gap:8px!important;min-height:46px!important;padding:10px 11px!important;border-radius:16px!important;background:linear-gradient(145deg,rgba(15,42,72,.72),rgba(5,20,38,.58))!important;border:1px solid rgba(177,199,224,.12)!important;color:#EAF0F7!important;box-shadow:inset 0 1px rgba(255,255,255,.08),0 12px 26px rgba(0,3,10,.26)!important;transition:transform .5s cubic-bezier(.22,1,.36,1),border-color .35s ease,box-shadow .35s ease,background .35s ease!important}
-.quick-prompts button::after,.welcome-prompts button::after{content:'';position:absolute;inset:-120% -40%;background:linear-gradient(100deg,transparent 38%,rgba(255,235,176,.14) 50%,transparent 62%);transform:translateX(-55%) rotate(12deg);transition:transform .8s cubic-bezier(.22,1,.36,1);pointer-events:none}
-.quick-prompts button:hover,.welcome-prompts button:hover{transform:translateY(-3px)!important;border-color:rgba(231,191,98,.34)!important;background:linear-gradient(145deg,rgba(18,52,88,.82),rgba(7,25,46,.68))!important;box-shadow:inset 0 1px rgba(255,255,255,.10),0 18px 34px rgba(0,4,14,.34),0 0 22px rgba(231,191,98,.07)!important}
-.quick-prompts button:hover::after,.welcome-prompts button:hover::after{transform:translateX(55%) rotate(12deg)}
-.quick-prompts button .premium-icon,.welcome-prompts button .premium-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:10px;background:linear-gradient(145deg,rgba(231,191,98,.18),rgba(61,111,161,.16));border:1px solid rgba(231,191,98,.18);color:#F1D486!important;font-size:18px!important;box-shadow:inset 0 1px rgba(255,255,255,.08),0 6px 16px rgba(0,0,0,.18)}
-.chat-toolbar{background:rgba(4,16,31,.72)!important;border-bottom:1px solid rgba(211,184,105,.10)!important;backdrop-filter:blur(26px)!important;-webkit-backdrop-filter:blur(26px)!important}
-.chat-toolbar button{border-radius:14px!important;padding:8px 12px!important;background:linear-gradient(145deg,rgba(18,48,82,.78),rgba(6,22,41,.64))!important;border:1px solid rgba(231,191,98,.18)!important;color:#F0D68D!important;box-shadow:inset 0 1px rgba(255,255,255,.08),0 10px 22px rgba(0,0,0,.20)!important;transition:transform .45s cubic-bezier(.22,1,.36,1),box-shadow .35s ease,border-color .35s ease!important}
-.chat-toolbar button:hover{transform:translateY(-2px)!important;border-color:rgba(231,191,98,.36)!important;box-shadow:0 15px 28px rgba(0,0,0,.26),0 0 20px rgba(231,191,98,.06)!important}
-@media(prefers-reduced-motion:reduce){.quick-prompts button,.welcome-prompts button,.quick-prompts button::after,.welcome-prompts button::after,.chat-toolbar button{transition:none!important}}
 </style>

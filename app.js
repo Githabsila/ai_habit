@@ -178,7 +178,7 @@
   }
 
   function cosmeticEmoji(id) {
-    return id === "adam" ? "ADAM" : "A";
+    return id === "adam" ? "🤖" : "A";
   }
 
   // ===================== RENDER: PLAYER CARD =====================
@@ -213,7 +213,7 @@
     document.getElementById("habitsProgressLabel").textContent = `${done}/${habits.length} сегодня`;
 
     if (habits.length === 0) {
-      list.innerHTML = `<li class="empty-hint">Пока нет привычек — добавь первую ниже</li>`;
+      list.innerHTML = `<li class="empty-hint">Пока нет привычек — добавь первую ниже 👇</li>`;
       return;
     }
 
@@ -308,7 +308,7 @@
           <span>ответов сегодня</span>
         </div>
       </li>
-      ${section('<span class="material-symbols-rounded">forum</span> Ответы ADAM', 'Пополни лимит, если хочешь больше ответов сегодня', packs, 'shop-section--packs')}
+      ${section('💬 Ответы ADAM', 'Пополни лимит, если хочешь больше ответов сегодня', packs, 'shop-section--packs')}
       ${section('✨ PRO и персонализация', 'Открывай новые возможности и меняй стиль ADAM', cosmetics, 'shop-section--cosmetics')}
     `;
   }
@@ -348,7 +348,7 @@
   function renderAchievementItem(a) {
     return `
       <li class="achievement-item">
-        <span class="achievement-item__icon material-symbols-rounded">workspace_premium</span>
+        <span class="achievement-item__icon">🏆</span>
         <div class="achievement-item__content">
           <div class="achievement-item__title">${escapeHtml(a.title)}</div>
           <div class="achievement-item__desc">${escapeHtml(a.description || "")}</div>
@@ -369,7 +369,7 @@
     if (!latestList) return;
 
     if (items.length === 0) {
-      latestList.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое достижение</li>`;
+      latestList.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое 🏆</li>`;
       if (archive) archive.hidden = true;
       return;
     }
@@ -402,7 +402,7 @@
       return `
         <li class="rating-item ${isMe ? "is-me" : ""} rank-${rank}">
           <span class="rating-item__rank">${rank}</span>
-          <span class="rating-item__name">${escapeHtml(name)}${r.badge ? "" : ""}${isMe ? " (ты)" : ""}</span>
+          <span class="rating-item__name">${escapeHtml(name)}${r.badge ? " 🏅" : ""}${isMe ? " (ты)" : ""}</span>
           <span class="rating-item__meta">
     <span class="rating-stat">
         <span class="material-symbols-rounded stat-icon">local_fire_department</span>
@@ -688,7 +688,7 @@ function renderPlan() {
     for (let i = 0; i < 8; i++) {
       const el = document.createElement("div");
       el.className = "coin-burst";
-      el.innerHTML = '<span class="material-symbols-rounded">diamond</span>';
+      el.textContent = "🪙";
       el.style.left = (50 + (Math.random() * 20 - 10)) + "vw";
       el.style.top = "36vh";
       el.style.setProperty("--x", (Math.random() * 160 - 80) + "px");

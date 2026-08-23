@@ -8,7 +8,7 @@
 
 <title>Project ADAM</title>
 
-<link rel="stylesheet" href="/static/style.css?v=2000">
+<link rel="stylesheet" href="/static/style.css?v=1400">
 </head>
 <body>
 
@@ -53,7 +53,7 @@ r="52"></circle>
 
 <div class="player-card__name">
 
-<span id="playerName"><span class="material-symbols-rounded premium-ui-icon">waving_hand</span> Добро пожаловать</span><span id="playerBadge" class="player-badge" style="display:none"><span class="material-symbols-rounded">workspace_premium</span></span>
+<span id="playerName">👋 Добро пожаловать</span><span id="playerBadge" class="player-badge" style="display:none">🏅</span>
 
 </div>
 
@@ -111,9 +111,9 @@ style="width:0%">
   <div class="streak-widget__top">
     <div>
       <div class="streak-widget__eyebrow">УДАРНЫЙ РЕЖИМ</div>
-      <div class="streak-widget__title"><span class="material-symbols-rounded premium-fire-icon">local_fire_department</span><span id="streakWidgetDays">0 дней</span></div>
+      <div class="streak-widget__title">🔥 <span id="streakWidgetDays">0 дней</span></div>
     </div>
-    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button"><span class="material-symbols-rounded">ac_unit</span> Заморозка · 200</button>
+    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button">❄️ Заморозка · 200</button>
   </div>
   <div class="streak-days" id="streakDays"></div>
   <div class="streak-widget__bottom">
@@ -220,7 +220,7 @@ class="btn btn--accent">
   <p>Кто сегодня держит темп — тот поднимается выше.</p>
   <div class="rating-hero__stats">
     <span><b id="ratingPlayerCount">0</b> игроков</span>
-    <span><span class="material-symbols-rounded inline-premium-icon">local_fire_department</span> серия решает</span>
+    <span>🔥 серия решает</span>
   </div>
 </div>
 
@@ -243,16 +243,16 @@ class="btn btn--accent">
     <div class="streak-profile-kicker">ТВОЙ УДАРНЫЙ ДЕНЬ</div>
     <div class="streak-profile-status" id="profileStreakStatus">В ударе</div>
     <div class="streak-profile-days"><strong id="profileStreakDays">0</strong><span id="profileStreakDaysLabel">дней подряд</span></div>
-    <div class="streak-profile-frame" id="profileStreakFrame"><span class="material-symbols-rounded inline-premium-icon">local_fire_department</span> Твоя ударная серия!</div>
+    <div class="streak-profile-frame" id="profileStreakFrame">🔥 Твоя ударная серия!</div>
     <button class="share-achievement-btn" id="shareAchievementBtn" type="button">↗ Поделиться достижением</button>
   </div>
-  <div class="streak-profile-fire"><span class="material-symbols-rounded">local_fire_department</span></div>
+  <div class="streak-profile-fire">🔥</div>
 </div>
 
 <div class="streak-profile-metrics">
-  <div class="streak-metric"><span class="material-symbols-rounded">local_fire_department</span><b id="profileMetricStreak">0</b><small>серия</small></div>
-  <div class="streak-metric"><span class="material-symbols-rounded">ac_unit</span><b id="profileMetricFreeze">0/2</b><small>заморозки</small></div>
-  <div class="streak-metric"><span class="material-symbols-rounded">workspace_premium</span><b id="profileMetricReward">—</b><small>статус</small></div>
+  <div class="streak-metric"><span>🔥</span><b id="profileMetricStreak">0</b><small>серия</small></div>
+  <div class="streak-metric"><span>❄️</span><b id="profileMetricFreeze">0/2</b><small>заморозки</small></div>
+  <div class="streak-metric"><span>🏆</span><b id="profileMetricReward">—</b><small>статус</small></div>
 </div>
 
 
@@ -346,18 +346,18 @@ class="btn btn--accent">
 
 <div class="achievement-share-overlay" id="achievementShareOverlay" hidden aria-hidden="true">
   <div class="achievement-share-card">
-    <div class="achievement-share-fire"><span class="material-symbols-rounded">local_fire_department</span></div>
+    <div class="achievement-share-fire">🔥</div>
     <div class="achievement-share-kicker">МОЙ РЕЗУЛЬТАТ ADAM</div>
     <div class="achievement-share-title">Ударный режим</div>
     <div class="achievement-share-days" id="achievementShareDays">1 день</div>
     <div class="achievement-share-status" id="achievementShareStatus">В ударе</div>
     <div class="achievement-share-note">Я не жду идеальных дней. Я просто продолжаю.</div>
-    <button class="achievement-share-close" id="achievementShareClose" type="button"><span class="material-symbols-rounded">fitness_center</span> Классно, так держать</button>
+    <button class="achievement-share-close" id="achievementShareClose" type="button">Класно, так держать 💪</button>
   </div>
 </div>
 
 <div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-overlay__coin"><span class="material-symbols-rounded">monetization_on</span></div>
+  <div class="loading-overlay__coin">🪙</div>
 </div>
 
 
@@ -379,12 +379,12 @@ class="btn btn--accent">
 
 <div class="streak-onboarding-overlay" id="streakOnboardingOverlay" hidden aria-hidden="true">
   <div class="streak-onboarding-card">
-    <div class="streak-onboarding-fire"><span class="material-symbols-rounded">local_fire_department</span></div>
+    <div class="streak-onboarding-fire">🔥</div>
     <div class="streak-onboarding__eyebrow">ТВОЙ УДАРНЫЙ РЕЖИМ</div>
     <h2>Не дай серии погаснуть</h2>
     <p>Каждый день достаточно выполнить хотя бы одну привычку. Ты собираешь Adam Coin, открываешь уникальные рамки и статусы и показываешь свой результат в рейтинге.</p>
     <div class="streak-onboarding__rewards">
-      <span><span class="material-symbols-rounded">monetization_on</span> Коины</span><span><span class="material-symbols-rounded">local_fire_department</span> Серия</span><span><span class="material-symbols-rounded">workspace_premium</span> Рамки</span><span><span class="material-symbols-rounded">verified</span> Статусы</span>
+      <span>🪙 Коины</span><span>🔥 Серия</span><span>🏆 Рамки</span><span>👑 Статусы</span>
     </div>
     <div class="streak-onboarding__coach" id="streakOnboardingCoach"></div>
     <button class="streak-continue" id="streakOnboardingContinue" type="button">Я в игре</button>
@@ -398,15 +398,15 @@ class="btn btn--accent">
     <h2>Ты прошёл 7 дней без пропусков</h2>
     <p>Выбери одну награду. Решение нельзя изменить после выбора.</p>
     <div class="weekly-choice-grid">
-      <button data-weekly-reward="coins"><span class="material-symbols-rounded">monetization_on</span> 200 Adam Coin</button>
-      <button data-weekly-reward="frame"><span class="material-symbols-rounded">local_fire_department</span> Рамка на 7 дней</button>
+      <button data-weekly-reward="coins">🪙 200 Adam Coin</button>
+      <button data-weekly-reward="frame">🔥 Рамка на 7 дней</button>
     </div>
   </div>
 </div>
 
 <div class="levelup-overlay" id="levelupOverlay" hidden>
   <div class="levelup-card">
-    <div class="levelup-sparkles"><span class="material-symbols-rounded">auto_awesome</span><span class="material-symbols-rounded">celebration</span><span class="material-symbols-rounded">auto_awesome</span></div>
+    <div class="levelup-sparkles">✨🎉✨</div>
     <div class="levelup-title">LEVEL UP</div>
     <div class="levelup-level">Новый уровень: <span id="levelupValue">0</span></div>
   </div>
@@ -421,7 +421,7 @@ class="btn btn--accent">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=1900"></script>
+<script type="module" src="/static/app.js?v=1202"></script>
 
 </body>
 </html>
