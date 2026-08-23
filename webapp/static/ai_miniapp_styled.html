@@ -16,7 +16,7 @@ window.onerror = function(msg, url, line, col, error) {
     <title>AI Наставник</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script>
     window.onerror = function(msg, url, line, col, error) {
         document.body.innerHTML =
@@ -106,28 +106,6 @@ window.onerror = function(msg, url, line, col, error) {
         box-shadow: 0 8px 20px rgba(124,92,252,.4), inset 0 1px 0 rgba(255,255,255,.15);
     }
 
-    .premium-icon{
-        font-family:'Material Symbols Rounded';
-        font-weight:600;
-        font-style:normal;
-        font-size:20px;
-        line-height:1;
-        letter-spacing:normal;
-        text-transform:none;
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        white-space:nowrap;
-        direction:ltr;
-        -webkit-font-feature-settings:'liga';
-        -webkit-font-smoothing:antialiased;
-        font-feature-settings:'liga';
-    }
-    .quick-prompts .premium-icon,.welcome-prompts .premium-icon{font-size:19px;color:#D8CEFF;}
-    .action-btn .premium-icon{font-size:17px;vertical-align:-4px;margin-right:4px;}
-    .icon-btn .premium-icon{font-size:21px;}
-    .voice-btn .premium-icon{font-size:22px;}
-    .error-card .premium-icon,.crisis-alert .premium-icon,.throttle-warning .premium-icon{margin-right:5px;color:#FFD76A;}
     .quota-badge{font-size:11px;color:var(--gold);margin-top:3px}
     .quota-panel{
         margin-top:8px;
@@ -839,13 +817,13 @@ window.onerror = function(msg, url, line, col, error) {
                 try {
                     const res=await fetch('/api/ai/tip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:tg.initData})});
                     const data=await res.json();
-                    setMessages(p=>[...p,{id:Date.now(),role:'assistant',text:'Совет дня\n\n'+(data.tip||'Сделай сегодня один маленький шаг в сторону своей цели.'),time:formatTime(),canRate:false}]);
+                    setMessages(p=>[...p,{id:Date.now(),role:'assistant',text:'💡 Совет дня\n\n'+(data.tip||'Сделай сегодня один маленький шаг в сторону своей цели.'),time:formatTime(),canRate:false}]);
                 } catch(e) { setMessages(p=>[...p,{id:Date.now(),role:'system',text:'Не удалось получить совет дня.',type:'error'}]); }
                 finally { setLoading(false); }
             };
 
             const quickPrompts=[
-                ['calendar_month','Составь план дня'],['analytics','Проанализируй мой день'],['local_fire_department','Мотивируй меня'],['psychology','Помоги разобраться с задачей']
+                ['🎯','Составь план дня'],['📊','Проанализируй мой день'],['🔥','Мотивируй меня'],['🧠','Помоги разобраться с задачей']
             ];
 
             const startVoice = () => {
@@ -867,32 +845,32 @@ window.onerror = function(msg, url, line, col, error) {
                             <div className="header-status"><span className="status-dot"></span>{online?'онлайн':'нет соединения'}</div>
                         </div>
                     </div>
-                    <div className="header-buttons"><button className="icon-btn" onClick={getTip} title="Совет дня"><span className="premium-icon">lightbulb</span></button><button className="icon-btn" onClick={goHome} title="В меню">⌂</button></div>
+                    <div className="header-buttons"><button className="icon-btn" onClick={getTip} title="Совет дня">💡</button><button className="icon-btn" onClick={goHome} title="В меню">⌂</button></div>
                 </div>
 
                 <div className="chat-toolbar"><div className="chat-toolbar-title">Твой личный наставник</div><button onClick={()=>{setShowTools(v=>!v);vibrate('light')}}>{showTools?'Скрыть':'Быстрые действия'} <span>⌄</span></button></div>
-                {showTools && <div className="quick-prompts">{quickPrompts.map(([icon,label])=><button key={label} onClick={()=>sendText(label)}><span className="premium-icon">{icon}</span>{label}</button>)}</div>}
+                {showTools && <div className="quick-prompts">{quickPrompts.map(([icon,label])=><button key={label} onClick={()=>sendText(label)}><span>{icon}</span>{label}</button>)}</div>}
 
                 <div className="messages-container">
                     {messages.length===0 ? <div className="empty-state">
                         <div className="empty-icon"><img src="/static/assets/adam-avatar.png" alt="ADAM" /></div>
-                        <div className="empty-title">Привет, я ADAM</div>
+                        <div className="empty-title">Привет, я ADAM 👋</div>
                         <div className="empty-text">Я помогаю планировать день, работать с привычками, разбирать проблемы и видеть твой прогресс.</div>
-                        <div className="welcome-prompts">{quickPrompts.slice(0,3).map(([icon,label])=><button key={label} onClick={()=>sendText(label)}><span className="premium-icon">{icon}</span> {label}</button>)}</div>
+                        <div className="welcome-prompts">{quickPrompts.slice(0,3).map(([icon,label])=><button key={label} onClick={()=>sendText(label)}>{icon} {label}</button>)}</div>
                     </div> : <>
                         {messages.map(m=><div key={m.id}>
-                            {m.type==='error'&&<div className="error-card"><span className="premium-icon">warning</span>{m.text}</div>}
+                            {m.type==='error'&&<div className="error-card">⚠️ {m.text}</div>}
                             {m.role==='user'&&<div className="message user"><div><div className="message-bubble">{m.text}</div><div className="message-time user-time">{m.time}</div></div></div>}
                             {m.role==='assistant'&&<div className="message assistant"><div className="assistant-message-wrap">
-                                {m.isCrisis&&<div className="crisis-alert"><span className="premium-icon">warning</span>Важно</div>}
+                                {m.isCrisis&&<div className="crisis-alert">⚠️ Важно</div>}
                                 <div className="message-bubble"><div style={{whiteSpace:'pre-wrap'}}>{m.text}</div></div>
                                 <div className="message-meta"><span>{m.time}</span><div className="message-mini-actions">
-                                    <button onClick={()=>copyMessage(m.text,m.id)}>{copiedId===m.id?<><span className="premium-icon">check</span> Скопировано</>:<span className="premium-icon">content_copy</span>}</button>
-                                    {!m.isCrisis&&<button onClick={()=>regenerate(m)} disabled={!m.sourcePrompt}><span className="premium-icon">refresh</span></button>}
+                                    <button onClick={()=>copyMessage(m.text,m.id)}>{copiedId===m.id?'✓ Скопировано':'⧉'}</button>
+                                    {!m.isCrisis&&<button onClick={()=>regenerate(m)} disabled={!m.sourcePrompt}>↻</button>}
                                 </div></div>
-                                {m.canRate&&!m.isCrisis&&<div className="message-actions"><button className="action-btn" onClick={()=>rate(m.id,'up')}><span className="premium-icon">thumb_up</span>Полезно</button><button className="action-btn" onClick={()=>rate(m.id,'down')}><span className="premium-icon">thumb_down</span>Можно лучше</button></div>}
+                                {m.canRate&&!m.isCrisis&&<div className="message-actions"><button className="action-btn" onClick={()=>rate(m.id,'up')}>👍 Полезно</button><button className="action-btn" onClick={()=>rate(m.id,'down')}>👎 Можно лучше</button></div>}
                                 {m.rated&&<div className="rated-note">{m.rated==='up'?'Спасибо! Это помогает ADAM становиться лучше.':'Принял. Учту твой отзыв.'}</div>}
-                                {m.habit&&<div className="habit-suggestion"><div><span className="habit-label">ПРЕДЛОЖЕНИЕ</span><strong><span className="premium-icon">add_circle</span> {m.habit}</strong></div><button className="add-habit-btn" onClick={()=>addHabit(m.id,m.habit)}>Добавить</button></div>}
+                                {m.habit&&<div className="habit-suggestion"><div><span className="habit-label">ПРЕДЛОЖЕНИЕ</span><strong>➕ {m.habit}</strong></div><button className="add-habit-btn" onClick={()=>addHabit(m.id,m.habit)}>Добавить</button></div>}
                             </div></div>}
                         </div>)}
                         {loading&&<div className="message assistant"><div className="thinking"><div className="thinking-avatar"><img src="/static/assets/adam-avatar.png" alt="" /></div><div><div className="thinking-title">ADAM думает</div><div className="thinking-dots"><i></i><i></i><i></i></div></div></div></div>}
@@ -900,12 +878,12 @@ window.onerror = function(msg, url, line, col, error) {
                     </>}
                 </div>
 
-                {throttle&&<div className="throttle-warning"><span className="premium-icon">hourglass_top</span>Подожди {throttle} сек.</div>}
+                {throttle&&<div className="throttle-warning">⏳ Подожди {throttle} сек.</div>}
                 <div className="input-area">
                     <div className="input-row">
                         <div className="input-wrapper"><textarea ref={textareaRef} value={input} onChange={e=>{setInput(e.target.value);resizeInput()}} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()}}} placeholder="Напиши ADAM..." disabled={loading||throttle} rows="1" /></div>
-                        <button className={`voice-btn ${listening?'is-listening':''}`} onClick={startVoice} disabled={loading} title="Голосовой ввод">{listening?<span className="premium-icon">mic_off</span>:<span className="premium-icon">mic</span>}</button>
-                        <button className="send-btn" onClick={sendMsg} disabled={!input.trim()||loading||throttle} aria-label="Отправить">{loading?<div className="spinner"></div>:<span className="premium-icon">send</span>}</button>
+                        <button className={`voice-btn ${listening?'is-listening':''}`} onClick={startVoice} disabled={loading} title="Голосовой ввод">{listening?'●':'🎙'}</button>
+                        <button className="send-btn" onClick={sendMsg} disabled={!input.trim()||loading||throttle} aria-label="Отправить">{loading?<div className="spinner"></div>:'➤'}</button>
                     </div>
                     <div className="composer-hint">Enter — отправить · Shift+Enter — новая строка</div>
                 </div>
