@@ -3427,3 +3427,8 @@ section[data-tab="home"] .plan-main::after{
   background:none !important;
   box-shadow:none !important;
 }
+
+/* Профиль: имя и компактная сетка метрик */
+.streak-profile-name{font-size:18px;font-weight:800;line-height:1.15;margin:2px 0 4px;color:#fff;letter-spacing:-.02em}
+.streak-profile-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:430px){.streak-profile-metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.streak-metric{min-width:0}.streak-metric b{font-size:16px}.streak-metric small{font-size:9px}.streak-profile-name{font-size:16px}}

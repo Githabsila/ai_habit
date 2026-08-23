@@ -113,6 +113,7 @@
   // ===================== RENDER ALL =====================
   function renderAll() {
     renderPlayerCard();
+    renderProfile();
     renderHabits();
     renderShop();
     renderThemePicker();
@@ -123,6 +124,25 @@
     renderStreak();
     maybeShowStreakOnboarding();
     maybeShowWeeklyBonus();
+  }
+
+  // ===================== ПРОФИЛЬ =====================
+  function renderProfile() {
+    const user = state?.user || {};
+    const avatar = document.getElementById("profileAvatar");
+    if (avatar) {
+      const name = String(user.first_name || "A").trim();
+      avatar.textContent = (name[0] || "A").toUpperCase();
+    }
+
+    const nameEl = document.getElementById("profileName");
+    if (nameEl) nameEl.textContent = user.first_name || "Пользователь ADAM";
+
+    const xpEl = document.getElementById("profileMetricXp");
+    if (xpEl) xpEl.textContent = Number(user.total_xp ?? user.xp ?? 0);
+
+    const coinsEl = document.getElementById("profileMetricCoins");
+    if (coinsEl) coinsEl.textContent = Number(user.coins ?? user.adam_coins ?? 0);
   }
 
   // ===================== УДАРНЫЙ РЕЖИМ =====================
@@ -625,8 +645,12 @@
     const grid = document.getElementById("calendarGrid");
     if (!grid) return;
 
+    // Календарь должен оставаться полноценным даже при пустой статистике:
+    // отсутствие событий — это нормальное состояние нового пользователя,
+    // а не повод оставлять вкладку пустой.
+    const sourceEvents = Array.isArray(state?.calendar_events) ? state.calendar_events : [];
     const byDay = {};
-    (state.calendar_events || []).forEach(ev => {
+    sourceEvents.forEach(ev => {
       byDay[ev.day] = { completed: Number(ev.completed || 0), total: Number(ev.total || 0) };
     });
 
