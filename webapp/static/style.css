@@ -3428,3 +3428,246 @@ section[data-tab="home"] .plan-main::after{
   background:none !important;
   box-shadow:none !important;
 }
+
+
+/* =========================================================
+   ADAM MOTION SYSTEM — smooth, consistent UI animations
+   ========================================================= */
+:root {
+  --motion-fast: 180ms;
+  --motion-base: 280ms;
+  --motion-slow: 520ms;
+  --motion-ease: cubic-bezier(.22, 1, .36, 1);
+}
+
+/* Exact level centering: the ring and the number share one coordinate system. */
+.player-card__ring-wrap {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  min-width: 112px;
+  flex: 0 0 112px;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+
+.level-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  margin: 0;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  z-index: 0;
+}
+
+.level-ring svg,
+.level-ring__track,
+.level-ring__fill {
+  width: 100%;
+  height: 100%;
+}
+
+.level-ring svg {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.level-ring__badge {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  transform: none;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  text-align: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.level-ring__badge span,
+.level-ring__badge small {
+  grid-column: 1;
+  justify-self: center;
+}
+
+.level-ring__badge span {
+  display: block;
+  line-height: .95;
+  transform: translateY(2px);
+}
+
+.level-ring__badge small {
+  display: block;
+  margin-top: 6px;
+  line-height: 1;
+}
+
+.level-ring__fill {
+  transition:
+    stroke-dashoffset 700ms var(--motion-ease),
+    filter 350ms ease;
+}
+
+.level-ring__badge.is-changing #levelNumber {
+  animation: levelNumberPop 520ms var(--motion-ease);
+}
+
+@keyframes levelNumberPop {
+  0% { transform: translateY(2px) scale(.72); opacity: .25; }
+  55% { transform: translateY(2px) scale(1.12); opacity: 1; }
+  100% { transform: translateY(2px) scale(1); opacity: 1; }
+}
+
+/* Smooth state changes across the whole WebApp. */
+button,
+input,
+select,
+textarea,
+a,
+.habit-item,
+.plan-card,
+.streak-widget,
+.shop-item,
+.achievement-item,
+.rating-item,
+.cal-cell,
+.section-heading,
+.player-card,
+.tab-bar__item {
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    opacity var(--motion-base) ease,
+    background-color var(--motion-base) ease,
+    border-color var(--motion-base) ease,
+    box-shadow var(--motion-base) ease,
+    color var(--motion-base) ease,
+    filter var(--motion-base) ease;
+}
+
+button:not(:disabled),
+.tab-bar__item,
+.habit-item__check,
+.habit-item__del,
+.freeze-buy-btn,
+.plan-icon-btn,
+.btn {
+  -webkit-tap-highlight-color: transparent;
+  will-change: transform;
+}
+
+button:not(:disabled):hover,
+.tab-bar__item:hover,
+.habit-item:hover,
+.shop-item:hover,
+.rating-item:hover,
+.achievement-item:hover,
+.cal-cell:hover {
+  transform: translateY(-2px);
+}
+
+button:not(:disabled):active,
+.tab-bar__item:active,
+.habit-item__check:active,
+.habit-item__del:active,
+.btn:active {
+  transform: scale(.96);
+  transition-duration: 100ms;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  transform: translateY(-1px);
+}
+
+/* Cards enter softly instead of appearing abruptly after API refreshes. */
+.streak-widget,
+.plan-card,
+.habit-list,
+.add-form,
+.calendar-grid,
+.rating-list,
+.achievements-list,
+.shop-grid {
+  animation: contentReveal 460ms var(--motion-ease) both;
+}
+
+.habit-item,
+.plan-list > li,
+.rating-item,
+.achievement-item,
+.shop-item,
+.cal-cell {
+  animation: itemReveal 420ms var(--motion-ease) both;
+}
+
+.habit-item:nth-child(2), .plan-list > li:nth-child(2), .rating-item:nth-child(2), .achievement-item:nth-child(2), .shop-item:nth-child(2), .cal-cell:nth-child(2) { animation-delay: 35ms; }
+.habit-item:nth-child(3), .plan-list > li:nth-child(3), .rating-item:nth-child(3), .achievement-item:nth-child(3), .shop-item:nth-child(3), .cal-cell:nth-child(3) { animation-delay: 70ms; }
+.habit-item:nth-child(4), .plan-list > li:nth-child(4), .rating-item:nth-child(4), .achievement-item:nth-child(4), .shop-item:nth-child(4), .cal-cell:nth-child(4) { animation-delay: 105ms; }
+.habit-item:nth-child(5), .plan-list > li:nth-child(5), .rating-item:nth-child(5), .achievement-item:nth-child(5), .shop-item:nth-child(5), .cal-cell:nth-child(5) { animation-delay: 140ms; }
+.habit-item:nth-child(n+6), .plan-list > li:nth-child(n+6), .rating-item:nth-child(n+6), .achievement-item:nth-child(n+6), .shop-item:nth-child(n+6) { animation-delay: 175ms; }
+
+@keyframes contentReveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes itemReveal {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Tab switching animation. JS toggles this class for a real enter transition. */
+.tab-panel.tab-enter {
+  animation: tabEnter 360ms var(--motion-ease) both;
+}
+
+@keyframes tabEnter {
+  from { opacity: 0; transform: translateY(12px); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+/* More natural progress feedback. */
+.xp-bar {
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.xp-bar__fill {
+  transition: width 850ms var(--motion-ease);
+  will-change: width;
+}
+
+.level-ring__fill.is-progressing {
+  filter:
+    drop-shadow(0 0 8px rgba(240,180,41,.95))
+    drop-shadow(0 0 20px rgba(240,180,41,.5));
+}
+
+/* Remove the always-floating player card in favor of a subtle entrance.
+   This avoids visual jitter while the user scrolls/interacts. */
+.player-card {
+  animation: playerCardReveal 620ms var(--motion-ease) both;
+}
+
+@keyframes playerCardReveal {
+  from { opacity: 0; transform: translateY(12px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Respect OS / Telegram accessibility preference. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

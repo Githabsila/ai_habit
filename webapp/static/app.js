@@ -369,21 +369,49 @@
   // ===================== RENDER: PLAYER CARD =====================
   function renderPlayerCard() {
     const u = state.user;
+    const levelEl = document.getElementById("levelNumber");
+    const badge = levelEl?.closest(".level-ring__badge");
+    const ringFill = document.getElementById("levelRingFill");
+    const xpBarFill = document.getElementById("xpBarFill");
+
     document.getElementById("playerName").textContent = u.first_name || "Игрок";
-    document.getElementById("levelNumber").textContent = u.level;
     document.getElementById("streakValue").textContent = u.streak;
     document.getElementById("coinValue").textContent = u.xp;
 
     const badgeEl = document.getElementById("playerBadge");
     if (badgeEl) badgeEl.style.display = u.badge ? "inline" : "none";
 
-    const xpIntoLevel = (u.total_xp ?? u.xp) % 100;
-    document.getElementById("xpLabel").textContent = `${xpIntoLevel} / 100 XP`;
-    document.getElementById("xpBarFill").style.width = xpIntoLevel + "%";
+    const xpIntoLevel = Math.max(0, Math.min(99.999, (u.total_xp ?? u.xp) % 100));
+    document.getElementById("xpLabel").textContent = `${Math.floor(xpIntoLevel)} / 100 XP`;
 
-    const ringFill = document.getElementById("levelRingFill");
-    const offset = RING_CIRCUMFERENCE * (1 - xpIntoLevel / 100);
-    ringFill.style.strokeDashoffset = offset;
+    // Force the browser to animate the level number only when its value changes.
+    const previousLevel = levelEl?.dataset.level;
+    if (levelEl) {
+      levelEl.dataset.level = String(u.level);
+      levelEl.textContent = u.level;
+      if (previousLevel !== undefined && previousLevel !== String(u.level)) {
+        badge?.classList.remove("is-changing");
+        void badge?.offsetWidth;
+        badge?.classList.add("is-changing");
+        setTimeout(() => badge?.classList.remove("is-changing"), 560);
+      }
+    }
+
+    if (xpBarFill) {
+      requestAnimationFrame(() => {
+        xpBarFill.style.width = xpIntoLevel + "%";
+      });
+    }
+
+    if (ringFill) {
+      const offset = RING_CIRCUMFERENCE * (1 - xpIntoLevel / 100);
+      ringFill.classList.add("is-progressing");
+      requestAnimationFrame(() => {
+        ringFill.style.strokeDashoffset = offset;
+      });
+      clearTimeout(ringFill._progressTimer);
+      ringFill._progressTimer = setTimeout(() => ringFill.classList.remove("is-progressing"), 760);
+    }
   }
 
   // ===================== RENDER: HABITS =====================
@@ -788,7 +816,17 @@ function initTabs() {
     const tab = btn.dataset.tab;
     if (!tab) return;
     document.querySelectorAll(".tab-bar__item").forEach(b => b.classList.toggle("is-active", b === btn));
-    document.querySelectorAll(".tab-panel").forEach(panel => { panel.hidden = panel.dataset.tab !== tab; });
+    document.querySelectorAll(".tab-panel").forEach(panel => {
+      const active = panel.dataset.tab === tab;
+      panel.hidden = !active;
+      if (active) {
+        panel.classList.remove("tab-enter");
+        requestAnimationFrame(() => {
+          panel.classList.add("tab-enter");
+          setTimeout(() => panel.classList.remove("tab-enter"), 400);
+        });
+      }
+    });
     haptic("light");
   });
 }
