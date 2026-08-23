@@ -193,11 +193,10 @@ async def create_habit(request):
     if len(title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)
     had_habits = bool(get_habits(telegram_id))
-    habit_id = add_habit(telegram_id, title)
+    add_habit(telegram_id, title)
     first_habit = not had_habits
     return web.json_response({
         "ok": True,
-        "habit_id": habit_id,
         "first_habit": first_habit,
         "onboarding_message": onboarding_message(telegram_id) if first_habit else None,
     })

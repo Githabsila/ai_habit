@@ -107,6 +107,17 @@ style="width:0%">
 <!-- ===================== HOME ===================== -->
 <section class="tab-panel" data-tab="home">
 
+<div class="section-heading">
+
+<h2>Сегодня</h2>
+
+<span class="section-heading__sub" id="habitsProgressLabel">
+
+0/0 сегодня
+
+</span>
+
+</div>
 
 <div class="streak-widget" id="streakWidget">
   <div class="streak-widget__top">
@@ -173,8 +184,6 @@ style="width:0%">
 
 </div>
 
-<div class="habits-section-divider" aria-hidden="true"></div>
-<div class="habits-progress-bottom" id="habitsProgressLabel">0/0 сегодня</div>
 <ul class="habit-list" id="habitList">
 </ul>
 
@@ -284,7 +293,7 @@ class="btn btn--accent">
 
   <div>
     <h2>Достижения</h2>
-    <p class="achievements-heading__hint">Последние награды — сразу перед глазами</p>
+    <p class="achievements-heading__hint">Последние награды</p>
   </div>
 
   <span class="section-heading__sub" id="achievementsCountLabel">0 наград</span>
@@ -349,10 +358,11 @@ class="btn btn--accent">
 
 <div class="achievement-share-overlay" id="achievementShareOverlay" hidden aria-hidden="true">
   <div class="achievement-share-card">
-    <div class="achievement-share-fire" aria-hidden="true"><img src="/static/assets/adam-impact-flame.svg" alt="" /></div>
-    <div class="achievement-share-kicker">Мой результат в Project ADAM</div>
+    <div class="achievement-share-fire">🔥</div>
+    <div class="achievement-share-kicker">МОЙ РЕЗУЛЬТАТ ADAM</div>
     <div class="achievement-share-title">Ударный режим</div>
     <div class="achievement-share-days" id="achievementShareDays">1 день</div>
+    <div class="achievement-share-status" id="achievementShareStatus">В ударе</div>
     <div class="achievement-share-note">Я не жду идеальных дней. Я просто продолжаю.</div>
     <button class="achievement-share-close" id="achievementShareClose" type="button">Класно, так держать 💪</button>
   </div>
