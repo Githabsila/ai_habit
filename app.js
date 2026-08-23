@@ -419,7 +419,10 @@
     const list = document.getElementById("habitList");
     const habits = state.habits;
     const done = habits.filter(h => h.completed).length;
-    document.getElementById("habitsProgressLabel").textContent = `${done}/${habits.length} сегодня`;
+    const progressLabel = document.getElementById("habitsProgressLabel");
+    if (progressLabel) {
+      progressLabel.textContent = `${done}/${habits.length} сегодня`;
+    }
 
     if (habits.length === 0) {
       list.innerHTML = `<li class="empty-hint">Пока нет привычек — добавь первую ниже 👇</li>`;
@@ -868,21 +871,47 @@ function initHabitActions() {
   addHabitForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const input = document.getElementById("newHabitInput");
+    const submitBtn = addHabitForm.querySelector('button[type="submit"]');
     const title = input.value.trim();
     if (title.length < 2) {
       showToast("Название слишком короткое", "error");
+      input.focus();
       return;
     }
+
+    if (submitBtn) submitBtn.disabled = true;
     try {
-      const result = await api("/api/habits", { method: "POST", body: JSON.stringify({ title }) });
+      const result = await api("/api/habits", {
+        method: "POST",
+        body: JSON.stringify({ title })
+      });
+
+      // Сразу показываем созданную привычку, не заставляя интерфейс ждать
+      // повторной загрузки всего bootstrap-состояния.
+      if (result && result.habit && state) {
+        state.habits = [result.habit, ...(state.habits || [])];
+        renderHabits();
+      }
+
       input.value = "";
       haptic("light");
-      await loadBootstrap();
+      showToast("Привычка добавлена", "success");
+
+      // Синхронизируем остальные данные (XP, серию, календарь и т.д.).
+      try {
+        await loadBootstrap();
+      } catch (syncErr) {
+        console.warn("Не удалось сразу синхронизировать bootstrap после добавления привычки", syncErr);
+      }
+
       if (result.first_habit) {
         maybeShowStreakOnboarding();
       }
     } catch (err) {
       showToast(friendlyError(err), "error");
+      input.focus();
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
     }
   });
 }

@@ -195,9 +195,17 @@ async def create_habit(request):
     had_habits = bool(get_habits(telegram_id))
     add_habit(telegram_id, title)
     first_habit = not had_habits
+    # Возвращаем созданную запись, чтобы Mini App мог показать её сразу,
+    # даже если повторная загрузка bootstrap временно задержалась.
+    created = next((h for h in get_habits(telegram_id) if h["title"] == title), None)
     return web.json_response({
         "ok": True,
         "first_habit": first_habit,
+        "habit": {
+            "id": created["id"],
+            "title": created["title"],
+            "completed": bool(created["completed"]),
+        } if created else None,
         "onboarding_message": onboarding_message(telegram_id) if first_habit else None,
     })
 

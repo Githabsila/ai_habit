@@ -173,7 +173,15 @@ async def create_habit(request):
     if len(title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)
     add_habit(telegram_id, title, planned_time=planned_time, time_window_minutes=window)
-    return web.json_response({"ok": True})
+    created = next((h for h in get_habits(telegram_id) if h["title"] == title), None)
+    return web.json_response({
+        "ok": True,
+        "habit": {
+            "id": created["id"],
+            "title": created["title"],
+            "completed": bool(created["completed"]),
+        } if created else None,
+    })
 
 @routes.put("/api/habits/{habit_id}")
 async def rename_habit(request):

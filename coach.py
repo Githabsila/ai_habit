@@ -122,14 +122,10 @@ async def run_streak_risk_check(bot):
 def format_weekly_report(summary: dict) -> str:
     active_days = summary["active_days"]
 
-    if active_days >= 6:
-        comment = "Отличная неделя — почти без пропусков! Так держать 🔥"
-    elif active_days >= 3:
-        comment = "Неплохая неделя, но есть куда расти 💪"
-    elif active_days >= 1:
-        comment = "Неделя выдалась тяжёлой — бывает. Главное не бросать 🌱"
+    if active_days >= 7:
+        comment = "БЕЗ ПРОПУСКОВ 🔥"
     else:
-        comment = "На этой неделе активности не было — начнём заново? 🙂"
+        comment = "НАДО ПОДНАЖАТЬ И ПОСТАРАТЬСЯ — НА СЛЕДУЮЩЕЙ НЕДЕЛЕ ЛУЧШЕ СПРАВИТЬСЯ 💪"
 
     return (
         "📅 <b>Твоя неделя в Project ADAM</b>\n\n"

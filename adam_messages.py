@@ -55,10 +55,9 @@ def streak_phrase(n: int) -> str:
 # =====================================
 
 HABIT_NOON_TEMPLATES = [
-    "Я заглянул в твой день. Сейчас ещё осталось закрыть {left} {habit_word}: {habits}. Если ты оставлял что-то на вторую половину дня — всё нормально, просто держи это в поле зрения {emoji}",
-    "Полдень — хорошая точка свериться с собой. У тебя ещё {left} {habit_word}: {habits}. Выбирай ту, которую реально удобно сделать сейчас {emoji}",
-    "Проверка курса: {left} {habit_word} пока не отмечены — {habits}. Не обязательно делать всё сразу. Закрой следующую, когда будет удобно {emoji}",
-    "Я вижу, что часть привычек ещё впереди: {habits}. Осталось {left} {habit_word}. Если какая-то запланирована на вечер — не трогай её раньше времени {emoji}",
+    "На контрольной точке вижу: {verb} {left} {habit_word}: {habits}. {action} {emoji}",
+    "Проверка курса: осталось {left} {habit_word} — {habits}. {action} {emoji}",
+    "Сейчас {verb} {left} {habit_word} — {habits}. {action} {emoji}",
 ]
 
 
@@ -66,12 +65,18 @@ def format_habit_noon_message(incomplete_habits) -> str:
     titles = [str(h["title"]) for h in incomplete_habits]
     left = len(titles)
     habits = ", ".join(f"«{t}»" for t in titles)
+    habit_word = plural_ru(left, "привычка", "привычки", "привычек")
+    verb = "не отмечена" if left == 1 else "не отмечены"
+    action = "Выполни её, когда будет удобно" if left == 1 else "Выполни их, когда будет удобно"
+
     return pick(
         HABIT_NOON_TEMPLATES,
         pool=MOTIVATION_EMOJIS,
         left=left,
-        habit_word=plural_ru(left, "привычка", "привычки", "привычек"),
+        habit_word=habit_word,
         habits=habits,
+        verb=verb,
+        action=action,
     )
 
 
