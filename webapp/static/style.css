@@ -3954,3 +3954,261 @@ button,.btn,.buy-btn,.freeze-buy-btn,.share-achievement-btn{
 @media(prefers-reduced-motion:reduce){
   .shop-item,.shop-item::before,.shop-item::after,.shop-item__icon,.shop-item__name{transition:none!important;transform:none!important}
 }
+
+/* =========================================================
+   ADAM FINAL GEOMETRY PASS — clean, aligned, readable UI
+   This block intentionally wins over the older visual layers.
+   ========================================================= */
+:root{
+  --lux-bg:#08070d;
+  --lux-panel:#14111d;
+  --lux-panel-2:#191522;
+  --lux-border:rgba(255,255,255,.085);
+  --lux-text:#f7f3ea;
+  --lux-muted:#9d98aa;
+  --lux-champagne:#f1d58a;
+  --lux-gold:#d9ad55;
+  --lux-violet:#8e79d9;
+  --lux-violet-2:#6651b8;
+  --lux-emerald:#65b89b;
+  --lux-ease:cubic-bezier(.22,1,.36,1);
+}
+
+html,body{width:100%;min-width:0;overflow-x:hidden}
+body{font-size:15px;line-height:1.4;color:var(--lux-text)}
+*,*::before,*::after{box-sizing:border-box}
+button,input{font:inherit}
+button{appearance:none;-webkit-appearance:none}
+
+#app{
+  width:min(100%,590px);
+  max-width:590px;
+  margin:0 auto;
+  padding:72px 14px 136px;
+  min-height:100vh;
+  overflow:visible;
+}
+#content{width:100%;padding:14px 0 8px}
+.tab-panel{width:100%;min-width:0}
+
+/* Header: one predictable grid, no squeezing. */
+.player-card{
+  width:100%!important;
+  min-height:142px;
+  display:grid!important;
+  grid-template-columns:92px minmax(0,1fr)!important;
+  align-items:center!important;
+  gap:18px!important;
+  padding:22px 20px!important;
+  margin:0!important;
+  overflow:hidden!important;
+}
+.player-card__ring-wrap,.level-ring,.level-ring svg{width:92px!important;height:92px!important}
+.player-card__info{min-width:0!important;width:100%!important}
+.player-card__name{
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:22px!important;
+  line-height:1.15;
+  margin:0 0 10px!important;
+}
+.player-card__stats{
+  display:flex!important;
+  align-items:center!important;
+  flex-wrap:wrap!important;
+  gap:7px!important;
+  margin:0 0 10px!important;
+}
+.stat{min-height:32px;padding:5px 9px!important;white-space:nowrap}
+.xp-bar{width:100%!important;height:11px!important}
+.xp-bar__label{margin-top:5px!important;line-height:1.2}
+
+/* Home sections use one spacing rhythm. */
+section[data-tab="home"]{display:flex;flex-direction:column;gap:14px}
+section[data-tab="home"] .streak-widget,
+section[data-tab="home"] .plan-card{margin:0!important}
+section[data-tab="home"] .habit-list{margin:0!important}
+section[data-tab="home"] .add-form{margin:0!important}
+
+.streak-widget{width:100%!important;padding:20px!important}
+.streak-widget__top{min-width:0!important}
+.streak-widget__top>div:first-child{min-width:0}
+.streak-widget__title{white-space:nowrap;line-height:1.1!important}
+.freeze-buy-btn{flex:0 0 auto;white-space:nowrap!important}
+
+.plan-card{width:100%!important;padding:18px!important}
+.section-heading{width:100%;margin:0 0 12px!important;align-items:center!important}
+.section-heading h2{margin:0!important;line-height:1.2!important}
+.section-heading__sub{flex:0 0 auto;white-space:nowrap}
+.plan-main{width:100%!important;margin:0!important}
+.plan-list{width:100%!important;margin:10px 0 0!important}
+.plan-list li{width:100%!important;min-width:0}
+.plan-list li>*{min-width:0}
+
+/* Buttons: every label is visible, centered and never clipped. */
+.btn,
+button.btn,
+.plan-add-form__btn,
+.freeze-buy-btn,
+.buy-btn,
+.share-achievement-btn{
+  position:relative;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  vertical-align:middle;
+  text-align:center!important;
+  font-family:'Space Grotesk','Inter',system-ui,sans-serif!important;
+  font-weight:700!important;
+  line-height:1.15!important;
+  letter-spacing:-.01em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  cursor:pointer;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+.btn--accent{
+  color:#17130a!important;
+  background:linear-gradient(135deg,#f3dda0 0%,#dfbb68 50%,#b9832e 100%)!important;
+  border:1px solid rgba(255,246,211,.42)!important;
+  text-shadow:none!important;
+}
+.plan-add-form{width:100%!important;display:flex!important;flex-direction:column!important;gap:9px!important}
+.plan-add-form__btn{
+  width:100%!important;
+  min-width:0!important;
+  height:48px!important;
+  padding:0 16px!important;
+  color:#f4e9c9!important;
+  background:linear-gradient(135deg,rgba(117,94,184,.28),rgba(62,48,105,.25))!important;
+  border:1px solid rgba(214,192,139,.28)!important;
+  border-radius:16px!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.09),0 10px 25px rgba(0,0,0,.16)!important;
+}
+.add-form:not(.plan-add-form) .btn--accent{
+  flex:0 0 58px!important;
+  width:58px!important;
+  min-width:58px!important;
+  height:52px!important;
+  padding:0!important;
+}
+
+/* Habit rows stay on a strict grid. */
+.habit-item{
+  width:100%!important;
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:50px minmax(0,1fr) 38px!important;
+  align-items:center!important;
+  gap:12px!important;
+}
+.habit-item__check,.habit-item__del{margin:0!important}
+.habit-item__title{
+  min-width:0!important;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* Do not make the whole home screen jump on mouse hover. */
+@media (hover:hover){
+  section[data-tab="home"] .player-card:hover,
+  section[data-tab="home"] .streak-widget:hover,
+  section[data-tab="home"] .plan-card:hover,
+  section[data-tab="home"] .habit-item:hover{
+    transform:none!important;
+  }
+  section[data-tab="home"] .habit-item:hover .habit-item__del{opacity:1!important}
+}
+
+/* Bottom navigation: five equal columns and readable labels. */
+.tab-bar{
+  left:50%!important;
+  right:auto!important;
+  bottom:16px!important;
+  width:min(calc(100vw - 28px),562px)!important;
+  height:78px!important;
+  transform:translateX(-50%)!important;
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:5px!important;
+  padding:7px!important;
+  overflow:visible!important;
+}
+.tab-bar__item{
+  width:100%!important;
+  min-width:0!important;
+  height:64px!important;
+  padding:6px 3px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:3px!important;
+  overflow:hidden!important;
+  color:#aaa4b5!important;
+}
+.tab-bar__icon{
+  flex:0 0 auto;
+  font-size:21px!important;
+  line-height:22px!important;
+}
+.tab-bar__item span:last-child{
+  display:block!important;
+  width:100%!important;
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  text-align:center!important;
+  font-family:'Inter',system-ui,sans-serif!important;
+  font-size:10px!important;
+  line-height:14px!important;
+  font-weight:700!important;
+  color:inherit!important;
+  opacity:1!important;
+}
+.tab-bar__item.is-active{transform:translateY(-3px)!important;color:#fff!important}
+.tab-bar__item.is-active span:last-child{color:#fff!important;text-shadow:0 1px 10px rgba(255,255,255,.12)}
+.tab-bar__item.is-active .tab-bar__icon{color:var(--lux-champagne)!important}
+
+/* Keep every screen inside the viewport. */
+.calendar-card,.rating-hero,.rating-podium,.rating-list,.streak-profile-card--premium,
+.streak-profile-metrics,.shop-head,.shop-item,.achievement-latest-wrap,.achievement-archive{width:100%;min-width:0}
+
+@media(max-width:430px){
+  #app{padding:64px 10px 128px}
+  .player-card{grid-template-columns:82px minmax(0,1fr)!important;gap:13px!important;padding:18px 15px!important}
+  .player-card__ring-wrap,.level-ring,.level-ring svg{width:82px!important;height:82px!important}
+  .player-card__name{font-size:19px!important}
+  .stat{padding:4px 7px!important;font-size:13px!important}
+  .streak-widget{padding:18px!important}
+  .streak-widget__top{gap:8px!important}
+  .streak-widget__title{font-size:27px!important}
+  .freeze-buy-btn{max-width:142px;font-size:10px!important;padding:0 9px!important}
+  .plan-card{padding:16px!important}
+  .habit-item{grid-template-columns:46px minmax(0,1fr) 34px!important;gap:10px!important;min-height:70px!important}
+  .habit-item__check{width:46px!important;height:46px!important}
+  .habit-item__title{font-size:14px!important}
+  .tab-bar{width:calc(100vw - 20px)!important;bottom:10px!important;height:74px!important;padding:6px!important}
+  .tab-bar__item{height:62px!important}
+  .tab-bar__icon{font-size:20px!important}
+  .tab-bar__item span:last-child{font-size:9.5px!important}
+}
+
+@media(max-width:360px){
+  .player-card{grid-template-columns:74px minmax(0,1fr)!important;gap:10px!important;padding:16px 12px!important}
+  .player-card__ring-wrap,.level-ring,.level-ring svg{width:74px!important;height:74px!important}
+  .player-card__name{font-size:17px!important}
+  .streak-widget__title{font-size:24px!important}
+  .tab-bar__item span:last-child{font-size:8.5px!important}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .tab-panel,.player-card,.streak-widget,.plan-card,.habit-item,.tab-bar__item{animation:none!important;transition:none!important}
+}
