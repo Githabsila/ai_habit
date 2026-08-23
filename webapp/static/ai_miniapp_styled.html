@@ -1104,4 +1104,42 @@ body::before{
 .header-title-icon img,.empty-icon img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}.header-title-icon img{padding:8px}.empty-icon img{padding:18px}
 @media(max-width:430px){.assistant-message-wrap{max-width:93%}.quick-prompts{grid-template-columns:1fr 1fr}.chat-toolbar{padding-left:11px;padding-right:11px}.composer-hint{display:none}.voice-btn{width:44px;height:44px;flex-basis:44px}.send-btn{width:46px;height:46px}}
 @media(prefers-reduced-motion:reduce){.quick-prompts,.voice-btn,.thinking-dots i{animation:none!important}}
+
+/* =========================================================
+   ADAM AI — NEO LUX visual layer
+   ========================================================= */
+body{background:
+  radial-gradient(650px 450px at -10% -5%,rgba(124,92,252,.30),transparent 62%),
+  radial-gradient(520px 380px at 110% 8%,rgba(255,193,79,.14),transparent 62%),
+  radial-gradient(650px 500px at 50% 110%,rgba(255,106,77,.08),transparent 62%),#07040E!important}
+body::before{content:"";position:fixed;inset:-15%;pointer-events:none;background:conic-gradient(from 220deg,rgba(124,92,252,.05),transparent 28%,rgba(255,193,79,.045),transparent 58%);filter:blur(55px);animation:aiAurora 16s ease-in-out infinite alternate;z-index:0}
+@keyframes aiAurora{from{transform:translate3d(-2%,-1%,0) rotate(0deg) scale(1)}to{transform:translate3d(2%,2%,0) rotate(6deg) scale(1.05)}}
+.app-container{position:relative;z-index:1}
+.header{background:linear-gradient(180deg,rgba(20,14,31,.84),rgba(10,7,17,.72))!important;border-bottom:1px solid rgba(255,255,255,.09)!important;box-shadow:0 18px 45px rgba(0,0,0,.38)!important}
+.header-title-icon{position:relative;overflow:hidden;background:linear-gradient(145deg,#8b5cf6,#5b21b6)!important;box-shadow:0 12px 30px rgba(124,92,252,.35),inset 0 1px rgba(255,255,255,.2)!important;animation:aiIconFloat 3.2s ease-in-out infinite}
+.header-title-icon::after{content:"";position:absolute;inset:-80%;background:linear-gradient(110deg,transparent 40%,rgba(255,255,255,.32) 50%,transparent 60%);animation:aiSheen 5s ease-in-out infinite}
+@keyframes aiIconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes aiSheen{0%,65%{transform:translateX(-40%) rotate(18deg)}82%,100%{transform:translateX(40%) rotate(18deg)}}
+.messages-container{padding:22px 15px 18px!important;gap:16px!important}
+.message{animation:aiMessageIn .45s cubic-bezier(.22,1,.36,1)!important}
+@keyframes aiMessageIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+.message-bubble{border:1px solid rgba(255,255,255,.075)!important;box-shadow:0 16px 40px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.055)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);transition:transform .3s cubic-bezier(.22,1,.36,1),border-color .3s ease}
+.message-bubble:hover{transform:translateY(-2px);border-color:rgba(167,139,250,.18)!important}
+.message.assistant .message-bubble{background:linear-gradient(145deg,rgba(36,28,54,.86),rgba(16,13,25,.88))!important}
+.message.user .message-bubble{background:linear-gradient(145deg,rgba(91,55,180,.78),rgba(61,35,124,.78))!important}
+.quick-prompts,.welcome-prompts{background:rgba(8,6,14,.62)!important;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.quick-prompts button,.welcome-prompts button{background:linear-gradient(145deg,rgba(255,255,255,.07),rgba(255,255,255,.025))!important;border:1px solid rgba(255,255,255,.085)!important;box-shadow:inset 0 1px rgba(255,255,255,.05),0 10px 24px rgba(0,0,0,.12);transition:transform .3s cubic-bezier(.22,1,.36,1),border-color .3s ease,background .3s ease!important}
+.quick-prompts button:hover,.welcome-prompts button:hover{transform:translateY(-2px);border-color:rgba(167,139,250,.28)!important;background:rgba(139,92,246,.09)!important}
+.input-row{padding:8px!important;border-radius:24px;background:rgba(17,12,26,.78);border:1px solid rgba(255,255,255,.09);box-shadow:0 20px 50px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.06);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+.ai-input,.chat-input,.chat-composer,.ai-chat input,.ai-chat textarea{border:0!important;background:transparent!important;box-shadow:none!important}
+.voice-btn,.send-btn,.ai-send,.chat-send,.send-button{border-radius:17px!important;transition:transform .3s cubic-bezier(.22,1,.36,1),box-shadow .3s ease,filter .3s ease!important}
+.voice-btn:hover,.send-btn:hover,.ai-send:hover,.chat-send:hover,.send-button:hover{transform:translateY(-2px) scale(1.03);filter:brightness(1.08)}
+.voice-btn.is-listening{animation:micGlow 1.3s ease-in-out infinite!important}
+@keyframes micGlow{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.12)}50%{box-shadow:0 0 0 8px rgba(239,68,68,.06),0 0 28px rgba(239,68,68,.16)}}
+.thinking{background:rgba(255,255,255,.04)!important;border:1px solid rgba(255,255,255,.06);box-shadow:0 12px 30px rgba(0,0,0,.16);backdrop-filter:blur(15px)}
+.empty-icon{animation:emptyFloat 3.4s ease-in-out infinite;box-shadow:0 20px 55px rgba(124,92,252,.32),inset 0 1px rgba(255,255,255,.18)!important}
+@keyframes emptyFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-7px) rotate(1deg)}}
+.icon-btn:active,.quick-prompts button:active,.welcome-prompts button:active{transform:scale(.94)!important}
+@media(prefers-reduced-motion:reduce){body::before,.header-title-icon,.empty-icon,.message,.voice-btn.is-listening{animation:none!important}}
+
 </style>
