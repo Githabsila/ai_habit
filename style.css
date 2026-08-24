@@ -3948,7 +3948,7 @@ section[data-tab="home"]{
 section[data-tab="home"] .habits-section-head{
   position:relative;
   margin:2px 2px 0;
-  padding:9px 0 0;
+  padding:7px 0 0;
   border-top:1px solid rgba(35,31,45,.95);
   align-items:center;
 }
@@ -3960,9 +3960,9 @@ section[data-tab="home"] .habits-section-divider{
 
 /* Более маленький, тонкий и слегка приглушённый заголовок. */
 section[data-tab="home"] .habits-section-title{
-  font:500 11px/1 'Space Grotesk',sans-serif;
+  font:500 10.5px/1 'Space Grotesk',sans-serif;
   letter-spacing:.01em;
-  color:rgba(238,234,244,.72);
+  color:rgba(238,234,244,.68);
 }
 
 /* 0/7 прижат вправо, без отдельной плашки. */
@@ -3981,11 +3981,11 @@ section[data-tab="home"] .habits-section-count{
 
 /* Меньше воздуха между Планом дня и Привычками. */
 section[data-tab="home"] .plan-card{
-  margin-bottom:6px;
+  margin-bottom:3px;
 }
 
 section[data-tab="home"] .habit-list{
-  margin-top:7px;
+  margin-top:5px;
 }
 
 /* =========================================================
