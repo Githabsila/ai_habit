@@ -128,7 +128,7 @@ style="width:0%">
   <div class="streak-widget__hero-row">
     <div class="streak-widget__count">
       <strong id="streakWidgetDays">0 дней</strong>
-      <span>продолжай сегодня — не сбивай огонь</span>
+      <span>Держи темп, только дисциплина даёт прогресс!</span>
     </div>
     <div class="streak-widget__flame-orbit" aria-hidden="true">
       <div class="streak-orbit orbit-1"></div>
@@ -199,6 +199,11 @@ style="width:0%">
 
 </div>
 
+<div class="habits-section-head" aria-label="Привычки">
+  <div class="habits-section-title">Привычки</div>
+  <div class="habits-section-count" id="habitsProgressLabel">0/0</div>
+</div>
+<div class="habits-section-divider" aria-hidden="true"></div>
 <ul class="habit-list" id="habitList">
 </ul>
 
@@ -244,7 +249,7 @@ class="btn btn--accent">
   <div class="rating-hero__glow rating-hero__glow--two"></div>
   <div class="rating-hero__eyebrow"><span class="rating-live-dot"></span> ADAM LEAGUE · LIVE</div>
   <h2>Рейтинг</h2>
-  <p>Кто сегодня держит темп — тот поднимается выше.</p>
+  <p>Кто держит темп — тот поднимается выше.</p>
   <div class="rating-hero__stats">
     <span><b id="ratingPlayerCount">0</b> игроков</span>
     <span>🔥 серия решает</span>
@@ -267,13 +272,11 @@ class="btn btn--accent">
     <div class="streak-profile-avatar" id="profileAvatar">A</div>
   </div>
   <div class="streak-profile-info">
-    <div class="streak-profile-kicker">ТВОЙ УДАРНЫЙ ДЕНЬ</div>
-    <div class="streak-profile-status" id="profileStreakStatus">В ударе</div>
+    <div class="streak-profile-kicker"><img src="/static/assets/adam-impact-flame.svg" alt=""> ТВОЯ УДАРНАЯ СЕРИЯ</div>
     <div class="streak-profile-days"><strong id="profileStreakDays">0</strong><span id="profileStreakDaysLabel">дней подряд</span></div>
-    <div class="streak-profile-frame" id="profileStreakFrame">🔥 Твоя ударная серия!</div>
-    <button class="share-achievement-btn" id="shareAchievementBtn" type="button">↗ Поделиться достижением</button>
+    <button class="share-achievement-btn" id="shareAchievementBtn" type="button">↗ Поделиться прогрессом</button>
   </div>
-  <div class="streak-profile-fire">🔥</div>
+  <div class="streak-profile-fire" aria-hidden="true"><img src="/static/assets/adam-impact-flame.svg" alt=""></div>
 </div>
 
 <div class="streak-profile-metrics">
@@ -373,13 +376,12 @@ class="btn btn--accent">
 
 <div class="achievement-share-overlay" id="achievementShareOverlay" hidden aria-hidden="true">
   <div class="achievement-share-card">
-    <div class="achievement-share-fire">🔥</div>
-    <div class="achievement-share-kicker">МОЙ РЕЗУЛЬТАТ ADAM</div>
+    <div class="achievement-share-fire"><img src="/static/assets/adam-impact-flame.svg" alt=""></div>
+    <div class="achievement-share-kicker">Мой результат в Project ADAM</div>
     <div class="achievement-share-title">Ударный режим</div>
     <div class="achievement-share-days" id="achievementShareDays">1 день</div>
-    <div class="achievement-share-status" id="achievementShareStatus">В ударе</div>
     <div class="achievement-share-note">Я не жду идеальных дней. Я просто продолжаю.</div>
-    <button class="achievement-share-close" id="achievementShareClose" type="button">Класно, так держать 💪</button>
+    <button class="achievement-share-close" id="achievementShareClose" type="button">Классно, так держать 💪</button>
   </div>
 </div>
 

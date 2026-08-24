@@ -117,7 +117,9 @@ async def main():
     # Job тикает каждую минуту, а сама функция пропускает всех, кто не в своём полудне.
     scheduler.add_job(run_noon_habit_reminders, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_day_progress_check, "cron", hour=15, minute=0, args=[bot])
-    scheduler.add_job(run_evening_progress_check, "cron", hour=20, minute=0, args=[bot])
+    # Финальная сверка плана — 22:30 по локальному времени пользователя.
+    # Функция вызывается раз в минуту и сама проверяет timezone каждого пользователя.
+    scheduler.add_job(run_evening_progress_check, "interval", minutes=1, args=[bot])
 
     # --- Промт п.8: начало/конец недели и месяца ---
     scheduler.add_job(run_week_start_ping, "cron", day_of_week="mon", hour=7, minute=0, args=[bot])

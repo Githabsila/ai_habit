@@ -1,3 +1,4 @@
+import json
 import time
 import hashlib
 import asyncio
@@ -8,6 +9,7 @@ from datetime import date, datetime
 from webapp.services.ai_utils import (
     build_history_text,
     build_user_context,
+    build_proactive_context,
     _cache_key,
 )
 
@@ -102,11 +104,41 @@ _suggested_habits: dict[int, str] = {}
 
 async def _update_memory(user_id: int):
     try:
+        from datetime import datetime, timedelta
+
         profile = get_user_profile(user_id)
         existing_summary = profile["summary"] if profile else ""
+
+        # Совместимость со старой версией: раньше результат summarize_user_memory
+        # ошибочно записывался целиком как строковое представление dict.
+        if isinstance(existing_summary, str) and existing_summary.startswith("{") and "summary" in existing_summary:
+            try:
+                legacy = json.loads(existing_summary)
+                existing_summary = str(legacy.get("summary") or "")
+            except Exception:
+                pass
+
         recent_history = build_history_text(user_id, limit=MEMORY_UPDATE_EVERY + 2)
-        new_summary = await summarize_user_memory(existing_summary, recent_history)
-        update_user_profile(user_id, new_summary)
+        memory = await summarize_user_memory(existing_summary, recent_history)
+
+        if isinstance(memory, dict):
+            summary = str(memory.get("summary") or existing_summary).strip()
+            followup = str(memory.get("followup") or "").strip()
+        else:
+            summary = str(memory or existing_summary).strip()
+            followup = ""
+
+        # followup — только одна тема и максимум на следующие 24 часа.
+        proactive_until = (
+            (datetime.utcnow() + timedelta(hours=24)).isoformat()
+            if followup else None
+        )
+        update_user_profile(
+            user_id,
+            summary,
+            proactive_topic=followup,
+            proactive_until=proactive_until,
+        )
     except Exception as e:
         logger.exception(f"Не удалось обновить профиль памяти для {user_id}")
         log_error("memory_update", e, user_id)
@@ -297,7 +329,7 @@ async def ai_daily_tip(callback: CallbackQuery):
     tip = cache_get(cache_key)
     if tip is None:
         style = get_ai_style(user_id)
-        user_context = build_user_context(user_id)
+        user_context = build_proactive_context(user_id)
         try:
             tip = await generate_daily_tip(user_context, style)
         except Exception as e:

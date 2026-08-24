@@ -158,14 +158,25 @@
     if (status) {
       status.textContent = streak.days > 0
         ? `Огонь горит. Не дай ему погаснуть.`
-        : `Серия сброшена. Сегодня можно начать заново.`;
+        : `Серия сброшена. Можно начать заново.`;
     }
     const weekHint = document.getElementById("streakWeekHint");
     if (weekHint) {
       const last7 = Array.isArray(streak.last7) ? streak.last7 : [];
       const done7 = last7.filter(d => d.status === "completed").length;
       const frozen7 = last7.filter(d => d.status === "freeze").length;
-      weekHint.textContent = done7 === 7 ? "Неделя закрыта идеально" : frozen7 ? `${done7} выполнено · ${frozen7} замороз${frozen7 === 1 ? "ка" : "ки"}` : `${done7}/7 дней в огне`;
+      if (weekHint) {
+        if (done7 === 7) {
+          weekHint.textContent = "7/7";
+          weekHint.dataset.subtext = "БЕЗ ПРОПУСКОВ";
+        } else if (done7 > 0) {
+          weekHint.textContent = `${done7}/7`;
+          weekHint.dataset.subtext = "НАДО ПОДНАЖАТЬ И ПОСТАРАТЬСЯ НА СЛЕДУЮЩЕЙ НЕДЕЛЕ ЛУЧШЕ СПРАВИТЬСЯ";
+        } else {
+          weekHint.textContent = "0/7";
+          weekHint.dataset.subtext = "НАДО ПОДНАЖАТЬ И ПОСТАРАТЬСЯ НА СЛЕДУЮЩЕЙ НЕДЕЛЕ ЛУЧШЕ СПРАВИТЬСЯ";
+        }
+      }
     }
 
     const profileStatus = document.getElementById("profileStreakStatus");
@@ -428,7 +439,7 @@
     const done = habits.filter(h => h.completed).length;
     const progressLabel = document.getElementById("habitsProgressLabel");
     if (progressLabel) {
-      progressLabel.textContent = `${done}/${habits.length} сегодня`;
+      progressLabel.textContent = `${done}/${habits.length}`;
     }
 
     if (habits.length === 0) {
@@ -475,7 +486,7 @@
 
       if (isAnswer) {
         title = amount ? `+${amount} ответов` : title;
-        desc = amount ? `Ещё ${amount} запросов к ADAM сегодня` : desc;
+        desc = amount ? `Ещё ${amount} запросов к ADAM` : desc;
       }
 
       // Цена находится только слева. На кнопке никогда не дублируем
@@ -590,9 +601,9 @@
       return;
     }
 
-    // Backend отдаёт достижения от новых к старым, поэтому первые 3 — самые свежие.
-    const latest = items.slice(0, 3);
-    const older = items.slice(3);
+    // Backend отдаёт достижения от новых к старым — сверху показываем только 2 последних.
+    const latest = items.slice(0, 2);
+    const older = items.slice(2);
 
     latestList.innerHTML = latest.map(renderAchievementItem).join("");
 
@@ -755,11 +766,11 @@
             <h2>${monthTitle}</h2>
             <p>Каждый день здесь показывает, насколько ты приблизился к своим целям.</p>
           </div>
-          <div class="calendar-today-badge">Сегодня<br><b>${today.getDate()}</b></div>
+          <div class="calendar-today-badge"><b>${today.getDate()}</b></div>
         </div>
 
         <div class="calendar-stats">
-          ${stat(`${todayPercent}%`, "сегодня")}
+          ${stat(`${todayPercent}%`, "день")}
           ${stat(completedDays, "идеальных дней")}
           ${stat(activeDays, "активных дней")}
           ${stat(`${completion}%`, "за месяц")}
@@ -778,7 +789,7 @@
           <div class="calendar-selected__icon">📅</div>
           <div>
             <strong>${today.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</strong>
-            <span>${todayInfo.total ? `${todayInfo.completed} из ${todayInfo.total} привычек выполнено` : "Сегодня пока нет отмеченных привычек"}</span>
+            <span>${todayInfo.total ? `${todayInfo.completed} из ${todayInfo.total} привычек выполнено` : "Пока нет отмеченных привычек"}</span>
           </div>
         </div>
 
@@ -1197,7 +1208,7 @@ function initPlanActions() {
 
     const map = {
         title_too_short: "Название слишком короткое",
-        already_completed: "Уже выполнено сегодня",
+        already_completed: "Уже выполнено",
         not_enough_xp_or_not_found: "Не хватает Adam Coin",
         not_found: "Не найдено",
         banned: "Доступ ограничен",

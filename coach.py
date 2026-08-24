@@ -173,13 +173,14 @@ async def run_weekly_report(bot):
 
 def format_hard_deadline_message(incomplete_habits) -> str:
     titles = [h["title"] for h in incomplete_habits]
-
+    left = len(titles)
+    habit_word = "привычка" if left == 1 else "привычки" if left < 5 else "привычек"
+    verb = "неотмечена" if left == 1 else "неотмечены"
     lines = "\n".join(f"• {t}" for t in titles)
 
     return (
         "⏰ <b>Контрольная точка — 22:00</b>\n\n"
-        "До конца дня осталось немного, а эти привычки ещё не отмечены "
-        "выполненными:\n\n"
+        f"<b>{verb} {habit_word}: {left}</b>\n"
         f"{lines}\n\n"
         "Ещё есть время всё закрыть 💪"
     )
@@ -417,7 +418,7 @@ async def run_day_progress_check(bot):
 
 
 async def run_evening_progress_check(bot):
-    """20:00 — мотивационное сообщение, если осталась хотя бы 1
+    """22:30 — финальная сверка плана, если осталась хотя бы 1
     невыполненная задача сегодняшнего плана дня."""
     users = get_all_users()
     sent = 0
@@ -441,6 +442,12 @@ async def run_evening_progress_check(bot):
             continue
 
         try:
+            now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+            if now_local.hour != 22 or now_local.minute != 30:
+                continue
+            day = now_local.date().isoformat()
+            if not claim_notification(telegram_id, day, "evening_progress_2230"):
+                continue
             await bot.send_message(
                 telegram_id,
                 format_evening_progress_message(done, total, [t["text"] for t in tasks if not t["completed"]]),
@@ -450,7 +457,7 @@ async def run_evening_progress_check(bot):
         except Exception as e:
             log_error("evening_progress_check", e, telegram_id)
 
-    logger.info(f"Вечернее напоминание по плану дня (20:00): отправлено {sent} сообщений")
+    logger.info(f"Вечерняя сверка по плану дня (22:30): отправлено {sent} сообщений")
 
 
 # =====================================

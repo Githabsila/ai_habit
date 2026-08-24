@@ -34,9 +34,9 @@ _active_countdowns = {}
 
 
 RISK_23_FIRST = [
-    "⚡️ До полуночи осталось 60 минут. У тебя ещё есть время удержать ударный режим — закрой хотя бы одну привычку.",
-    "🔥 Финишный час. Не отдавай сегодня свою серию так близко к полуночи — выполни хотя бы одну привычку.",
-    "😠 23:00. Ты уже дошёл до последнего часа дня. Остался один шаг — закрой хотя бы одну привычку и сохрани ударный режим.",
+    "⚡️ 23:00. Ударный режим под угрозой. Остались невыполненные привычки — ещё есть время всё закрыть.",
+    "🔥 23:00. Последний час начался. Не оставляй ударный режим без внимания.",
+    "😠 23:00. Финиш близко. Проверь невыполненные привычки и сохрани свою серию.",
 ]
 
 
@@ -123,6 +123,9 @@ async def _run_countdown(bot, uid, message_id, tz_name, deadline):
 
 
 async def run_streak_risk_notifications(bot):
+    """23:00 — короткий факт о риске; 23:30 — главный срочный пинг + живой таймер.
+    Оба события отправляются только если за день ещё не выполнена ни одна
+    привычка, а 23:30 имеет отдельный одноразовый ключ."""
     if not bot:
         return
 
@@ -131,24 +134,39 @@ async def run_streak_risk_notifications(bot):
             tz_name = get_timezone(uid)
             tz = ZoneInfo(tz_name)
             now = datetime.now(tz)
-
-            # Только одно напоминание — ровно в 23:00 по локальному времени
-            # пользователя. После полуночи уведомления об ударном режиме не отправляем.
-            if now.hour != 23 or now.minute != 0:
+            if now.minute not in (0, 30) or now.hour != 23:
                 continue
             if has_completed_today(uid):
+                # Если человек уже спас серию, никакого финишного спама.
                 continue
 
             day = now.date().isoformat()
-            if not claim_notification(uid, day, "risk23"):
+
+            if now.minute == 0:
+                if not claim_notification(uid, day, "risk23"):
+                    continue
+                await bot.send_message(
+                    uid,
+                    random.choice(RISK_23_FIRST),
+                    parse_mode="HTML",
+                    reply_markup=_countdown_keyboard(),
+                )
                 continue
 
-            await bot.send_message(
+            # 23:30 — главное сообщение. После него одно сообщение редактируется
+            # в реальном времени до полуночи.
+            if not claim_notification(uid, day, "risk2330"):
+                continue
+            sent = await bot.send_message(
                 uid,
-                random.choice(RISK_23_FIRST),
+                random.choice(RISK_23_30),
                 parse_mode="HTML",
                 reply_markup=_countdown_keyboard(),
             )
+            task = asyncio.create_task(
+                _run_countdown(bot, uid, sent.message_id, tz_name, now.date())
+            )
+            _active_countdowns[(uid, sent.message_id)] = task
         except Exception:
             logger.exception("Ошибка streak-risk для %s", uid)
 

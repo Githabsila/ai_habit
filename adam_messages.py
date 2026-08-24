@@ -55,9 +55,9 @@ def streak_phrase(n: int) -> str:
 # =====================================
 
 HABIT_NOON_TEMPLATES = [
-    "На контрольной точке вижу: {verb} {left} {habit_word}: {habits}. {action} {emoji}",
-    "Проверка курса: осталось {left} {habit_word} — {habits}. {action} {emoji}",
-    "Сейчас {verb} {left} {habit_word} — {habits}. {action} {emoji}",
+    "На контрольной точке вижу: {verb} {habit_word}: {left}. {habits}. {action} {emoji}",
+    "Проверка курса: {verb} {habit_word}: {left}. {habits}. {action} {emoji}",
+    "Контрольная точка: {verb} {habit_word}: {left}. {habits}. {action} {emoji}",
 ]
 
 
@@ -66,7 +66,7 @@ def format_habit_noon_message(incomplete_habits) -> str:
     left = len(titles)
     habits = ", ".join(f"«{t}»" for t in titles)
     habit_word = plural_ru(left, "привычка", "привычки", "привычек")
-    verb = "не отмечена" if left == 1 else "не отмечены"
+    verb = "Неотмечена" if left == 1 else "Неотмечены"
     action = "Выполни её, когда будет удобно" if left == 1 else "Выполни их, когда будет удобно"
 
     return pick(

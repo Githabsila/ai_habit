@@ -3773,3 +3773,171 @@ section[data-tab="home"] .streak-widget--hero:hover{
 @media(prefers-reduced-motion:reduce){
   .streak-widget--hero::before,.streak-widget__icon,.streak-live-dot,.streak-widget__spark,.streak-widget__mini-flame,.streak-orbit{animation:none!important}
 }
+
+
+/* =========================================================
+   ADAM FINAL POLISH — 24.08
+   ========================================================= */
+
+/* Ударный блок: ровный полный оборот, без недокручивания шарика. */
+.streak-orbit{animation:streakOrbit 6s linear infinite;transform-origin:center}
+.streak-orbit.orbit-2{animation-duration:8s;animation-direction:reverse}
+@keyframes streakOrbit{to{transform:rotate(360deg)}}
+
+/* Живой огонёк вместо emoji в мини-огне. */
+.streak-widget__mini-flame{
+  width:38px;height:44px;object-fit:contain;position:relative;z-index:3;
+  filter:drop-shadow(0 0 15px rgba(255,108,24,.58));
+  animation:impactFire 1.8s ease-in-out infinite;
+}
+@media(max-width:420px){
+  .streak-widget__mini-flame{width:33px;height:39px}
+}
+
+/* Спокойная разделительная линия перед привычками. */
+.habits-section-divider{
+  height:1px;
+  margin:12px 2px 10px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.10) 16%,rgba(255,255,255,.075) 84%,transparent);
+}
+.habits-section-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:4px 2px 0;
+}
+.habits-section-title{
+  font:800 13px/1 'Space Grotesk',sans-serif;
+  letter-spacing:-.01em;color:#eeeaf4;
+}
+.habits-section-count{
+  min-width:42px;height:24px;padding:0 8px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:9px;
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.075);
+  color:#bcb7c8;font:800 10px/1 'Space Grotesk',sans-serif;
+  box-shadow:inset 0 1px rgba(255,255,255,.035);
+}
+
+/* В правой части недели — число, а пояснение ниже. */
+.streak-widget__week-head span:last-child{
+  display:flex;flex-direction:column;align-items:flex-end;gap:2px;
+  text-align:right;
+}
+.streak-widget__week-head span:last-child::after{
+  content:attr(data-subtext);
+  max-width:210px;
+  color:#5f5b6d;
+  font-size:7px;
+  line-height:1.15;
+  letter-spacing:.01em;
+  font-weight:800;
+}
+.streak-widget__week-head span:last-child[data-subtext="БЕЗ ПРОПУСКОВ"]::after{
+  color:#8e8978;
+}
+.streak-widget__week-head{gap:16px}
+.streak-widget__week-head span:first-child{flex:1}
+
+/* Профиль ударной серии: только серия + кнопка, без дублирующих статусов. */
+.streak-profile-card--premium{
+  min-height:128px;
+  padding:17px 18px;
+}
+.streak-profile-kicker{
+  display:flex;align-items:center;gap:5px;
+  font-size:9px;letter-spacing:.12em;
+}
+.streak-profile-kicker img{
+  width:16px;height:19px;object-fit:contain;
+  filter:drop-shadow(0 0 7px rgba(255,122,24,.55));
+  animation:profileKickerFire 1.7s ease-in-out infinite;
+}
+@keyframes profileKickerFire{
+  50%{transform:translateY(-1px) scale(1.08) rotate(2deg)}
+}
+.streak-profile-days{margin-top:6px}
+.share-achievement-btn{
+  margin-top:9px!important;
+  padding:7px 10px!important;
+  border-radius:11px!important;
+  font-size:10px!important;
+}
+.streak-profile-fire{
+  width:66px;height:74px;right:14px;top:8px;
+  display:grid;place-items:center;
+}
+.streak-profile-fire img{
+  width:62px;height:70px;object-fit:contain;
+  filter:drop-shadow(0 0 16px rgba(255,122,24,.55));
+  animation:profileFire 1.8s ease-in-out infinite;
+}
+@media(max-width:430px){
+  .streak-profile-card--premium{min-height:116px;padding:14px}
+  .streak-profile-fire{width:52px;height:60px;right:8px;top:6px}
+  .streak-profile-fire img{width:50px;height:57px}
+}
+
+/* Экран «Поделиться прогрессом»: компактнее, аккуратнее и без «В ударе N дн.» */
+.achievement-share-card{
+  min-height:min(610px,78vh);
+  max-height:78vh;
+  padding:28px 22px 22px;
+  justify-content:center;
+}
+.achievement-share-fire{
+  width:92px;height:108px;
+  display:grid;place-items:center;
+  margin-bottom:15px;
+}
+.achievement-share-fire img{
+  width:88px;height:102px;object-fit:contain;
+  filter:drop-shadow(0 0 25px rgba(255,122,24,.55));
+  animation:shareFireLife 1.9s ease-in-out infinite;
+}
+@keyframes shareFireLife{
+  0%,100%{transform:translateY(0) scale(1) rotate(-1deg)}
+  35%{transform:translateY(-5px) scale(1.045) rotate(1deg)}
+  65%{transform:translateY(-2px) scale(.99) rotate(-.5deg)}
+}
+.achievement-share-kicker{
+  letter-spacing:.13em;
+  font-size:10px;
+}
+.achievement-share-title{margin-top:10px;font-size:28px}
+.achievement-share-days{margin-top:12px;font-size:46px}
+.achievement-share-note{margin:17px 0 22px;max-width:300px;font-size:12px}
+.achievement-share-close{padding:13px 16px;font-size:14px}
+
+/* Сверху профиля показываем ровно две последние награды и не режем длинные названия. */
+.achievement-list--latest{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+.achievement-list--latest .achievement-item{
+  min-height:78px;
+  padding:10px 11px;
+}
+.achievement-list--latest .achievement-item__title{
+  display:block;
+  -webkit-line-clamp:unset;
+  overflow:visible;
+  word-break:normal;
+}
+.achievement-list--latest .achievement-item__desc{
+  display:block;
+  -webkit-line-clamp:2;
+}
+.achievement-list--archive{
+  grid-template-rows:minmax(72px,auto);
+  grid-auto-flow:column;
+  grid-auto-columns:minmax(150px,calc((100% - 16px)/3));
+}
+@media(max-width:430px){
+  .achievement-list--latest{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .achievement-list--latest .achievement-item{min-height:76px;padding:9px}
+  .achievement-list--archive{grid-template-rows:minmax(68px,auto);grid-auto-columns:minmax(142px,calc((100vw - 32px)/3))}
+}
+
+/* Сокращаем высокий серый фон на главной сцене, чтобы карточки не налезали на верх. */
+section[data-tab="home"]{
+  padding-bottom:20px;
+}

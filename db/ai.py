@@ -142,8 +142,8 @@ def get_proactive_topic(user_id):
     row = cursor.execute("""
         SELECT proactive_topic, proactive_until FROM user_ai_profile WHERE user_id=?
     """, (user_id,)).fetchone()
-    conn.close()
     if not row or not row["proactive_topic"] or not row["proactive_until"]:
+        conn.close()
         return ""
     import datetime as _dt
     try:
@@ -151,8 +151,21 @@ def get_proactive_topic(user_id):
         if expires <= _dt.datetime.utcnow():
             return ""
     except Exception:
+        conn.close()
         return ""
-    return str(row["proactive_topic"])
+    topic = str(row["proactive_topic"])
+    # Одноразовая тема действительно одноразовая: после первого проактивного
+    # использования она больше не попадёт ни в совет дня, ни в напоминания.
+    try:
+        cursor.execute(
+            "UPDATE user_ai_profile SET proactive_topic='' WHERE user_id=? AND proactive_topic=?",
+            (user_id, topic),
+        )
+        conn.commit()
+    except Exception:
+        pass
+    conn.close()
+    return topic
 
 
 def bump_profile_counter(user_id):
