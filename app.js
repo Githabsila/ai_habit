@@ -555,14 +555,23 @@
 
   // ===================== RENDER: ACHIEVEMENTS =====================
   function renderAchievementItem(a) {
+    const legacyCopy = {
+      "Первый шаг": ["Первый шаг", "Первая привычка выполнена. Начало положено.", "🚀"],
+      "Целеустремлённый": ["Держишь курс", "10 привычек выполнены. Ты уже создаёшь систему.", "🎯"],
+      "Мастер привычек": ["Мастер привычек", "50 привычек выполнены. Дисциплина становится твоей силой.", "👑"],
+      "Серия 3 дня": ["Три дня в ударе", "3 дня подряд без сбоя. Ритм набран.", "🔥"],
+      "Серия 7 дней": ["Неделя в ударе", "7 дней подряд. Ты закрепил сильный ритм.", "⚡"],
+      "Опытный": ["Первые 100", "100 Adam Coin заработаны. Твой прогресс уже заметен.", "💎"]
+    };
+    const copy = legacyCopy[a.title] || [a.title, a.description || "", "🏆"];
     return `
       <li class="achievement-item">
-        <span class="achievement-item__icon">🏆</span>
+        <span class="achievement-item__icon" aria-hidden="true">${copy[2]}</span>
         <div class="achievement-item__content">
           <div class="achievement-item__title-wrap">
-            <span class="achievement-item__title">${escapeHtml(a.title)}</span>
+            <span class="achievement-item__title">${escapeHtml(copy[0])}</span>
           </div>
-          <div class="achievement-item__desc">${escapeHtml(a.description || "")}</div>
+          <div class="achievement-item__desc">${escapeHtml(copy[1])}</div>
         </div>
       </li>
     `;
@@ -580,7 +589,7 @@
     if (!latestList) return;
 
     if (items.length === 0) {
-      latestList.innerHTML = `<li class="empty-hint">Пока нет достижений — выполняй привычки, чтобы открыть первое 🏆</li>`;
+      latestList.innerHTML = `<li class="empty-hint">Пока здесь пусто. Выполняй привычки — первые награды уже близко ✨</li>`;
       if (archive) archive.hidden = true;
       return;
     }
