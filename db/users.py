@@ -99,13 +99,15 @@ def get_last_ai_message_at(user_id):
 
 def touch_last_ai_message(user_id):
     conn = connect()
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE users SET last_ai_message_at=CURRENT_TIMESTAMP WHERE telegram_id=?",
-        (user_id,)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET last_ai_message_at=CURRENT_TIMESTAMP WHERE telegram_id=?",
+            (user_id,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # =====================================

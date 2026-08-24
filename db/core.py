@@ -32,8 +32,15 @@ DB_PATH = os.path.join(DATA_DIR, DB_NAME)
 
 def connect():
     os.makedirs(DATA_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # Railway/aiohttp can have several concurrent requests touching SQLite.
+    # WAL allows readers during writes and busy_timeout prevents immediate
+    # "database is locked" failures during short concurrent transactions.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 

@@ -296,8 +296,19 @@ async def get_ai_history_miniapp(request):
     if not history:
         return web.json_response({"history": []})
 
+    safe_history = []
+    for row in (history[-limit:] if history else []):
+        if hasattr(row, "keys"):
+            row = dict(row)
+        safe_history.append({
+            "id": row.get("id"),
+            "role": row.get("role", ""),
+            "message": row.get("message", row.get("content", "")),
+            "created_at": row.get("created_at", row.get("timestamp")),
+        })
+
     return web.json_response({
-        "history": history[-limit:] if history else []
+        "history": safe_history
     })
 
 

@@ -24,7 +24,7 @@ def get_ai_history(user_id, limit=20):
     """, (user_id, limit))
     rows = cursor.fetchall()
     conn.close()
-    return list(reversed(rows))
+    return [dict(row) for row in reversed(rows)]
 
 
 def clear_ai_history(user_id):
