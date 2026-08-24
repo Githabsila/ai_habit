@@ -19,7 +19,7 @@ multi_agent.py
                  советуется конкретная новая привычка, достаёт короткое
                  название — чтобы бот мог предложить кнопку "Добавить".
 
-Работает через Fireworks AI API, полностью асинхронно. Независимые шаги
+Работает через OpenAI API, полностью асинхронно. Независимые шаги
 выполняются параллельно (asyncio.gather), чтобы задержка не росла кратно
 числу агентов.
 
@@ -44,25 +44,24 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-import aiohttp
+from openai import AsyncOpenAI
 
 # Берём ключ из того же config.py, что уже использует остальной проект
 # (там он уже подгружен из .env) — так исчезает риск рассинхронизации
 # между тем, как ключ читается в ai.py и здесь.
-from config import FIREWORKS_API_KEY
+from config import OPENAI_API_KEY
 
 logger = logging.getLogger("multi_agent")
 
 # ============ КОНФИГ ============
 
-FIREWORKS_API_URL = "https://api.fireworks.ai/inference/v1/chat/completions"
-
-MODEL = "accounts/fireworks/models/muse-glimmer-30b"           # для синтеза, спорщиков и судьи — тех этапов, что формируют текст пользователю
-FAST_MODEL = "accounts/fireworks/models/gpt-oss-20b"       # для декомпозиции, классификаторов и быстрого пути — Fireworks считает TPM ОТДЕЛЬНО по каждой модели, так что вынос сюда фактически даёт отдельный бюджет токенов, не пересекающийся с MODEL
+MODEL = "gpt-5.6"
+FAST_MODEL = "gpt-5.6"
+OPENAI_TIMEOUT = 120.0
 
 MAX_SUBTASKS = 3          # было 4 — меньше подзадач = меньше запросов и токенов
 NUM_DEBATERS = 2          # было 3 — меньше "спорщиков" = меньше токенов на дебаты
-MAX_CONCURRENT_CALLS = 4  # ограничение параллельных запросов к Fireworks (защита от рейт-лимита)
+MAX_CONCURRENT_CALLS = 4  # ограничение параллельных запросов к OpenAI (защита от рейт-лимита)
 MAX_RETRIES = 3           # автоповтор при ошибке 429, вместо падения с текстом ошибки
 
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
@@ -304,7 +303,7 @@ _RETRY_S_RE = re.compile(r"try again in ([\d.]+)s")
 
 
 def _extract_wait_seconds(error_text: str, default: float = 2.0) -> float:
-    """Достаёт из текста ошибки Fireworks время ожидания ('try again in 860ms' / '2.3s')."""
+    """Достаёт из текста ошибки OpenAI время ожидания ('try again in 860ms' / '2.3s')."""
     m = _RETRY_MS_RE.search(error_text)
     if m:
         return float(m.group(1)) / 1000
@@ -361,136 +360,74 @@ async def _ask(
     max_tokens: int = 700,
     model: str = MODEL,
 ) -> str:
-    """Асинхронный вызов Fireworks AI API с ограничением параллелизма
-    и повтором при rate limit (429)."""
-    if not FIREWORKS_API_KEY:
-        logger.error("FIREWORKS_API_KEY не задан")
-        return "[ошибка агента: не задан FIREWORKS_API_KEY]"
+    """Асинхронный вызов OpenAI Responses API с ограничением параллелизма
+    и повтором при временных ошибках/429."""
+    if not OPENAI_API_KEY:
+        logger.error("OPENAI_API_KEY не задан")
+        return "[ошибка агента: не задан OPENAI_API_KEY]"
 
     async with _semaphore:
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                payload = {
-                    "model": model,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                }
-                headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {FIREWORKS_API_KEY}",
-                }
+        async with AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=OPENAI_TIMEOUT) as client:
+            for attempt in range(MAX_RETRIES + 1):
+                try:
+                    # Responses API — основной API OpenAI.
+                    # temperature здесь не передаём: этот пайплайн рассчитан
+                    # на актуальные GPT-5.x модели.
+                    response = await client.responses.create(
+                        model=model,
+                        instructions=system,
+                        input=user,
+                        max_output_tokens=max_tokens,
+                    )
 
-                timeout = aiohttp.ClientTimeout(total=120)
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.post(
-                        FIREWORKS_API_URL,
-                        headers=headers,
-                        json=payload,
-                    ) as response:
-                        response_text = await response.text()
+                    text = _strip_markdown((response.output_text or "").strip())
 
-                        if response.status == 429:
-                            wait = _extract_wait_seconds(response_text)
-                            if attempt < MAX_RETRIES:
-                                logger.warning(
-                                    f"Fireworks rate limit (модель {model}), "
-                                    f"жду {wait:.1f}с и повторяю "
-                                    f"(попытка {attempt + 1}/{MAX_RETRIES})"
-                                )
-                                await asyncio.sleep(wait)
-                                continue
-                            logger.error(
-                                f"Fireworks rate limit не удалось обойти после "
-                                f"{MAX_RETRIES} попыток: {response_text}"
-                            )
-                            return (
-                                "[ошибка агента: превышен лимит запросов Fireworks, "
-                                "попробуй ещё раз через минуту]"
-                            )
-
-                        if response.status >= 400:
-                            logger.error(
-                                f"Ошибка Fireworks API {response.status}: {response_text}"
-                            )
-                            return f"[ошибка агента: Fireworks API {response.status}]"
-
-                        data = json.loads(response_text)
-                        choice = data["choices"][0]
-                        message = choice.get("message", {})
-                        content = message.get("content", "")
-
-                        # Некоторые модели/ответы могут вернуть content не строкой.
-                        if isinstance(content, list):
-                            content = "".join(
-                                part.get("text", "")
-                                for part in content
-                                if isinstance(part, dict)
-                            )
-
-                        text = _strip_markdown((content or "").strip())
-                        finish_reason = choice.get("finish_reason")
-
-                        if finish_reason == "length":
+                    # Если модель упёрлась в лимит вывода, повторяем с большим
+                    # лимитом, сохраняя прежнее поведение старого пайплайна.
+                    status = getattr(response, "status", None)
+                    if status == "incomplete":
+                        details = getattr(response, "incomplete_details", None)
+                        reason = getattr(details, "reason", None) if details else None
+                        if reason == "max_output_tokens":
                             retry_tokens = min(max_tokens + 500, max_tokens * 2)
                             logger.warning(
-                                f"Ответ обрезан по max_tokens={max_tokens} "
+                                f"Ответ обрезан по max_output_tokens={max_tokens} "
                                 f"(модель {model}), повторяю с лимитом {retry_tokens}"
                             )
-                            payload["max_tokens"] = retry_tokens
+                            response2 = await client.responses.create(
+                                model=model,
+                                instructions=system,
+                                input=user,
+                                max_output_tokens=retry_tokens,
+                            )
+                            text = _strip_markdown((response2.output_text or "").strip())
+                            status2 = getattr(response2, "status", None)
+                            if status2 == "incomplete":
+                                text = _trim_to_last_sentence(text)
 
-                            async with session.post(
-                                FIREWORKS_API_URL,
-                                headers=headers,
-                                json=payload,
-                            ) as response2:
-                                response2_text = await response2.text()
+                    return text
 
-                                if response2.status >= 400:
-                                    logger.error(
-                                        f"Ошибка повторного запроса Fireworks "
-                                        f"{response2.status}: {response2_text}"
-                                    )
-                                    return text
+                except Exception as e:
+                    status_code = getattr(e, "status_code", None)
+                    if status_code == 429 or "rate limit" in str(e).lower():
+                        if attempt < MAX_RETRIES:
+                            wait = min(2 ** attempt + 1, 15)
+                            logger.warning(
+                                f"OpenAI rate limit, жду {wait}с и повторяю "
+                                f"(попытка {attempt + 1}/{MAX_RETRIES})"
+                            )
+                            await asyncio.sleep(wait)
+                            continue
+                        logger.error(f"OpenAI rate limit не удалось обойти: {e}")
+                        return "[ошибка агента: превышен лимит запросов OpenAI, попробуй ещё раз через минуту]"
 
-                                data2 = json.loads(response2_text)
-                                choice2 = data2["choices"][0]
-                                message2 = choice2.get("message", {})
-                                content2 = message2.get("content", "")
+                    logger.error(f"Ошибка вызова OpenAI API: {e}")
+                    if attempt < MAX_RETRIES:
+                        await asyncio.sleep(1.5 * (attempt + 1))
+                        continue
+                    return f"[ошибка агента: {e}]"
 
-                                if isinstance(content2, list):
-                                    content2 = "".join(
-                                        part.get("text", "")
-                                        for part in content2
-                                        if isinstance(part, dict)
-                                    )
-
-                                text2 = _strip_markdown((content2 or "").strip())
-
-                                if choice2.get("finish_reason") == "length":
-                                    logger.warning(
-                                        f"Ответ всё ещё обрезан даже с лимитом "
-                                        f"{retry_tokens} — подрезаю по границе предложения"
-                                    )
-                                    text2 = _trim_to_last_sentence(text2)
-
-                                text = text2
-
-                        return text
-
-            except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError, KeyError) as e:
-                logger.error(f"Ошибка вызова Fireworks API: {e}")
-                if attempt < MAX_RETRIES:
-                    await asyncio.sleep(1.5 * (attempt + 1))
-                    continue
-                return f"[ошибка агента: {e}]"
-            except Exception as e:
-                logger.error(f"Неожиданная ошибка вызова Fireworks API: {e}")
-                return f"[ошибка агента: {e}]"
+        return "[ошибка агента: OpenAI API не вернул ответ]"
 
 
 def _combine_notes(*notes: str) -> str:
@@ -652,7 +589,7 @@ def _has_crisis_signal(task: str) -> bool:
 
 # ============ 0d. ОБЪЕДИНЁННЫЙ КЛАССИФИКАТОР ============
 # Этап 4 "Оптимизация" — настроение, триаж сложности и кризис-гейт раньше
-# были тремя отдельными вызовами Fireworks (пусть и параллельными). Здесь они
+# были тремя отдельными вызовами OpenAI (пусть и параллельными). Здесь они
 # объединены в ОДИН вызов: это втрое меньше запросов и заметно быстрее на
 # практике (даже параллельные вызовы всё равно ограничены семафором и
 # рейт-лимитом). Если модель вернёт не-JSON или что-то нераспознаваемое —
@@ -1152,7 +1089,7 @@ async def solve_task_multiagent(
     final_answer = await judge_variants(task, variants, style_note)
 
     # Fallback при ошибках API (этап 2): если где-то по цепочке всплыл
-    # текст ошибки агента (например, Fireworks не смог обойти рейт-лимит даже
+    # текст ошибки агента (например, OpenAI не смог обойти рейт-лимит даже
     # после ретраев), не показываем пользователю кривой текст — откатываемся
     # на один прямой вызов вместо всего пайплайна.
     broken = "[ошибка агента" in final_answer or "[ошибка агента" in draft
@@ -1347,7 +1284,7 @@ async def generate_morning_message(style: str, profile_summary: str, streak: int
 # Отдельная лёгкая функция (не весь мультиагентный пайплайн) для кнопки
 # "💡 Совет дня" — этап 3 AI Coach, "персональные советы". Результат
 # кэшируется на уровне хендлера (db.ai.cache_*) на день, поэтому повторное
-# нажатие не тратит новый вызов Fireworks.
+# нажатие не тратит новый вызов OpenAI.
 
 TIP_SYSTEM = (
     BASE_PERSONA + "\n\n"
@@ -1452,7 +1389,7 @@ async def generate_weekly_habit_feedback(breakdown_text: str, style: str = DEFAU
 
 if __name__ == "__main__":
     # Запуск ИМЕННО из папки проекта: python multi_agent.py
-    # (нужен доступный рядом config.py с GROQ_API_KEY, как в остальном боте)
+    # (нужен доступный рядом config.py с OPENAI_API_KEY, как в остальном боте)
     #
     # Это печатает ВСЕ промежуточные этапы, чтобы можно было своими глазами
     # убедиться, что триаж/декомпозиция/дебаты/судья реально работают, а не

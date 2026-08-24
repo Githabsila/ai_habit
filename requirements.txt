@@ -1,5 +1,5 @@
+openai
 aiogram
 python-dotenv
-groq
 apscheduler
 aiohttp
