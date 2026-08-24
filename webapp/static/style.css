@@ -3754,7 +3754,7 @@ section[data-tab="home"] .streak-widget--hero:hover{
   width:34px;height:34px;
   left:calc(50% + 3px);top:calc(50% + 4px);
   transform:translate(-50%,-50%) scale(.98) rotate(2deg);
-  background:url('/static/assets/custom-top-flame.png') center/contain no-repeat;
+  background:url('/static/assets/custom-top-flame-animated.webp') center/contain no-repeat;
   opacity:.42;
   filter:brightness(.28) saturate(1.35) blur(.55px) drop-shadow(0 5px 5px rgba(0,0,0,.58));
   z-index:1;
@@ -3776,10 +3776,11 @@ section[data-tab="home"] .streak-widget--hero:hover{
 }
 
 @keyframes topFlameDance3D{
-  0%,100%{transform:translate3d(0,1px,0) perspective(90px) rotateY(-4deg) rotateX(1deg) scale(1);filter:contrast(1.12) saturate(1.16) brightness(1.03) drop-shadow(0 3px 2px rgba(0,0,0,.42)) drop-shadow(0 0 9px rgba(255,111,32,.48))}
-  22%{transform:translate3d(1px,-1px,0) perspective(90px) rotateY(5deg) rotateX(-2deg) scale(1.035,.985);filter:contrast(1.16) saturate(1.2) brightness(1.08) drop-shadow(0 3px 2px rgba(0,0,0,.4)) drop-shadow(0 0 15px rgba(255,145,45,.72))}
-  48%{transform:translate3d(-1px,-2px,0) perspective(90px) rotateY(-6deg) rotateX(2deg) scale(.985,1.05);filter:contrast(1.2) saturate(1.22) brightness(1.12) drop-shadow(0 4px 3px rgba(0,0,0,.4)) drop-shadow(0 0 19px rgba(255,188,72,.8))}
-  74%{transform:translate3d(1px,0,0) perspective(90px) rotateY(4deg) rotateX(-1deg) scale(1.025,.99);filter:contrast(1.15) saturate(1.18) brightness(1.06) drop-shadow(0 3px 2px rgba(0,0,0,.4)) drop-shadow(0 0 13px rgba(255,104,28,.64))}
+  0%,100%{transform:translate3d(0,1px,0) rotate(-1.5deg) scale(1);filter:contrast(1.1) saturate(1.14) brightness(1.03) drop-shadow(0 3px 2px rgba(0,0,0,.42)) drop-shadow(0 0 9px rgba(255,111,32,.48))}
+  18%{transform:translate3d(.5px,-1px,0) rotate(1.2deg) scale(1.018,.992);filter:contrast(1.12) saturate(1.16) brightness(1.06) drop-shadow(0 3px 2px rgba(0,0,0,.4)) drop-shadow(0 0 13px rgba(255,145,45,.62))}
+  38%{transform:translate3d(-.7px,-1.8px,0) rotate(-2deg) scale(.992,1.025);filter:contrast(1.15) saturate(1.18) brightness(1.09) drop-shadow(0 3px 2px rgba(0,0,0,.4)) drop-shadow(0 0 17px rgba(255,188,72,.72))}
+  60%{transform:translate3d(.7px,-.7px,0) rotate(1.6deg) scale(1.015,.998);filter:contrast(1.12) saturate(1.16) brightness(1.05) drop-shadow(0 3px 2px rgba(0,0,0,.4)) drop-shadow(0 0 12px rgba(255,104,28,.58))}
+  82%{transform:translate3d(-.3px,0,0) rotate(-.8deg) scale(.998,1.012);filter:contrast(1.11) saturate(1.15) brightness(1.04) drop-shadow(0 3px 2px rgba(0,0,0,.4)) drop-shadow(0 0 10px rgba(255,125,35,.52))}
 }
 @keyframes topFlameBox{0%,100%{box-shadow:0 0 22px rgba(255,101,32,.15),inset 0 1px rgba(255,255,255,.08)}50%{box-shadow:0 0 32px rgba(255,101,32,.28),0 0 55px rgba(255,71,24,.08),inset 0 1px rgba(255,255,255,.10)}}
 /* Premium 3D flame treatment */
@@ -3788,7 +3789,6 @@ section[data-tab="home"] .streak-widget--hero:hover{
   transform-style:preserve-3d;
 }
 .streak-widget__icon-wrap:hover .streak-widget__icon{
-  transform:translateY(-2px) rotateY(-10deg) rotateX(3deg) scale(1.05);
   filter:contrast(1.18) saturate(1.22) brightness(1.12) drop-shadow(0 4px 3px rgba(0,0,0,.42)) drop-shadow(0 0 20px rgba(255,155,50,.82));
 }
 .streak-widget__icon-wrap:hover .streak-widget__icon-depth{
