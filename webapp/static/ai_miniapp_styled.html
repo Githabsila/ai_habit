@@ -914,12 +914,12 @@ body{
             };
 
             const quickPrompts=[
-                ['☀️','Составь план дня','Спокойно разложи всё по приоритетам'],
-                ['🧠','Разбери мою ситуацию','Найди причины и предложи решение'],
-                ['⚡','Дай мощный фокус','Выбери главное действие прямо сейчас'],
-                ['🎯','Помоги с задачей','Разбей сложное на понятные шаги'],
-                ['💡','Дай идею','Предложи несколько сильных вариантов'],
-                ['🌙','Подведи итог дня','Помоги оценить день и следующий шаг']
+                ['☀️','Создать привычку','Начнём с малого'],
+                ['🧠','Развить мышление','Тренировка ума'],
+                ['⚡','Дать энергию','Мотивация и заряд'],
+                ['🎯','Поставить цель','Чёткий план действий'],
+                ['💡','Придумать идею','Вдохновение и креатив'],
+                ['🌙','План на вечер','Подведём итоги дня']
             ];
 
             const startVoice = () => {
@@ -1384,4 +1384,47 @@ body{overscroll-behavior:none}
 @media(prefers-reduced-motion:reduce){.quick-prompts,.quick-grid button,.emoji-launcher,.voice-btn,.send-btn{animation:none!important;transition:none!important}}
 
 
+
+/* =========================================================
+   ADAM TEXT FIX — quick actions must stay readable on mobile
+   ========================================================= */
+.quick-copy{
+  min-width:0!important;
+  overflow:hidden!important;
+}
+.quick-copy b{
+  display:block!important;
+  font-size:10px!important;
+  line-height:1.18!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+}
+.quick-copy small{
+  display:block!important;
+  margin-top:3px!important;
+  font-size:7.5px!important;
+  line-height:1.15!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  color:#938ba3!important;
+}
+@media(max-width:560px){
+  .quick-grid button{
+    grid-template-columns:34px minmax(0,1fr) 24px!important;
+    gap:7px!important;
+    min-height:58px!important;
+    padding:8px!important;
+  }
+  .quick-copy b{font-size:9.5px!important;line-height:1.15!important}
+  .quick-copy small{font-size:7px!important;line-height:1.15!important}
+}
+@media(max-width:370px){
+  .quick-grid button{grid-template-columns:34px minmax(0,1fr) 22px!important}
+  .quick-copy b{font-size:10px!important}
+  .quick-copy small{font-size:7.2px!important}
+}
 </style>
