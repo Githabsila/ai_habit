@@ -997,12 +997,23 @@ function renderPlan() {
     mainView.hidden = false;
     mainView.innerHTML = `
       <div class="plan-item plan-item--main ${plan.main_goal_completed ? "is-done" : ""}">
-        <input type="checkbox" class="plan-toggle plan-toggle--main" data-main-toggle="1" ${plan.main_goal_completed ? "checked" : ""} aria-label="Отметить главную задачу выполненной">
-        <span class="plan-item__text">${escapeHtml(plan.main_goal)}</span>
-        <div class="plan-item__actions">
-          <button type="button" class="plan-icon-btn" data-main-action="edit" aria-label="Редактировать">✎</button>
-          <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-main-action="delete" aria-label="Удалить">✕</button>
+        <div class="plan-main__flame" aria-hidden="true">
+          <span class="plan-main__flame-ring"></span>
+          <img src="/static/assets/adam-impact-flame.svg" alt="">
         </div>
+        <div class="plan-main__topline">
+          <span class="plan-main__badge">ГЛАВНАЯ ЦЕЛЬ</span>
+          <span class="plan-main__status">${plan.main_goal_completed ? "ВЫПОЛНЕНО" : "ФОКУС ДНЯ"}</span>
+        </div>
+        <div class="plan-main__content">
+          <input type="checkbox" class="plan-toggle plan-toggle--main" data-main-toggle="1" ${plan.main_goal_completed ? "checked" : ""} aria-label="Отметить главную задачу выполненной">
+          <span class="plan-item__text">${escapeHtml(plan.main_goal)}</span>
+          <div class="plan-item__actions">
+            <button type="button" class="plan-icon-btn" data-main-action="edit" aria-label="Редактировать">✎</button>
+            <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-main-action="delete" aria-label="Удалить">✕</button>
+          </div>
+        </div>
+        <div class="plan-main__shine" aria-hidden="true"></div>
       </div>`;
     mainInput.value = "";
     mainConfirm.hidden = true;
