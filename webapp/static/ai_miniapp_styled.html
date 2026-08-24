@@ -715,6 +715,67 @@ body{
 @media(max-width:560px){.quick-grid{grid-template-columns:1fr}.quick-prompts-head small{display:none}.chat-toolbar-subtitle{display:none}.quick-toggle{padding:8px 9px!important}.quick-toggle span:nth-child(2){font-size:10px}}
 @media(prefers-reduced-motion:reduce){.quick-grid button,.quick-toggle,.quick-arrow{transition:none!important}}
 
+/* =========================================================
+   ADAM GLASS LUXE 3.0 — mobile text/layout repair
+   ========================================================= */
+.quick-prompts-head span{font-size:13px!important;font-weight:850!important}
+.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
+.quick-grid button{
+  min-height:72px!important;
+  grid-template-columns:38px minmax(0,1fr) 28px!important;
+  align-items:center!important;
+}
+.quick-copy{min-width:0!important;overflow:hidden!important}
+.quick-copy b{
+  display:block!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  -webkit-line-clamp:2!important;
+  line-clamp:2!important;
+  -webkit-box-orient:vertical!important;
+  line-height:1.18!important;
+  font-size:10.5px!important;
+  letter-spacing:-.01em!important;
+}
+.quick-copy small{
+  display:block!important;
+  white-space:normal!important;
+  overflow:hidden!important;
+  text-overflow:clip!important;
+  -webkit-line-clamp:1!important;
+  line-clamp:1!important;
+  -webkit-box-orient:vertical!important;
+  line-height:1.15!important;
+  font-size:7.8px!important;
+}
+.quick-icon{flex-shrink:0!important}
+.quick-arrow{flex-shrink:0!important}
+.chat-toolbar-title{font-size:12px!important;letter-spacing:.08em!important}
+.chat-toolbar-subtitle{font-size:8.5px!important}
+.message-bubble{font-size:14px!important;line-height:1.55!important}
+.header-title-copy{min-width:0}
+.header-brand{font-size:18px!important}
+@media(max-width:560px){
+  .quick-prompts{padding:10px 9px 12px!important}
+  .quick-grid{gap:7px!important}
+  .quick-grid button{
+    min-height:68px!important;
+    grid-template-columns:34px minmax(0,1fr) 24px!important;
+    gap:7px!important;
+    padding:8px!important;
+    border-radius:16px!important;
+  }
+  .quick-icon{width:34px!important;height:34px!important;border-radius:11px!important;font-size:16px!important}
+  .quick-copy b{font-size:9.8px!important;line-height:1.16!important}
+  .quick-copy small{font-size:7.2px!important;margin-top:3px!important}
+  .quick-arrow{width:24px!important;height:24px!important;border-radius:9px!important;font-size:14px!important}
+}
+@media(max-width:370px){
+  .quick-grid{grid-template-columns:1fr!important}
+  .quick-grid button{min-height:60px!important}
+}
+
 </style>
 </head>
 <body>
@@ -914,12 +975,12 @@ body{
             };
 
             const quickPrompts=[
-                ['☀️','Создать привычку','Начнём с малого'],
-                ['🧠','Развить мышление','Тренировка ума'],
-                ['⚡','Дать энергию','Мотивация и заряд'],
-                ['🎯','Поставить цель','Чёткий план действий'],
-                ['💡','Придумать идею','Вдохновение и креатив'],
-                ['🌙','План на вечер','Подведём итоги дня']
+                ['☀️','Составь план дня','Разложим задачи по приоритетам'],
+                ['🧠','Разбери мою ситуацию','Найдём причины и решение'],
+                ['⚡','Дай мощный фокус','Выберем главное действие'],
+                ['🎯','Помоги с задачей','Разобьём сложное на шаги'],
+                ['💡','Дай идею','Предложу сильные варианты'],
+                ['🌙','Подведи итог дня','Оценим день и следующий шаг']
             ];
 
             const startVoice = () => {
@@ -1385,46 +1446,17 @@ body{overscroll-behavior:none}
 
 
 
-/* =========================================================
-   ADAM TEXT FIX — quick actions must stay readable on mobile
-   ========================================================= */
-.quick-copy{
-  min-width:0!important;
-  overflow:hidden!important;
-}
-.quick-copy b{
-  display:block!important;
-  font-size:10px!important;
-  line-height:1.18!important;
-  white-space:normal!important;
-  overflow:visible!important;
-  text-overflow:clip!important;
-  word-break:normal!important;
-  overflow-wrap:normal!important;
-}
-.quick-copy small{
-  display:block!important;
-  margin-top:3px!important;
-  font-size:7.5px!important;
-  line-height:1.15!important;
-  white-space:normal!important;
-  overflow:visible!important;
-  text-overflow:clip!important;
-  color:#938ba3!important;
-}
+/* FINAL OVERRIDE — prevent mobile quick-action text clipping */
+.quick-grid button{min-height:72px!important;grid-template-columns:38px minmax(0,1fr) 28px!important}
+.quick-copy{min-width:0!important;overflow:hidden!important}
+.quick-copy b{display:block!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.18!important;font-size:10.5px!important}
+.quick-copy small{display:block!important;white-space:normal!important;overflow:hidden!important;text-overflow:clip!important;line-height:1.15!important;font-size:7.8px!important}
 @media(max-width:560px){
-  .quick-grid button{
-    grid-template-columns:34px minmax(0,1fr) 24px!important;
-    gap:7px!important;
-    min-height:58px!important;
-    padding:8px!important;
-  }
-  .quick-copy b{font-size:9.5px!important;line-height:1.15!important}
-  .quick-copy small{font-size:7px!important;line-height:1.15!important}
+ .quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+ .quick-grid button{min-height:68px!important;grid-template-columns:34px minmax(0,1fr) 24px!important;gap:7px!important;padding:8px!important}
+ .quick-copy b{font-size:9.8px!important}
+ .quick-copy small{font-size:7.2px!important}
 }
-@media(max-width:370px){
-  .quick-grid button{grid-template-columns:34px minmax(0,1fr) 22px!important}
-  .quick-copy b{font-size:10px!important}
-  .quick-copy small{font-size:7.2px!important}
-}
+@media(max-width:370px){.quick-grid{grid-template-columns:1fr!important}.quick-grid button{min-height:60px!important}}
+
 </style>

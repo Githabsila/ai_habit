@@ -559,7 +559,9 @@
       <li class="achievement-item">
         <span class="achievement-item__icon">🏆</span>
         <div class="achievement-item__content">
-          <div class="achievement-item__title">${escapeHtml(a.title)}</div>
+          <div class="achievement-item__title-wrap">
+            <span class="achievement-item__title">${escapeHtml(a.title)}</span>
+          </div>
           <div class="achievement-item__desc">${escapeHtml(a.description || "")}</div>
         </div>
       </li>
