@@ -636,6 +636,7 @@ window.onerror = function(msg, url, line, col, error) {
     }
 
 </style>
+    <link rel="stylesheet" href="/static/adam_premium_overrides.css?v=20260824-premium">
 </head>
 <body>
     <div id="root"></div>
@@ -817,13 +818,13 @@ window.onerror = function(msg, url, line, col, error) {
                 try {
                     const res=await fetch('/api/ai/tip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:tg.initData})});
                     const data=await res.json();
-                    setMessages(p=>[...p,{id:Date.now(),role:'assistant',text:'💡 Совет дня\n\n'+(data.tip||'Сделай сегодня один маленький шаг в сторону своей цели.'),time:formatTime(),canRate:false}]);
+                    setMessages(p=>[...p,{id:Date.now(),role:'assistant',text:'✦ Совет дня\n\n'+(data.tip||'Сделай сегодня один маленький шаг в сторону своей цели.'),time:formatTime(),canRate:false}]);
                 } catch(e) { setMessages(p=>[...p,{id:Date.now(),role:'system',text:'Не удалось получить совет дня.',type:'error'}]); }
                 finally { setLoading(false); }
             };
 
             const quickPrompts=[
-                ['🎯','Составь план дня'],['📊','Проанализируй мой день'],['🔥','Мотивируй меня'],['🧠','Помоги разобраться с задачей']
+                ['◈','Составь план дня'],['◌','Проанализируй мой день'],['✦','Мотивируй меня'],['◇','Помоги разобраться с задачей']
             ];
 
             const startVoice = () => {
@@ -845,7 +846,7 @@ window.onerror = function(msg, url, line, col, error) {
                             <div className="header-status"><span className="status-dot"></span>{online?'онлайн':'нет соединения'}</div>
                         </div>
                     </div>
-                    <div className="header-buttons"><button className="icon-btn" onClick={getTip} title="Совет дня">💡</button><button className="icon-btn" onClick={goHome} title="В меню">⌂</button></div>
+                    <div className="header-buttons"><button className="icon-btn premium-icon" onClick={getTip} title="Совет дня"><span>✦</span></button><button className="icon-btn premium-icon" onClick={goHome} title="В меню"><span>⌂</span></button></div>
                 </div>
 
                 <div className="chat-toolbar"><div className="chat-toolbar-title">Твой личный наставник</div><button onClick={()=>{setShowTools(v=>!v);vibrate('light')}}>{showTools?'Скрыть':'Быстрые действия'} <span>⌄</span></button></div>
@@ -869,7 +870,7 @@ window.onerror = function(msg, url, line, col, error) {
                                     {!m.isCrisis&&<button onClick={()=>regenerate(m)} disabled={!m.sourcePrompt}>↻</button>}
                                 </div></div>
                                 {m.canRate&&!m.isCrisis&&<div className="message-actions"><button className="action-btn" onClick={()=>rate(m.id,'up')}>👍 Полезно</button><button className="action-btn" onClick={()=>rate(m.id,'down')}>👎 Можно лучше</button></div>}
-                                {m.rated&&<div className="rated-note">{m.rated==='up'?'Спасибо! Это помогает ADAM становиться лучше.':'Принял. Учту твой отзыв.'}</div>}
+                                {m.rated&&<div className="rated-note">{m.rated==='up'?'Спасибо — это помогает ADAM становиться лучше.':'Принял — учту твой отзыв.'}</div>}
                                 {m.habit&&<div className="habit-suggestion"><div><span className="habit-label">ПРЕДЛОЖЕНИЕ</span><strong>➕ {m.habit}</strong></div><button className="add-habit-btn" onClick={()=>addHabit(m.id,m.habit)}>Добавить</button></div>}
                             </div></div>}
                         </div>)}
