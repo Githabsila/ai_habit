@@ -2628,7 +2628,7 @@ body[data-theme="violet"] .player-card{
 .weekly-choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
 .weekly-choice-grid button{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:#fff;border-radius:17px;padding:18px 10px;font-weight:800}
 .weekly-choice-grid button:hover{border-color:rgba(255,122,24,.5);background:rgba(255,122,24,.1)}
-@media(max-width:420px){.streak-flame{width:112px;height:130px;margin-top:-20px}.streak-flame img{width:112px;height:130px}.streak-widget__top{align-items:flex-start}.freeze-buy-btn{font-size:10px;padding:9px}.streak-celebration{min-height:560px}.streak-celebration__title{font-size:25px}.weekly-choice-grid{grid-template-columns:1fr}.streak-widget__bottom{flex-direction:column}}
+@media(max-width:420px){.streak-flame{width:112px;height:130px;margin-top:-20px}.streak-flame img{width:112px;height:130px}.streak-widget__top{align-items:flex-start}.freeze-buy-btn{font-size:10px;padding:9px}.streak-celebration{min-height:560px}.streak-celebration__title{font-size:25px}.weekly-choice-grid{grid-template-columns:1fr}}
 
 .rating-item{display:flex!important;align-items:center;gap:9px}
 .rating-avatar{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:grid;place-items:center;background:#25253A;font-weight:800;position:relative}
@@ -4236,4 +4236,45 @@ section[data-tab="home"] .habit-list{
   .plan-main__topline{padding-left:42px}
   .plan-item--main .plan-item__text{font-size:14px}
   .plan-main__status{font-size:7px;padding:4px 7px}
+}
+
+/* === STREAK HERO COMPACT POLISH === */
+/* Нижний ряд (заморозки / статус) всегда по бокам, без переноса в столбик на узких экранах. */
+section[data-tab="home"] .streak-widget__bottom{
+  flex-direction:row;
+  justify-content:space-between;
+}
+
+/* Немного поднимаем нижний край табло — меньше воздуха снизу. */
+section[data-tab="home"] .streak-widget--hero{
+  padding-bottom:10px;
+}
+@media(max-width:420px){
+  section[data-tab="home"] .streak-widget--hero{
+    padding-bottom:8px;
+  }
+}
+
+/* Убираем правую подпись у "ПОСЛЕДНИЕ 7 ДНЕЙ" (0/7 + длинный подтекст) — табло компактнее. */
+section[data-tab="home"] .streak-widget__week-head span:last-child{
+  display:none;
+}
+section[data-tab="home"] .streak-widget__week-head{
+  justify-content:flex-start;
+  margin:2px 0 6px;
+  padding-top:6px;
+}
+
+/* "Последние 7 дней" — меньше и в одну строку. */
+section[data-tab="home"] .streak-widget__week-head span:first-child{
+  flex:0 0 auto;
+  font-size:7px;
+  letter-spacing:.10em;
+  white-space:nowrap;
+}
+
+/* Чуть компактнее сам ряд с числом дней. */
+section[data-tab="home"] .streak-widget__hero-row{
+  min-height:70px;
+  margin:8px 0 2px;
 }
