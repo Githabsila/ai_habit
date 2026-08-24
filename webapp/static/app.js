@@ -78,36 +78,77 @@
   }
 
   // ===================== API =====================
+  let bootstrapPromise = null;
+
   async function api(path, options = {}) {
+    const controller = new AbortController();
+    const timeoutMs = Number(options.timeoutMs || (path === "/api/bootstrap" ? 12000 : 15000));
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const fetchOptions = { ...options, signal: controller.signal };
+    delete fetchOptions.timeoutMs;
 
-
-    const res = await fetch(path, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "tma " + initData(),
-        ...(options.headers || {}),
-      },
-    });
-    let data = null;
-    try { data = await res.json(); } catch (e) { /* пусто */ }
-    if (!res.ok) {
-      const err = new Error((data && data.error) || "request_failed");
-      err.data = data;
-      err.status = res.status;
+    try {
+      const res = await fetch(path, {
+        ...fetchOptions,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "tma " + initData(),
+          ...(options.headers || {}),
+        },
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { /* пусто */ }
+      if (!res.ok) {
+        const err = new Error((data && data.error) || "request_failed");
+        err.data = data;
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        err.message = "Сервер слишком долго отвечает";
+        err.code = "timeout";
+      }
       throw err;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return data;
   }
 
   async function loadBootstrap() {
-    state = await api("/api/bootstrap");
-    const newLevel = state.user.level;
-    if (knownLevel !== null && newLevel > knownLevel) {
-      showLevelUp(newLevel);
-    }
-    knownLevel = newLevel;
-    renderAll();
+    // Не допускаем несколько тяжёлых /api/bootstrap одновременно: это могло
+    // происходить при быстрых кликах/обновлениях и давать гонки перерисовки.
+    if (bootstrapPromise) return bootstrapPromise;
+
+    bootstrapPromise = (async () => {
+      let lastError = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          state = await api("/api/bootstrap");
+          const newLevel = state.user.level;
+          if (knownLevel !== null && newLevel > knownLevel) {
+            showLevelUp(newLevel);
+          }
+          knownLevel = newLevel;
+          renderAll();
+          return state;
+        } catch (err) {
+          lastError = err;
+          // Один короткий повтор только для временной сетевой/серверной ошибки.
+          if (attempt === 0 && (!err.status || err.status >= 500 || err.code === "timeout")) {
+            await new Promise(resolve => setTimeout(resolve, 350));
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw lastError || new Error("request_failed");
+    })().finally(() => {
+      bootstrapPromise = null;
+    });
+
+    return bootstrapPromise;
   }
 
   // ===================== RENDER ALL =====================
@@ -136,7 +177,8 @@
 
     const days = document.getElementById("streakDays");
     if (days) {
-      days.innerHTML = (streak.last7 || []).map((d) => {
+      const last7 = Array.isArray(streak.last7) ? streak.last7 : [];
+      days.innerHTML = last7.map((d) => {
         const cls = d.status === "completed" ? "is-done" :
           d.status === "freeze" ? "is-freeze" :
           d.status === "missed" ? "is-missed" : "is-empty";

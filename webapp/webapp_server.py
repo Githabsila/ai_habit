@@ -98,7 +98,14 @@ async def _push(app, telegram_id, text):
 @web.middleware
 async def error_middleware(request, handler):
     try:
-        return await handler(request)
+        response = await handler(request)
+        # Статические файлы Mini App тоже не кэшируем: иначе Telegram/WebView
+        # может оставить старый app.js/style.css после редеплоя.
+        if request.path == "/" or request.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
     except web.HTTPException:
         raise
     except Exception:
@@ -438,7 +445,14 @@ async def delete_plan_task_route(request):
 
 @routes.get("/")
 async def index(request):
-    return web.FileResponse(BASE_DIR / "static" / "index.html")
+    response = web.FileResponse(BASE_DIR / "static" / "index.html")
+    # Telegram WebView агрессивно кэширует Mini App. Главная страница должна
+    # всегда получать актуальные ссылки на JS/CSS, иначе старый интерфейс
+    # возвращается даже после обычного обновления.
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 @routes.get("/api/shop")
 async def get_shop(request):

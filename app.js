@@ -78,36 +78,77 @@
   }
 
   // ===================== API =====================
+  let bootstrapPromise = null;
+
   async function api(path, options = {}) {
+    const controller = new AbortController();
+    const timeoutMs = Number(options.timeoutMs || (path === "/api/bootstrap" ? 12000 : 15000));
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const fetchOptions = { ...options, signal: controller.signal };
+    delete fetchOptions.timeoutMs;
 
-
-    const res = await fetch(path, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "tma " + initData(),
-        ...(options.headers || {}),
-      },
-    });
-    let data = null;
-    try { data = await res.json(); } catch (e) { /* пусто */ }
-    if (!res.ok) {
-      const err = new Error((data && data.error) || "request_failed");
-      err.data = data;
-      err.status = res.status;
+    try {
+      const res = await fetch(path, {
+        ...fetchOptions,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "tma " + initData(),
+          ...(options.headers || {}),
+        },
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { /* пусто */ }
+      if (!res.ok) {
+        const err = new Error((data && data.error) || "request_failed");
+        err.data = data;
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        err.message = "Сервер слишком долго отвечает";
+        err.code = "timeout";
+      }
       throw err;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return data;
   }
 
   async function loadBootstrap() {
-    state = await api("/api/bootstrap");
-    const newLevel = state.user.level;
-    if (knownLevel !== null && newLevel > knownLevel) {
-      showLevelUp(newLevel);
-    }
-    knownLevel = newLevel;
-    renderAll();
+    // Не допускаем несколько тяжёлых /api/bootstrap одновременно: это могло
+    // происходить при быстрых кликах/обновлениях и давать гонки перерисовки.
+    if (bootstrapPromise) return bootstrapPromise;
+
+    bootstrapPromise = (async () => {
+      let lastError = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          state = await api("/api/bootstrap");
+          const newLevel = state.user.level;
+          if (knownLevel !== null && newLevel > knownLevel) {
+            showLevelUp(newLevel);
+          }
+          knownLevel = newLevel;
+          renderAll();
+          return state;
+        } catch (err) {
+          lastError = err;
+          // Один короткий повтор только для временной сетевой/серверной ошибки.
+          if (attempt === 0 && (!err.status || err.status >= 500 || err.code === "timeout")) {
+            await new Promise(resolve => setTimeout(resolve, 350));
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw lastError || new Error("request_failed");
+    })().finally(() => {
+      bootstrapPromise = null;
+    });
+
+    return bootstrapPromise;
   }
 
   // ===================== RENDER ALL =====================
@@ -136,7 +177,8 @@
 
     const days = document.getElementById("streakDays");
     if (days) {
-      days.innerHTML = (streak.last7 || []).map((d) => {
+      const last7 = Array.isArray(streak.last7) ? streak.last7 : [];
+      days.innerHTML = last7.map((d) => {
         const cls = d.status === "completed" ? "is-done" :
           d.status === "freeze" ? "is-freeze" :
           d.status === "missed" ? "is-missed" : "is-empty";
@@ -158,7 +200,25 @@
     if (status) {
       status.textContent = streak.days > 0
         ? `Огонь горит. Не дай ему погаснуть.`
-        : `Серия сброшена. Сегодня можно начать заново.`;
+        : `Серия сброшена. Можно начать заново.`;
+    }
+    const weekHint = document.getElementById("streakWeekHint");
+    if (weekHint) {
+      const last7 = Array.isArray(streak.last7) ? streak.last7 : [];
+      const done7 = last7.filter(d => d.status === "completed").length;
+      const frozen7 = last7.filter(d => d.status === "freeze").length;
+      if (weekHint) {
+        if (done7 === 7) {
+          weekHint.textContent = "7/7";
+          weekHint.dataset.subtext = "БЕЗ ПРОПУСКОВ";
+        } else if (done7 > 0) {
+          weekHint.textContent = `${done7}/7`;
+          weekHint.dataset.subtext = "НАДО ПОДНАЖАТЬ И ПОСТАРАТЬСЯ НА СЛЕДУЮЩЕЙ НЕДЕЛЕ ЛУЧШЕ СПРАВИТЬСЯ";
+        } else {
+          weekHint.textContent = "0/7";
+          weekHint.dataset.subtext = "НАДО ПОДНАЖАТЬ И ПОСТАРАТЬСЯ НА СЛЕДУЮЩЕЙ НЕДЕЛЕ ЛУЧШЕ СПРАВИТЬСЯ";
+        }
+      }
     }
 
     const profileStatus = document.getElementById("profileStreakStatus");
@@ -421,7 +481,7 @@
     const done = habits.filter(h => h.completed).length;
     const progressLabel = document.getElementById("habitsProgressLabel");
     if (progressLabel) {
-      progressLabel.textContent = `${done}/${habits.length} сегодня`;
+      progressLabel.textContent = `${done}/${habits.length}`;
     }
 
     if (habits.length === 0) {
@@ -468,7 +528,7 @@
 
       if (isAnswer) {
         title = amount ? `+${amount} ответов` : title;
-        desc = amount ? `Ещё ${amount} запросов к ADAM сегодня` : desc;
+        desc = amount ? `Ещё ${amount} запросов к ADAM` : desc;
       }
 
       // Цена находится только слева. На кнопке никогда не дублируем
@@ -559,9 +619,7 @@
       <li class="achievement-item">
         <span class="achievement-item__icon">🏆</span>
         <div class="achievement-item__content">
-          <div class="achievement-item__title-wrap">
-            <span class="achievement-item__title">${escapeHtml(a.title)}</span>
-          </div>
+          <div class="achievement-item__title">${escapeHtml(a.title)}</div>
           <div class="achievement-item__desc">${escapeHtml(a.description || "")}</div>
         </div>
       </li>
@@ -585,9 +643,9 @@
       return;
     }
 
-    // Backend отдаёт достижения от новых к старым, поэтому первые 3 — самые свежие.
-    const latest = items.slice(0, 3);
-    const older = items.slice(3);
+    // Backend отдаёт достижения от новых к старым — сверху показываем только 2 последних.
+    const latest = items.slice(0, 2);
+    const older = items.slice(2);
 
     latestList.innerHTML = latest.map(renderAchievementItem).join("");
 
@@ -750,11 +808,11 @@
             <h2>${monthTitle}</h2>
             <p>Каждый день здесь показывает, насколько ты приблизился к своим целям.</p>
           </div>
-          <div class="calendar-today-badge">Сегодня<br><b>${today.getDate()}</b></div>
+          <div class="calendar-today-badge"><b>${today.getDate()}</b></div>
         </div>
 
         <div class="calendar-stats">
-          ${stat(`${todayPercent}%`, "сегодня")}
+          ${stat(`${todayPercent}%`, "день")}
           ${stat(completedDays, "идеальных дней")}
           ${stat(activeDays, "активных дней")}
           ${stat(`${completion}%`, "за месяц")}
@@ -773,7 +831,7 @@
           <div class="calendar-selected__icon">📅</div>
           <div>
             <strong>${today.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</strong>
-            <span>${todayInfo.total ? `${todayInfo.completed} из ${todayInfo.total} привычек выполнено` : "Сегодня пока нет отмеченных привычек"}</span>
+            <span>${todayInfo.total ? `${todayInfo.completed} из ${todayInfo.total} привычек выполнено` : "Пока нет отмеченных привычек"}</span>
           </div>
         </div>
 
@@ -1192,7 +1250,7 @@ function initPlanActions() {
 
     const map = {
         title_too_short: "Название слишком короткое",
-        already_completed: "Уже выполнено сегодня",
+        already_completed: "Уже выполнено",
         not_enough_xp_or_not_found: "Не хватает Adam Coin",
         not_found: "Не найдено",
         banned: "Доступ ограничен",
