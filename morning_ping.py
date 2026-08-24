@@ -33,10 +33,9 @@ async def run_morning_ping(bot):
 
         try:
             style = get_ai_style(telegram_id) or "neutral"
-            profile = get_user_profile(telegram_id)
-            summary = profile["summary"] if profile else ""
-
-            text = await generate_morning_message(style, summary, user["streak"])
+            # Утренний проактивный пинг не читает долгую память чата.
+            # Старые темы не должны всплывать сами по себе.
+            text = await generate_morning_message(style, "", user["streak"])
             if not text:
                 text = FALLBACK_TEXT
 

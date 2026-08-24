@@ -117,20 +117,42 @@ def get_user_profile(user_id):
     return row
 
 
-def update_user_profile(user_id, summary):
-    """Перезаписывает краткий профиль и сбрасывает счётчик сообщений."""
+def update_user_profile(user_id, summary, proactive_topic="", proactive_until=None):
+    """Обновляет долгую память и отдельную одноразовую тему для следующего дня."""
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO user_ai_profile(user_id, summary, message_count, updated_at)
-        VALUES (?, ?, 0, CURRENT_TIMESTAMP)
+        INSERT INTO user_ai_profile(user_id, summary, message_count, updated_at, proactive_topic, proactive_until)
+        VALUES (?, ?, 0, CURRENT_TIMESTAMP, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
             summary = excluded.summary,
             message_count = 0,
-            updated_at = CURRENT_TIMESTAMP
-    """, (user_id, summary))
+            updated_at = CURRENT_TIMESTAMP,
+            proactive_topic = excluded.proactive_topic,
+            proactive_until = excluded.proactive_until
+    """, (user_id, summary, proactive_topic or "", proactive_until))
     conn.commit()
     conn.close()
+
+
+def get_proactive_topic(user_id):
+    """Возвращает одноразовую тему только пока не истёк её 24-часовой срок."""
+    conn = connect()
+    cursor = conn.cursor()
+    row = cursor.execute("""
+        SELECT proactive_topic, proactive_until FROM user_ai_profile WHERE user_id=?
+    """, (user_id,)).fetchone()
+    conn.close()
+    if not row or not row["proactive_topic"] or not row["proactive_until"]:
+        return ""
+    import datetime as _dt
+    try:
+        expires = _dt.datetime.fromisoformat(str(row["proactive_until"]).replace("Z", ""))
+        if expires <= _dt.datetime.utcnow():
+            return ""
+    except Exception:
+        return ""
+    return str(row["proactive_topic"])
 
 
 def bump_profile_counter(user_id):

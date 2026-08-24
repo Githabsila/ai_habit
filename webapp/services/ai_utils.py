@@ -8,6 +8,7 @@ from db import (
     get_recent_negative_reasons,
     get_daily_plan,
     get_timezone,
+    get_proactive_topic,
 )
 
 
@@ -131,3 +132,48 @@ def _cache_key(text: str, style: str) -> str:
     return hashlib.md5(
         f"{normalized}|{style}".encode("utf-8")
     ).hexdigest()
+
+def build_proactive_context(user_id: int) -> str:
+    """Контекст для советов/проактивных сообщений.
+
+    Намеренно НЕ включает долгую память и прошлые замечания: проактивные
+    сообщения должны опираться на актуальный день. Одноразовая тема из
+    недавнего разговора допускается максимум на 24 часа.
+    """
+    progress = get_progress(user_id)
+    if not progress:
+        return ""
+    lines = []
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    try:
+        local_now = datetime.now(ZoneInfo(get_timezone(user_id)))
+        lines.append(f"Текущее локальное время пользователя: {local_now.strftime('%H:%M')}")
+    except Exception:
+        pass
+    lines.extend([
+        f"Уровень: {progress['level']}",
+        f"Серия дней подряд: {progress['streak']}",
+    ])
+    habits = get_habits(user_id)
+    if habits:
+        lines.append("Актуальные привычки на сегодня:")
+        for habit in habits:
+            status = "выполнена" if habit["completed"] else "не выполнена"
+            planned = habit["planned_time"] if "planned_time" in habit.keys() else None
+            timing = f" — время: {planned}" if planned else ""
+            lines.append(f"• {habit['title']} — {status}{timing}")
+    plan = get_daily_plan(user_id)
+    if plan and (plan["main_goal"] or plan["tasks"]):
+        lines.append("План на сегодня:")
+        if plan["main_goal"]:
+            status = "выполнена" if plan.get("main_goal_completed") else "НЕ выполнена"
+            lines.append(f"• Главная задача: {plan['main_goal']} — {status}")
+        for task in plan["tasks"]:
+            if task["text"]:
+                status = "выполнено" if task["completed"] else "не выполнено"
+                lines.append(f"• Задача: {task['text']} — {status}")
+    topic = get_proactive_topic(user_id)
+    if topic:
+        lines.append("Одноразовая тема для мягкого напоминания: " + topic)
+    return "\n".join(lines)

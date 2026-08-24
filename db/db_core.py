@@ -211,9 +211,16 @@ def create_tables():
         user_id INTEGER UNIQUE,
         summary TEXT DEFAULT '',
         message_count INTEGER DEFAULT 0,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        proactive_topic TEXT DEFAULT '',
+        proactive_until TIMESTAMP
     )
     """)
+    profile_columns = {row[1] for row in cursor.execute("PRAGMA table_info(user_ai_profile)").fetchall()}
+    if "proactive_topic" not in profile_columns:
+        cursor.execute("ALTER TABLE user_ai_profile ADD COLUMN proactive_topic TEXT DEFAULT ''")
+    if "proactive_until" not in profile_columns:
+        cursor.execute("ALTER TABLE user_ai_profile ADD COLUMN proactive_until TIMESTAMP")
 
     # ---------------- AI КЭШ ОТВЕТОВ ----------------
     # Кэш финальных ответов на простые/повторяющиеся сообщения ("привет",

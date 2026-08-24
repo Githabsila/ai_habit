@@ -48,6 +48,7 @@ import asyncio
 from webapp.services.ai_utils import (
     build_history_text,
     build_user_context,
+    build_proactive_context,
     _cache_key,
 )
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
@@ -78,13 +79,23 @@ def _is_throttled(user_id: int) -> float | None:
 
 
 async def _update_memory(user_id: int):
-    """Обновить долгосрочную память пользователя."""
+    """Обновляет тихую долгую память и, при необходимости, одну тему на следующие 24 часа."""
     try:
         profile = get_user_profile(user_id)
         existing_summary = profile["summary"] if profile else ""
         recent_history = build_history_text(user_id, limit=MEMORY_UPDATE_EVERY + 2)
-        new_summary = await summarize_user_memory(existing_summary, recent_history)
-        update_user_profile(user_id, new_summary)
+        memory = await summarize_user_memory(existing_summary, recent_history)
+        import json as _json
+        from datetime import datetime as _dt, timedelta as _td
+        summary = existing_summary
+        followup = ""
+        if isinstance(memory, dict):
+            summary = str(memory.get("summary") or existing_summary).strip()[:1500]
+            followup = str(memory.get("followup") or "").strip()[:180]
+        else:
+            summary = str(memory or existing_summary).strip()[:1500]
+        until = (_dt.utcnow() + _td(hours=24)).isoformat(sep=" ") if followup else None
+        update_user_profile(user_id, summary, followup, until)
     except Exception as e:
         logger.exception(f"Не удалось обновить профиль памяти для {user_id}")
         log_error("memory_update", e, user_id)
@@ -391,7 +402,7 @@ async def ai_daily_tip_miniapp(request):
 
     if tip is None:
         style = get_ai_style(user_id)
-        user_context = build_user_context(user_id)
+        user_context = build_proactive_context(user_id)
         try:
             tip = await generate_daily_tip(user_context, style)
         except Exception as e:
