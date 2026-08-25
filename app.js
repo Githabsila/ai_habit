@@ -152,19 +152,47 @@
   }
 
   // ===================== RENDER ALL =====================
+  function scheduleIdleWork(fn) {
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(fn, { timeout: 1200 });
+    } else {
+      window.setTimeout(fn, 80);
+    }
+  }
+
   function renderAll() {
+    // Критический путь: сначала только то, что пользователь видит на Главной.
+    // Привычки и Ударный режим больше не конкурируют за CPU с магазином,
+    // рейтингом и архивом достижений.
     renderPlayerCard();
     renderHabits();
-    renderShop();
-    renderThemePicker();
-    renderAchievements();
-    renderRating();
-    renderCalendar();
     renderPlan();
     renderStreak();
     maybeShowStreakOnboarding();
-    maybeShowWeeklyBonus();
+
+    // Второстепенные вкладки дорисовываем после первого кадра, когда браузер
+    // освободит основной поток. Качество UI не меняется — меняется только
+    // порядок работы.
+    requestAnimationFrame(() => {
+      scheduleIdleWork(() => {
+        renderShop();
+        renderThemePicker();
+        renderAchievements();
+        renderRating();
+        renderCalendar();
+        maybeShowWeeklyBonus();
+      });
+    });
   }
+
+  // Пока Mini App не виден, декоративные анимации не должны тратить батарею/CPU.
+  // При возврате браузер продолжает их с текущего состояния без резкого скачка.
+  document.addEventListener("visibilitychange", () => {
+    document.documentElement.classList.toggle(
+      "app-performance-paused",
+      document.hidden
+    );
+  });
 
   // ===================== УДАРНЫЙ РЕЖИМ =====================
   let streakCelebrationTimer = null;

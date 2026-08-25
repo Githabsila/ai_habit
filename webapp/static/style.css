@@ -3732,7 +3732,7 @@ section[data-tab="home"] .streak-widget--hero:hover{
 .streak-widget__top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .streak-widget__brand{display:flex;align-items:center;gap:11px;min-width:0}
 .streak-widget__icon-wrap{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;border-radius:15px;background:linear-gradient(145deg,rgba(255,126,38,.22),rgba(255,73,30,.08));border:1px solid rgba(255,156,83,.20);box-shadow:0 0 24px rgba(255,101,32,.16),inset 0 1px rgba(255,255,255,.08)}
-.streak-widget__icon{width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 0 9px rgba(255,111,32,.48));animation:impactFire 2.2s ease-in-out infinite}
+.streak-widget__icon{width:30px;height:30px;object-fit:contain;filter:drop-shadow(0 0 9px rgba(255,111,32,.48));animation:impactFire 2.2s ease-in-out infinite}
 .streak-widget__eyebrow{display:flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.19em;color:#ffad69;font-weight:900;text-transform:uppercase}
 .streak-live-dot{width:6px;height:6px;border-radius:50%;background:#ff7a18;box-shadow:0 0 0 4px rgba(255,122,24,.11),0 0 11px rgba(255,122,24,.7);animation:streakLive 1.7s ease-in-out infinite}
 .streak-widget__title{margin-top:3px;font:850 18px/1.05 'Space Grotesk',sans-serif;letter-spacing:-.025em;color:#fff}
@@ -3742,12 +3742,12 @@ section[data-tab="home"] .streak-widget--hero:hover{
 .streak-widget__hero-row{display:flex;align-items:center;justify-content:space-between;min-height:78px;margin:10px 0 3px}
 .streak-widget__count strong{display:block;font:900 35px/.95 'Space Grotesk',sans-serif;letter-spacing:-.055em;color:#fff;text-shadow:0 6px 22px rgba(255,101,32,.18)}
 .streak-widget__count span{display:block;margin-top:8px;color:#a9a5b8;font-size:10px;line-height:1.3;max-width:215px}
-.streak-widget__flame-orbit{position:relative;width:82px;height:68px;flex:0 0 82px;display:grid;place-items:center}
+.streak-widget__flame-orbit{position:relative;width:82px;height:82px;flex:0 0 82px;display:grid;place-items:center}
 .streak-widget__mini-flame{position:relative;z-index:3;font-size:31px;filter:drop-shadow(0 0 15px rgba(255,108,24,.58));animation:impactFire 1.8s ease-in-out infinite}
 .streak-orbit{position:absolute;inset:9px;border:1px solid rgba(255,133,58,.19);border-radius:50%;transform:rotate(-18deg);animation:streakOrbit 6s linear infinite}
-.streak-orbit::after{content:"";position:absolute;width:6px;height:6px;border-radius:50%;background:#ffad61;box-shadow:0 0 12px #ff7a18;right:-2px;top:13px}
+.streak-orbit::after{content:"";position:absolute;width:5px;height:5px;border-radius:50%;background:#ffad61;box-shadow:0 0 8px #ff7a18;right:-2px;top:13px}
 .streak-orbit.orbit-2{inset:17px;transform:rotate(54deg);border-color:rgba(151,111,255,.18);animation-duration:8s;animation-direction:reverse}
-.streak-orbit.orbit-2::after{background:#9d7cff;box-shadow:0 0 12px #7c5cff;left:2px;top:4px;right:auto}
+.streak-orbit.orbit-2::after{background:#9d7cff;box-shadow:0 0 8px #7c5cff;left:2px;top:4px;right:auto}
 .streak-widget__week-head{display:flex;align-items:center;justify-content:space-between;margin:4px 0 8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.055);font-size:8px;font-weight:900;letter-spacing:.15em;color:#777487}
 .streak-widget__week-head span:last-child{letter-spacing:.02em;font-weight:700;color:#625f70;text-transform:none}
 .streak-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:0}
@@ -3766,8 +3766,8 @@ section[data-tab="home"] .streak-widget--hero:hover{
 @media(max-width:420px){
   section[data-tab="home"] .streak-widget--hero{padding:16px 14px 13px;border-radius:26px;min-height:240px}
   .streak-widget__icon-wrap{width:42px;height:42px;flex-basis:42px;border-radius:13px}.streak-widget__icon{width:31px;height:31px}
-  .streak-widget__title{font-size:16px}.streak-widget__count strong{font-size:31px}.streak-widget__count span{max-width:190px;font-size:9px}
-  .streak-widget__flame-orbit{width:70px;flex-basis:70px}.streak-widget__mini-flame{font-size:27px}.streak-day{height:45px;border-radius:12px}.streak-day span{font-size:14px}.streak-day small{font-size:7px}
+  .streak-widget__title{font-size:16px}.streak-widget__icon{width:27px;height:27px}.streak-widget__count strong{font-size:31px}.streak-widget__count span{max-width:190px;font-size:9px}
+  .streak-widget__flame-orbit{width:70px;height:70px;flex-basis:70px}.streak-widget__mini-flame{font-size:27px}.streak-day{height:45px;border-radius:12px}.streak-day span{font-size:14px}.streak-day small{font-size:7px}
   .freeze-buy-btn{padding:8px 8px;font-size:9px}.freeze-buy-btn b{display:none}.streak-widget__bottom{font-size:8px}
 }
 @media(prefers-reduced-motion:reduce){
@@ -3863,18 +3863,18 @@ section[data-tab="home"] .streak-widget--hero:hover{
   font-size:10px!important;
 }
 .streak-profile-fire{
-  width:66px;height:74px;right:14px;top:8px;
+  width:56px;height:63px;right:14px;top:14px;
   display:grid;place-items:center;
 }
 .streak-profile-fire img{
-  width:62px;height:70px;object-fit:contain;
+  width:53px;height:60px;object-fit:contain;
   filter:drop-shadow(0 0 16px rgba(255,122,24,.55));
   animation:profileFire 1.8s ease-in-out infinite;
 }
 @media(max-width:430px){
   .streak-profile-card--premium{min-height:116px;padding:14px}
-  .streak-profile-fire{width:52px;height:60px;right:8px;top:6px}
-  .streak-profile-fire img{width:50px;height:57px}
+  .streak-profile-fire{width:47px;height:54px;right:8px;top:11px}
+  .streak-profile-fire img{width:45px;height:51px}
 }
 
 /* Экран «Поделиться прогрессом»: компактнее, аккуратнее и без «В ударе N дн.» */
@@ -4025,7 +4025,7 @@ section[data-tab="home"] .habit-list{
   background:linear-gradient(145deg,rgba(255,215,106,.18),rgba(245,158,11,.07));
   border:1px solid rgba(255,215,106,.18);
   box-shadow:0 0 18px rgba(245,158,11,.12);
-}
+  line-height:1; text-align:center; transform:translateY(-.5px);}
 .plan-label-line{
   height:1px;
   flex:1;
@@ -4213,4 +4213,37 @@ section[data-tab="home"] .streak-widget__week-head span:first-child{
 section[data-tab="home"] .streak-widget__hero-row{
   min-height:70px;
   margin:8px 0 2px;
+}
+
+/* === PERFORMANCE PASS 25.08 ===
+   Двигаем только transform/opacity и ставим декоративные анимации на паузу,
+   когда приложение скрыто. Без постоянного will-change: браузер сам управляет слоями. */
+.app-performance-paused .streak-widget__icon,
+.app-performance-paused .streak-widget__mini-flame,
+.app-performance-paused .streak-orbit,
+.app-performance-paused .streak-widget__spark,
+.app-performance-paused .streak-widget--hero::before,
+.app-performance-paused .streak-live-dot,
+.app-performance-paused .streak-profile-fire img{
+  animation-play-state:paused!important;
+}
+@media (max-width:600px){
+  .streak-widget__glow--orange,
+  .streak-widget__glow--purple,
+  .streak-widget--hero::after{
+    filter:none;
+    opacity:.65;
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .streak-widget__icon,
+  .streak-widget__mini-flame,
+  .streak-orbit,
+  .streak-widget__spark,
+  .streak-widget--hero::before,
+  .streak-live-dot,
+  .streak-profile-fire img{
+    animation:none!important;
+    will-change:auto;
+  }
 }

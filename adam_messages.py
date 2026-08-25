@@ -55,9 +55,11 @@ def streak_phrase(n: int) -> str:
 # =====================================
 
 HABIT_NOON_TEMPLATES = [
-    "На контрольной точке вижу: {verb} {habit_word}: {left}. {habits}. {action} {emoji}",
-    "Проверка курса: {verb} {habit_word}: {left}. {habits}. {action} {emoji}",
-    "Контрольная точка: {verb} {habit_word}: {left}. {habits}. {action} {emoji}",
+    "Контрольная точка: сейчас открыто {left} {habit_word}: {habits}. К этому моменту часть уже могла быть закрыта — добери оставшееся в удобном темпе {emoji}",
+    "Проверил прогресс на 10:00: {verb} {habit_word}: {habits}. Не нужно делать всё разом — закрой следующую, когда будет удобно {emoji}",
+    "Сверяю курс: осталось {left} {habit_word} — {habits}. Хороший момент посмотреть, что реально успеешь закрыть сегодня {emoji}",
+    "На сейчас вижу {left} {habit_word}: {habits}. Двигайся по одной — так уведомлений меньше, а прогресс понятнее {emoji}",
+    "Короткая проверка дня: {verb} {habit_word}: {habits}. Выбери следующую привычку и продолжай без спешки {emoji}",
 ]
 
 
@@ -66,9 +68,7 @@ def format_habit_noon_message(incomplete_habits) -> str:
     left = len(titles)
     habits = ", ".join(f"«{t}»" for t in titles)
     habit_word = plural_ru(left, "привычка", "привычки", "привычек")
-    verb = "Неотмечена" if left == 1 else "Неотмечены"
-    action = "Выполни её, когда будет удобно" if left == 1 else "Выполни их, когда будет удобно"
-
+    verb = "Не отмечена" if left == 1 else "Не отмечены"
     return pick(
         HABIT_NOON_TEMPLATES,
         pool=MOTIVATION_EMOJIS,
@@ -76,21 +76,40 @@ def format_habit_noon_message(incomplete_habits) -> str:
         habit_word=habit_word,
         habits=habits,
         verb=verb,
-        action=action,
     )
 
 
 # Совместимость со старыми вызовами. Теперь это не «утренний» текст и не
 # утверждает, что привычку нужно сделать с утра.
 HABIT_REMINDER_TEMPLATES = [
-    "Привычка «{title}» ещё не отмечена. Вернись к ней, когда наступит подходящее время {emoji}",
-    "«{title}» пока остаётся открытой. Если её время ещё не пришло — просто держи её в уме {emoji}",
-    "Я вижу, что «{title}» ещё не закрыта. Выбери удобный момент и доведи её до конца {emoji}",
+    "Привычка «{title}» ещё не отмечена. Если её время уже пришло — самое время закрыть её {emoji}",
+    "«{title}» пока открыта. Найди для неё несколько минут и доведи до конца {emoji}",
+    "Я вижу, что «{title}» ещё ждёт отметки. Сделай её, когда будет удобный момент {emoji}",
+    "Проверка по привычке «{title}»: пока без отметки. Один небольшой шаг — и она закрыта {emoji}",
+    "«{title}» ещё в списке на сегодня. Не обязательно спешить — просто не потеряй её из фокуса {emoji}",
+    "На сегодня осталась привычка «{title}». Если можешь — закрой её сейчас и освободи голову {emoji}",
 ]
 
 
-def format_habit_reminder_message(title: str) -> str:
-    return pick(HABIT_REMINDER_TEMPLATES, pool=SOFT_EMOJIS, title=title)
+def format_habit_reminder_message(title: str, template_index=None) -> str:
+    if template_index is None:
+        return pick(HABIT_REMINDER_TEMPLATES, pool=SOFT_EMOJIS, title=title)
+    template = HABIT_REMINDER_TEMPLATES[template_index % len(HABIT_REMINDER_TEMPLATES)]
+    return template.format(title=title, emoji=random_emoji(SOFT_EMOJIS))
+
+
+def format_habit_reminder_messages(titles) -> list[str]:
+    """Отдельное сообщение на каждую привычку без повторения шаблона
+    внутри одной рассылки."""
+    titles = [str(t) for t in titles]
+    if not titles:
+        return []
+    order = list(range(len(HABIT_REMINDER_TEMPLATES)))
+    random.shuffle(order)
+    return [
+        format_habit_reminder_message(title, order[i % len(order)])
+        for i, title in enumerate(titles)
+    ]
 
 
 HABIT_FINAL_MOTIVATION_TEMPLATES = [
@@ -145,25 +164,41 @@ def format_day_progress_message(done: int, total: int) -> str:
 # =====================================
 
 EVENING_PROGRESS_TEMPLATES = [
-    "Вечерняя сверка: осталось {left} {left_word} из плана. Если закроешь хотя бы следующую сейчас — день уже будет ощущаться иначе {emoji}",
-    "День подходит к концу. У тебя ещё {left} {left_word}: {task_list}. Реши, что действительно важно закрыть сегодня {emoji}",
-    "Я вижу {left} {left_word}, которые ещё открыты. Не гонись за идеальностью — выбери приоритет и закончи его {emoji}",
-    "Финишная проверка: {left} {left_word} ещё ждут тебя. Если они важны сегодня — самое время вернуться к ним {emoji}",
+    "Вечерняя сверка: {left_verb} {left} {left_word}, {relative}. {task_list}. Если это важно сегодня — закрой приоритет и спокойно заверши день {emoji}",
+    "Финишная проверка: {left} {left_word}, {relative}: {task_list}. Не распыляйся — выбери главное и доведи до конца {emoji}",
+    "День подходит к концу. В плане ещё {left} {left_word}, {relative}: {task_list}. Посмотри, что можешь закрыть сегодня {emoji}",
+    "Проверил весь план, включая главную задачу: {left} {left_word}, {relative}. {task_list}. Ещё есть время закончить главное {emoji}",
 ]
 
 
-def format_evening_progress_message(done: int, total: int, task_list=None) -> str:
-    left = total - done
-    names = task_list or []
-    listed = ", ".join(f"«{x}»" for x in names[:3])
-    if len(names) > 3:
-        listed += f" и ещё {len(names)-3}"
+def format_evening_progress_message(done: int, total: int, task_list=None, main_goal=None) -> str:
+    # done/total относятся к обычным задачам плана. Для вечернего сообщения
+    # считаем ВСЕ открытые пункты вместе с главной задачей, чтобы ADAM не
+    # терял её и не отправлял два раздельных уведомления.
+    names = []
+    if main_goal:
+        names.append(f"главная: «{main_goal}»")
+    names.extend(f"«{x}»" for x in (task_list or []))
+
+    left = len(names)
+    if left == 0:
+        return format_all_tasks_done_message()
+
+    left_word = task_word(left)
+    left_verb = "Осталась" if left == 1 else "Остались"
+    relative = "которая ещё открыта" if left == 1 else "которые ещё открыты"
+    listed = ", ".join(names[:6])
+    if len(names) > 6:
+        listed += f" и ещё {len(names) - 6}"
+
     return pick(
         EVENING_PROGRESS_TEMPLATES,
         pool=TASK_EMOJIS,
         left=left,
-        left_word=task_word(left),
-        task_list=listed or "главное из плана",
+        left_word=left_word,
+        left_verb=left_verb,
+        relative=relative,
+        task_list=listed,
     )
 
 

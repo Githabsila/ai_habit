@@ -57,7 +57,7 @@ logger = logging.getLogger("multi_agent")
 
 MODEL = "gpt-5.6"
 FAST_MODEL = "gpt-5.6"
-OPENAI_TIMEOUT = 120.0
+OPENAI_TIMEOUT = 15.0
 
 MAX_SUBTASKS = 3          # было 4 — меньше подзадач = меньше запросов и токенов
 NUM_DEBATERS = 2          # было 3 — меньше "спорщиков" = меньше токенов на дебаты
@@ -515,7 +515,7 @@ async def fast_answer(
     # хватало, и это резало ответ на полуслове (Проблема №1). У _ask теперь
     # есть свой аварийный повтор/подрезка, но на первом заходе лучше сразу
     # дать реальный запас.
-    return await _ask(system, user, temperature=0.55, max_tokens=320)
+    return await _ask(system, user, temperature=0.55, max_tokens=650)
 
 
 # ============ 0c. КРИЗИС-ГЕЙТ ============
@@ -1027,29 +1027,29 @@ async def solve_task_multiagent(
             "если пользователь прямо не спросил о выполненных привычках."
         )
 
-    # Быстрый локальный роутинг: обычные короткие сообщения не тратят
-    # отдельный LLM-вызов на классификацию — сразу идут в FAST_MODEL.
-    # Явный кризисный сигнал остаётся под отдельной проверкой безопасности.
-    if not _needs_deep_pipeline(task) and not _has_crisis_signal(task):
-        mood = "нейтрально"
-        complexity = "просто"
-        is_crisis = False
-        trace.mood = mood
-        trace.complexity = complexity
+    # Быстрый путь: один качественный вызов вместо каскада из
+    # классификатора -> декомпозера -> воркеров -> синтезатора -> дебатёров ->
+    # судьи. На длинных запросах старый каскад мог занимать десятки секунд.
+    # ADAM получает тот же актуальный user_context и историю, но отвечает
+    # напрямую — это и есть основной режим приложения.
+    if not _has_crisis_signal(task):
+        trace.mood = "нейтрально"
+        trace.complexity = "прямой быстрый ответ"
         trace.is_crisis = False
         answer = await fast_answer(task, history, user_context, "", style_note)
         answer = _apply_first_response_note(answer, first_message, user_context)
         trace.final_answer = answer
         return {
             "answer": answer,
-            "mood": mood,
+            "mood": "нейтрально",
             "is_crisis": False,
             "suggested_habit": None,
-            "complexity": "просто",
+            "complexity": "прямой быстрый ответ",
         }
 
-    # Для потенциально сложных сообщений или сообщений с явным кризисным
-    # сигналом оставляем полноценный классификатор.
+    # Только сообщения с явным кризисным сигналом проходят отдельную
+    # проверку безопасности. Это сохраняет защитный контур без замедления
+    # обычного чата.
     mood, complexity, is_crisis = await classify_message(task)
     trace.mood = mood
     trace.complexity = complexity
@@ -1065,56 +1065,17 @@ async def solve_task_multiagent(
             "complexity": "кризис",
         }
 
-    mood_note = MOOD_GUIDANCE.get(mood, "")
-
-    if complexity == "просто":
-        answer = await fast_answer(task, history, user_context, mood_note, style_note)
-        answer = _apply_first_response_note(answer, first_message, user_context)
-        trace.final_answer = answer
-        return {
-            "answer": answer,
-            "mood": mood,
-            "is_crisis": False,
-            "suggested_habit": None,
-            "complexity": "просто",
-        }
-
-    subtasks = await decompose_task(task)
-    trace.subtasks = subtasks
-
-    subtask_results = await solve_all_subtasks(task, subtasks, history, user_context, mood_note, style_note)
-    trace.subtask_results = subtask_results
-
-    draft = await synthesize_draft(task, subtask_results, history, user_context, mood_note, style_note)
-    trace.draft = draft
-
-    variants = await generate_all_variants(task, draft, style_note)
-    trace.variants = variants
-
-    final_answer = await judge_variants(task, variants, style_note)
-
-    # Fallback при ошибках API (этап 2): если где-то по цепочке всплыл
-    # текст ошибки агента (например, OpenAI не смог обойти рейт-лимит даже
-    # после ретраев), не показываем пользователю кривой текст — откатываемся
-    # на один прямой вызов вместо всего пайплайна.
-    broken = "[ошибка агента" in final_answer or "[ошибка агента" in draft
-    if broken:
-        logger.warning("Обнаружена ошибка агента в пайплайне — откат на fast_answer")
-        final_answer = await fast_answer(task, history, user_context, mood_note, style_note)
-
-    final_answer = _apply_first_response_note(final_answer, first_message, user_context)
-    trace.final_answer = final_answer
-
-    suggested_habit = None if broken else await extract_suggested_habit(final_answer)
-    trace.suggested_habit = suggested_habit
-
+    answer = await fast_answer(task, history, user_context, "", style_note)
+    answer = _apply_first_response_note(answer, first_message, user_context)
+    trace.final_answer = answer
     return {
-        "answer": final_answer,
+        "answer": answer,
         "mood": mood,
         "is_crisis": False,
-        "suggested_habit": suggested_habit,
-        "complexity": complexity,
+        "suggested_habit": None,
+        "complexity": complexity or "прямой быстрый ответ",
     }
+
 
 
 # ============ ДОЛГОСРОЧНАЯ ПАМЯТЬ ============
@@ -1301,8 +1262,8 @@ async def generate_morning_message(style: str, profile_summary: str, streak: int
 # ============ СОВЕТ ДНЯ ============
 # Отдельная лёгкая функция (не весь мультиагентный пайплайн) для кнопки
 # "💡 Совет дня" — этап 3 AI Coach, "персональные советы". Результат
-# кэшируется на уровне хендлера (db.ai.cache_*) на день, поэтому повторное
-# нажатие не тратит новый вызов OpenAI.
+# НЕ кэшируется: повторное нажатие должно получать свежий снимок текущих
+# задач и привычек, иначе вечерний совет будет повторять утренний контекст.
 
 TIP_SYSTEM = (
     BASE_PERSONA + "\n\n"

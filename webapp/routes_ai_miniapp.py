@@ -396,22 +396,20 @@ async def ai_daily_tip_miniapp(request):
 
     user_id = tg_user["id"]
 
-    # Проверяем кэш (один совет в день)
-    cache_key = f"tip:{user_id}:{date.today()}"
-    tip = cache_get(cache_key)
-
-    if tip is None:
-        style = get_ai_style(user_id)
-        user_context = build_proactive_context(user_id)
-        try:
-            tip = await generate_daily_tip(user_context, style)
-        except Exception as e:
-            logger.exception(f"Не удалось сформировать совет дня для {user_id}")
-            log_error("daily_tip", e, user_id)
-            return web.json_response(
-                {"error": "tip_error", "message": "Не получилось сформировать совет"},
-                status=500
-            )
+    # Не кэшируем совет: каждый тап получает свежий снимок задач и привычек.
+    # Утренний ответ не должен жить до вечера, если пользователь уже закрыл
+    # задачи или продвинулся по привычкам.
+    style = get_ai_style(user_id)
+    user_context = build_proactive_context(user_id)
+    try:
+        tip = await generate_daily_tip(user_context, style)
+    except Exception as e:
+        logger.exception(f"Не удалось сформировать совет дня для {user_id}")
+        log_error("daily_tip", e, user_id)
+        return web.json_response(
+            {"error": "tip_error", "message": "Не получилось сформировать совет"},
+            status=500
+        )
 
         if tip and "[ошибка агента" not in tip:
             cache_set(cache_key, tip)

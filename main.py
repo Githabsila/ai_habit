@@ -19,7 +19,7 @@ from streak_scheduler import run_streak_rollover, run_streak_risk_notifications,
 from coach import (
     run_streak_risk_check, run_weekly_report, run_hard_deadline_check,
     run_weekly_habit_analysis, run_task_reminder_check,
-    run_noon_habit_reminders, run_day_progress_check, run_evening_progress_check,
+    run_habit_checkpoint_10, run_habit_reminders_12, run_day_progress_check, run_evening_progress_check,
     run_week_start_ping, run_week_end_ping, run_month_start_ping, run_month_end_ping,
 )
 from onboarding_auto import run_auto_approve
@@ -113,9 +113,10 @@ async def main():
     scheduler.add_job(run_weekly_streak_bonus, "interval", minutes=1, args=[bot])
 
     # --- Умные напоминания ---
-    # 12:00 — единая контрольная точка по привычкам (локальное время каждого пользователя).
-    # Job тикает каждую минуту, а сама функция пропускает всех, кто не в своём полудне.
-    scheduler.add_job(run_noon_habit_reminders, "interval", minutes=1, args=[bot])
+    # 10:00 — единая контрольная точка по привычкам (локальное время каждого пользователя).
+    # Job тикает каждую минуту, а сама функция пропускает всех, кто не в своём 10:00.
+    scheduler.add_job(run_habit_checkpoint_10, "interval", minutes=1, args=[bot])
+    scheduler.add_job(run_habit_reminders_12, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_day_progress_check, "cron", hour=15, minute=0, args=[bot])
     # Финальная сверка плана — 22:30 по локальному времени пользователя.
     # Функция вызывается раз в минуту и сама проверяет timezone каждого пользователя.

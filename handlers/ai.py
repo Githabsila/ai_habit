@@ -325,19 +325,17 @@ async def ai_feedback_reason(callback: CallbackQuery):
 async def ai_daily_tip(callback: CallbackQuery):
     user_id = callback.from_user.id
     await callback.answer("💡 Готовлю совет...")
-    cache_key = f"tip:{user_id}:{date.today()}"
-    tip = cache_get(cache_key)
-    if tip is None:
-        style = get_ai_style(user_id)
-        user_context = build_proactive_context(user_id)
-        try:
-            tip = await generate_daily_tip(user_context, style)
-        except Exception as e:
-            logger.exception(f"Не удалось сформировать совет дня для {user_id}")
-            log_error("daily_tip", e, user_id)
-            tip = "❌ Не получилось сформировать совет, попробуйте позже."
-        if tip and "[ошибка агента" not in tip:
-            cache_set(cache_key, tip)
+    # Совет дня НЕ кэшируем: при повторном нажатии ADAM заново читает
+    # актуальные задачи и привычки. Поэтому вечером он уже не опирается на
+    # утренний снимок прогресса.
+    style = get_ai_style(user_id)
+    user_context = build_proactive_context(user_id)
+    try:
+        tip = await generate_daily_tip(user_context, style)
+    except Exception as e:
+        logger.exception(f"Не удалось сформировать совет дня для {user_id}")
+        log_error("daily_tip", e, user_id)
+        tip = "❌ Не получилось сформировать совет, попробуйте позже."
     await send_long_message(
         callback.message,
         tip,
