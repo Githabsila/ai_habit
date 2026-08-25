@@ -102,7 +102,7 @@ async def main():
     scheduler.add_job(run_weekly_report, "cron", day_of_week="sun", hour=19, minute=0, args=[bot])
     scheduler.add_job(run_weekly_habit_analysis, "cron", day_of_week="sun", hour=19, minute=15, args=[bot])
     # Утреннее приветствие — в 06:00, не в 12:00/08:00 (промт п.12)
-    scheduler.add_job(run_morning_ping, "cron", hour=6, minute=0, args=[bot])
+    scheduler.add_job(run_morning_ping, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_goal_feedback, "cron", day_of_week="mon", hour=10, minute=0, args=[bot])
     scheduler.add_job(run_auto_approve, "interval", minutes=15, args=[bot])
     # Ударный режим работает по локальному времени каждого пользователя.

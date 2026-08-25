@@ -79,6 +79,7 @@
 
   // ===================== API =====================
   let bootstrapPromise = null;
+  let secondaryPromise = null;
 
   async function api(path, options = {}) {
     const controller = new AbortController();
@@ -151,6 +152,31 @@
     return bootstrapPromise;
   }
 
+  async function loadSecondaryBootstrap() {
+    if (secondaryPromise) return secondaryPromise;
+    secondaryPromise = (async () => {
+      try {
+        const secondary = await api("/api/bootstrap-secondary", { timeoutMs: 10000 });
+        if (state) {
+          Object.assign(state, secondary);
+          // Второстепенные вкладки можно дорисовать только после прихода
+          // данных; главная уже интерактивна к этому моменту.
+          renderShop();
+          renderThemePicker();
+          renderAchievements();
+          renderRating();
+          renderCalendar();
+          maybeShowWeeklyBonus();
+        }
+      } catch (err) {
+        console.warn("Secondary bootstrap failed:", err);
+      } finally {
+        secondaryPromise = null;
+      }
+    })();
+    return secondaryPromise;
+  }
+
   // ===================== RENDER ALL =====================
   function scheduleIdleWork(fn) {
     if ("requestIdleCallback" in window) {
@@ -173,14 +199,12 @@
     // Второстепенные вкладки дорисовываем после первого кадра, когда браузер
     // освободит основной поток. Качество UI не меняется — меняется только
     // порядок работы.
+    // Загружаем тяжёлые второстепенные данные после первого интерактивного
+    // кадра. Главная, привычки, план и ударный режим больше не ждут рейтинг,
+    // календарь и магазин.
     requestAnimationFrame(() => {
       scheduleIdleWork(() => {
-        renderShop();
-        renderThemePicker();
-        renderAchievements();
-        renderRating();
-        renderCalendar();
-        maybeShowWeeklyBonus();
+        loadSecondaryBootstrap();
       });
     });
   }
@@ -220,7 +244,7 @@
     }
 
     const balance = document.getElementById("freezeBalanceLabel");
-    if (balance) balance.textContent = `Заморозок: ${streak.freeze_balance || 0}/2`;
+    if (balance) balance.textContent = `Заморозки: ${streak.freeze_balance || 0}/2`;
     const buy = document.getElementById("freezeBuyBtn");
     if (buy) buy.disabled = (streak.freeze_balance || 0) >= 2 || (streak.freeze_purchased_count || 0) >= 2;
 
@@ -259,7 +283,7 @@
     const reward = (streak.rewards || [])[0];
     if (profileStatus) profileStatus.textContent = streakStatus || (streakDays ? "В ударе" : "Серия не начата");
     if (profileFrame) {
-      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "🔥 Твоя ударная серия!";
+      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "Твоя ударная серия!";
       profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
     }
     const profileDays = document.getElementById("profileStreakDays");
@@ -906,6 +930,11 @@ function initTabs() {
     if (!btn) return;
     const tab = btn.dataset.tab;
     if (!tab) return;
+    if (["calendar", "rating", "profile"].includes(tab)) {
+      // Если пользователь открыл второстепенную вкладку раньше idle-загрузки,
+      // подтягиваем её данные сразу, не показывая пустой экран.
+      loadSecondaryBootstrap();
+    }
     document.querySelectorAll(".tab-bar__item").forEach(b => b.classList.toggle("is-active", b === btn));
     document.querySelectorAll(".tab-panel").forEach(panel => {
       const active = panel.dataset.tab === tab;

@@ -6,6 +6,10 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Быстрый провайдер для пользовательского чата. Если ключ задан, ADAM
+# использует Groq как основной канал, OpenAI остаётся запасным вариантом.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # Можно указать несколько ID через запятую: ADMIN_ID=8695214950,123456789
 _admin_ids_raw = os.getenv("ADMIN_ID", "8695214950")

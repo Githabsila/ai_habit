@@ -101,10 +101,14 @@ async def error_middleware(request, handler):
         response = await handler(request)
         # Статические файлы Mini App тоже не кэшируем: иначе Telegram/WebView
         # может оставить старый app.js/style.css после редеплоя.
-        if request.path == "/" or request.path.startswith("/static/"):
+        if request.path == "/":
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
+        elif request.path.startswith("/static/"):
+            # JS/CSS URLs are versioned in index.html; long caching avoids
+            # re-downloading ~100KB+ of assets on every Mini App open.
+            response.headers["Cache-Control"] = "public, max-age=604800, stale-while-revalidate=86400"
         return response
     except web.HTTPException:
         raise
@@ -116,17 +120,15 @@ async def error_middleware(request, handler):
 
 @routes.get("/api/bootstrap")
 async def bootstrap(request):
+    """Критический снимок для первого экрана.
+    Здесь только данные, без которых Главная не может стать интерактивной.
+    Рейтинг/календарь/архив достижений/магазин загружаются после первого кадра.
+    """
     telegram_id, is_admin = await _authenticate(request)
     user = get_user(telegram_id)
     habits = get_habits(telegram_id)
     progress = get_progress(telegram_id)
     settings_row = get_settings(telegram_id)
-    shop_items = get_shop_items()
-    owned_item_ids = set(get_user_items(telegram_id))
-    leaderboard = get_rating()
-    calendar_events = get_calendar(telegram_id)
-    achievements = get_achievements(telegram_id)
-    badge_owner_ids = get_item_owner_ids(BADGE_ITEM_ID)
     daily_plan = get_daily_plan(telegram_id)
     streak = get_streak_status(telegram_id)
 
@@ -139,10 +141,19 @@ async def bootstrap(request):
             "level": user["level"] if user else 1,
             "streak": user["streak"] if user else 0,
             "premium": bool(user["premium"]) if user else False,
-            "badge": telegram_id in badge_owner_ids,
+            "badge": False,
             "is_admin": is_admin,
         },
-        "habits": [{"id": h["id"], "title": h["title"], "completed": bool(h["completed"])} for h in habits],
+        "habits": [
+            {
+                "id": h["id"],
+                "title": h["title"],
+                "completed": bool(h["completed"]),
+                "planned_time": h["planned_time"] if "planned_time" in h.keys() else None,
+                "time_window_minutes": h["time_window_minutes"] if "time_window_minutes" in h.keys() else 60,
+            }
+            for h in habits
+        ],
         "progress": progress,
         "streak": streak,
         "streak_onboarding": {
@@ -154,34 +165,9 @@ async def bootstrap(request):
             "reminder_hour": settings_row["reminder_hour"] if settings_row else 9,
             "reminder_minute": settings_row["reminder_minute"] if settings_row else 0,
             "ai_style": get_ai_style(telegram_id),
-            "theme_owned": THEME_ITEM_ID in owned_item_ids,
+            "theme_owned": False,
             "theme": get_theme(telegram_id),
         },
-        "shop_items": [
-            {
-                "id": it["id"], "name": it["name"], "description": it["description"],
-                "price": it["price"], "owned": it["id"] in owned_item_ids,
-            } for it in shop_items
-        ],
-        "leaderboard": [
-            {
-                "telegram_id": row["telegram_id"],
-                "username": row["username"],
-                "first_name": row["first_name"],
-                "xp": row["xp"], "level": row["level"], "streak": row["streak"],
-                "badge": row["telegram_id"] in badge_owner_ids,
-                "streak_status": get_streak_status(row["telegram_id"]),
-            } for row in leaderboard
-        ],
-        "calendar_events": [
-            {"day": row["day"], "completed": row["completed"], "total": row["total"]} for row in calendar_events
-        ],
-        "achievements": [
-            {
-                "id": a["id"], "title": a["title"], "description": a["description"],
-                "created_at": a["created_at"],
-            } for a in achievements
-        ],
         "daily_plan": {
             "main_goal": daily_plan["main_goal"],
             "main_goal_completed": bool(daily_plan["main_goal_completed"]),
@@ -190,6 +176,57 @@ async def bootstrap(request):
                 for t in daily_plan["tasks"]
             ],
         },
+    })
+
+
+@routes.get("/api/bootstrap-secondary")
+async def bootstrap_secondary(request):
+    """Некритические данные Mini App, загружаемые после первого кадра."""
+    telegram_id, _ = await _authenticate(request)
+    owned_item_ids = set(get_user_items(telegram_id))
+    shop_items = get_shop_items()
+    leaderboard = get_rating()
+    calendar_events = get_calendar(telegram_id)
+    achievements = get_achievements(telegram_id)
+    badge_owner_ids = get_item_owner_ids(BADGE_ITEM_ID)
+
+    return web.json_response({
+        "shop_items": [
+            {
+                "id": it["id"],
+                "name": it["name"],
+                "description": it["description"],
+                "price": it["price"],
+                "owned": it["id"] in owned_item_ids,
+            }
+            for it in shop_items
+        ],
+        "leaderboard": [
+            {
+                "telegram_id": row["telegram_id"],
+                "username": row["username"],
+                "first_name": row["first_name"],
+                "xp": row["xp"],
+                "level": row["level"],
+                "streak": row["streak"],
+                "badge": row["telegram_id"] in badge_owner_ids,
+                "streak_status": get_streak_status(row["telegram_id"]),
+            }
+            for row in leaderboard
+        ],
+        "calendar_events": [
+            {"day": row["day"], "completed": row["completed"], "total": row["total"]}
+            for row in calendar_events
+        ],
+        "achievements": [
+            {
+                "id": a["id"],
+                "title": a["title"],
+                "description": a["description"],
+                "created_at": a["created_at"],
+            }
+            for a in achievements
+        ],
     })
 
 @routes.post("/api/habits")

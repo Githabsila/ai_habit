@@ -6,8 +6,10 @@ morning_ping.py
 """
 
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error
+from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification
 from multi_agent import generate_morning_message
 from alerts import notify_admins
 
@@ -32,6 +34,15 @@ async def run_morning_ping(bot):
             continue
 
         try:
+            # Утренняя рассылка привязана к локальному времени пользователя.
+            # claim_notification гарантирует ровно одно утреннее сообщение
+            # даже после перезапуска/повторного запуска планировщика.
+            now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+            if now_local.hour != 6 or now_local.minute != 0:
+                continue
+            if not claim_notification(telegram_id, now_local.date().isoformat(), "morning_6"):
+                continue
+
             style = get_ai_style(telegram_id) or "neutral"
             # Утренний проактивный пинг не читает долгую память чата.
             # Старые темы не должны всплывать сами по себе.

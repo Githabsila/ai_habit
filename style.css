@@ -4249,3 +4249,106 @@ section[data-tab="home"] .habit-list{
     height:43px;
   }
 }
+
+
+/* =========================================================
+   ADAM 25.08 — MICRO POLISH + MOBILE PERFORMANCE
+   ========================================================= */
+
+/* 2.2 — центр звёздочки в подписи главной задачи */
+.plan-label-icon{
+  transform:translate(1px,-.5px);
+}
+
+/* 2.3 — карандаш/крестик главной задачи снова строго справа снизу */
+.plan-item--main .plan-main__content{
+  padding-right:76px;
+}
+.plan-item--main .plan-item__actions{
+  position:absolute;
+  right:11px;
+  bottom:10px;
+  display:flex;
+  align-items:center;
+  gap:3px;
+}
+
+/* 2.4 — орбиты действительно круговые: равные width/height + плавный
+   переход 360° -> 0° без заметного скачка. Точки стоят на окружности. */
+.streak-orbit{
+  width:auto;
+  height:auto;
+  aspect-ratio:1 / 1;
+  transform:rotate(0deg);
+  animation:streakOrbitSmooth 6s linear infinite;
+}
+.streak-orbit::after{
+  top:50%;
+  right:-3px;
+  left:auto;
+  transform:translateY(-50%);
+}
+.streak-orbit.orbit-2{
+  transform:rotate(0deg);
+  animation:streakOrbitSmoothReverse 8s linear infinite;
+}
+.streak-orbit.orbit-2::after{
+  top:50%;
+  left:-3px;
+  right:auto;
+  transform:translateY(-50%);
+}
+@keyframes streakOrbitSmooth{
+  from{transform:rotate(0deg)}
+  to{transform:rotate(360deg)}
+}
+@keyframes streakOrbitSmoothReverse{
+  from{transform:rotate(0deg)}
+  to{transform:rotate(-360deg)}
+}
+
+/* 3.1 — маленький огонёк в профиле убран из HTML; заголовок чуть левее */
+.streak-profile-kicker{
+  margin-left:-2px;
+}
+
+/* 3.2 — большой правый огонь немного ниже и на ~15% меньше */
+.streak-profile-fire{
+  top:22px;
+}
+.streak-profile-fire img{
+  width:45px;
+  height:51px;
+}
+@media(max-width:430px){
+  .streak-profile-fire{top:18px}
+  .streak-profile-fire img{width:38px;height:43px}
+}
+
+/* Мобильная производительность: только композиционные свойства.
+   will-change не держим постоянно на больших деревьях. */
+.streak-widget__icon,
+.streak-widget__mini-flame,
+.streak-orbit,
+.streak-widget__spark,
+.bg-particles span{
+  backface-visibility:hidden;
+  transform:translateZ(0);
+}
+.app-performance-paused .bg-particles span{
+  animation-play-state:paused!important;
+}
+@media (prefers-reduced-motion: reduce){
+  .streak-orbit,
+  .bg-particles span{
+    animation:none!important;
+  }
+}
+
+/* Off-screen secondary sections are cheap until they become visible. */
+.tab-panel[data-tab="calendar"],
+.tab-panel[data-tab="rating"],
+.tab-panel[data-tab="profile"]{
+  content-visibility:auto;
+  contain-intrinsic-size:600px;
+}

@@ -49,7 +49,7 @@ from openai import AsyncOpenAI
 # Берём ключ из того же config.py, что уже использует остальной проект
 # (там он уже подгружен из .env) — так исчезает риск рассинхронизации
 # между тем, как ключ читается в ai.py и здесь.
-from config import OPENAI_API_KEY
+from config import OPENAI_API_KEY, GROQ_API_KEY, GROQ_MODEL
 
 logger = logging.getLogger("multi_agent")
 
@@ -57,12 +57,13 @@ logger = logging.getLogger("multi_agent")
 
 MODEL = "gpt-5.6"
 FAST_MODEL = "gpt-5.6"
-OPENAI_TIMEOUT = 15.0
+OPENAI_TIMEOUT = 8.0
+GROQ_TIMEOUT = 8.0
 
 MAX_SUBTASKS = 3          # было 4 — меньше подзадач = меньше запросов и токенов
 NUM_DEBATERS = 2          # было 3 — меньше "спорщиков" = меньше токенов на дебаты
 MAX_CONCURRENT_CALLS = 4  # ограничение параллельных запросов к OpenAI (защита от рейт-лимита)
-MAX_RETRIES = 3           # автоповтор при ошибке 429, вместо падения с текстом ошибки
+MAX_RETRIES = 1           # автоповтор при ошибке 429, вместо падения с текстом ошибки
 
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
 
@@ -362,77 +363,93 @@ async def _ask(
     system: str,
     user: str,
     temperature: float = 0.7,
-    max_tokens: int = 700,
+    max_tokens: int = 500,
     model: str = MODEL,
 ) -> str:
-    """Асинхронный вызов OpenAI Responses API с ограничением параллелизма
-    и повтором при временных ошибках/429."""
-    if not OPENAI_API_KEY:
-        logger.error("OPENAI_API_KEY не задан")
-        return "[ошибка агента: не задан OPENAI_API_KEY]"
+    """Один быстрый пользовательский LLM-вызов.
+
+    Для Mini App при наличии GROQ_API_KEY используем Groq OpenAI-compatible
+    endpoint: текущие production-модели Groq рассчитаны на очень высокую
+    скорость генерации. Это важно для цели 3–7 секунд. OpenAI остаётся
+    резервным каналом, если Groq не настроен.
+    """
+    import time
+
+    async def _groq_call():
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(
+            api_key=GROQ_API_KEY,
+            base_url="https://api.groq.com/openai/v1",
+            timeout=GROQ_TIMEOUT,
+        )
+        response = await client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return _strip_markdown(
+            (response.choices[0].message.content or "").strip()
+        )
+
+    async def _openai_call():
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=OPENAI_TIMEOUT)
+        response = await client.responses.create(
+            model=model,
+            instructions=system,
+            input=user,
+            max_output_tokens=max_tokens,
+        )
+        text = _strip_markdown((response.output_text or "").strip())
+        status = getattr(response, "status", None)
+        if status == "incomplete":
+            details = getattr(response, "incomplete_details", None)
+            reason = getattr(details, "reason", None) if details else None
+            if reason == "max_output_tokens":
+                # Не делаем второй длинный запрос: лучше быстро вернуть
+                # законченный ответ, чем превращать редкий edge case в минуту.
+                text = _trim_to_last_sentence(text)
+        return text
+
+    if not GROQ_API_KEY and not OPENAI_API_KEY:
+        logger.error("Ни GROQ_API_KEY, ни OPENAI_API_KEY не заданы")
+        return "[ошибка агента: не настроен API-ключ AI]"
 
     async with _semaphore:
-        async with AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=OPENAI_TIMEOUT) as client:
-            for attempt in range(MAX_RETRIES + 1):
+        started = time.perf_counter()
+        try:
+            if GROQ_API_KEY:
+                result = await _groq_call()
+            else:
+                result = await _openai_call()
+
+            elapsed = time.perf_counter() - started
+            logger.info("AI response %.2fs via %s", elapsed, "Groq" if GROQ_API_KEY else "OpenAI")
+            return result
+        except Exception as e:
+            logger.warning(
+                "AI primary request failed after %.2fs: %s",
+                time.perf_counter() - started,
+                e,
+            )
+            # Только один короткий резервный вызов, если Groq настроен и
+            # OpenAI-ключ тоже есть. Без каскада из трёх повторов.
+            if GROQ_API_KEY and OPENAI_API_KEY:
                 try:
-                    # Responses API — основной API OpenAI.
-                    # temperature здесь не передаём: этот пайплайн рассчитан
-                    # на актуальные GPT-5.x модели.
-                    response = await client.responses.create(
-                        model=model,
-                        instructions=system,
-                        input=user,
-                        max_output_tokens=max_tokens,
+                    fallback_started = time.perf_counter()
+                    result = await _openai_call()
+                    logger.info(
+                        "AI OpenAI fallback %.2fs",
+                        time.perf_counter() - fallback_started,
                     )
-
-                    text = _strip_markdown((response.output_text or "").strip())
-
-                    # Если модель упёрлась в лимит вывода, повторяем с большим
-                    # лимитом, сохраняя прежнее поведение старого пайплайна.
-                    status = getattr(response, "status", None)
-                    if status == "incomplete":
-                        details = getattr(response, "incomplete_details", None)
-                        reason = getattr(details, "reason", None) if details else None
-                        if reason == "max_output_tokens":
-                            retry_tokens = min(max_tokens + 500, max_tokens * 2)
-                            logger.warning(
-                                f"Ответ обрезан по max_output_tokens={max_tokens} "
-                                f"(модель {model}), повторяю с лимитом {retry_tokens}"
-                            )
-                            response2 = await client.responses.create(
-                                model=model,
-                                instructions=system,
-                                input=user,
-                                max_output_tokens=retry_tokens,
-                            )
-                            text = _strip_markdown((response2.output_text or "").strip())
-                            status2 = getattr(response2, "status", None)
-                            if status2 == "incomplete":
-                                text = _trim_to_last_sentence(text)
-
-                    return text
-
-                except Exception as e:
-                    status_code = getattr(e, "status_code", None)
-                    if status_code == 429 or "rate limit" in str(e).lower():
-                        if attempt < MAX_RETRIES:
-                            wait = min(2 ** attempt + 1, 15)
-                            logger.warning(
-                                f"OpenAI rate limit, жду {wait}с и повторяю "
-                                f"(попытка {attempt + 1}/{MAX_RETRIES})"
-                            )
-                            await asyncio.sleep(wait)
-                            continue
-                        logger.error(f"OpenAI rate limit не удалось обойти: {e}")
-                        return "[ошибка агента: превышен лимит запросов OpenAI, попробуй ещё раз через минуту]"
-
-                    logger.error(f"Ошибка вызова OpenAI API: {e}")
-                    if attempt < MAX_RETRIES:
-                        await asyncio.sleep(1.5 * (attempt + 1))
-                        continue
-                    return f"[ошибка агента: {e}]"
-
-        return "[ошибка агента: OpenAI API не вернул ответ]"
+                    return result
+                except Exception as fallback_error:
+                    logger.error("AI fallback failed: %s", fallback_error)
+            return "[ошибка агента: AI временно недоступен, попробуй ещё раз]"
 
 
 def _combine_notes(*notes: str) -> str:
@@ -515,7 +532,7 @@ async def fast_answer(
     # хватало, и это резало ответ на полуслове (Проблема №1). У _ask теперь
     # есть свой аварийный повтор/подрезка, но на первом заходе лучше сразу
     # дать реальный запас.
-    return await _ask(system, user, temperature=0.55, max_tokens=650)
+    return await _ask(system, user, temperature=0.35, max_tokens=500, model=FAST_MODEL)
 
 
 # ============ 0c. КРИЗИС-ГЕЙТ ============

@@ -43,6 +43,7 @@ from adam_messages import (
     format_habit_reminder_messages,
     format_habit_final_motivation_message,
     format_habit_noon_message,
+    format_habit_checkpoint_10_message,
     format_plan_task_reminder_message,
     format_goal_reminder_message,
     format_week_start_message,
@@ -263,6 +264,11 @@ async def run_task_reminder_check(bot):
         now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
         if 0 <= now_local.hour < 6 or (now_local.hour == 6 and now_local.minute < 15):
             continue
+        # После 20:00 не отправляем точечные сообщения по задачам плана:
+        # вечерняя сверка в 22:30 должна собрать ВСЕ открытые пункты в одно
+        # сообщение, а не присылать их по одному с интервалом.
+        if now_local.hour >= 20:
+            continue
 
         # -- привычки --
         # Индивидуальные 2-часовые пинги по привычкам отключены.
@@ -343,7 +349,7 @@ async def run_habit_checkpoint_10(bot):
 
             await bot.send_message(
                 telegram_id,
-                format_habit_noon_message(incomplete),
+                format_habit_checkpoint_10_message(incomplete),
                 parse_mode="HTML"
             )
             sent += 1
@@ -468,13 +474,14 @@ async def run_evening_progress_check(bot):
 
         plan = get_daily_plan(telegram_id)
         tasks = plan["tasks"]
-        if not tasks:
-            continue
+        main_open = bool(plan.get("main_goal") and not plan.get("main_goal_completed"))
+        open_tasks = [t for t in tasks if not t["completed"]]
+        total_items = len(tasks) + (1 if plan.get("main_goal") else 0)
+        done_items = sum(1 for t in tasks if t["completed"]) + (1 if plan.get("main_goal") and plan.get("main_goal_completed") else 0)
 
-        done = sum(1 for t in tasks if t["completed"])
-        total = len(tasks)
-
-        if done >= total:
+        # Даже если обычных задач нет, одна открытая главная задача должна
+        # попасть в вечернюю сверку.
+        if total_items == 0 or done_items >= total_items:
             continue
 
         try:
@@ -486,7 +493,12 @@ async def run_evening_progress_check(bot):
                 continue
             await bot.send_message(
                 telegram_id,
-                format_evening_progress_message(done, total, [t["text"] for t in tasks if not t["completed"]], main_goal=(plan["main_goal"] if plan.get("main_goal") and not plan.get("main_goal_completed") else None)),
+                format_evening_progress_message(
+                    done_items,
+                    total_items,
+                    [t["text"] for t in open_tasks],
+                    main_goal=(plan["main_goal"] if main_open else None),
+                ),
                 parse_mode="HTML"
             )
             sent += 1
