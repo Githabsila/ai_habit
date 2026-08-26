@@ -688,9 +688,11 @@
     const list = document.getElementById("ratingList");
     const podium = document.getElementById("ratingPodium");
     const count = document.getElementById("ratingPlayerCount");
+    const countLabel = document.getElementById("ratingPlayerCountLabel");
     if (!list) return;
     let rows = Array.isArray(state.leaderboard) ? state.leaderboard.slice() : [];
     if (count) count.textContent = rows.length;
+    if (countLabel) countLabel.textContent = pluralRu(rows.length, "игрок", "игрока", "игроков");
     if (rows.length === 0) {
       if (podium) podium.innerHTML = "";
       list.innerHTML = `<li class="empty-hint">Рейтинг пока пуст</li>`;
