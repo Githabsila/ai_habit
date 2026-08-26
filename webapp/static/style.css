@@ -3847,18 +3847,16 @@ section[data-tab="home"] .streak-widget--hero:hover{
   font-size:10px!important;
 }
 .streak-profile-fire{
-  width:41px;height:46px;right:14px;top:24px;
+  right:14px;top:24px;
   display:grid;place-items:center;
-}
-.streak-profile-fire img{
-  width:38px;height:43px;object-fit:contain;
+  font-size:40px;line-height:1;
   filter:drop-shadow(0 0 16px rgba(255,122,24,.55));
-  animation:profileFire 1.8s ease-in-out infinite;
+  animation:profileFireCalm 3.2s ease-in-out infinite;
 }
+@keyframes profileFireCalm{50%{transform:translateY(-2px) scale(1.04)}}
 @media(max-width:430px){
   .streak-profile-card--premium{min-height:116px;padding:14px}
-  .streak-profile-fire{width:34px;height:39px;right:8px;top:22px}
-  .streak-profile-fire img{width:32px;height:37px}
+  .streak-profile-fire{right:8px;top:22px;font-size:32px}
 }
 
 /* Надпись "Твоя ударная серия!" — без иконки, чуть более приглушённая */
@@ -4216,7 +4214,7 @@ section[data-tab="home"] .streak-widget__hero-row{
 .app-performance-paused .streak-widget__spark,
 .app-performance-paused .streak-widget--hero::before,
 .app-performance-paused .streak-live-dot,
-.app-performance-paused .streak-profile-fire img{
+.app-performance-paused .streak-profile-fire{
   animation-play-state:paused!important;
 }
 @media (max-width:600px){
@@ -4234,7 +4232,7 @@ section[data-tab="home"] .streak-widget__hero-row{
   .streak-widget__spark,
   .streak-widget--hero::before,
   .streak-live-dot,
-  .streak-profile-fire img{
+  .streak-profile-fire{
     animation:none!important;
     will-change:auto;
   }
