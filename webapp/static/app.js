@@ -221,6 +221,23 @@
     );
   });
 
+  // Чисто атмосферные бесконечные эффекты (искры, блики) нужны только в первые
+  // секунды после открытия — дальше это просто лишняя нагрузка на GPU и повод
+  // для перегрева. Через паузу "успокаиваем" их классом decor-settled, а при
+  // возврате в приложение/смене вкладки даём короткое "оживление" заново.
+  let decorSettleTimer = null;
+  function scheduleDecorSettle(delayMs = 3500) {
+    if (decorSettleTimer) clearTimeout(decorSettleTimer);
+    document.documentElement.classList.remove("decor-settled");
+    decorSettleTimer = window.setTimeout(() => {
+      document.documentElement.classList.add("decor-settled");
+    }, delayMs);
+  }
+  scheduleDecorSettle();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) scheduleDecorSettle();
+  });
+
   // ===================== УДАРНЫЙ РЕЖИМ =====================
   let streakCelebrationTimer = null;
 
@@ -945,6 +962,7 @@ function initTabs() {
       }
     });
     haptic("light");
+    scheduleDecorSettle();
   });
 }
 

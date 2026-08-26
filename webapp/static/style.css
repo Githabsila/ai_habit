@@ -1169,8 +1169,8 @@ opacity:.35;
 
     background:rgba(20,20,30,.78);
 
-    backdrop-filter:blur(35px);
-    -webkit-backdrop-filter:blur(35px);
+    backdrop-filter:blur(18px);
+    -webkit-backdrop-filter:blur(18px);
 
     border:1px solid rgba(255,255,255,.08);
 
@@ -1950,13 +1950,15 @@ body {
 
     animation:xpGlow 2.5s infinite;
 
+    will-change:transform;
+
 }
 
 @keyframes xpGlow{
 
     to{
 
-        left:140%;
+        transform:translateX(500%);
 
     }
 
@@ -4205,18 +4207,65 @@ section[data-tab="home"] .streak-widget__hero-row{
   margin:8px 0 2px;
 }
 
-/* === PERFORMANCE PASS 25.08 ===
-   Двигаем только transform/opacity и ставим декоративные анимации на паузу,
-   когда приложение скрыто. Без постоянного will-change: браузер сам управляет слоями. */
+/* === PERFORMANCE PASS 25.08 (расширено) ===
+   Двигаем только transform/opacity и ставим ВСЕ декоративные анимации на
+   паузу, когда приложение свёрнуто/скрыто. Раньше список покрывал только
+   часть анимаций на Главной — остальные (профиль, магазин, рейтинг, план,
+   прогресс-бар) продолжали крутиться в фоне и грели телефон без пользы. */
 .app-performance-paused .streak-widget__icon,
 .app-performance-paused .streak-widget__mini-flame,
 .app-performance-paused .streak-orbit,
 .app-performance-paused .streak-widget__spark,
 .app-performance-paused .streak-widget--hero::before,
 .app-performance-paused .streak-live-dot,
-.app-performance-paused .streak-profile-fire{
+.app-performance-paused .streak-profile-fire,
+.app-performance-paused .streak-widget__icon-flare,
+.app-performance-paused .streak-widget__icon-ember--a,
+.app-performance-paused .streak-widget__icon-ember--b,
+.app-performance-paused .streak-widget__flame-halo,
+.app-performance-paused .streak-widget__count strong,
+.app-performance-paused .streak-day.is-done span,
+.app-performance-paused .streak-profile-card--premium::before,
+.app-performance-paused .streak-profile-ring,
+.app-performance-paused .streak-profile-card__particles i,
+.app-performance-paused .player-card,
+.app-performance-paused .player-card::before,
+.app-performance-paused .bg-particles span,
+.app-performance-paused .levelup-sparkles,
+.app-performance-paused .xp-bar__fill::after,
+.app-performance-paused .tab-bar__item.is-active .tab-bar__icon,
+.app-performance-paused .impactday-fire,
+.app-performance-paused .fire-orbit--1,
+.app-performance-paused .fire-orbit--2,
+.app-performance-paused .rating-hero::after,
+.app-performance-paused .rating-hero__glow--one,
+.app-performance-paused .rating-live-dot,
+.app-performance-paused .achievement-share-fire img,
+.app-performance-paused .plan-main__flame img,
+.app-performance-paused .plan-main__flame-ring{
   animation-play-state:paused!important;
 }
+
+/* === PERFORMANCE PASS 27.08: «успокоение» декора ===
+   Искры/блик-развёртки не несут смысловой нагрузки — это чисто атмосферный
+   эффект. Даём им поиграть первые секунды после открытия вкладки, а затем
+   останавливаем, чтобы не грузить GPU бесконечно, пока экран открыт.
+   Ключевые индикаторы (сама иконка огня, счётчик серии, точка "live",
+   кольцо аватара) не трогаем — они держат смысл интерфейса. */
+.decor-settled .bg-particles span,
+.decor-settled .streak-widget__spark,
+.decor-settled .streak-profile-card__particles i,
+.decor-settled .streak-widget--hero::before,
+.decor-settled .streak-profile-card--premium::before,
+.decor-settled .player-card::before,
+.decor-settled .rating-hero::after{
+  animation-play-state:paused!important;
+  opacity:0!important;
+}
+.decor-settled .streak-widget__count strong{
+  animation-play-state:paused!important;
+}
+
 @media (max-width:600px){
   .streak-widget__glow--orange,
   .streak-widget__glow--purple,
@@ -4232,7 +4281,31 @@ section[data-tab="home"] .streak-widget__hero-row{
   .streak-widget__spark,
   .streak-widget--hero::before,
   .streak-live-dot,
-  .streak-profile-fire{
+  .streak-profile-fire,
+  .streak-widget__icon-flare,
+  .streak-widget__icon-ember--a,
+  .streak-widget__icon-ember--b,
+  .streak-widget__flame-halo,
+  .streak-widget__count strong,
+  .streak-day.is-done span,
+  .streak-profile-card--premium::before,
+  .streak-profile-ring,
+  .streak-profile-card__particles i,
+  .player-card,
+  .player-card::before,
+  .bg-particles span,
+  .levelup-sparkles,
+  .xp-bar__fill::after,
+  .tab-bar__item.is-active .tab-bar__icon,
+  .impactday-fire,
+  .fire-orbit--1,
+  .fire-orbit--2,
+  .rating-hero::after,
+  .rating-hero__glow--one,
+  .rating-live-dot,
+  .achievement-share-fire img,
+  .plan-main__flame img,
+  .plan-main__flame-ring{
     animation:none!important;
     will-change:auto;
   }
@@ -4370,7 +4443,7 @@ section[data-tab="home"] .streak-widget__hero-row{
   background:linear-gradient(100deg,#fff3d6 0%,#ffb45e 42%,#ff6a2e 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent;
   filter:drop-shadow(0 2px 14px rgba(255,110,40,.30));
-  animation:streakNumberGlow 3.2s ease-in-out infinite;
+  animation:streakNumberGlow 4.5s ease-in-out infinite;
 }
 @keyframes streakNumberGlow{
   0%,100%{filter:drop-shadow(0 2px 14px rgba(255,110,40,.22))}
