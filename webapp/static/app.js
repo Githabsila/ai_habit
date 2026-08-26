@@ -220,7 +220,7 @@
     }
 
     const balance = document.getElementById("freezeBalanceLabel");
-    if (balance) balance.textContent = `Заморозок: ${streak.freeze_balance || 0}/2`;
+    if (balance) balance.textContent = `Заморозки: ${streak.freeze_balance || 0}/2`;
     const buy = document.getElementById("freezeBuyBtn");
     if (buy) buy.disabled = (streak.freeze_balance || 0) >= 2 || (streak.freeze_purchased_count || 0) >= 2;
 
