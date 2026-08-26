@@ -175,14 +175,41 @@
     // порядок работы.
     requestAnimationFrame(() => {
       scheduleIdleWork(() => {
+        loadBootstrapSecondary();
+      });
+    });
+  }
+
+  // Второстепенные данные (магазин, рейтинг, достижения, календарь) отдаёт
+  // отдельный /api/bootstrap-secondary — раньше этот запрос нигде не
+  // вызывался, поэтому state.shop_items/leaderboard/achievements/calendar_events
+  // всегда оставались undefined и вкладки выглядели постоянно пустыми.
+  let bootstrapSecondaryPromise = null;
+  async function loadBootstrapSecondary() {
+    if (bootstrapSecondaryPromise) return bootstrapSecondaryPromise;
+    bootstrapSecondaryPromise = (async () => {
+      try {
+        const data = await api("/api/bootstrap-secondary");
+        if (state) {
+          state.shop_items = data.shop_items;
+          state.leaderboard = data.leaderboard;
+          state.calendar_events = data.calendar_events;
+          state.achievements = data.achievements;
+        }
+      } catch (err) {
+        console.error("bootstrap-secondary failed:", err);
+      } finally {
         renderShop();
         renderThemePicker();
         renderAchievements();
         renderRating();
         renderCalendar();
         maybeShowWeeklyBonus();
-      });
+      }
+    })().finally(() => {
+      bootstrapSecondaryPromise = null;
     });
+    return bootstrapSecondaryPromise;
   }
 
   // Пока Mini App не виден, декоративные анимации не должны тратить батарею/CPU.
