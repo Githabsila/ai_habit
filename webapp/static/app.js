@@ -286,7 +286,7 @@
     const reward = (streak.rewards || [])[0];
     if (profileStatus) profileStatus.textContent = streakStatus || (streakDays ? "В ударе" : "Серия не начата");
     if (profileFrame) {
-      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "🔥 Твоя ударная серия!";
+      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "Твоя ударная серия!";
       profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
     }
     const profileDays = document.getElementById("profileStreakDays");

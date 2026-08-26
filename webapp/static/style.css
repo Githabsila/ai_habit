@@ -3847,18 +3847,24 @@ section[data-tab="home"] .streak-widget--hero:hover{
   font-size:10px!important;
 }
 .streak-profile-fire{
-  width:48px;height:54px;right:14px;top:19px;
+  width:41px;height:46px;right:14px;top:24px;
   display:grid;place-items:center;
 }
 .streak-profile-fire img{
-  width:45px;height:51px;object-fit:contain;
+  width:38px;height:43px;object-fit:contain;
   filter:drop-shadow(0 0 16px rgba(255,122,24,.55));
   animation:profileFire 1.8s ease-in-out infinite;
 }
 @media(max-width:430px){
   .streak-profile-card--premium{min-height:116px;padding:14px}
-  .streak-profile-fire{width:40px;height:46px;right:8px;top:16px}
-  .streak-profile-fire img{width:38px;height:43px}
+  .streak-profile-fire{width:34px;height:39px;right:8px;top:22px}
+  .streak-profile-fire img{width:32px;height:37px}
+}
+
+/* Надпись "Твоя ударная серия!" — без иконки, чуть более приглушённая */
+.streak-profile-frame{
+  color:rgba(255,179,111,.6)!important;
+  font-weight:600!important;
 }
 
 /* Экран «Поделиться прогрессом»: компактнее, аккуратнее и без «В ударе N дн.» */
