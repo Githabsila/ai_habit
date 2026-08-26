@@ -4434,6 +4434,23 @@ section[data-tab="home"] .streak-widget__hero-row{
 .streak-day.is-missed{opacity:.62}
 @keyframes streakDayFlicker{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.82;transform:scale(1.06)}}
 
+/* ---- Точное центрирование иконки дня: раньше 🔥 казался смещённым влево,
+   потому что бейдж-подарок сидел вплотную к нему и «тянул» взгляд вправо.
+   Теперь иконка — самостоятельный center-box на всю ширину ячейки,
+   а бейдж вынесен за край как отдельный плавающий значок в углу. ---- */
+.streak-day{overflow:visible}
+.streak-day span{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+}
+.streak-day b{
+  right:-4px;
+  top:-4px;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.5));
+}
+
 /* ---- Нижний ряд: заморозки / статус как стеклянные чипы ---- */
 .streak-widget__bottom{gap:8px}
 .streak-widget__balance,
