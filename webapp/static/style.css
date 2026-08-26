@@ -3728,6 +3728,8 @@ section[data-tab="home"] .streak-widget--hero:hover{
 .streak-widget__spark{position:absolute;width:3px;height:3px;border-radius:50%;background:#ffd5a4;box-shadow:0 0 10px #ff9a4d;opacity:.7;pointer-events:none}
 .streak-widget__spark--1{right:29%;top:25%;animation:streakSpark 2.8s ease-in-out infinite}
 .streak-widget__spark--2{right:13%;top:52%;animation:streakSpark 3.4s .7s ease-in-out infinite}
+.streak-widget__spark--3{right:42%;top:16%;animation:streakSpark 3.1s 1.4s ease-in-out infinite}
+.streak-widget__spark--4{right:20%;top:38%;animation:streakSpark 2.5s 2s ease-in-out infinite}
 .streak-widget__top,.streak-widget__hero-row,.streak-widget__week-head,.streak-days,.streak-widget__bottom{position:relative;z-index:2}
 .streak-widget__top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .streak-widget__brand{display:flex;align-items:center;gap:11px;min-width:0}
@@ -4246,5 +4248,233 @@ section[data-tab="home"] .streak-widget__hero-row{
   .streak-profile-fire img{
     animation:none!important;
     will-change:auto;
+  }
+}
+
+/* =========================================================
+   ADAM STREAK — PREMIUM REDESIGN
+   Многослойный «горящий» огонёк вместо плоского emoji/иконки,
+   объёмная карточка, золотая рамка на сегодняшнем дне,
+   стеклянные чипы внизу. Все id/классы, нужные app.js
+   (streakWidgetDays, streakDays, freezeBalanceLabel,
+   freezeBuyBtn, streakStatusLabel, streakWeekHint),
+   сохранены без изменений.
+   ========================================================= */
+
+/* ---- Верхний бейдж-огонёк (рядом с «УДАРНЫЙ РЕЖИМ») ---- */
+.streak-widget__icon-wrap{
+  position:relative;
+  width:44px;height:44px;flex:0 0 44px;
+  display:grid;place-items:center;
+  border-radius:15px;
+  background:
+    radial-gradient(circle at 32% 26%,rgba(255,214,140,.35),transparent 55%),
+    linear-gradient(150deg,rgba(255,138,46,.30),rgba(196,42,20,.14));
+  border:1px solid rgba(255,178,102,.32);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.25) inset,
+    0 1px 0 rgba(255,255,255,.14) inset,
+    0 10px 22px rgba(255,90,20,.20);
+  overflow:visible;
+}
+.streak-widget__icon-flare{
+  position:absolute;
+  inset:-9px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(255,150,50,.35),transparent 68%);
+  filter:blur(6px);
+  animation:flareBadgePulse 2.4s ease-in-out infinite;
+  pointer-events:none;
+}
+.streak-widget__icon-ember{
+  position:absolute;
+  width:3px;height:3px;
+  border-radius:50%;
+  background:#ffd8a0;
+  box-shadow:0 0 6px 1px #ff8a2e;
+  pointer-events:none;
+  opacity:0;
+}
+.streak-widget__icon-ember--a{left:22%;bottom:6px;animation:iconEmberRise 2.6s ease-in .2s infinite}
+.streak-widget__icon-ember--b{right:26%;bottom:4px;animation:iconEmberRise 2.9s ease-in 1.1s infinite}
+.streak-widget__icon{
+  position:relative;
+  z-index:2;
+  display:block;
+  font-size:23px;
+  line-height:1;
+  filter:
+    drop-shadow(0 0 3px rgba(255,235,190,.75))
+    drop-shadow(0 0 10px rgba(255,120,30,.85))
+    drop-shadow(0 2px 5px rgba(120,20,0,.45));
+  animation:impactFire 2.2s ease-in-out infinite;
+}
+@keyframes flareBadgePulse{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
+@keyframes iconEmberRise{
+  0%{opacity:0;transform:translateY(0) scale(.6)}
+  15%{opacity:1}
+  85%{opacity:.35}
+  100%{opacity:0;transform:translateY(-22px) scale(.2)}
+}
+
+/* ---- Центральный огонёк с орбитами (в строке с числом дней) ---- */
+.streak-widget__flame-orbit{
+  position:relative;width:84px;height:84px;flex:0 0 84px;
+  display:grid;place-items:center;
+}
+.streak-widget__flame-halo{
+  position:absolute;
+  width:72px;height:72px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(255,150,45,.30),rgba(255,90,20,.08) 55%,transparent 75%);
+  filter:blur(3px);
+  animation:flameHaloBreathe 2.6s ease-in-out infinite;
+  pointer-events:none;
+}
+.streak-widget__flame-base{
+  position:absolute;
+  width:34px;height:12px;
+  bottom:15px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(255,140,40,.55),transparent 72%);
+  filter:blur(3px);
+  pointer-events:none;
+}
+.streak-widget__mini-flame{
+  position:relative;z-index:3;
+  font-size:34px;line-height:1;
+  filter:
+    drop-shadow(0 0 4px rgba(255,238,200,.85))
+    drop-shadow(0 0 14px rgba(255,120,30,.9))
+    drop-shadow(0 0 26px rgba(255,80,20,.45))
+    drop-shadow(0 3px 6px rgba(90,10,0,.4));
+  animation:impactFire 1.8s ease-in-out infinite;
+}
+@keyframes flameHaloBreathe{0%,100%{opacity:.55;transform:scale(.9)}50%{opacity:1;transform:scale(1.12)}}
+
+/* Эмберы на самих орбитальных кольцах — крупнее и «живее». */
+.streak-orbit::after{
+  width:6px;height:6px;
+  background:radial-gradient(circle at 35% 30%,#fff3d6,#ffad61 55%,#ff7a18 100%);
+  box-shadow:0 0 10px 1px #ff7a18;
+}
+.streak-orbit.orbit-2::after{
+  width:5px;height:5px;
+  background:radial-gradient(circle at 35% 30%,#f1e9ff,#c3a9ff 55%,#9d7cff 100%);
+  box-shadow:0 0 10px 1px #7c5cff;
+}
+
+/* ---- Числа дней — тёплый градиент с лёгким мерцанием ---- */
+.streak-widget__count strong{
+  background:linear-gradient(100deg,#fff3d6 0%,#ffb45e 42%,#ff6a2e 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 2px 14px rgba(255,110,40,.30));
+  animation:streakNumberGlow 3.2s ease-in-out infinite;
+}
+@keyframes streakNumberGlow{
+  0%,100%{filter:drop-shadow(0 2px 14px rgba(255,110,40,.22))}
+  50%{filter:drop-shadow(0 2px 20px rgba(255,140,60,.42))}
+}
+
+/* ---- Полоса из 7 дней: объём, золото на «сегодня», лёд и уголь ---- */
+.streak-days{gap:7px}
+.streak-day{
+  position:relative;
+  border-radius:15px;
+  border:1px solid rgba(255,255,255,.08);
+  background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.015));
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.05),
+    inset 0 -6px 10px rgba(0,0,0,.18),
+    0 4px 10px rgba(0,0,0,.18);
+}
+.streak-day:last-child{
+  border-color:rgba(255,214,110,.55);
+  box-shadow:
+    0 0 0 1px rgba(255,214,110,.30),
+    0 0 16px rgba(255,180,70,.22),
+    inset 0 1px rgba(255,255,255,.10);
+}
+.streak-day:last-child small{color:#ffd581}
+.streak-day.is-done{
+  background:
+    radial-gradient(circle at 50% 6%,rgba(255,190,110,.32),transparent 60%),
+    linear-gradient(160deg,rgba(255,122,24,.30),rgba(220,50,20,.14));
+  border-color:rgba(255,155,70,.50);
+  box-shadow:
+    inset 0 1px rgba(255,220,180,.16),
+    inset 0 -8px 14px rgba(120,20,0,.22),
+    0 6px 16px rgba(255,100,30,.16);
+}
+.streak-day.is-done span{
+  filter:drop-shadow(0 0 3px rgba(255,235,200,.8)) drop-shadow(0 0 9px rgba(255,120,30,.85));
+  animation:streakDayFlicker 2.4s ease-in-out infinite;
+}
+.streak-day.is-freeze{
+  background:
+    radial-gradient(circle at 50% 6%,rgba(150,200,255,.28),transparent 60%),
+    linear-gradient(160deg,rgba(67,139,239,.24),rgba(30,70,150,.10));
+  border-color:rgba(140,190,255,.48);
+  box-shadow:inset 0 1px rgba(210,230,255,.14),0 6px 14px rgba(60,120,240,.14);
+}
+.streak-day.is-missed{opacity:.62}
+@keyframes streakDayFlicker{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.82;transform:scale(1.06)}}
+
+/* ---- Нижний ряд: заморозки / статус как стеклянные чипы ---- */
+.streak-widget__bottom{gap:8px}
+.streak-widget__balance,
+.streak-widget__status{
+  padding:6px 10px 6px 8px;
+  border-radius:999px;
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.07);
+}
+.streak-widget__balance{
+  background:linear-gradient(150deg,rgba(70,130,230,.16),rgba(70,130,230,.05));
+  border-color:rgba(140,190,255,.22);
+}
+.streak-bottom-icon{
+  background:linear-gradient(150deg,rgba(120,175,255,.35),rgba(70,130,230,.12));
+  box-shadow:0 0 10px rgba(90,150,240,.25);
+}
+.streak-status-dot{box-shadow:0 0 4px rgba(255,122,24,.9),0 0 10px rgba(255,122,24,.55)}
+
+/* ---- Кнопка «Заморозка» — ледяной пилюльный акцент ---- */
+.freeze-buy-btn{
+  background:
+    linear-gradient(150deg,rgba(120,178,255,.24),rgba(50,95,190,.12));
+  border-color:rgba(150,200,255,.34);
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.10),
+    0 8px 20px rgba(40,90,200,.18);
+}
+.freeze-buy-btn span{filter:drop-shadow(0 0 5px rgba(140,200,255,.7))}
+.freeze-buy-btn em{
+  background:linear-gradient(120deg,#eaf4ff,#9ecbff);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+
+@media(max-width:420px){
+  .streak-widget__icon-wrap{width:38px;height:38px;flex-basis:38px;border-radius:12px}
+  .streak-widget__icon{font-size:19px}
+  .streak-widget__flame-orbit{width:72px;height:72px;flex-basis:72px}
+  .streak-widget__flame-halo{width:60px;height:60px}
+  .streak-widget__mini-flame{font-size:28px}
+}
+
+.app-performance-paused .streak-widget__icon-flare,
+.app-performance-paused .streak-widget__icon-ember,
+.app-performance-paused .streak-widget__flame-halo,
+.app-performance-paused .streak-day.is-done span,
+.app-performance-paused .streak-widget__count strong{
+  animation-play-state:paused!important;
+}
+@media (prefers-reduced-motion:reduce){
+  .streak-widget__icon-flare,
+  .streak-widget__icon-ember,
+  .streak-widget__flame-halo,
+  .streak-day.is-done span,
+  .streak-widget__count strong{
+    animation:none!important;
   }
 }
