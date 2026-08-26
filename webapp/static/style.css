@@ -4300,10 +4300,16 @@ section[data-tab="home"] .streak-widget__hero-row{
 .streak-widget__icon{
   position:relative;
   z-index:2;
-  display:block;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:auto;
+  height:auto;
+  object-fit:unset;
   font-size:23px;
   line-height:1;
-  margin:4px 0 0 3px;
+  margin:0;
+  text-align:center;
   filter:
     drop-shadow(0 0 3px rgba(255,235,190,.75))
     drop-shadow(0 0 10px rgba(255,120,30,.85))
@@ -4343,8 +4349,14 @@ section[data-tab="home"] .streak-widget__hero-row{
 }
 .streak-widget__mini-flame{
   position:relative;z-index:3;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:auto;height:auto;
+  object-fit:unset;
   font-size:34px;line-height:1;
-  margin:6px 0 0 4px;
+  margin:0;
+  text-align:center;
   filter:
     drop-shadow(0 0 4px rgba(255,238,200,.85))
     drop-shadow(0 0 14px rgba(255,120,30,.9))
@@ -4458,10 +4470,10 @@ section[data-tab="home"] .streak-widget__hero-row{
 
 @media(max-width:420px){
   .streak-widget__icon-wrap{width:38px;height:38px;flex-basis:38px;border-radius:12px}
-  .streak-widget__icon{font-size:19px;margin:3px 0 0 2px}
+  .streak-widget__icon{font-size:19px;width:auto;height:auto;margin:0}
   .streak-widget__flame-orbit{width:72px;height:72px;flex-basis:72px}
   .streak-widget__flame-halo{width:60px;height:60px}
-  .streak-widget__mini-flame{font-size:28px;margin:5px 0 0 3px}
+  .streak-widget__mini-flame{font-size:28px;width:auto;height:auto;margin:0}
 }
 
 .app-performance-paused .streak-widget__icon-flare,
