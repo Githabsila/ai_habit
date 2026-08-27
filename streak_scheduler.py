@@ -4,7 +4,7 @@ import logging
 import random
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from config import WEBAPP_URL
 
 from db import (
@@ -57,9 +57,14 @@ RISK_23_30 = [
 def _countdown_keyboard():
     if not WEBAPP_URL:
         return None
+    # Раньше здесь была обычная url-кнопка — она открывала ссылку во внешнем
+    # браузере, и Telegram не передавал туда initData, поэтому Mini App не
+    # мог авторизовать пользователя. web_app=WebAppInfo(...) открывает то же
+    # приложение как Telegram Mini App (как и постоянная кнопка меню в
+    # main.py) — авторизация сохраняется.
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔥 Открыть ADAM и закрыть привычку", url=WEBAPP_URL)]
+            [InlineKeyboardButton(text="🔥 Открыть ADAM и закрыть привычку", web_app=WebAppInfo(url=WEBAPP_URL))]
         ]
     )
 
