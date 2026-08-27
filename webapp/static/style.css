@@ -4585,3 +4585,33 @@ section[data-tab="home"] .streak-widget__hero-row{
     animation:none!important;
   }
 }
+
+/* ---- Правка «Заморозка»: цена ровно по центру рядом с монеткой,
+   монетка больше не обрезается краем пилюли ---- */
+.freeze-buy-btn{
+  gap:7px;
+}
+.freeze-buy-btn em{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  line-height:1;
+}
+.freeze-buy-btn__coin{
+  flex:0 0 auto;
+  margin-left:0;
+}
+@media(max-width:420px){
+  .freeze-buy-btn{
+    padding:9px 13px 9px 11px;
+    gap:6px;
+    border-radius:16px;
+  }
+  .freeze-buy-btn em{
+    gap:4px;
+  }
+  .freeze-buy-btn__coin{
+    width:14px;
+    height:14px;
+  }
+}
