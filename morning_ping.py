@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification
+from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, notification_scope
 from multi_agent import generate_morning_message
 from alerts import notify_admins
 
@@ -40,7 +40,7 @@ async def run_morning_ping(bot):
             now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
             if now_local.hour != 6 or now_local.minute != 0:
                 continue
-            if not claim_notification(telegram_id, now_local.date().isoformat(), "morning_6"):
+            if not claim_notification(telegram_id, now_local.date().isoformat(), "morning_6", notification_scope(bot)):
                 continue
 
             style = get_ai_style(telegram_id) or "neutral"

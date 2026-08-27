@@ -81,37 +81,6 @@ def format_habit_checkpoint_10_message(incomplete_habits) -> str:
     )
 
 
-# 12:00 — отдельные сообщения только по тем привычкам, которые всё ещё
-# остались. Они намеренно не называют 10:00/«контрольную точку», чтобы
-# пользователь не получал два одинаковых по смыслу уведомления.
-HABIT_NOON_TEMPLATES = [
-    "После утреннего старта осталось {left} {habit_word}: {habits}. Выбери одну и закрой её, когда будет удобно {emoji}",
-    "На сейчас вижу {left} {habit_word}: {habits}. Если уже сделал часть — отлично, фокус только на оставшемся {emoji}",
-    "К этому моменту открыто {left} {habit_word} — {habits}. Не распыляйся: следующая одна привычка уже приблизит финиш {emoji}",
-    "Полдень — хороший момент освободить голову: осталось {left} {habit_word}: {habits} {emoji}",
-    "Сверил актуальный список: {left} {habit_word} ещё ждут отметки — {habits}. Двигайся в своём темпе {emoji}",
-    "Без лишнего давления: сейчас {left} {habit_word} — {habits}. Закрой ближайшую, а потом посмотри на остаток {emoji}",
-    "Часть дня уже прошла, поэтому напоминаю только об оставшемся: {left} {habit_word} — {habits} {emoji}",
-    "Небольшой дневной чек: {left} {habit_word} пока открыты — {habits}. Один следующий шаг за раз {emoji}",
-]
-
-
-def format_habit_noon_message(incomplete_habits) -> str:
-    titles = [str(h["title"]) for h in incomplete_habits]
-    left = len(titles)
-    habits = ", ".join(f"«{t}»" for t in titles)
-    habit_word = plural_ru(left, "привычка", "привычки", "привычек")
-    verb = "Не отмечена" if left == 1 else "Не отмечены"
-    return pick(
-        HABIT_NOON_TEMPLATES,
-        pool=MOTIVATION_EMOJIS,
-        left=left,
-        habit_word=habit_word,
-        habits=habits,
-        verb=verb,
-    )
-
-
 # Совместимость со старыми вызовами. Теперь это не «утренний» текст и не
 # утверждает, что привычку нужно сделать с утра.
 HABIT_REMINDER_TEMPLATES = [
@@ -168,32 +137,49 @@ def format_plan_task_reminder_message(title: str) -> str:
 
 
 # =====================================
-# ПЛАН ДНЯ — 15:00
+# ПЛАН ДНЯ — 19:00
 # =====================================
 
 DAY_PROGRESS_TEMPLATES = [
-    "Сейчас {done} из {total} {task_word} уже закрыто. Осталось {left} {left_word} — ещё есть время спокойно добить главное {emoji}",
-    "Половина дня позади. {left} {left_word} из плана ещё ждут тебя. Выбери одну и вернись в ритм {emoji}",
-    "Я бы сейчас не распылялся: {left} {left_word} ещё открыты. Закрой следующую — остальное станет проще {emoji}",
-    "Проверил твой план: готово {done} из {total} {task_word}. Осталось {left} {left_word} — время ещё на твоей стороне {emoji}",
+    "Вечерняя сверка: готово {done} из {total} {total_gen}. Осталось {left} {left_word}: {open_items}. Ещё можно спокойно закрыть главное {emoji}",
+    "Проверил весь план: выполнено {done} из {total} {total_gen}, включая главную задачу. Осталось {left} {left_word}: {open_items} {emoji}",
+    "19:00 — время свериться с планом. Закрыто {done} из {total} {total_gen}. {left_phrase}: {open_items}. Выбери следующий пункт {emoji}",
+    "До финиша осталось {left} {left_word} из всего плана — {open_items}. Сначала закрой то, что важнее всего {emoji}",
 ]
 
 
-def format_day_progress_message(done: int, total: int) -> str:
-    left = total - done
+def task_genitive(n: int) -> str:
+    """Форма после «из»: из 1 задачи, из 2 задач, из 5 задач."""
+    return "задачи" if abs(int(n)) == 1 else "задач"
+
+
+def format_day_progress_message(done: int, total: int, open_items=None) -> str:
+    left = max(0, total - done)
+    open_items = open_items or []
+    listed = ", ".join(open_items[:6])
+    if len(open_items) > 6:
+        listed += f" и ещё {len(open_items) - 6}"
+
+    left_phrase = (
+        f"Осталась {left} {task_word(left)}" if left == 1
+        else f"Остались {left} {task_word(left)}"
+    )
+
     return pick(
         DAY_PROGRESS_TEMPLATES,
         pool=TASK_EMOJIS,
         done=done,
         total=total,
         left=left,
-        task_word=task_word(total),
+        total_gen=task_genitive(total),
         left_word=task_word(left),
+        left_phrase=left_phrase,
+        open_items=listed,
     )
 
 
 # =====================================
-# ПЛАН ДНЯ — 20:00
+# LEGACY: старый вечерний формат (не используется планировщиком)
 # =====================================
 
 EVENING_PROGRESS_TEMPLATES = [

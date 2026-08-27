@@ -1,11 +1,8 @@
 """
 coach.py
 Проактивная часть AI-коуча — этап 3 "AI Coach":
-  - прогноз срыва привычек (rule-based, без обращений к OpenAI — дёшево и
-    можно гонять для всех пользователей разом);
-  - проактивные сообщения (вечерний пинг тем, у кого серия под угрозой);
-  - жёсткий дедлайн в 22:00 — контрольное напоминание ВСЕМ, у кого остались
-    невыполненные привычки, независимо от серии;
+  - проактивные сообщения по расписанию без дублей;
+  - отдельные финальные напоминания о привычках только в 23:00 и 23:30;
   - недельные отчёты (шаблонные, без LLM — экономим запросы к OpenAI,
     см. этап 4 "уменьшение количества запросов к OpenAI");
   - еженедельный AI-разбор по КАЖДОЙ привычке отдельно (habit_logs) —
@@ -34,15 +31,11 @@ from db import (
     mark_goal_reminder_sent,
     get_daily_plan,
     get_timezone,
-    claim_notification,
+    claim_notification, notification_scope,
 )
 from multi_agent import generate_weekly_habit_feedback
 from adam_messages import (
     format_day_progress_message,
-    format_evening_progress_message,
-    format_habit_reminder_messages,
-    format_habit_final_motivation_message,
-    format_habit_noon_message,
     format_habit_checkpoint_10_message,
     format_plan_task_reminder_message,
     format_goal_reminder_message,
@@ -81,37 +74,6 @@ def format_risk_message(progress: dict) -> str:
         f"Осталось невыполненных привычек: <b>{left}</b>. Ещё есть время сегодня "
         f"их закрыть 💪"
     )
-
-
-async def run_streak_risk_check(bot):
-    """Раз в день (вечером) — тем, у кого включены напоминания и есть что
-    терять, уходит короткий пинг. Не LLM-звонок, чисто по данным из БД —
-    дёшево и можно запускать для всех пользователей сразу."""
-    users = get_all_users()
-    sent = 0
-
-    for user in users:
-        telegram_id = user["telegram_id"]
-
-        settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
-            continue
-
-        progress = get_progress(telegram_id)
-        if not is_at_risk(progress):
-            continue
-
-        try:
-            await bot.send_message(
-                telegram_id,
-                format_risk_message(progress),
-                parse_mode="HTML"
-            )
-            sent += 1
-        except Exception as e:
-            log_error("streak_risk", e, telegram_id)
-
-    logger.info(f"Проверка риска срыва серии: отправлено {sent} уведомлений")
 
 
 # =====================================
@@ -167,68 +129,6 @@ async def run_weekly_report(bot):
 
 
 # =====================================
-# КОНТРОЛЬНАЯ ТОЧКА (22:00)
-# =====================================
-
-def format_hard_deadline_message(incomplete_habits) -> str:
-    titles = [h["title"] for h in incomplete_habits]
-    left = len(titles)
-    habit_word = "привычка" if left == 1 else "привычки" if left < 5 else "привычек"
-    verb = "неотмечена" if left == 1 else "неотмечены"
-    lines = "\n".join(f"• {t}" for t in titles)
-
-    return (
-        "⏰ <b>Контрольная точка — 22:00</b>\n\n"
-        f"<b>{verb} {habit_word}: {left}</b>\n"
-        f"{lines}\n\n"
-        "Ещё есть время всё закрыть 💪"
-    )
-
-
-async def run_hard_deadline_check(bot):
-    """Жёсткий дедлайн: если к 22:00 у пользователя остались привычки, не
-    отмеченные выполненными сегодня, — отправляем контрольное напоминание.
-    В отличие от run_streak_risk_check (20:00, только для тех, у кого есть
-    серия — то есть есть что терять), эта проверка идёт ВСЕМ, у кого
-    включены напоминания и есть незакрытые привычки, независимо от серии."""
-    users = get_all_users()
-    sent = 0
-
-    for user in users:
-        telegram_id = user["telegram_id"]
-
-        settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
-            continue
-
-        incomplete = get_incomplete_habits(telegram_id)
-        if not incomplete:
-            continue
-
-        # Контрольная точка должна приходить именно в 22:00 по локальному
-        # времени пользователя, а не по timezone сервера/Railway.
-        try:
-            now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
-            if now_local.hour != 22:
-                continue
-
-            day = now_local.date().isoformat()
-            if not claim_notification(telegram_id, day, "hard_deadline_22"):
-                continue
-
-            await bot.send_message(
-                telegram_id,
-                format_hard_deadline_message(incomplete),
-                parse_mode="HTML"
-            )
-            sent += 1
-        except Exception as e:
-            log_error("hard_deadline", e, telegram_id)
-
-    logger.info(f"Контрольная точка 22:00: отправлено {sent} напоминаний")
-
-
-# =====================================
 # ИНДИВИДУАЛЬНЫЕ НАПОМИНАНИЯ ПО ЗАДАЧАМ (через N часов бездействия)
 # =====================================
 #
@@ -240,7 +140,7 @@ async def run_hard_deadline_check(bot):
 # напоминание уходит один раз в день (флаг reminder_sent, сбрасывается
 # вместе с самой задачей — см. db/habits.py и db/daily_plan.py).
 
-REMINDER_AFTER_HOURS = 2
+REMINDER_AFTER_HOURS = 2  # только для задач плана; привычки больше не имеют 2-часовых пингов
 
 
 async def run_task_reminder_check(bot):
@@ -264,10 +164,9 @@ async def run_task_reminder_check(bot):
         now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
         if 0 <= now_local.hour < 6 or (now_local.hour == 6 and now_local.minute < 15):
             continue
-        # После 20:00 не отправляем точечные сообщения по задачам плана:
-        # вечерняя сверка в 22:30 должна собрать ВСЕ открытые пункты в одно
-        # сообщение, а не присылать их по одному с интервалом.
-        if now_local.hour >= 20:
+        # Вечерняя сверка в 19:00 — единое сообщение по всему плану.
+        # Не создаём рядом с ней отдельные пинги по одной задаче.
+        if 18 <= now_local.hour < 20:
             continue
 
         # -- привычки --
@@ -344,7 +243,7 @@ async def run_habit_checkpoint_10(bot):
                 continue
 
             day = now.date().isoformat()
-            if not claim_notification(telegram_id, day, "habit_checkpoint_10"):
+            if not claim_notification(telegram_id, day, "habit_checkpoint_10", notification_scope(bot)):
                 continue
 
             await bot.send_message(
@@ -360,71 +259,16 @@ async def run_habit_checkpoint_10(bot):
 
 
 # =====================================
-# ОТДЕЛЬНЫЕ НАПОМИНАНИЯ ПО ПРИВЫЧКАМ (12:00)
-# =====================================
-
-async def run_habit_reminders_12(bot):
-    """В 12:00 отправляет по одному сообщению только по тем привычкам,
-    которые ещё не выполнены. Формулировки внутри одной рассылки не
-    повторяются."""
-    users = get_all_users()
-    sent = 0
-
-    for user in users:
-        telegram_id = user["telegram_id"]
-        settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
-            continue
-
-        try:
-            now = datetime.now(ZoneInfo(get_timezone(telegram_id)))
-            if now.hour != 12:
-                continue
-
-            incomplete = get_incomplete_habits(telegram_id)
-            if not incomplete:
-                continue
-
-            day = now.date().isoformat()
-            if not claim_notification(telegram_id, day, "habit_reminders_12"):
-                continue
-
-            messages = format_habit_reminder_messages([h["title"] for h in incomplete])
-            for text in messages:
-                try:
-                    await bot.send_message(telegram_id, text, parse_mode="HTML")
-                    sent += 1
-                except Exception as e:
-                    log_error("habit_reminder_12_item", e, telegram_id)
-
-            if len(messages) > 1:
-                try:
-                    await bot.send_message(
-                        telegram_id,
-                        format_habit_final_motivation_message(),
-                        parse_mode="HTML"
-                    )
-                    sent += 1
-                except Exception as e:
-                    log_error("habit_reminder_12_final", e, telegram_id)
-        except Exception as e:
-            log_error("habit_reminders_12", e, telegram_id)
-
-    logger.info(f"Отдельные напоминания по привычкам 12:00: отправлено {sent} сообщений")
-
-
-# =====================================
-# ДНЕВНОЕ / ВЕЧЕРНЕЕ НАПОМИНАНИЕ ПО ПЛАНУ ДНЯ (15:00 / 20:00)
+# ВЕЧЕРНЯЯ СВЕРКА ПЛАНА ДНЯ (19:00)
 # =====================================
 #
-# Промт п.2: если к 15:00 из плана дня выполнено <= половины задач — придёт
-# мотивационное сообщение; если к 20:00 осталась хотя бы 1 невыполненная
-# задача — тоже. Если план дня пуст (нет ни одной задачи) — проверять
-# нечего, писать не будем (п.4/11).
+# В 19:00 считаются ВСЕ пункты сегодняшнего плана:
+# 1) главная задача;
+# 2) все второстепенные задачи.
+# Поэтому пользователь всегда видит одну честную цифру по всему плану.
 
 async def run_day_progress_check(bot):
-    """15:00 — мотивационное сообщение, если выполнено <= половины задач
-    сегодняшнего плана дня."""
+    """19:00 — единая сверка главной и второстепенных задач."""
     users = get_all_users()
     sent = 0
 
@@ -433,80 +277,73 @@ async def run_day_progress_check(bot):
 
         settings = get_settings(telegram_id)
         if not settings or settings["reminders"] == 0:
-            continue
-
-        plan = get_daily_plan(telegram_id)
-        tasks = plan["tasks"]
-        if not tasks:
-            continue
-
-        done = sum(1 for t in tasks if t["completed"])
-        total = len(tasks)
-
-        if done > total / 2:
-            continue
-
-        try:
-            await bot.send_message(
-                telegram_id,
-                format_day_progress_message(done, total),
-                parse_mode="HTML"
-            )
-            sent += 1
-        except Exception as e:
-            log_error("day_progress_check", e, telegram_id)
-
-    logger.info(f"Дневное напоминание по плану дня (15:00): отправлено {sent} сообщений")
-
-
-async def run_evening_progress_check(bot):
-    """22:30 — финальная сверка плана, если осталась хотя бы 1
-    невыполненная задача сегодняшнего плана дня."""
-    users = get_all_users()
-    sent = 0
-
-    for user in users:
-        telegram_id = user["telegram_id"]
-
-        settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
-            continue
-
-        plan = get_daily_plan(telegram_id)
-        tasks = plan["tasks"]
-        main_open = bool(plan.get("main_goal") and not plan.get("main_goal_completed"))
-        open_tasks = [t for t in tasks if not t["completed"]]
-        total_items = len(tasks) + (1 if plan.get("main_goal") else 0)
-        done_items = sum(1 for t in tasks if t["completed"]) + (1 if plan.get("main_goal") and plan.get("main_goal_completed") else 0)
-
-        # Даже если обычных задач нет, одна открытая главная задача должна
-        # попасть в вечернюю сверку.
-        if total_items == 0 or done_items >= total_items:
             continue
 
         try:
             now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
-            if now_local.hour != 22 or now_local.minute != 30:
+            if now_local.hour != 19 or now_local.minute != 0:
                 continue
+
+            plan = get_daily_plan(telegram_id)
+            tasks = plan.get("tasks") or []
+            main_goal = (plan.get("main_goal") or "").strip()
+
+            items = []
+            if main_goal:
+                items.append({
+                    "text": main_goal,
+                    "completed": bool(plan.get("main_goal_completed")),
+                    "kind": "главная",
+                })
+            items.extend({
+                "text": t["text"],
+                "completed": bool(t["completed"]),
+                "kind": "второстепенная",
+            } for t in tasks)
+
+            if not items:
+                continue
+
+            done = sum(1 for item in items if item["completed"])
+            total = len(items)
+            left = total - done
+
+            # В 19:00 уведомляем только если есть незакрытые пункты.
+            if left <= 0:
+                continue
+
             day = now_local.date().isoformat()
-            if not claim_notification(telegram_id, day, "evening_progress_2230"):
+            if not claim_notification(
+                telegram_id, day, "day_progress_19", notification_scope(bot)
+            ):
                 continue
+
+            open_items = [
+                f"{item['kind']}: «{item['text']}»"
+                for item in items if not item["completed"]
+            ]
+
             await bot.send_message(
                 telegram_id,
-                format_evening_progress_message(
-                    done_items,
-                    total_items,
-                    [t["text"] for t in open_tasks],
-                    main_goal=(plan["main_goal"] if main_open else None),
+                format_day_progress_message(
+                    done,
+                    total,
+                    open_items,
                 ),
-                parse_mode="HTML"
+                parse_mode="HTML",
             )
             sent += 1
+
         except Exception as e:
-            log_error("evening_progress_check", e, telegram_id)
+            log_error("day_progress_check", e, telegram_id)
 
-    logger.info(f"Вечерняя сверка по плану дня (22:30): отправлено {sent} сообщений")
+    logger.info(
+        f"Вечерняя сверка плана дня (19:00): отправлено {sent} сообщений"
+    )
 
+
+# Старую отдельную вечернюю сверку 22:30 намеренно не запускаем:
+# в 19:00 пользователь получает единую картину по главной + второстепенным задачам.
 
 # =====================================
 # ПЕРИОДИЧЕСКИЕ МОТИВАЦИОННЫЕ СООБЩЕНИЯ

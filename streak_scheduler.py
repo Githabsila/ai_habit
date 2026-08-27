@@ -148,7 +148,7 @@ async def run_streak_risk_notifications(bot):
             day = now.date().isoformat()
 
             if now.minute == 0:
-                if not claim_notification(uid, day, "risk23"):
+                if not claim_notification(uid, day, "risk23", notification_scope(bot)):
                     continue
                 await bot.send_message(
                     uid,
@@ -160,7 +160,7 @@ async def run_streak_risk_notifications(bot):
 
             # 23:30 — главное сообщение. После него одно сообщение редактируется
             # в реальном времени до полуночи.
-            if not claim_notification(uid, day, "risk2330"):
+            if not claim_notification(uid, day, "risk2330", notification_scope(bot)):
                 continue
             sent = await bot.send_message(
                 uid,
@@ -187,7 +187,7 @@ async def run_weekly_streak_bonus(bot):
             day = now.date().isoformat()
             if not get_weekly_bonus_available(uid):
                 continue
-            if not claim_notification(uid, day, "weekly_bonus"):
+            if not claim_notification(uid, day, "weekly_bonus", notification_scope(bot)):
                 continue
             await bot.send_message(
                 uid,

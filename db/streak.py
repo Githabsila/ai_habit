@@ -448,12 +448,30 @@ def get_weekly_bonus_available(user_id):
     return not claimed and completed == 7
 
 
-def claim_notification(user_id, day, kind):
+def notification_scope(bot=None):
+    """Уникальный стабильный идентификатор конкретного Telegram-бота.
+    Нужен, когда несколько ботов работают с одной БД: одноразовые уведомления
+    одного бота не должны блокировать такое же уведомление другого бота.
+    В БД сохраняется только короткий хэш токена, сам токен никогда не пишется.
+    """
+    token = getattr(bot, "token", "") if bot is not None else ""
+    if not token:
+        return "default"
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+
+
+def claim_notification(user_id, day, kind, scope="default"):
+    """Атомарно резервирует уведомление.
+    scope разделяет одноразовые уведомления разных Telegram-ботов.
+    """
     conn = connect()
     c = conn.cursor()
+    scoped_kind = f"{kind}:{scope}"
     try:
-        c.execute("INSERT INTO streak_notifications(user_id,day,kind) VALUES(?,?,?)",
-                  (user_id, day, kind))
+        c.execute(
+            "INSERT INTO streak_notifications(user_id,day,kind) VALUES(?,?,?)",
+            (user_id, day, scoped_kind),
+        )
         conn.commit()
         ok = True
     except Exception:

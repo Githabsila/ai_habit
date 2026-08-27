@@ -1446,25 +1446,56 @@ body {
     inset 0 1px 0 rgba(255,255,255,.04);
 }
 
-/* Бегущее свечение */
+/* Бегущий мягкий блеск — отдельный GPU-слой.
+   Узкая полоса не заставляет браузер перерисовывать всю карточку.
+   В момент возврата в начало она полностью прозрачна, поэтому
+   анимация визуально не обрывается. */
 .player-card::before {
   content: "";
   position: absolute;
-  inset: -2px;
-  background: linear-gradient(
-    120deg,
-    transparent 20%,
-    rgba(124,92,252,.18) 40%,
-    rgba(240,180,41,.14) 60%,
-    transparent 80%
-  );
-  animation: cardGlow 6s linear infinite;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: -35%;
+  width: 34%;
   pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255,255,255,0) 18%,
+    rgba(255,255,255,.055) 43%,
+    rgba(240,180,41,.075) 50%,
+    rgba(255,255,255,.045) 57%,
+    rgba(255,255,255,0) 82%,
+    transparent 100%
+  );
+  transform: translate3d(0,0,0) skewX(-10deg);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  contain: layout paint;
+  animation: cardShine 5.5s cubic-bezier(.35,0,.65,1) infinite;
 }
 
-@keyframes cardGlow {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+@keyframes cardShine {
+  0%, 8% {
+    transform: translate3d(0,0,0) skewX(-10deg);
+    opacity: 0;
+  }
+  14% { opacity: .85; }
+  47% { opacity: 1; }
+  78% { opacity: .72; }
+  92%, 100% {
+    transform: translate3d(405%,0,0) skewX(-10deg);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-card::before {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 /* Золотое кольцо уровня */
