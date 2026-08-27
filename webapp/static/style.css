@@ -3743,9 +3743,9 @@ section[data-tab="home"] .streak-widget--hero:hover{
 .streak-widget__count span{display:block;margin-top:8px;color:#a9a5b8;font-size:10px;line-height:1.3;max-width:215px}
 .streak-widget__flame-orbit{position:relative;width:82px;height:82px;flex:0 0 82px;display:grid;place-items:center}
 .streak-widget__mini-flame{position:relative;z-index:3;font-size:31px;filter:drop-shadow(0 0 15px rgba(255,108,24,.58));animation:impactFire 1.8s ease-in-out infinite}
-.streak-orbit{position:absolute;inset:9px;border:1px solid rgba(255,133,58,.19);border-radius:50%;animation:streakOrbit 6s linear infinite;transform-origin:center}
+.streak-orbit{position:absolute;inset:2px;border:1px solid rgba(255,133,58,.22);border-radius:50%;animation:streakOrbit 6s linear infinite;transform-origin:center}
 .streak-orbit::after{content:"";position:absolute;width:5px;height:5px;border-radius:50%;background:#ffad61;box-shadow:0 0 8px #ff7a18;right:-2px;top:13px}
-.streak-orbit.orbit-2{inset:17px;border-color:rgba(151,111,255,.18);animation-duration:8s;animation-direction:reverse}
+.streak-orbit.orbit-2{inset:13px;border-color:rgba(151,111,255,.20);animation-duration:8s;animation-direction:reverse}
 .streak-orbit.orbit-2::after{background:#9d7cff;box-shadow:0 0 8px #7c5cff;left:2px;top:4px;right:auto}
 .streak-widget__week-head{display:flex;align-items:center;justify-content:space-between;margin:4px 0 8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.055);font-size:8px;font-weight:900;letter-spacing:.15em;color:#777487}
 .streak-widget__week-head span:last-child{letter-spacing:.02em;font-weight:700;color:#625f70;text-transform:none}
@@ -3761,7 +3761,7 @@ section[data-tab="home"] .streak-widget--hero:hover{
   section[data-tab="home"] .streak-widget--hero{padding:16px 14px 13px;border-radius:26px;min-height:240px}
   .streak-widget__icon-wrap{width:37px;height:37px;flex-basis:37px;border-radius:12px}.streak-widget__icon{width:23px;height:23px}
   .streak-widget__title{font-size:16px}.streak-widget__count strong{font-size:31px}.streak-widget__count span{max-width:190px;font-size:9px}
-  .streak-widget__flame-orbit{width:70px;height:70px;flex-basis:70px}.streak-widget__mini-flame{font-size:27px}.streak-day{height:45px;border-radius:12px}.streak-day span{font-size:14px}.streak-day small{font-size:7px}
+  .streak-widget__flame-orbit{width:70px;height:70px;flex-basis:70px}.streak-widget__mini-flame{width:42px;height:42px}.streak-widget__mini-flame img{width:68px;height:58px}.streak-day{height:45px;border-radius:12px}.streak-day span{font-size:14px}.streak-day small{font-size:7px}
   .freeze-buy-btn{padding:8px 8px;font-size:9px}.freeze-buy-btn b{display:none}.streak-widget__bottom{font-size:8px}
 }
 @media(prefers-reduced-motion:reduce){
@@ -4387,8 +4387,9 @@ section[data-tab="home"] .streak-widget__hero-row{
 
 /* ---- Центральный огонёк с орбитами (в строке с числом дней) ---- */
 .streak-widget__flame-orbit{
-  position:relative;width:84px;height:84px;flex:0 0 84px;
+  position:relative;width:96px;height:96px;flex:0 0 96px;
   display:grid;place-items:center;
+  margin-right:2px;
 }
 .streak-widget__flame-halo{
   position:absolute;
@@ -4410,21 +4411,28 @@ section[data-tab="home"] .streak-widget__hero-row{
 }
 .streak-widget__mini-flame{
   position:relative;z-index:3;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  width:auto;height:auto;
-  object-fit:unset;
-  font-size:34px;line-height:1;
+  display:grid;
+  place-items:center;
+  width:48px;height:48px;
   margin:0;
-  text-align:center;
+  border-radius:50%;
+  overflow:hidden;
+  background:radial-gradient(circle,rgba(255,190,75,.18),rgba(255,110,25,.055) 58%,transparent 72%);
+  box-shadow:0 0 0 1px rgba(255,194,87,.10),0 0 22px rgba(255,112,25,.20);
+  animation:streakFlameCore 1.8s ease-in-out infinite;
+}
+.streak-widget__mini-flame img{
+  display:block;
+  width:76px;height:65px;
+  max-width:none;
+  object-fit:contain;
+  transform:translateY(5px);
   filter:
     drop-shadow(0 0 4px rgba(255,238,200,.85))
-    drop-shadow(0 0 14px rgba(255,120,30,.9))
-    drop-shadow(0 0 26px rgba(255,80,20,.45))
-    drop-shadow(0 3px 6px rgba(90,10,0,.4));
-  animation:impactFire 1.8s ease-in-out infinite;
+    drop-shadow(0 0 13px rgba(255,120,30,.9))
+    drop-shadow(0 0 24px rgba(255,80,20,.45));
 }
+@keyframes streakFlameCore{0%,100%{transform:scale(.96) rotate(-1deg)}50%{transform:scale(1.05) rotate(1deg)}}
 @keyframes flameHaloBreathe{0%,100%{opacity:.55;transform:scale(.9)}50%{opacity:1;transform:scale(1.12)}}
 
 /* Эмберы на самих орбитальных кольцах — крупнее и «живее». */
@@ -4564,9 +4572,10 @@ section[data-tab="home"] .streak-widget__hero-row{
 @media(max-width:420px){
   .streak-widget__icon-wrap{width:38px;height:38px;flex-basis:38px;border-radius:12px}
   .streak-widget__icon{font-size:19px;width:auto;height:auto;margin:0}
-  .streak-widget__flame-orbit{width:72px;height:72px;flex-basis:72px}
-  .streak-widget__flame-halo{width:60px;height:60px}
-  .streak-widget__mini-flame{font-size:28px;width:auto;height:auto;margin:0}
+  .streak-widget__flame-orbit{width:82px;height:82px;flex-basis:82px}
+  .streak-widget__flame-halo{width:62px;height:62px}
+  .streak-widget__mini-flame{width:42px;height:42px}
+  .streak-widget__mini-flame img{width:66px;height:56px}
 }
 
 .app-performance-paused .streak-widget__icon-flare,
