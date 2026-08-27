@@ -127,7 +127,19 @@ style="width:0%">
         <div class="streak-widget__title">Твоя серия <span>в огне</span></div>
       </div>
     </div>
-    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button"><span>❄️</span><b>Заморозка</b><em>200 А</em></button>
+    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button"><span>❄️</span><b>Заморозка</b><em>200 <svg class="freeze-buy-btn__coin" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="adamCoinGradFreeze" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#FFEDA6"/>
+          <stop offset="0.5" stop-color="#FFC93C"/>
+          <stop offset="1" stop-color="#E08E00"/>
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="10.4" fill="#B8720A"/>
+      <circle cx="12" cy="12" r="9.3" fill="url(#adamCoinGradFreeze)"/>
+      <circle cx="12" cy="12" r="7.1" fill="none" stroke="#FFF3C4" stroke-width="0.9" opacity="0.55"/>
+      <path d="M6.3 6.8c1-1.4 2.5-2.3 3.8-2.6" stroke="#FFF8E4" stroke-width="1.5" stroke-linecap="round" opacity="0.7" fill="none"/>
+    </svg></em></button>
   </div>
 
   <div class="streak-widget__hero-row">
