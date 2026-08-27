@@ -4610,3 +4610,17 @@ section[data-tab="home"] .streak-widget__hero-row{
   width:14px;
   height:14px;
 }
+
+/* ---- Фикс "недорисовки" карточки серии в Telegram WebView (Android):
+   после скролла текст на градиентной заливке (background-clip:text)
+   иногда не перерисовывается. Принудительно держим слой в GPU-композиции,
+   чтобы браузер не терял содержимое между кадрами. ---- */
+.streak-widget--hero,
+.streak-widget__eyebrow,
+.streak-widget__title,
+.streak-widget__title span,
+.freeze-buy-btn em{
+  transform:translateZ(0);
+  -webkit-backface-visibility:hidden;
+  backface-visibility:hidden;
+}
