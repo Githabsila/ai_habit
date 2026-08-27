@@ -4587,9 +4587,16 @@ section[data-tab="home"] .streak-widget__hero-row{
 }
 
 /* ---- Правка «Заморозка»: цена ровно по центру рядом с монеткой,
-   монетка больше не обрезается краем пилюли ---- */
+   монетка больше не обрезается краем пилюли. Единый вид на всех
+   экранах — как на мобильном (подпись «Заморозка» скрыта везде). ---- */
 .freeze-buy-btn{
-  gap:7px;
+  gap:6px;
+  padding:9px 13px 9px 11px;
+  font-size:9px;
+  border-radius:16px;
+}
+.freeze-buy-btn b{
+  display:none;
 }
 .freeze-buy-btn em{
   display:inline-flex;
@@ -4600,18 +4607,6 @@ section[data-tab="home"] .streak-widget__hero-row{
 .freeze-buy-btn__coin{
   flex:0 0 auto;
   margin-left:0;
-}
-@media(max-width:420px){
-  .freeze-buy-btn{
-    padding:9px 13px 9px 11px;
-    gap:6px;
-    border-radius:16px;
-  }
-  .freeze-buy-btn em{
-    gap:4px;
-  }
-  .freeze-buy-btn__coin{
-    width:14px;
-    height:14px;
-  }
+  width:14px;
+  height:14px;
 }
