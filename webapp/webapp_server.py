@@ -181,27 +181,48 @@ async def bootstrap(request):
 
 @routes.get("/api/bootstrap-secondary")
 async def bootstrap_secondary(request):
-    """Некритические данные Mini App, загружаемые после первого кадра."""
-    telegram_id, _ = await _authenticate(request)
-    owned_item_ids = set(get_user_items(telegram_id))
-    shop_items = get_shop_items()
-    leaderboard = get_rating()
-    calendar_events = get_calendar(telegram_id)
-    achievements = get_achievements(telegram_id)
-    badge_owner_ids = get_item_owner_ids(BADGE_ITEM_ID)
+    """Лениво отдаёт данные только для открытого раздела Mini App.
 
-    return web.json_response({
-        "shop_items": [
+    section=profile  -> магазин + достижения + тема
+    section=rating   -> рейтинг
+    section=calendar -> календарь
+    Без section сохраняем старый формат для обратной совместимости.
+    """
+    telegram_id, _ = await _authenticate(request)
+    section = request.rel_url.query.get("section", "").strip().lower()
+
+    payload = {}
+
+    if section in ("", "profile"):
+        owned_item_ids = set(get_user_items(telegram_id))
+        shop_items = get_shop_items()
+        achievements = get_achievements(telegram_id)
+        payload["shop_items"] = [
             {
                 "id": it["id"],
                 "name": it["name"],
                 "description": it["description"],
                 "price": it["price"],
                 "owned": it["id"] in owned_item_ids,
+                "item_type": it["item_type"] if "item_type" in it.keys() else None,
+                "payload": it["payload"] if "payload" in it.keys() else None,
             }
             for it in shop_items
-        ],
-        "leaderboard": [
+        ]
+        payload["achievements"] = [
+            {
+                "id": a["id"],
+                "title": a["title"],
+                "description": a["description"],
+                "created_at": a["created_at"],
+            }
+            for a in achievements
+        ]
+
+    if section in ("", "rating"):
+        badge_owner_ids = set(get_item_owner_ids(BADGE_ITEM_ID))
+        leaderboard = get_rating()
+        payload["leaderboard"] = [
             {
                 "telegram_id": row["telegram_id"],
                 "username": row["username"],
@@ -213,21 +234,20 @@ async def bootstrap_secondary(request):
                 "streak_status": get_streak_status(row["telegram_id"]),
             }
             for row in leaderboard
-        ],
-        "calendar_events": [
+        ]
+
+    if section in ("", "calendar"):
+        calendar_events = get_calendar(telegram_id)
+        payload["calendar_events"] = [
             {"day": row["day"], "completed": row["completed"], "total": row["total"]}
             for row in calendar_events
-        ],
-        "achievements": [
-            {
-                "id": a["id"],
-                "title": a["title"],
-                "description": a["description"],
-                "created_at": a["created_at"],
-            }
-            for a in achievements
-        ],
-    })
+        ]
+
+    if section not in ("", "profile", "rating", "calendar"):
+        return web.json_response({"error": "unknown_section"}, status=400)
+
+    return web.json_response(payload)
+
 
 @routes.post("/api/habits")
 async def create_habit(request):

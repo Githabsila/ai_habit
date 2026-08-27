@@ -219,7 +219,7 @@ async def ai_chat(message: Message, state: FSMContext):
         await message.answer(habit_reply, reply_markup=ai_keyboard())
         return
 
-    thinking_msg = await message.answer("🤔 Думаю над ответом...")
+    thinking_msg = await message.answer("Формирую ответ")
 
     # ✅ ЛОКАЛЬНЫЙ импорт chat — только здесь, внутри функции
     from webapp.services.ai_service import chat

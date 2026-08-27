@@ -216,9 +216,19 @@ async def ai_chat_miniapp(request):
         return web.json_response({"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}, status=402)
 
     # Собирем контекст
-    history_text = build_history_text(user_id)
+    history_text = build_history_text(user_id, limit=4, max_chars_per_msg=180)
     user_context = build_user_context(user_id)
     style = get_ai_style(user_id)
+
+    previous = get_ai_history(user_id, limit=20)
+    assistant_count = sum(1 for row in previous if row.get("role") == "assistant")
+    humor_note = ""
+    if (assistant_count + 1) % 3 == 0:
+        humor_note = (
+            "Если уместно, можешь закончить ответ одной короткой умной шуткой, "
+            "ироничной репликой или интересным фактом по теме. Только если это "
+            "естественно; без кринжа и без шуток в серьёзных ситуациях."
+        )
 
     # Проверяем кэш (ключ включает user_id — иначе разные пользователи с
     # одинаковым текстом вопроса получали бы чужой закэшированный ответ,
@@ -239,6 +249,7 @@ async def ai_chat_miniapp(request):
                 user_context=user_context,
                 style=style,
                 first_message=first_message,
+                humor_note=humor_note,
             )
             answer = result["answer"]
             is_crisis = result["is_crisis"]

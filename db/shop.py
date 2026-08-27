@@ -112,7 +112,7 @@ def get_ai_quota(user_id, is_pro=False):
     conn=connect(); cur=conn.cursor(); day=str(date.today())
     cur.execute("INSERT OR IGNORE INTO ai_quota(user_id, day, used, bonus_answers) VALUES (?, ?, 0, 0)", (user_id, day))
     cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=? AND day=?", (user_id,day)); r=cur.fetchone(); conn.commit(); conn.close()
-    base=50 if is_pro else 10
+    base=50 if is_pro else 15
     used=int(r["used"] if r else 0); bonus=int(r["bonus_answers"] if r else 0)
     return {"used":used,"bonus":bonus,"limit":base+bonus,"remaining":max(0,base+bonus-used),"pro":is_pro}
 
@@ -127,7 +127,7 @@ def consume_ai_answer(user_id, is_pro=False):
     # but never let a missing row crash /api/ai/chat with a NoneType error.
     used = int(r["used"] or 0) if r else 0
     bonus = int(r["bonus_answers"] or 0) if r else 0
-    base = 50 if is_pro else 10
+    base = 50 if is_pro else 15
     total = base + bonus
 
     if used >= total:

@@ -4610,3 +4610,11 @@ section[data-tab="home"] .streak-widget__hero-row{
   width:14px;
   height:14px;
 }
+
+
+/* PERFORMANCE PASS 28.08 — скрытые разделы не участвуют в layout/paint. */
+.tab-panel[hidden]{display:none!important;}
+.tab-panel{contain:layout paint;content-visibility:auto;}
+@media (max-width:600px){
+  .tab-panel{contain:layout paint style;}
+}

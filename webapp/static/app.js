@@ -173,43 +173,46 @@
     // Второстепенные вкладки дорисовываем после первого кадра, когда браузер
     // освободит основной поток. Качество UI не меняется — меняется только
     // порядок работы.
-    requestAnimationFrame(() => {
-      scheduleIdleWork(() => {
-        loadBootstrapSecondary();
-      });
-    });
   }
 
   // Второстепенные данные (магазин, рейтинг, достижения, календарь) отдаёт
   // отдельный /api/bootstrap-secondary — раньше этот запрос нигде не
   // вызывался, поэтому state.shop_items/leaderboard/achievements/calendar_events
   // всегда оставались undefined и вкладки выглядели постоянно пустыми.
-  let bootstrapSecondaryPromise = null;
-  async function loadBootstrapSecondary() {
-    if (bootstrapSecondaryPromise) return bootstrapSecondaryPromise;
-    bootstrapSecondaryPromise = (async () => {
+  const secondaryPromises = new Map();
+  const secondaryLoaded = new Set();
+  async function loadBootstrapSecondary(section) {
+    const key = section || "profile";
+    if (secondaryLoaded.has(key)) return state;
+    if (secondaryPromises.has(key)) return secondaryPromises.get(key);
+
+    const promise = (async () => {
       try {
-        const data = await api("/api/bootstrap-secondary");
+        const data = await api(`/api/bootstrap-secondary?section=${encodeURIComponent(key)}`);
         if (state) {
-          state.shop_items = data.shop_items;
-          state.leaderboard = data.leaderboard;
-          state.calendar_events = data.calendar_events;
-          state.achievements = data.achievements;
+          if (key === "profile") {
+            state.shop_items = data.shop_items || [];
+            state.achievements = data.achievements || [];
+            renderShop();
+            renderThemePicker();
+            renderAchievements();
+          } else if (key === "rating") {
+            state.leaderboard = data.leaderboard || [];
+            renderRating();
+          } else if (key === "calendar") {
+            state.calendar_events = data.calendar_events || [];
+            renderCalendar();
+          }
+          secondaryLoaded.add(key);
         }
       } catch (err) {
-        console.error("bootstrap-secondary failed:", err);
-      } finally {
-        renderShop();
-        renderThemePicker();
-        renderAchievements();
-        renderRating();
-        renderCalendar();
-        maybeShowWeeklyBonus();
+        console.error(`bootstrap-secondary(${key}) failed:`, err);
       }
-    })().finally(() => {
-      bootstrapSecondaryPromise = null;
-    });
-    return bootstrapSecondaryPromise;
+      return state;
+    })().finally(() => secondaryPromises.delete(key));
+
+    secondaryPromises.set(key, promise);
+    return promise;
   }
 
   // Пока Mini App не виден, декоративные анимации не должны тратить батарею/CPU.
@@ -961,6 +964,11 @@ function initTabs() {
         });
       }
     });
+    // Второстепенные данные загружаются только при первом открытии
+    // соответствующего раздела, а не сразу после запуска Mini App.
+    if (tab === "profile" || tab === "rating" || tab === "calendar") {
+      loadBootstrapSecondary(tab);
+    }
     haptic("light");
     scheduleDecorSettle();
   });

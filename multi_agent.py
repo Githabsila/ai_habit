@@ -56,7 +56,7 @@ logger = logging.getLogger("multi_agent")
 # ============ КОНФИГ ============
 
 MODEL = "gpt-5.6"
-FAST_MODEL = "gpt-5.6"
+FAST_MODEL = "gpt-5.6-terra"
 OPENAI_TIMEOUT = 8.0
 GROQ_TIMEOUT = 8.0
 
@@ -520,6 +520,7 @@ async def fast_answer(
     user_context: str = "",
     mood_note: str = "",
     style_note: str = "",
+    humor_note: str = "",
 ) -> str:
     user = task
     if user_context:
@@ -527,12 +528,16 @@ async def fast_answer(
     if history:
         user = f"История переписки:\n{history}\n\n{user}"
 
-    system = FAST_SYSTEM + "\n\n" + _combine_notes(mood_note, style_note)
+    system = FAST_SYSTEM + "\n\n" + _combine_notes(mood_note, style_note, humor_note)
     # Было 300 — для "1-3 предложений" по-русски модели иногда впритык не
     # хватало, и это резало ответ на полуслове (Проблема №1). У _ask теперь
     # есть свой аварийный повтор/подрезка, но на первом заходе лучше сразу
     # дать реальный запас.
-    return await _ask(system, user, temperature=0.35, max_tokens=500, model=FAST_MODEL)
+    # Terra — основной быстрый режим; Sol включаем только для действительно
+    # длинных/сложных запросов. Это сохраняет качество там, где оно нужно,
+    # но не заставляет каждый обычный вопрос ждать frontier-модель.
+    selected_model = MODEL if len(task or "") > 900 or _needs_deep_pipeline(task) else FAST_MODEL
+    return await _ask(system, user, temperature=0.35, max_tokens=500, model=selected_model)
 
 
 # ============ 0c. КРИЗИС-ГЕЙТ ============
@@ -993,6 +998,7 @@ async def solve_task_multiagent(
     style: str = DEFAULT_STYLE,
     trace: Optional[AgentTrace] = None,
     first_message: bool = False,
+    humor_note: str = "",
 ) -> dict:
     """
     Полный пайплайн:
@@ -1053,7 +1059,7 @@ async def solve_task_multiagent(
         trace.mood = "нейтрально"
         trace.complexity = "прямой быстрый ответ"
         trace.is_crisis = False
-        answer = await fast_answer(task, history, user_context, "", style_note)
+        answer = await fast_answer(task, history, user_context, "", style_note, humor_note)
         answer = _apply_first_response_note(answer, first_message, user_context)
         trace.final_answer = answer
         return {
@@ -1082,7 +1088,7 @@ async def solve_task_multiagent(
             "complexity": "кризис",
         }
 
-    answer = await fast_answer(task, history, user_context, "", style_note)
+    answer = await fast_answer(task, history, user_context, "", style_note, humor_note)
     answer = _apply_first_response_note(answer, first_message, user_context)
     trace.final_answer = answer
     return {
@@ -1104,9 +1110,12 @@ async def solve_task_multiagent(
 MEMORY_SUMMARY_SYSTEM = (
     "Ты ведёшь два слоя памяти AI-коуча. Верни СТРОГО JSON без markdown: "
     '{"summary":"...","followup":"..."}'
-    "summary — 3-5 кратких устойчивых фактов о пользователе, полезных в будущем: "
+    "summary — 3-6 кратких устойчивых фактов о пользователе, полезных в будущем: "
     "цели, устойчивые предпочтения, длительные ограничения или обстоятельства. "
-    "НЕ записывай разовые разговоры, временные задачи, отдельные вопросы, идеи, "
+    "Если пользователь прямо просит что-то запомнить (например, стиль ответов, "
+    "желаемую длину, формат общения или постоянное правило), ОБЯЗАТЕЛЬНО сохрани "
+    "это как устойчивое предпочтение. Такие явные просьбы о памяти важнее обычных "
+    "разговорных деталей. НЕ записывай разовые разговоры, временные задачи, отдельные вопросы, идеи, "
     "поиск подработки/работы или тему, которую человек просто обсуждал один раз, "
     "если он прямо не просил запомнить это как постоянный факт. Не включай названия "
     "привычек и серию дней. "

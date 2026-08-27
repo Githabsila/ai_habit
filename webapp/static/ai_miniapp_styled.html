@@ -535,7 +535,7 @@ window.onerror = function(msg, url, line, col, error) {
     .message.assistant .message-bubble::before{
         content:"ADAM";
         display:block;
-        margin:0 0 7px 1px;
+        margin:3px 0 10px 1px;
         color:#BBAEFF;
         font:800 9px/1 'Space Grotesk',sans-serif;
         letter-spacing:.19em;
@@ -635,6 +635,22 @@ window.onerror = function(msg, url, line, col, error) {
         box-shadow:0 10px 26px rgba(0,0,0,.13), inset 0 1px rgba(255,255,255,.045);
     }
 
+
+/* PERFORMANCE PASS 28.08 — чат: минимум постоянной GPU-нагрузки. */
+@media (max-width: 600px){
+  .header,.chat-toolbar,.input-area,.message.assistant .message-bubble{
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+}
+@media (prefers-reduced-motion: no-preference){
+  .app-performance-paused *,.app-performance-paused *::before,.app-performance-paused *::after{
+    animation-play-state:paused!important;
+  }
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important;}
+}
 </style>
     <link rel="stylesheet" href="/static/adam_premium_overrides.css?v=20260824-premium">
 <style>
@@ -1028,7 +1044,7 @@ body{
                                 {m.habit&&<div className="habit-suggestion"><div><span className="habit-label">ПРЕДЛОЖЕНИЕ</span><strong>➕ {m.habit}</strong></div><button className="add-habit-btn" onClick={()=>addHabit(m.id,m.habit)}>Добавить</button></div>}
                             </div></div>}
                         </div>)}
-                        {loading&&<div className="message assistant"><div className="thinking"><div className="thinking-avatar"><img src="/static/assets/adam-avatar.png" alt="" /></div><div><div className="thinking-title typing-shimmer">ADAM думает · формирую ответ</div><div className="thinking-dots"><i></i><i></i><i></i></div></div></div></div>}
+                        {loading&&<div className="message assistant"><div className="thinking"><div className="thinking-avatar"><img src="/static/assets/adam-avatar.png" alt="" /></div><div><div className="thinking-title typing-shimmer">Формирую ответ</div><div className="thinking-dots"><i></i><i></i><i></i></div></div></div></div>}
                         <div ref={messagesEnd}/>
                     </>}
                 </div>
@@ -1123,7 +1139,7 @@ body::before{
 }
 .message.assistant .message-bubble::before{
   content:"ADAM";
-  display:block;margin-bottom:7px;
+  display:block;margin:3px 0 9px 1px;
   font-size:8px;letter-spacing:.18em;font-weight:900;color:#B9A7FF;
   opacity:.85;
 }
