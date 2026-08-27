@@ -2,6 +2,13 @@
   "use strict";
 
   const tg = window.Telegram ? window.Telegram.WebApp : null;
+  try {
+    const lowPower =
+      (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
+      (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+      (navigator.connection && navigator.connection.saveData);
+    if (lowPower) document.documentElement.classList.add("performance-lite");
+  } catch (_) {}
   const RING_CIRCUMFERENCE = 326.7; // 2 * PI * 52
 
   function pluralRu(n, one, few, many) {

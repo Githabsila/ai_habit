@@ -67,6 +67,27 @@ MAX_RETRIES = 1           # автоповтор при ошибке 429, вме
 
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
 
+# Reuse HTTP connection pools between requests. Creating a new AsyncOpenAI
+# client for every stage throws away keep-alive/TLS connection reuse.
+_openai_client = None
+_groq_client = None
+
+def _get_openai_client():
+    global _openai_client
+    if _openai_client is None and OPENAI_API_KEY:
+        _openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=OPENAI_TIMEOUT)
+    return _openai_client
+
+def _get_groq_client():
+    global _groq_client
+    if _groq_client is None and GROQ_API_KEY:
+        _groq_client = AsyncOpenAI(
+            api_key=GROQ_API_KEY,
+            base_url="https://api.groq.com/openai/v1",
+            timeout=GROQ_TIMEOUT,
+        )
+    return _groq_client
+
 # Персона бота — та же, что раньше жила в системном промпте ask_ai().
 # Подмешивается во все стадии, которые формируют текст, видимый пользователю
 # (исполнители, синтезатор, спорщики, судья), чтобы тон и язык не потерялись
@@ -376,12 +397,7 @@ async def _ask(
     import time
 
     async def _groq_call():
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(
-            api_key=GROQ_API_KEY,
-            base_url="https://api.groq.com/openai/v1",
-            timeout=GROQ_TIMEOUT,
-        )
+        client = _get_groq_client()
         response = await client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[
@@ -396,8 +412,7 @@ async def _ask(
         )
 
     async def _openai_call():
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=OPENAI_TIMEOUT)
+        client = _get_openai_client()
         response = await client.responses.create(
             model=model,
             instructions=system,

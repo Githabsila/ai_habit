@@ -4627,3 +4627,28 @@ section[data-tab="home"] .streak-widget__hero-row{
 @media (max-width:600px){
   .tab-panel{contain:layout paint style;}
 }
+
+
+/* PERFORMANCE LITE — mobile/low-power devices */
+.performance-lite .player-card,
+.performance-lite .streak-widget,
+.performance-lite .rating-hero,
+.performance-lite .streak-profile-card--premium,
+.performance-lite .tab-bar {
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.performance-lite .bg-particles span,
+.performance-lite .streak-widget__spark,
+.performance-lite .streak-profile-card__particles i,
+.performance-lite .rating-hero::after,
+.performance-lite .player-card::before,
+.performance-lite .streak-widget--hero::before,
+.performance-lite .streak-profile-card--premium::before,
+.performance-lite .levelup-sparkles {
+  animation:none !important; display:none !important;
+}
+.performance-lite .streak-widget__mini-flame,
+.performance-lite .streak-orbit { animation-duration:10s !important; }
+.performance-lite * { scroll-behavior:auto !important; }
+.performance-lite .streak-widget__mini-flame { filter:drop-shadow(0 0 8px rgba(255,108,24,.38)); }

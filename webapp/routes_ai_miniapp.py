@@ -108,6 +108,22 @@ def _schedule_memory_update(user_id: int):
         asyncio.create_task(_update_memory(user_id))
 
 
+# Zero-cost gate: only command-like messages need the optional AI intent classifier.
+# Ordinary chat otherwise uses exactly one generation request.
+_ACTION_MARKERS = (
+    "добавь", "добавить", "создай", "создать", "заведи", "завести",
+    "поставь", "поставить", "отметь", "отметить", "выполни", "выполнить",
+    "сделал", "сделала", "сделано", "сделай", "удали", "удалить",
+    "убери", "убрать", "переименуй", "переименовать", "измени",
+    "поменяй", "перенеси", "назначь", "сними", "покажи мои привычки",
+    "какие у меня привычки", "покажи мой план", "какой у меня план",
+)
+
+def _looks_like_action_request(text: str) -> bool:
+    lowered = " ".join((text or "").lower().split())
+    return any(marker in lowered for marker in _ACTION_MARKERS)
+
+
 # ============ API ROUTES ============
 
 routes = web.RouteTableDef()
@@ -187,7 +203,7 @@ async def ai_chat_miniapp(request):
     # обход мультиагентного пайплайна — быстро и без риска, что модель
     # РАЗГОВОРНО подтвердит действие, ничего на самом деле не изменив.
     habit_reply = try_handle_habit_intent(user_id, message_text)
-    if habit_reply is None:
+    if habit_reply is None and _looks_like_action_request(message_text):
         habit_reply = await try_handle_habit_intent_ai(user_id, message_text)
 
     if habit_reply is not None:
@@ -220,7 +236,7 @@ async def ai_chat_miniapp(request):
     user_context = build_user_context(user_id)
     style = get_ai_style(user_id)
 
-    previous = get_ai_history(user_id, limit=20)
+    previous = get_ai_history(user_id, limit=6)
     assistant_count = sum(1 for row in previous if row.get("role") == "assistant")
     humor_note = ""
     if (assistant_count + 1) % 3 == 0:

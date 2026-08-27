@@ -21,7 +21,7 @@ def build_history_text(
     Берёт последние сообщения переписки с AI-наставником из БД и
     превращает их в текстовый блок-контекст для мультиагентного пайплайна.
     """
-    history = get_ai_history(user_id)
+    history = get_ai_history(user_id, limit=limit)
     if not history:
         return ""
 

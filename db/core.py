@@ -37,7 +37,7 @@ def connect():
     # Railway/aiohttp can have several concurrent requests touching SQLite.
     # WAL allows readers during writes and busy_timeout prevents immediate
     # "database is locked" failures during short concurrent transactions.
-    conn.execute("PRAGMA journal_mode=WAL")
+    # WAL mode is persistent; avoid reconfiguring it on every connection.
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -51,6 +51,7 @@ def connect():
 def create_tables():
 
     conn = connect()
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
 
     # ---------------- USERS ----------------
