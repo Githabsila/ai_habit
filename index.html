@@ -8,7 +8,7 @@
 
 <title>Project ADAM</title>
 
-<link rel="stylesheet" href="/static/style.css?v=20260825_2300">
+<link rel="stylesheet" href="/static/style.css?v=20260827_0200">
 </head>
 <body>
 
@@ -112,27 +112,46 @@ style="width:0%">
   <div class="streak-widget__glow streak-widget__glow--purple"></div>
   <div class="streak-widget__spark streak-widget__spark--1"></div>
   <div class="streak-widget__spark streak-widget__spark--2"></div>
+  <div class="streak-widget__spark streak-widget__spark--3"></div>
+  <div class="streak-widget__spark streak-widget__spark--4"></div>
   <div class="streak-widget__top">
     <div class="streak-widget__brand">
       <div class="streak-widget__icon-wrap" aria-hidden="true">
-        <img src="/static/assets/custom-top-flame.webp" alt="" class="streak-widget__icon">
+        <span class="streak-widget__icon-flare"></span>
+        <span class="streak-widget__icon-ember streak-widget__icon-ember--a"></span>
+        <span class="streak-widget__icon-ember streak-widget__icon-ember--b"></span>
+        <span class="streak-widget__icon">🔥</span>
       </div>
       <div>
         <div class="streak-widget__eyebrow"><span class="streak-live-dot"></span> УДАРНЫЙ РЕЖИМ</div>
         <div class="streak-widget__title">Твоя серия <span>в огне</span></div>
       </div>
     </div>
-    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button"><span>❄️</span><b>Заморозка</b><em>200 А</em></button>
+    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button"><span>❄️</span><b>Заморозка</b><em><span class="freeze-buy-btn__num">200</span><svg class="freeze-buy-btn__coin" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="adamCoinGradFreeze" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#FFEDA6"/>
+          <stop offset="0.5" stop-color="#FFC93C"/>
+          <stop offset="1" stop-color="#E08E00"/>
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="10.4" fill="#B8720A"/>
+      <circle cx="12" cy="12" r="9.3" fill="url(#adamCoinGradFreeze)"/>
+      <circle cx="12" cy="12" r="7.1" fill="none" stroke="#FFF3C4" stroke-width="0.9" opacity="0.55"/>
+      <path d="M6.3 6.8c1-1.4 2.5-2.3 3.8-2.6" stroke="#FFF8E4" stroke-width="1.5" stroke-linecap="round" opacity="0.7" fill="none"/>
+    </svg></em></button>
   </div>
 
   <div class="streak-widget__hero-row">
     <div class="streak-widget__count">
       <strong id="streakWidgetDays">0 дней</strong>
-      <span>Держи темп, только дисциплина даёт прогресс!</span>
+      <span>Держи темп, только дисциплина&nbsp;даёт&nbsp;прогресс!</span>
     </div>
     <div class="streak-widget__flame-orbit" aria-hidden="true">
       <div class="streak-orbit orbit-1"></div>
       <div class="streak-orbit orbit-2"></div>
+      <span class="streak-widget__flame-halo"></span>
+      <span class="streak-widget__flame-base"></span>
       <div class="streak-widget__mini-flame">🔥</div>
     </div>
   </div>
@@ -251,7 +270,7 @@ class="btn btn--accent">
   <h2>Рейтинг</h2>
   <p>Кто держит темп — тот поднимается выше.</p>
   <div class="rating-hero__stats">
-    <span><b id="ratingPlayerCount">0</b> игроков</span>
+    <span><b id="ratingPlayerCount">0</b> <span id="ratingPlayerCountLabel">игроков</span></span>
     <span>🔥 серия решает</span>
   </div>
 </div>
@@ -273,10 +292,12 @@ class="btn btn--accent">
   </div>
   <div class="streak-profile-info">
     <div class="streak-profile-kicker">ТВОЯ УДАРНАЯ СЕРИЯ</div>
+    <div class="streak-profile-status" id="profileStreakStatus">Серия не начата</div>
     <div class="streak-profile-days"><strong id="profileStreakDays">0</strong><span id="profileStreakDaysLabel">дней подряд</span></div>
+    <div class="streak-profile-frame" id="profileStreakFrame">Твоя ударная серия!</div>
     <button class="share-achievement-btn" id="shareAchievementBtn" type="button">↗ Поделиться прогрессом</button>
   </div>
-  <div class="streak-profile-fire" aria-hidden="true"><img src="/static/assets/adam-impact-flame.svg" alt="" loading="lazy" decoding="async"></div>
+  <div class="streak-profile-fire" aria-hidden="true">🔥</div>
 </div>
 
 <div class="streak-profile-metrics">
@@ -380,6 +401,7 @@ class="btn btn--accent">
     <div class="achievement-share-kicker">Мой результат в Project ADAM</div>
     <div class="achievement-share-title">Ударный режим</div>
     <div class="achievement-share-days" id="achievementShareDays">1 день</div>
+    <div class="achievement-share-status" id="achievementShareStatus">Ударный режим</div>
     <div class="achievement-share-note">Я не жду идеальных дней. Я просто продолжаю.</div>
     <button class="achievement-share-close" id="achievementShareClose" type="button">Классно, так держать 💪</button>
   </div>
@@ -450,7 +472,7 @@ class="btn btn--accent">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260825_2300"></script>
+<script type="module" src="/static/app.js?v=20260827_0300"></script>
 
 </body>
 </html>
