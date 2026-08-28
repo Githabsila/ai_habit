@@ -4679,3 +4679,93 @@ section[data-tab="home"] .streak-widget__hero-row{
 .performance-lite .streak-orbit { animation-duration:10s !important; }
 .performance-lite * { scroll-behavior:auto !important; }
 .performance-lite .streak-widget__mini-flame { filter:drop-shadow(0 0 8px rgba(255,108,24,.38)); }
+
+
+/* =========================================================
+   PAINT STABILITY 28.08
+   Telegram WebView иногда теряет отдельные compositor-слои при сочетании
+   content-visibility + backdrop-filter + нескольких анимированных pseudo-
+   elements. Критический первый экран должен иметь обычный paint path.
+   ========================================================= */
+section[data-tab="home"].tab-panel {
+  content-visibility: visible !important;
+  contain: layout style !important;
+}
+
+/* Ударное окно: затемнение сохраняем, blur убираем — это самый тяжёлый
+   fullscreen-эффект и частая причина пропавших слоёв в WebView. */
+.streak-celebration-overlay,
+.streak-onboarding-overlay,
+.streak-weekly-overlay {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background: rgba(3,3,8,.95);
+  isolation: isolate;
+  transform: translateZ(0);
+}
+
+.streak-celebration,
+.streak-onboarding-card,
+.streak-weekly-card {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Верхняя карточка и Ударный режим получают один стабильный слой,
+   а не десятки независимых backdrop/compositor layers. */
+.player-card,
+.streak-widget--hero {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Финальное правило для блеска верхней карточки: предыдущие версии CSS
+   содержали несколько .player-card::before, поэтому часть браузеров брала
+   последний статичный вариант. Теперь используется один лёгкий sweep. */
+.player-card::before {
+  content: "" !important;
+  position: absolute !important;
+  z-index: 2 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: -38% !important;
+  width: 32% !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  background: linear-gradient(105deg, transparent 0%, rgba(255,255,255,0) 25%, rgba(255,255,255,.065) 50%, rgba(240,180,41,.06) 56%, rgba(255,255,255,0) 78%, transparent 100%) !important;
+  transform: translate3d(0,0,0) skewX(-10deg) !important;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  animation: cardShineStable 5.8s cubic-bezier(.35,0,.65,1) infinite !important;
+}
+
+@keyframes cardShineStable {
+  0%, 9% { opacity: 0; transform: translate3d(0,0,0) skewX(-10deg); }
+  16% { opacity: .72; }
+  48% { opacity: .95; }
+  76% { opacity: .55; }
+  93%, 100% { opacity: 0; transform: translate3d(430%,0,0) skewX(-10deg); }
+}
+
+/* Если устройство реально просит reduced motion — не оставляем псевдо-слой
+   в состоянии opacity:0 поверх контента. */
+@media (prefers-reduced-motion: reduce) {
+  .player-card::before { animation: none !important; opacity: 0 !important; }
+}
+
+/* Низкопроизводительный режим больше не удаляет критический декор целиком.
+   Убираем только фоновые частицы, а сам экран остаётся визуально полным. */
+.performance-lite .streak-widget--hero::before,
+.performance-lite .player-card::before {
+  display: block !important;
+}
+.performance-lite .streak-widget--hero::before {
+  animation: none !important;
+  opacity: .18 !important;
+  transform: none !important;
+}
+.performance-lite .player-card::before {
+  animation: none !important;
+  opacity: .10 !important;
+  transform: translateX(0) skewX(-10deg) !important;
+}

@@ -1388,6 +1388,23 @@ function initPlanActions() {
   }
 
   // ===================== BOOT =====================
+function stabilizeFirstPaint() {
+    const critical = [
+        document.querySelector("header.player-card"),
+        document.querySelector('section[data-tab="home"]'),
+        document.getElementById("streakWidget")
+    ].filter(Boolean);
+    if (!critical.length) return;
+    // Не заставляем WebView держать большие слои в compositor-cache.
+    critical.forEach(el => {
+        el.style.visibility = "visible";
+        el.style.contain = el === critical[1] ? "layout style" : "layout paint";
+    });
+    requestAnimationFrame(() => {
+        critical.forEach(el => void el.offsetHeight);
+    });
+}
+
 async function boot() {
     try {
         initTelegram();
@@ -1398,8 +1415,17 @@ async function boot() {
         initThemeActions();
         initStreakUI();
         initStreakPopupClick();
+        // Критический экран готов сразу после bootstrap. Часовой пояс не должен
+        // удерживать loading-overlay и мешать первому paint (особенно в Telegram WebView).
         await loadBootstrap();
-        await syncTimezone();
+        requestAnimationFrame(() => {
+            document.documentElement.classList.remove("decor-settled");
+            // Принудительно отдаём браузеру один чистый кадр для компоновки
+            // верхней карточки + Ударного режима после тяжёлого bootstrap.
+            void document.getElementById("content")?.offsetHeight;
+        });
+        // Некритичная синхронизация — только после первого интерактивного кадра.
+        setTimeout(() => syncTimezone(), 0);
     } catch (err) {
         console.error("boot() failed:", err);
         showToast(friendlyError(err) || "Не удалось загрузить данные", "error");
