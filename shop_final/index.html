@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ru">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:FILL@1">
+
+<title>Project ADAM</title>
+
+<link rel="stylesheet" href="/static/style.css?v=20260827_0400">
+</head>
+<body>
+
+<div id="app">
+
+<header class="player-card">
+
+<div class="player-card__ring-wrap">
+
+<svg class="level-ring" viewBox="0 0 120 120">
+
+<defs>
+<linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#FFD76A"></stop>
+<stop offset="100%" stop-color="#F0B429"></stop>
+</linearGradient>
+</defs>
+
+<circle class="level-ring__track"
+cx="60"
+cy="60"
+r="52"></circle>
+
+<circle class="level-ring__fill"
+id="levelRingFill"
+cx="60"
+cy="60"
+r="52"></circle>
+
+</svg>
+
+<div class="level-ring__badge">
+
+<span id="levelNumber">1</span>
+<small>LVL</small>
+
+</div>
+
+</div>
+
+<div class="player-card__info">
+
+<div class="player-card__name">
+
+<span id="playerName">👋 Добро пожаловать</span><span id="playerBadge" class="player-badge" style="display:none">🏅</span>
+
+</div>
+
+<div class="player-card__stats">
+
+<div class="stat stat--coin">
+    <svg class="stat-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="adamCoinGrad" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#FFEDA6"/>
+          <stop offset="0.5" stop-color="#FFC93C"/>
+          <stop offset="1" stop-color="#E08E00"/>
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="10.4" fill="#B8720A"/>
+      <circle cx="12" cy="12" r="9.3" fill="url(#adamCoinGrad)"/>
+      <circle cx="12" cy="12" r="7.1" fill="none" stroke="#FFF3C4" stroke-width="0.9" opacity="0.55"/>
+      <text x="12" y="16.2" text-anchor="middle" font-family="'Space Grotesk', Arial, sans-serif" font-weight="800" font-size="11" fill="#9C5F06">A</text>
+      <path d="M6.3 6.8c1-1.4 2.5-2.3 3.8-2.6" stroke="#FFF8E4" stroke-width="1.5" stroke-linecap="round" opacity="0.7" fill="none"/>
+    </svg>
+    <span id="coinValue">0</span>
+</div>
+
+<div class="stat stat--streak">
+    <span class="material-symbols-rounded stat-icon">local_fire_department</span>
+    <span id="streakValue">0</span>
+</div>
+
+</div>
+
+<div class="xp-bar">
+
+<div class="xp-bar__fill" id="xpBarFill"
+style="width:0%">
+</div>
+
+</div>
+
+<div class="xp-bar__label" id="xpLabel">
+
+0 / 100 XP
+
+</div>
+
+</div>
+
+</header>
+
+<main id="content">
+
+<!-- ===================== HOME ===================== -->
+<section class="tab-panel" data-tab="home">
+
+<div class="streak-widget streak-widget--hero" id="streakWidget">
+  <div class="streak-widget__glow streak-widget__glow--orange"></div>
+  <div class="streak-widget__glow streak-widget__glow--purple"></div>
+  <div class="streak-widget__spark streak-widget__spark--1"></div>
+  <div class="streak-widget__spark streak-widget__spark--2"></div>
+  <div class="streak-widget__spark streak-widget__spark--3"></div>
+  <div class="streak-widget__spark streak-widget__spark--4"></div>
+  <div class="streak-widget__top">
+    <div class="streak-widget__brand">
+      <div class="streak-widget__icon-wrap" aria-hidden="true">
+        <span class="streak-widget__icon-flare"></span>
+        <span class="streak-widget__icon-ember streak-widget__icon-ember--a"></span>
+        <span class="streak-widget__icon-ember streak-widget__icon-ember--b"></span>
+        <span class="streak-widget__icon">🔥</span>
+      </div>
+      <div>
+        <div class="streak-widget__eyebrow"><span class="streak-live-dot"></span> УДАРНЫЙ РЕЖИМ</div>
+        <div class="streak-widget__title">Твоя серия <span>в огне</span></div>
+      </div>
+    </div>
+    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button"><span>❄️</span><b>Заморозка</b><em>200 <svg class="freeze-buy-btn__coin" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="adamCoinGradFreeze" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#FFEDA6"/>
+          <stop offset="0.5" stop-color="#FFC93C"/>
+          <stop offset="1" stop-color="#E08E00"/>
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="10.4" fill="#B8720A"/>
+      <circle cx="12" cy="12" r="9.3" fill="url(#adamCoinGradFreeze)"/>
+      <circle cx="12" cy="12" r="7.1" fill="none" stroke="#FFF3C4" stroke-width="0.9" opacity="0.55"/>
+      <path d="M6.3 6.8c1-1.4 2.5-2.3 3.8-2.6" stroke="#FFF8E4" stroke-width="1.5" stroke-linecap="round" opacity="0.7" fill="none"/>
+    </svg></em></button>
+  </div>
+
+  <div class="streak-widget__hero-row">
+    <div class="streak-widget__count">
+      <strong id="streakWidgetDays">0 дней</strong>
+      <span>Держи темп, только дисциплина&nbsp;даёт&nbsp;прогресс!</span>
+    </div>
+    <div class="streak-widget__flame-orbit" aria-hidden="true">
+      <div class="streak-orbit orbit-1"></div>
+      <div class="streak-orbit orbit-2"></div>
+      <span class="streak-widget__flame-halo"></span>
+      <span class="streak-widget__flame-base"></span>
+      <div class="streak-widget__mini-flame"><img src="/static/assets/adam-impact-flame.svg" alt=""></div>
+    </div>
+  </div>
+
+  <div class="streak-widget__week-head">
+    <span>ПОСЛЕДНИЕ 7 ДНЕЙ</span>
+    <span id="streakWeekHint">Траектория серии</span>
+  </div>
+  <div class="streak-days" id="streakDays"></div>
+
+  <div class="streak-widget__bottom">
+    <div class="streak-widget__balance"><span class="streak-bottom-icon">❄</span><span id="freezeBalanceLabel">Заморозки: 0/2</span></div>
+    <div class="streak-widget__status"><span class="streak-status-dot"></span><span id="streakStatusLabel">Не дай огню погаснуть.</span></div>
+  </div>
+</div>
+
+<div class="plan-card">
+
+  <div class="section-heading">
+
+    <h2>План дня</h2>
+
+    <span class="section-heading__sub" id="planProgressLabel">
+
+      0/0
+
+    </span>
+
+  </div>
+
+  <div class="plan-main">
+
+    <div class="plan-main__label"><span class="plan-label-icon">✦</span><span>Главная задача дня</span><span class="plan-label-line"></span></div>
+
+    <div id="mainGoalEditor" class="plan-editor">
+      <input id="mainGoalInput" type="text" placeholder="Главная задача дня" autocomplete="off">
+      <button type="button" class="plan-icon-btn plan-icon-btn--confirm" id="saveMainGoalBtn" aria-label="Сохранить главную задачу" hidden>✓</button>
+    </div>
+
+    <div id="mainGoalView" class="plan-main-view" hidden></div>
+
+  </div>
+
+  <ul class="plan-list" id="planList"></ul>
+
+  <form class="add-form plan-add-form" id="addPlanTaskForm">
+
+    <input
+      type="text"
+      id="newPlanTaskInput"
+      placeholder="Новая задача..."
+      autocomplete="off"
+    >
+
+    <button
+      type="submit"
+      class="btn btn--accent plan-add-form__btn"
+      id="addPlanTaskBtn"
+    >
+      Добавить новую задачу
+    </button>
+
+  </form>
+
+</div>
+
+<div class="habits-section-head" aria-label="Привычки">
+  <div class="habits-section-title">Привычки</div>
+  <div class="habits-section-count" id="habitsProgressLabel">0/0</div>
+</div>
+<div class="habits-section-divider" aria-hidden="true"></div>
+<ul class="habit-list" id="habitList">
+</ul>
+
+<form class="add-form" id="addHabitForm">
+
+<input
+type="text"
+id="newHabitInput"
+placeholder="Новая привычка..."
+>
+
+<button
+type="submit"
+class="btn btn--accent">
+
++
+
+</button>
+
+</form>
+
+</section>
+
+<!-- ===================== CALENDAR ===================== -->
+<section class="tab-panel" data-tab="calendar" hidden>
+
+<div class="section-heading">
+
+<h2>Календарь</h2>
+
+</div>
+
+<div class="calendar-grid" id="calendarGrid">
+</div>
+
+</section>
+
+<!-- ===================== RATING ===================== -->
+<section class="tab-panel" data-tab="rating" hidden>
+
+<div class="rating-hero">
+  <div class="rating-hero__glow rating-hero__glow--one"></div>
+  <div class="rating-hero__glow rating-hero__glow--two"></div>
+  <div class="rating-hero__eyebrow"><span class="rating-live-dot"></span> ADAM LEAGUE · LIVE</div>
+  <h2>Рейтинг</h2>
+  <p>Кто держит темп — тот поднимается выше.</p>
+  <div class="rating-hero__stats">
+    <span><b id="ratingPlayerCount">0</b> <span id="ratingPlayerCountLabel">игроков</span></span>
+    <span>🔥 серия решает</span>
+  </div>
+</div>
+
+<div class="rating-podium" id="ratingPodium"></div>
+<div class="rating-rest-head"><span>Лидерборд</span><span>Серия · XP</span></div>
+<ul class="rating-list" id="ratingList"></ul>
+
+</section>
+
+<!-- ===================== PROFILE ===================== -->
+<section class="tab-panel" data-tab="profile" hidden>
+
+<div class="streak-profile-card streak-profile-card--premium" id="streakProfileCard">
+  <div class="streak-profile-card__particles"><i></i><i></i><i></i><i></i></div>
+  <div class="streak-profile-avatar-wrap">
+    <div class="streak-profile-ring"></div>
+    <div class="streak-profile-avatar" id="profileAvatar">A</div>
+  </div>
+  <div class="streak-profile-info">
+    <div class="streak-profile-kicker">ТВОЯ УДАРНАЯ СЕРИЯ</div>
+    <div class="streak-profile-status" id="profileStreakStatus">Серия не начата</div>
+    <div class="streak-profile-days"><strong id="profileStreakDays">0</strong><span id="profileStreakDaysLabel">дней подряд</span></div>
+    <div class="streak-profile-frame" id="profileStreakFrame">Твоя ударная серия!</div>
+    <button class="share-achievement-btn" id="shareAchievementBtn" type="button">↗ Поделиться прогрессом</button>
+  </div>
+  <div class="streak-profile-fire" aria-hidden="true">🔥</div>
+</div>
+
+<div class="streak-profile-metrics">
+  <div class="streak-metric"><span>🔥</span><b id="profileMetricStreak">0</b><small>серия</small></div>
+  <div class="streak-metric"><span>❄️</span><b id="profileMetricFreeze">0/2</b><small>заморозки</small></div>
+  <div class="streak-metric"><span>🏆</span><b id="profileMetricReward">—</b><small>статус</small></div>
+</div>
+
+
+<div class="shop-head">
+  <div class="shop-head__copy">
+    <div class="shop-eyebrow">ADAM STORE</div>
+    <h2>Магазин ADAM</h2>
+    <p>Прокачивай ADAM: ответы, стиль и полезные возможности.</p>
+  </div>
+  <div class="shop-balance" id="shopBalance" aria-label="Баланс ADAM">
+    <span class="shop-balance__coin">A</span>
+    <span class="shop-balance__body"><small>Баланс</small><strong id="shopBalanceValue">0</strong></span>
+  </div>
+</div>
+
+<div class="shop-toolbar" id="shopToolbar" role="tablist" aria-label="Категории магазина">
+  <button class="shop-filter is-active" type="button" data-shop-filter="all" role="tab" aria-selected="true">Все</button>
+  <button class="shop-filter" type="button" data-shop-filter="answers" role="tab" aria-selected="false">Ответы</button>
+  <button class="shop-filter" type="button" data-shop-filter="cosmetic" role="tab" aria-selected="false">Оформление</button>
+</div>
+
+<ul class="shop-list shop-list--grid" id="shopList">
+</ul>
+
+<div class="section-heading">
+
+<h2>Тема оформления</h2>
+
+</div>
+
+<div class="theme-picker" id="themePicker"></div>
+<div class="theme-picker__hint" id="themeHint"></div>
+
+<div class="section-heading achievements-heading">
+
+  <div>
+    <h2>Достижения</h2>
+    <p class="achievements-heading__hint">Последние награды — сразу перед глазами</p>
+  </div>
+
+  <span class="section-heading__sub" id="achievementsCountLabel">0 наград</span>
+
+</div>
+
+<div class="achievement-latest-wrap">
+  <ul class="achievement-list achievement-list--latest" id="achievementList"></ul>
+</div>
+
+<div class="achievement-archive" id="achievementArchive" hidden>
+  <div class="achievement-archive__top">
+    <span>Все остальные</span>
+    <span class="achievement-archive__swipe">← листай →</span>
+  </div>
+  <div class="achievement-archive__viewport" id="achievementArchiveViewport">
+    <ul class="achievement-list achievement-list--archive" id="achievementArchiveList"></ul>
+  </div>
+</div>
+
+
+
+</section>
+
+</main>
+
+
+    <nav class="tab-bar" id="tabBar">
+
+    <button class="tab-bar__item is-active" data-tab="home">
+        <span class="material-symbols-rounded tab-bar__icon">home</span>
+        <span>Главная</span>
+    </button>
+
+    <button class="tab-bar__item" data-tab="calendar">
+        <span class="material-symbols-rounded tab-bar__icon">calendar_month</span>
+        <span>Календарь</span>
+    </button>
+
+    <button class="tab-bar__item" id="aiCoachBtn">
+    <span class="material-symbols-rounded tab-bar__icon">smart_toy</span>
+    <span>ИИ</span>
+</button>
+
+    <button class="tab-bar__item" data-tab="rating">
+        <span class="material-symbols-rounded tab-bar__icon">emoji_events</span>
+        <span>Рейтинг</span>
+    </button>
+
+    <button class="tab-bar__item" data-tab="profile">
+        <span class="material-symbols-rounded tab-bar__icon">person</span>
+        <span>Профиль</span>
+    </button>
+
+</nav>
+
+
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="achievement-share-overlay" id="achievementShareOverlay" hidden aria-hidden="true">
+  <div class="achievement-share-card">
+    <div class="achievement-share-fire"><img src="/static/assets/adam-impact-flame.svg" alt=""></div>
+    <div class="achievement-share-kicker">Мой результат в Project ADAM</div>
+    <div class="achievement-share-title">Ударный режим</div>
+    <div class="achievement-share-days" id="achievementShareDays">1 день</div>
+    <div class="achievement-share-status" id="achievementShareStatus">Ударный режим</div>
+    <div class="achievement-share-note">Я не жду идеальных дней. Я просто продолжаю.</div>
+    <button class="achievement-share-close" id="achievementShareClose" type="button">Классно, так держать 💪</button>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-overlay__coin">🪙</div>
+</div>
+
+
+
+
+<div class="streak-celebration-overlay" id="streakCelebrationOverlay" hidden aria-hidden="true">
+  <div class="streak-celebration">
+    <div class="fire-orbit fire-orbit--1"></div>
+    <div class="fire-orbit fire-orbit--2"></div>
+    <div class="streak-flame" id="streakCelebrationFire" aria-hidden="true"><img src="/static/assets/adam-impact-flame.svg" alt="" /></div>
+    <div class="streak-flash"></div>
+    <div class="streak-celebration__kicker">УДАРНЫЙ РЕЖИМ</div>
+    <div class="streak-celebration__title">+1 день ударного режима!</div>
+    <div class="streak-celebration__message" id="streakCelebrationMessage"></div>
+    <div class="streak-seven" id="celebrationSeven"></div>
+    <button class="streak-continue" id="streakCelebrationContinue" type="button">Продолжить</button>
+  </div>
+</div>
+
+<div class="streak-onboarding-overlay" id="streakOnboardingOverlay" hidden aria-hidden="true">
+  <div class="streak-onboarding-card">
+    <div class="streak-onboarding-fire">🔥</div>
+    <div class="streak-onboarding__eyebrow">ТВОЙ УДАРНЫЙ РЕЖИМ</div>
+    <h2>Не дай серии погаснуть</h2>
+    <p>Каждый день достаточно выполнить хотя бы одну привычку. Ты собираешь Adam Coin, открываешь уникальные рамки и статусы и показываешь свой результат в рейтинге.</p>
+    <div class="streak-onboarding__rewards">
+      <span>🪙 Коины</span><span>🔥 Серия</span><span>🏆 Рамки</span><span>👑 Статусы</span>
+    </div>
+    <div class="streak-onboarding__coach" id="streakOnboardingCoach"></div>
+    <button class="streak-continue" id="streakOnboardingContinue" type="button">Я в игре</button>
+  </div>
+</div>
+
+<div class="streak-weekly-overlay" id="streakWeeklyOverlay" hidden aria-hidden="true">
+  <div class="streak-weekly-card">
+    <div class="streak-onboarding-fire">🎁</div>
+    <div class="streak-onboarding__eyebrow">НЕДЕЛЯ В ОГНЕ</div>
+    <h2>Ты прошёл 7 дней без пропусков</h2>
+    <p>Выбери одну награду. Решение нельзя изменить после выбора.</p>
+    <div class="weekly-choice-grid">
+      <button data-weekly-reward="coins">🪙 200 Adam Coin</button>
+      <button data-weekly-reward="frame">🔥 Рамка на 7 дней</button>
+    </div>
+  </div>
+</div>
+
+<div class="levelup-overlay" id="levelupOverlay" hidden>
+  <div class="levelup-card">
+    <div class="levelup-sparkles">✨🎉✨</div>
+    <div class="levelup-title">LEVEL UP</div>
+    <div class="levelup-level">Новый уровень: <span id="levelupValue">0</span></div>
+  </div>
+</div>
+
+<div class="bg-particles">
+  <span></span>
+  <span></span>
+  <span></span>
+  <span></span>
+  <span></span>
+</div>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script type="module" src="/static/app.js?v=20260827_0300"></script>
+
+</body>
+</html>

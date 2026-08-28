@@ -1,0 +1,78 @@
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+from db import (
+    reset_habits,
+    get_all_users,
+    create_daily_tasks,
+    check_achievements,
+    log_daily_habits
+)
+
+scheduler = AsyncIOScheduler()
+
+
+# =====================================
+# НОВЫЙ ДЕНЬ
+# =====================================
+
+def new_day():
+
+    print("=" * 40)
+    print("🌅 Новый день")
+
+    try:
+
+        # Сначала — снимок состояния каждой привычки за уходящий день
+        # (нужен для еженедельного AI-анализа по привычкам), и только
+        # потом сброс, иначе completed уже обнулится.
+        log_daily_habits()
+
+        print("📒 Журнал дня сохранён")
+
+    except Exception as e:
+
+        print(f"❌ Ошибка записи журнала дня: {e}")
+
+    try:
+
+        # Сбросить выполнение привычек
+        reset_habits()
+
+        print("✅ Привычки сброшены")
+
+    except Exception as e:
+
+        print(f"❌ Ошибка сброса привычек: {e}")
+
+    users = get_all_users()
+
+    for user in users:
+
+        try:
+
+            telegram_id = user["telegram_id"]
+
+            # Создать ежедневные задания
+            create_daily_tasks(telegram_id)
+
+            # Проверить достижения
+            check_achievements(telegram_id)
+
+        except Exception as e:
+
+            print(f"Ошибка пользователя {user['telegram_id']}: {e}")
+
+    print("✅ Ежедневные задания созданы")
+    print("🏁 Новый день подготовлен")
+    print("=" * 40)
+
+
+# =====================================
+# ПЛАНИРОВЩИК
+# =====================================
+#
+# Регистрация job'а на "новый день" сделана в main.py вместе со всеми
+# остальными job'ами (там же вызывается scheduler.start()). Раньше
+# add_job(new_day, ...) дублировался и здесь — из-за этого new_day()
+# (сброс привычек, запись журнала дня, создание ежедневных заданий)
+# запускалась дважды за полночь, что задваивало записи в habit_logs.
