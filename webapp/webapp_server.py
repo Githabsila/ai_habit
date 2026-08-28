@@ -108,7 +108,7 @@ async def error_middleware(request, handler):
         elif request.path.startswith("/static/"):
             # JS/CSS URLs are versioned in index.html; long caching avoids
             # re-downloading ~100KB+ of assets on every Mini App open.
-            response.headers["Cache-Control"] = "public, max-age=604800, stale-while-revalidate=86400"
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return response
     except web.HTTPException:
         raise

@@ -4918,3 +4918,167 @@ section[data-tab="home"].tab-panel {
   .stat{font-size:13px}
   .xp-bar{height:11px}
 }
+
+
+/* =========================================================
+   HEADER / LEVEL RING — DEFINITIVE FIX 2026-08-29
+   The old inner pseudo-circle created the oversized dark disk
+   visible on mobile. Keep the SVG ring as the only outer circle
+   and use a small, centered glass core behind the level number.
+   ========================================================= */
+.player-card__ring-wrap{
+  position:relative !important;
+  width:132px !important;
+  height:132px !important;
+  min-width:132px !important;
+  flex:0 0 132px !important;
+  display:grid !important;
+  place-items:center !important;
+  overflow:visible !important;
+  isolation:isolate !important;
+}
+
+/* Kill every previous dark disk implementation. */
+.player-card__ring-wrap::before,
+.player-card__ring-wrap::after{
+  content:none !important;
+  display:none !important;
+}
+
+.level-ring{
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+  margin:0 !important;
+  display:block !important;
+  transform:rotate(-90deg) !important;
+  transform-origin:50% 50% !important;
+  overflow:visible !important;
+  z-index:1 !important;
+}
+
+.level-ring svg{
+  width:100% !important;
+  height:100% !important;
+  display:block !important;
+  transform:none !important;
+  transform-origin:50% 50% !important;
+  overflow:visible !important;
+}
+
+.level-ring__track{
+  fill:none !important;
+  stroke:rgba(255,255,255,.085) !important;
+  stroke-width:7 !important;
+}
+
+.level-ring__fill{
+  fill:none !important;
+  stroke:url(#goldGradient) !important;
+  stroke-width:8 !important;
+  stroke-linecap:round !important;
+  stroke-dasharray:326.726 !important;
+  filter:drop-shadow(0 0 5px rgba(255,211,80,.95)) drop-shadow(0 0 16px rgba(240,180,41,.38)) !important;
+}
+
+/* Small glass core — no oversized black circle. */
+.level-ring__badge{
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+  margin:0 !important;
+  padding:0 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  justify-content:center !important;
+  text-align:center !important;
+  transform:none !important;
+  z-index:3 !important;
+  pointer-events:none !important;
+}
+
+.level-ring__badge::before{
+  content:"" !important;
+  position:absolute !important;
+  width:86px !important;
+  height:86px !important;
+  border-radius:50% !important;
+  background:radial-gradient(circle at 34% 25%,rgba(255,255,255,.075),rgba(25,20,38,.42) 52%,rgba(8,7,16,.62) 100%) !important;
+  border:1px solid rgba(255,255,255,.055) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), inset 0 -8px 18px rgba(0,0,0,.18) !important;
+  z-index:-1 !important;
+}
+
+.level-ring__badge span{
+  position:relative !important;
+  z-index:2 !important;
+  margin:0 !important;
+  padding:0 !important;
+  font-family:'Space Grotesk',sans-serif !important;
+  font-size:40px !important;
+  font-weight:750 !important;
+  line-height:.92 !important;
+  color:#fff !important;
+  text-shadow:0 2px 10px rgba(0,0,0,.48),0 0 18px rgba(255,214,100,.16) !important;
+  transform:none !important;
+}
+
+.level-ring__badge small{
+  position:relative !important;
+  z-index:2 !important;
+  margin:7px 0 0 !important;
+  padding:0 !important;
+  font-family:'Inter',sans-serif !important;
+  font-size:10px !important;
+  font-weight:750 !important;
+  line-height:1 !important;
+  letter-spacing:.22em !important;
+  color:#c9c1d8 !important;
+}
+
+/* Desktop: actually use the premium header at PC widths instead of
+   leaving the mobile-sized 560px card as the visual ceiling. */
+@media (min-width:700px){
+  #app{
+    max-width:980px !important;
+    padding-left:24px !important;
+    padding-right:24px !important;
+  }
+  .player-card{
+    min-height:172px !important;
+    padding:24px 30px !important;
+    gap:28px !important;
+    border-radius:32px !important;
+  }
+  .player-card__ring-wrap{
+    width:148px !important;
+    height:148px !important;
+    min-width:148px !important;
+    flex-basis:148px !important;
+  }
+  .level-ring__badge::before{
+    width:98px !important;
+    height:98px !important;
+  }
+  .level-ring__badge span{font-size:46px !important}
+  .level-ring__badge small{font-size:11px !important;margin-top:8px !important}
+  .player-card__name{font-size:30px !important;margin-bottom:14px !important}
+  .player-card__stats{gap:18px !important;margin-bottom:13px !important}
+  .stat{font-size:20px !important}
+  .xp-bar{height:14px !important}
+}
+
+@media (max-width:430px){
+  .player-card__ring-wrap{
+    width:112px !important;
+    height:112px !important;
+    min-width:112px !important;
+    flex-basis:112px !important;
+  }
+  .level-ring__badge::before{width:74px !important;height:74px !important}
+  .level-ring__badge span{font-size:35px !important}
+  .level-ring__badge small{font-size:9px !important;margin-top:6px !important}
+}
