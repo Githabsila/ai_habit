@@ -481,6 +481,20 @@ def claim_notification(user_id, day, kind, scope="default"):
     conn.close()
     return ok
 
+def release_notification(user_id, day, kind, scope="default"):
+    """Освобождает резерв одноразового уведомления, если Telegram не принял его.
+    Это позволяет следующему тіку планировщика повторить отправку."""
+    conn = connect()
+    c = conn.cursor()
+    scoped_kind = f"{kind}:{scope}"
+    c.execute(
+        "DELETE FROM streak_notifications WHERE user_id=? AND day=? AND kind=?",
+        (user_id, day, scoped_kind),
+    )
+    conn.commit()
+    conn.close()
+
+
 def has_completed_today(user_id):
     today_s = day_key(local_today(user_id))
     conn = connect()

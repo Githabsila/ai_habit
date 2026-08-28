@@ -1,5 +1,6 @@
 from db import (
     get_ai_style,
+    get_ai_history,
     cache_get,
     cache_set,
 )

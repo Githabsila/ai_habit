@@ -19,7 +19,7 @@ from streak_scheduler import run_streak_rollover, run_streak_risk_notifications,
 from coach import (
     run_weekly_report,
     run_weekly_habit_analysis, run_task_reminder_check,
-    run_habit_checkpoint_10, run_day_progress_check,
+    run_habit_checkpoint_10, run_habit_checkpoint_12, run_day_progress_check,
     run_week_start_ping, run_week_end_ping, run_month_start_ping, run_month_end_ping,
 )
 from onboarding_auto import run_auto_approve
@@ -114,6 +114,9 @@ async def main():
     # 10:00 — единая контрольная точка по привычкам (локальное время каждого пользователя).
     # Job тикает каждую минуту, а сама функция пропускает всех, кто не в своём 10:00.
     scheduler.add_job(run_habit_checkpoint_10, "interval", minutes=1, args=[bot])
+    # 12:00 — дневная проверка привычек. Отдельные 2-часовые пинги по привычкам
+    # отключены: здесь одно сводное сообщение только по невыполненным привычкам.
+    scheduler.add_job(run_habit_checkpoint_12, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_day_progress_check, "interval", minutes=1, args=[bot])
     # 19:00 — единая сверка главной + второстепенных задач.
 

@@ -148,7 +148,7 @@ from .streak import (
     register_completion, rollover_user, rollover_all_users,
     buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
     should_show_onboarding, onboarding_message, mark_onboarding_seen,
-    RISK_15, RISK_23, claim_notification, notification_scope, has_completed_today, get_streak_users, consume_completion_event,
+    RISK_15, RISK_23, claim_notification, release_notification, notification_scope, has_completed_today, get_streak_users, consume_completion_event,
 )
 
 
@@ -190,5 +190,5 @@ __all__ = [
     "ensure_streak_tables", "get_streak_status", "set_timezone", "get_timezone",
     "register_completion", "rollover_user", "rollover_all_users", "buy_freeze",
     "claim_weekly_reward", "get_weekly_bonus_available", "should_show_onboarding",
-    "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "notification_scope", "has_completed_today", "get_streak_users", "consume_completion_event",
+    "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "release_notification", "notification_scope", "has_completed_today", "get_streak_users", "consume_completion_event",
 ]

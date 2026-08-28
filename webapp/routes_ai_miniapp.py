@@ -226,11 +226,6 @@ async def ai_chat_miniapp(request):
             "quota": quota,
         }, status=402)
 
-    # Списываем один ответ только для обычного AI-пайплайна.
-    if not consume_ai_answer(user_id, pro):
-        quota = get_ai_quota(user_id, pro)
-        return web.json_response({"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}, status=402)
-
     # Собирем контекст
     history_text = build_history_text(user_id, limit=4, max_chars_per_msg=180)
     user_context = build_user_context(user_id)
@@ -284,6 +279,13 @@ async def ai_chat_miniapp(request):
 
         if complexity == "просто" and not is_crisis:
             cache_set(cache_key, answer)
+
+    # Списываем ответ только после успешного получения реального ответа.
+    # Сбой AI/пустой ответ больше не "съедает" дневной лимит.
+    if cached_answer is None:
+        if not consume_ai_answer(user_id, pro):
+            quota = get_ai_quota(user_id, pro)
+            return web.json_response({"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}, status=402)
 
     # Сохраняем в БД
     add_ai_message(user_id, "user", message_text)

@@ -54,15 +54,15 @@ def streak_phrase(n: int) -> str:
 # 12:00 — ЕДИНАЯ ТОЧКА ПО ПРИВЫЧКАМ
 # =====================================
 
-HABIT_CHECKPOINT_10_TEMPLATES = [
-    "⏱️ Контрольная точка дня: {status_phrase}: {habits}. Посмотри, что хочешь сделать в первой половине дня {emoji}",
-    "🎯 10:00 — сверка курса. {verb_cap} {habit_word}: {habits}. Дальше просто двигайся по одной привычке, без спешки {emoji}",
-    "☀️ Проверка на 10:00: осталось {left} {habit_word} — {habits}. Если часть уже сделал, отлично: сосредоточься только на оставшемся {emoji}",
+HABIT_CHECKPOINT_TEMPLATES = [
+    "⏱️ Контрольная точка дня: {status_phrase}: {habits}. Посмотри, что хочешь сделать сейчас {emoji}",
+    "🎯 {time}:00 — сверка курса. {verb_cap} {habit_word}: {habits}. Дальше просто двигайся по одной привычке, без спешки {emoji}",
+    "☀️ Проверка на {time}:00: осталось {left} {habit_word} — {habits}. Если часть уже сделал, отлично: сосредоточься только на оставшемся {emoji}",
     "📍 Точка дня: {left} {habit_word} пока открыты — {habits}. Выбери следующую и продолжай свой темп {emoji}",
     "⚡️ Сейчас вижу {left} {habit_word}: {habits}. Хороший момент определить ближайший шаг и закрыть его {emoji}",
 ]
 
-def format_habit_checkpoint_10_message(incomplete_habits) -> str:
+def format_habit_checkpoint_message(incomplete_habits, hour: int) -> str:
     titles = [str(h["title"]) for h in incomplete_habits]
     left = len(titles)
     habits = ", ".join(f"«{t}»" for t in titles)
@@ -72,13 +72,20 @@ def format_habit_checkpoint_10_message(incomplete_habits) -> str:
         else f"остались {left} {habit_word}"
     )
     return pick(
-        HABIT_CHECKPOINT_10_TEMPLATES,
+        HABIT_CHECKPOINT_TEMPLATES,
         pool=SOFT_EMOJIS,
+        time=hour,
         left=left,
         habit_word=habit_word,
         habits=habits,
         status_phrase=status_phrase,
+        verb_cap="осталась" if left == 1 else "остались",
     )
+
+
+def format_habit_checkpoint_10_message(incomplete_habits) -> str:
+    """Совместимость со старыми вызовами: контрольная точка в 10:00."""
+    return format_habit_checkpoint_message(incomplete_habits, 10)
 
 
 # Совместимость со старыми вызовами. Теперь это не «утренний» текст и не

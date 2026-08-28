@@ -104,27 +104,47 @@ def set_cosmetic(user_id, item_type, payload):
 def add_ai_bonus_answers(user_id, amount):
     from datetime import date
     conn=connect(); cur=conn.cursor(); day=str(date.today())
-    cur.execute("INSERT OR IGNORE INTO ai_quota(user_id, day, used, bonus_answers) VALUES (?, ?, 0, 0)", (user_id, day))
-    cur.execute("UPDATE ai_quota SET bonus_answers=bonus_answers+? WHERE user_id=? AND day=?", (amount,user_id,day)); conn.commit(); conn.close()
+    _ensure_ai_quota_day(cur, user_id, day)
+    cur.execute("UPDATE ai_quota SET bonus_answers=bonus_answers+? WHERE user_id=?", (amount,user_id))
+    conn.commit(); conn.close()
+
+def _ensure_ai_quota_day(cur, user_id, day):
+    """Гарантирует, что строка лимита относится к сегодняшнему дню.
+
+    Таблица исторически имеет PRIMARY KEY только по user_id, поэтому
+    INSERT OR IGNORE сам по себе НЕ создавал новую строку на следующий день.
+    Из-за этого вчерашний used/bonus мог переноситься на сегодня.
+    """
+    cur.execute(
+        "INSERT OR IGNORE INTO ai_quota(user_id, day, used, bonus_answers) VALUES (?, ?, 0, 0)",
+        (user_id, day),
+    )
+    cur.execute("SELECT day FROM ai_quota WHERE user_id=?", (user_id,))
+    row = cur.fetchone()
+    if row and str(row["day"]) != day:
+        cur.execute(
+            "UPDATE ai_quota SET day=?, used=0, bonus_answers=0 WHERE user_id=?",
+            (day, user_id),
+        )
 
 def get_ai_quota(user_id, is_pro=False):
     from datetime import date
     conn=connect(); cur=conn.cursor(); day=str(date.today())
-    cur.execute("INSERT OR IGNORE INTO ai_quota(user_id, day, used, bonus_answers) VALUES (?, ?, 0, 0)", (user_id, day))
-    cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=? AND day=?", (user_id,day)); r=cur.fetchone(); conn.commit(); conn.close()
+    _ensure_ai_quota_day(cur, user_id, day)
+    cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=?", (user_id,))
+    r=cur.fetchone(); conn.commit(); conn.close()
     base=50 if is_pro else 15
-    used=int(r["used"] if r else 0); bonus=int(r["bonus_answers"] if r else 0)
+    used=int(r["used"] or 0) if r else 0
+    bonus=int(r["bonus_answers"] or 0) if r else 0
     return {"used":used,"bonus":bonus,"limit":base+bonus,"remaining":max(0,base+bonus-used),"pro":is_pro}
 
 def consume_ai_answer(user_id, is_pro=False):
     from datetime import date
     conn=connect(); cur=conn.cursor(); day=str(date.today())
-    cur.execute("INSERT OR IGNORE INTO ai_quota(user_id, day, used, bonus_answers) VALUES (?, ?, 0, 0)", (user_id,day))
-    cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=? AND day=?", (user_id,day))
+    _ensure_ai_quota_day(cur, user_id, day)
+    cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=?", (user_id,))
     r = cur.fetchone()
 
-    # Defensive fallback: INSERT OR IGNORE above should normally guarantee a row,
-    # but never let a missing row crash /api/ai/chat with a NoneType error.
     used = int(r["used"] or 0) if r else 0
     bonus = int(r["bonus_answers"] or 0) if r else 0
     base = 50 if is_pro else 15
@@ -134,10 +154,7 @@ def consume_ai_answer(user_id, is_pro=False):
         conn.close()
         return False
 
-    cur.execute(
-        "UPDATE ai_quota SET used=used+1 WHERE user_id=? AND day=?",
-        (user_id, day),
-    )
+    cur.execute("UPDATE ai_quota SET used=used+1 WHERE user_id=?", (user_id,))
     conn.commit()
     conn.close()
     return True

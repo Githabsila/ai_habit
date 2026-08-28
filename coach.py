@@ -31,12 +31,12 @@ from db import (
     mark_goal_reminder_sent,
     get_daily_plan,
     get_timezone,
-    claim_notification, notification_scope,
+    claim_notification, release_notification, notification_scope,
 )
 from multi_agent import generate_weekly_habit_feedback
 from adam_messages import (
     format_day_progress_message,
-    format_habit_checkpoint_10_message,
+    format_habit_checkpoint_message,
     format_plan_task_reminder_message,
     format_goal_reminder_message,
     format_week_start_message,
@@ -219,10 +219,14 @@ async def run_task_reminder_check(bot):
 # В 12:00 отдельный job уже рассылает индивидуальные пинги по оставшимся
 # привычкам.
 
-async def run_habit_checkpoint_10(bot):
-    """Единая контрольная точка по привычкам в 10:00 локального времени.
-    Один пользователь получает максимум одно сообщение в сутки и только
-    если хотя бы одна привычка ещё не выполнена."""
+async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
+    """Отправляет одну контрольную точку по привычкам в локальный час пользователя.
+
+    Важно: запись о доставленном уведомлении создаётся ТОЛЬКО после успешной
+    отправки Telegram-сообщения. Раньше claim_notification() выполнялся до
+    send_message(); если Telegram временно отвечал ошибкой, уведомление
+    помечалось как уже отправленное и пользователь больше его не получал.
+    """
     users = get_all_users()
     sent = 0
 
@@ -233,9 +237,10 @@ async def run_habit_checkpoint_10(bot):
             continue
 
         try:
-            tz_name = get_timezone(telegram_id)
-            now = datetime.now(ZoneInfo(tz_name))
-            if now.hour != 10:
+            now = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+            # Интервальный job работает каждую минуту. Отправляем строго в
+            # нужную минуту, чтобы не было повторов при нескольких тиках.
+            if now.hour != target_hour or now.minute != 0:
                 continue
 
             incomplete = get_incomplete_habits(telegram_id)
@@ -243,19 +248,41 @@ async def run_habit_checkpoint_10(bot):
                 continue
 
             day = now.date().isoformat()
-            if not claim_notification(telegram_id, day, "habit_checkpoint_10", notification_scope(bot)):
+            scope = notification_scope(bot)
+
+            # Резервируем уведомление до отправки, чтобы два параллельных
+            # экземпляра приложения не отправили дубль. Если Telegram
+            # отклонит сообщение, резерв ниже освобождается и следующий тик
+            # сможет повторить попытку.
+            if not claim_notification(telegram_id, day, kind, scope):
                 continue
 
-            await bot.send_message(
-                telegram_id,
-                format_habit_checkpoint_10_message(incomplete),
-                parse_mode="HTML"
-            )
-            sent += 1
-        except Exception as e:
-            log_error("habit_checkpoint_10", e, telegram_id)
+            try:
+                await bot.send_message(
+                    telegram_id,
+                    format_habit_checkpoint_message(incomplete, target_hour),
+                    parse_mode="HTML"
+                )
+            except Exception:
+                release_notification(telegram_id, day, kind, scope)
+                raise
 
-    logger.info(f"Контрольная точка привычек 10:00: отправлено {sent} сообщений")
+            sent += 1
+            logger.info("%s: отправлено %s", label, telegram_id)
+        except Exception as e:
+            log_error(kind, e, telegram_id)
+
+    logger.info(f"{label}: отправлено {sent} сообщений")
+
+
+async def run_habit_checkpoint_10(bot):
+    """10:00 — контрольная точка по привычкам, только если есть невыполненные."""
+    await _run_habit_checkpoint(bot, 10, "habit_checkpoint_10", "Контрольная точка привычек 10:00")
+
+
+async def run_habit_checkpoint_12(bot):
+    """12:00 — дневная контрольная точка по привычкам, только если есть невыполненные."""
+    await _run_habit_checkpoint(bot, 12, "habit_checkpoint_12", "Дневное напоминание привычек 12:00")
 
 
 # =====================================

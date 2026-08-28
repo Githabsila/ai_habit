@@ -57,8 +57,8 @@ logger = logging.getLogger("multi_agent")
 
 MODEL = "gpt-5.6"
 FAST_MODEL = "gpt-5.6-terra"
-OPENAI_TIMEOUT = 8.0
-GROQ_TIMEOUT = 8.0
+OPENAI_TIMEOUT = 15.0
+GROQ_TIMEOUT = 15.0
 
 MAX_SUBTASKS = 3          # было 4 — меньше подзадач = меньше запросов и токенов
 NUM_DEBATERS = 2          # было 3 — меньше "спорщиков" = меньше токенов на дебаты
@@ -387,17 +387,24 @@ async def _ask(
     max_tokens: int = 500,
     model: str = MODEL,
 ) -> str:
-    """Один быстрый пользовательский LLM-вызов.
+    """Надёжный LLM-вызов для ADAM.
 
-    Для Mini App при наличии GROQ_API_KEY используем Groq OpenAI-compatible
-    endpoint: текущие production-модели Groq рассчитаны на очень высокую
-    скорость генерации. Это важно для цели 3–7 секунд. OpenAI остаётся
-    резервным каналом, если Groq не настроен.
+    Главная цель здесь — не максимальная экономия запросов, а стабильный
+    пользовательский ответ. Один временный сбой провайдера не должен
+    превращаться в пустой ответ или текст вида "ошибка агента" в чате.
+
+    Порядок:
+      1. основной провайдер (Groq, если задан ключ) — до 2 попыток;
+      2. OpenAI — резерв, если есть ключ;
+      3. если все каналы недоступны — поднимаем исключение, чтобы endpoint
+         корректно показал ошибку и НЕ сохранил её как ответ ADAM.
     """
     import time
 
     async def _groq_call():
         client = _get_groq_client()
+        if client is None:
+            raise RuntimeError("GROQ_API_KEY не настроен")
         response = await client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[
@@ -407,12 +414,15 @@ async def _ask(
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        return _strip_markdown(
-            (response.choices[0].message.content or "").strip()
-        )
+        result = _strip_markdown((response.choices[0].message.content or "").strip())
+        if not result:
+            raise RuntimeError("Groq вернул пустой ответ")
+        return result
 
     async def _openai_call():
         client = _get_openai_client()
+        if client is None:
+            raise RuntimeError("OPENAI_API_KEY не настроен")
         response = await client.responses.create(
             model=model,
             instructions=system,
@@ -425,46 +435,44 @@ async def _ask(
             details = getattr(response, "incomplete_details", None)
             reason = getattr(details, "reason", None) if details else None
             if reason == "max_output_tokens":
-                # Не делаем второй длинный запрос: лучше быстро вернуть
-                # законченный ответ, чем превращать редкий edge case в минуту.
                 text = _trim_to_last_sentence(text)
+        if not text:
+            raise RuntimeError("OpenAI вернул пустой ответ")
         return text
 
     if not GROQ_API_KEY and not OPENAI_API_KEY:
-        logger.error("Ни GROQ_API_KEY, ни OPENAI_API_KEY не заданы")
-        return "[ошибка агента: не настроен API-ключ AI]"
+        raise RuntimeError("Не настроен ни GROQ_API_KEY, ни OPENAI_API_KEY")
 
     async with _semaphore:
-        started = time.perf_counter()
-        try:
-            if GROQ_API_KEY:
-                result = await _groq_call()
-            else:
-                result = await _openai_call()
+        last_error = None
 
-            elapsed = time.perf_counter() - started
-            logger.info("AI response %.2fs via %s", elapsed, "Groq" if GROQ_API_KEY else "OpenAI")
-            return result
-        except Exception as e:
-            logger.warning(
-                "AI primary request failed after %.2fs: %s",
-                time.perf_counter() - started,
-                e,
-            )
-            # Только один короткий резервный вызов, если Groq настроен и
-            # OpenAI-ключ тоже есть. Без каскада из трёх повторов.
-            if GROQ_API_KEY and OPENAI_API_KEY:
+        # Основной провайдер: короткий повтор полезнее, чем мгновенно отдавать
+        # пользователю ошибку из-за единичного сетевого/429/5xx сбоя.
+        if GROQ_API_KEY:
+            for attempt in range(MAX_RETRIES + 1):
+                started = time.perf_counter()
                 try:
-                    fallback_started = time.perf_counter()
-                    result = await _openai_call()
-                    logger.info(
-                        "AI OpenAI fallback %.2fs",
-                        time.perf_counter() - fallback_started,
-                    )
+                    result = await _groq_call()
+                    logger.info("AI response %.2fs via Groq (attempt %s)", time.perf_counter() - started, attempt + 1)
                     return result
-                except Exception as fallback_error:
-                    logger.error("AI fallback failed: %s", fallback_error)
-            return "[ошибка агента: AI временно недоступен, попробуй ещё раз]"
+                except Exception as e:
+                    last_error = e
+                    logger.warning("Groq attempt %s failed after %.2fs: %s", attempt + 1, time.perf_counter() - started, e)
+                    if attempt < MAX_RETRIES:
+                        await asyncio.sleep(min(1.0, _extract_wait_seconds(str(e), 0.6)))
+
+        # Резервный канал — только если он реально настроен.
+        if OPENAI_API_KEY:
+            started = time.perf_counter()
+            try:
+                result = await _openai_call()
+                logger.info("AI response %.2fs via OpenAI fallback", time.perf_counter() - started)
+                return result
+            except Exception as e:
+                last_error = e
+                logger.error("OpenAI fallback failed after %.2fs: %s", time.perf_counter() - started, e)
+
+        raise RuntimeError(f"AI временно недоступен: {last_error}")
 
 
 def _combine_notes(*notes: str) -> str:
