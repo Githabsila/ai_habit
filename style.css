@@ -4848,235 +4848,143 @@ section[data-tab="home"] .streak-widget__hero-row{
 .player-card,
 #content{position:relative;z-index:1;}
 
-
 /* =========================================================
-   ADAM STORE — FINAL COMPACT 2-COLUMN LAYOUT
-   Простая, аккуратная сетка: 2 товара в ряд на всех экранах.
+   ADAM SHOP — FINAL MOBILE LAYOUT PASS
+   2 cards per row + safe distance below Telegram/WebView controls
    ========================================================= */
-
-.shop-head{
-  margin:8px 0 12px;
-  padding:14px 15px;
-  border-radius:20px;
-  gap:10px;
-  box-shadow:0 12px 30px rgba(0,0,0,.20), inset 0 1px rgba(255,255,255,.045);
+#app{
+  padding-top:104px !important;
 }
 
-.shop-eyebrow{
-  font-size:9px;
-  margin-bottom:3px;
-  letter-spacing:.14em;
-}
-
-.shop-head h2{
-  font-size:19px;
-  line-height:1.05;
-}
-
-.shop-head p{
-  margin-top:4px;
-  font-size:10px;
-  line-height:1.3;
-  max-width:230px;
-}
-
-.shop-balance{
-  min-width:76px;
-  padding:7px 8px;
-  border-radius:13px;
-  gap:6px;
-}
-
-.shop-balance__coin{
-  width:20px;
-  height:20px;
-  font-size:10px;
-}
-
-.shop-balance__body small{
-  font-size:7px;
-  margin-bottom:3px;
-}
-
-.shop-balance__body strong{
-  font-size:14px;
-}
-
-.shop-toolbar{
-  position:relative;
-  top:auto;
-  margin:0 0 10px;
-  padding:4px;
-  gap:4px;
-  border-radius:14px;
-  box-shadow:0 8px 20px rgba(0,0,0,.16);
-}
-
-.shop-filter{
-  min-height:34px;
-  border-radius:10px;
-  font-size:10px;
-}
-
-.shop-list{
+.shop-list.shop-list--grid{
   display:grid !important;
   grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-  gap:8px !important;
+  gap:12px !important;
   align-items:stretch;
 }
 
 .shop-item{
-  min-width:0;
-  min-height:0 !important;
-  height:100%;
-  display:flex !important;
-  flex-direction:column !important;
-  padding:11px !important;
-  border-radius:17px !important;
-  box-shadow:0 8px 20px rgba(0,0,0,.16), inset 0 1px rgba(255,255,255,.035);
-}
-
-.shop-item:hover{
-  transform:translateY(-1px);
-  box-shadow:0 11px 24px rgba(0,0,0,.20), inset 0 1px rgba(255,255,255,.045);
+  min-width:0 !important;
+  min-height:176px !important;
+  padding:13px !important;
+  border-radius:19px !important;
+  overflow:hidden;
 }
 
 .shop-item__top{
-  min-height:28px;
+  min-width:0;
 }
 
 .shop-item__icon{
-  width:30px !important;
-  height:30px !important;
-  border-radius:9px !important;
-  font-size:15px !important;
+  flex:0 0 38px;
+  width:38px !important;
+  height:38px !important;
+  border-radius:12px !important;
 }
 
 .shop-item__tag{
-  max-width:calc(100% - 36px);
-  padding:3px 5px;
-  border-radius:6px;
-  font-size:6.5px;
+  max-width:calc(100% - 44px);
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
 }
 
 .shop-item__name{
-  margin-top:8px !important;
-  font-size:13px !important;
-  line-height:1.15 !important;
-  letter-spacing:-.01em;
-  overflow-wrap:anywhere;
+  font-size:14px !important;
+  line-height:1.2 !important;
+  margin-top:10px !important;
 }
 
 .shop-item__desc{
-  min-height:30px !important;
-  margin-top:4px !important;
-  font-size:9.5px !important;
-  line-height:1.3 !important;
-  overflow-wrap:anywhere;
+  min-height:32px !important;
+  font-size:10px !important;
+  line-height:1.35 !important;
 }
 
 .shop-item__footer{
-  display:grid !important;
   grid-template-columns:minmax(0,1fr) !important;
-  gap:6px !important;
-  margin-top:auto !important;
-  padding-top:9px !important;
-  min-height:0 !important;
+  gap:7px !important;
+  padding-top:10px !important;
+  min-height:auto !important;
 }
 
 .shop-item__price{
-  justify-content:flex-start;
-  gap:4px;
-  font-size:12px !important;
-}
-
-.shop-item__price .stat-icon{
-  width:15px;
-  height:15px;
+  justify-content:flex-start !important;
+  font-size:13px !important;
 }
 
 .buy-btn{
+  min-height:38px !important;
   width:100% !important;
-  min-height:32px !important;
-  padding:6px 5px !important;
-  border-radius:9px !important;
-  font-size:9.5px !important;
-  line-height:1 !important;
+  border-radius:11px !important;
+  font-size:10px !important;
 }
 
 .shop-divider{
-  grid-column:1 / -1;
-  margin:1px 0 !important;
-}
-
-.shop-empty{
   grid-column:1 / -1 !important;
+  width:100%;
+  height:1px;
+  margin:2px 0 !important;
 }
 
-/* На узких телефонах сохраняем 2 колонки, но ещё немного уплотняем. */
-@media(max-width:430px){
+@media (max-width:600px){
+  #app{
+    padding-top:calc(144px + env(safe-area-inset-top)) !important;
+    padding-left:10px !important;
+    padding-right:10px !important;
+  }
+
+  #content{
+    padding-top:10px !important;
+    padding-left:6px !important;
+    padding-right:6px !important;
+  }
+
   .shop-head{
-    padding:12px;
-    align-items:center;
+    margin-top:0 !important;
+    margin-bottom:10px !important;
+    padding:13px !important;
+    border-radius:20px !important;
   }
 
-  .shop-head h2{font-size:18px;}
-  .shop-head p{font-size:9px;}
+  .shop-head h2{font-size:19px !important;}
+  .shop-head p{font-size:10px !important;}
 
-  .shop-balance{
-    min-width:72px;
-    padding:6px 7px;
+  .shop-toolbar{
+    position:relative !important;
+    top:auto !important;
+    margin-bottom:10px !important;
   }
 
-  .shop-toolbar{margin-bottom:9px;}
-  .shop-filter{min-height:33px;font-size:9px;}
-
-  .shop-list{
+  .shop-list.shop-list--grid{
     grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-    gap:7px !important;
+    gap:9px !important;
   }
 
   .shop-item{
-    padding:10px !important;
-    border-radius:15px !important;
-  }
-
-  .shop-item__name{font-size:12px !important;}
-  .shop-item__desc{
-    font-size:9px !important;
-    min-height:29px !important;
-  }
-
-  .shop-item__footer{
-    grid-template-columns:minmax(0,1fr) !important;
-    gap:5px !important;
-  }
-
-  .shop-item__price{font-size:11px !important;}
-  .buy-btn{
-    min-height:30px !important;
-    font-size:9px !important;
-  }
-}
-
-@media(max-width:350px){
-  .shop-list{
-    gap:6px !important;
-  }
-
-  .shop-item{
-    padding:9px !important;
+    min-height:168px !important;
+    padding:11px !important;
+    border-radius:17px !important;
   }
 
   .shop-item__icon{
-    width:28px !important;
-    height:28px !important;
+    width:34px !important;
+    height:34px !important;
+    flex-basis:34px !important;
+    font-size:16px !important;
   }
 
-  .shop-item__name{font-size:11px !important;}
+  .shop-item__name{font-size:13px !important;}
+  .shop-item__desc{font-size:9px !important;}
+  .shop-item__price{font-size:12px !important;}
+  .buy-btn{min-height:36px !important;}
+}
+
+@media (max-width:350px){
+  .shop-list.shop-list--grid{gap:7px !important;}
+  .shop-item{padding:9px !important;}
+  .shop-item__name{font-size:12px !important;}
   .shop-item__desc{font-size:8.5px !important;}
-  .buy-btn{font-size:8.5px !important;}
+  .shop-item__price{font-size:11px !important;}
+  .buy-btn{font-size:9px !important;min-height:34px !important;}
 }
