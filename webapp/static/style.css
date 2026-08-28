@@ -4747,6 +4747,17 @@ section[data-tab="home"].tab-panel {
   93%, 100% { opacity: 0; transform: translate3d(430%,0,0) skewX(-10deg); }
 }
 
+/* FIX 28.08 — бегущий блеск главного табло должен оставаться живым.
+   Состояния оптимизации не должны скрывать критический декоративный слой. */
+.decor-settled .player-card::before {
+  animation: cardShineStable 5.8s cubic-bezier(.35,0,.65,1) infinite !important;
+  opacity: 0 !important;
+}
+.performance-lite .player-card::before {
+  animation: cardShineStable 5.8s cubic-bezier(.35,0,.65,1) infinite !important;
+  display: block !important;
+}
+
 /* Если устройство реально просит reduced motion — не оставляем псевдо-слой
    в состоянии opacity:0 поверх контента. */
 @media (prefers-reduced-motion: reduce) {
@@ -4765,7 +4776,7 @@ section[data-tab="home"].tab-panel {
   transform: none !important;
 }
 .performance-lite .player-card::before {
-  animation: none !important;
-  opacity: .10 !important;
-  transform: translateX(0) skewX(-10deg) !important;
+  animation: cardShineStable 5.8s cubic-bezier(.35,0,.65,1) infinite !important;
+  opacity: 0 !important;
+  transform: translate3d(0,0,0) skewX(-10deg) !important;
 }
