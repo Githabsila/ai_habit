@@ -551,13 +551,6 @@
   }
 
   // ===================== RENDER: SHOP =====================
-  let shopFilter = "all";
-
-  function getShopCategory(it) {
-    const isAnswer = it.item_type === "answer_pack" || /ответ/i.test(it.name || "");
-    return isAnswer ? "answers" : "cosmetic";
-  }
-
   function renderShop() {
     const list = document.getElementById("shopList");
     const balance = document.getElementById("shopBalanceValue");
@@ -571,10 +564,8 @@
       return;
     }
 
-    const answerItems = items.filter(it => getShopCategory(it) === "answers");
-    const otherItems = items.filter(it => getShopCategory(it) !== "answers");
-    const filteredAnswerItems = shopFilter === "cosmetic" ? [] : answerItems;
-    const filteredOtherItems = shopFilter === "answers" ? [] : otherItems;
+    const answerItems = items.filter(it => it.item_type === "answer_pack" || /ответ/i.test(it.name || ""));
+    const otherItems = items.filter(it => !answerItems.includes(it));
 
     const renderItem = (it) => {
       const price = Number(it.price || 0);
@@ -611,7 +602,7 @@
       }
 
       return `
-        <li class="shop-item ${isAnswer ? "shop-item--answers" : "shop-item--cosmetic"}" data-id="${it.id}" data-shop-category="${isAnswer ? "answers" : "cosmetic"}">
+        <li class="shop-item ${isAnswer ? "shop-item--answers" : ""}" data-id="${it.id}">
           <div class="shop-item__top">
             <span class="shop-item__icon">${isAnswer ? "💬" : "✦"}</span>
             ${isAnswer ? `<span class="shop-item__tag">ДОП. ОТВЕТЫ</span>` : ""}
@@ -629,20 +620,11 @@
       `;
     };
 
-    const visibleAnswers = filteredAnswerItems;
-    const visibleOther = filteredOtherItems;
-    const chunks = [];
-    if (visibleAnswers.length) chunks.push(visibleAnswers.map(renderItem).join(""));
-    if (visibleOther.length) {
-      if (chunks.length) chunks.push(`<li class="shop-divider" aria-hidden="true"></li>`);
-      chunks.push(visibleOther.map(renderItem).join(""));
-    }
-    list.innerHTML = chunks.join("") || `<li class="empty-hint shop-empty">В этой категории пока ничего нет</li>`;
-    document.querySelectorAll(".shop-filter").forEach(btn => {
-      const active = btn.dataset.shopFilter === shopFilter;
-      btn.classList.toggle("is-active", active);
-      btn.setAttribute("aria-selected", active ? "true" : "false");
-    });
+    list.innerHTML = answerItems.map(renderItem).join("") +
+      (otherItems.length ? `
+        <li class="shop-divider" aria-hidden="true"></li>
+        ${otherItems.map(renderItem).join("")}
+      ` : "");
   }
 
   // ===================== RENDER: THEME PICKER =====================
@@ -1292,18 +1274,7 @@ function initPlanActions() {
 
 // ===================== SHOP ACTIONS =====================
   function initShopActions() {
-    const list = document.getElementById("shopList");
-    const toolbar = document.getElementById("shopToolbar");
-    if (toolbar) {
-      toolbar.addEventListener("click", (e) => {
-        const btn = e.target.closest("[data-shop-filter]");
-        if (!btn) return;
-        shopFilter = btn.dataset.shopFilter || "all";
-        haptic("light");
-        renderShop();
-      });
-    }
-    list.addEventListener("click", async (e) => {
+    document.getElementById("shopList").addEventListener("click", async (e) => {
       const btn = e.target.closest("button[data-action=buy]");
       if (!btn || btn.disabled) return;
       const li = btn.closest(".shop-item");

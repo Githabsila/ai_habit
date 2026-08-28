@@ -308,21 +308,12 @@ class="btn btn--accent">
 
 
 <div class="shop-head">
-  <div class="shop-head__copy">
+  <div>
     <div class="shop-eyebrow">ADAM STORE</div>
     <h2>Магазин ADAM</h2>
-    <p>Прокачивай ADAM: ответы, стиль и полезные возможности.</p>
+    <p>Прокачай своего ADAM — ответы, стиль и возможности.</p>
   </div>
-  <div class="shop-balance" id="shopBalance" aria-label="Баланс ADAM">
-    <span class="shop-balance__coin">A</span>
-    <span class="shop-balance__body"><small>Баланс</small><strong id="shopBalanceValue">0</strong></span>
-  </div>
-</div>
-
-<div class="shop-toolbar" id="shopToolbar" role="tablist" aria-label="Категории магазина">
-  <button class="shop-filter is-active" type="button" data-shop-filter="all" role="tab" aria-selected="true">Все</button>
-  <button class="shop-filter" type="button" data-shop-filter="answers" role="tab" aria-selected="false">Ответы</button>
-  <button class="shop-filter" type="button" data-shop-filter="cosmetic" role="tab" aria-selected="false">Оформление</button>
+  <div class="shop-balance" id="shopBalance"><span class="shop-balance__coin">A</span><span id="shopBalanceValue">0</span></div>
 </div>
 
 <ul class="shop-list shop-list--grid" id="shopList">
