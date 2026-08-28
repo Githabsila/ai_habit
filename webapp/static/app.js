@@ -188,14 +188,51 @@
   // всегда оставались undefined и вкладки выглядели постоянно пустыми.
   const secondaryPromises = new Map();
   const secondaryLoaded = new Set();
+
+  function getTabPanel(key) {
+    return document.querySelector(`.tab-panel[data-tab="${key}"]`);
+  }
+
+  function setTabLoading(key, loading, message = "") {
+    const panel = getTabPanel(key);
+    if (!panel) return;
+    panel.classList.toggle("tab-panel--loading", !!loading);
+    panel.setAttribute("aria-busy", loading ? "true" : "false");
+    let layer = panel.querySelector(":scope > .tab-loading-state");
+    if (loading) {
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.className = "tab-loading-state";
+        layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
+        panel.prepend(layer);
+      }
+      layer.hidden = false;
+      layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
+    } else if (layer) {
+      layer.hidden = true;
+    }
+    if (message) {
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.className = "tab-loading-state";
+        panel.prepend(layer);
+      }
+      layer.hidden = false;
+      layer.innerHTML = `<div class="tab-loading-state__error">${escapeHtml(message)}</div>`;
+      panel.classList.remove("tab-panel--loading");
+      panel.setAttribute("aria-busy", "false");
+    }
+  }
+
   async function loadBootstrapSecondary(section) {
     const key = section || "profile";
     if (secondaryLoaded.has(key)) return state;
     if (secondaryPromises.has(key)) return secondaryPromises.get(key);
 
+    setTabLoading(key, true);
     const promise = (async () => {
       try {
-        const data = await api(`/api/bootstrap-secondary?section=${encodeURIComponent(key)}`);
+        const data = await api(`/api/bootstrap-secondary?section=${encodeURIComponent(key)}`, { timeoutMs: 10000 });
         if (state) {
           if (key === "profile") {
             state.shop_items = data.shop_items || [];
@@ -211,9 +248,12 @@
             renderCalendar();
           }
           secondaryLoaded.add(key);
+          setTabLoading(key, false);
         }
       } catch (err) {
         console.error(`bootstrap-secondary(${key}) failed:`, err);
+        setTabLoading(key, false, friendlyError(err) || "Не удалось загрузить раздел");
+        showToast(friendlyError(err) || "Не удалось загрузить раздел", "error");
       }
       return state;
     })().finally(() => secondaryPromises.delete(key));
@@ -998,8 +1038,8 @@ function initTabs() {
         });
       }
     });
-    // Второстепенные данные загружаются только при первом открытии
-    // соответствующего раздела, а не сразу после запуска Mini App.
+    // Загружаем только открытый раздел. Никаких фоновых запросов к
+    // календарю/рейтингу/профилю при нахождении на Главной.
     if (tab === "profile" || tab === "rating" || tab === "calendar") {
       loadBootstrapSecondary(tab);
     }
@@ -1330,7 +1370,11 @@ function initPlanActions() {
         await api(`/api/buy/${itemId}`, { method: "POST" });
         haptic("medium");
         showToast("Покупка совершена!", "success");
+        secondaryLoaded.delete("profile");
         await loadBootstrap();
+        if (document.querySelector('.tab-panel[data-tab="profile"]:not([hidden])')) {
+          await loadBootstrapSecondary("profile");
+        }
       } catch (err) {
         showToast(friendlyError(err), "error");
         await loadBootstrap();

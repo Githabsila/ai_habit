@@ -2,6 +2,13 @@
   "use strict";
 
   const tg = window.Telegram ? window.Telegram.WebApp : null;
+  try {
+    const lowPower =
+      (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
+      (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+      (navigator.connection && navigator.connection.saveData);
+    if (lowPower) document.documentElement.classList.add("performance-lite");
+  } catch (_) {}
   const RING_CIRCUMFERENCE = 326.7; // 2 * PI * 52
 
   function pluralRu(n, one, few, many) {
@@ -79,7 +86,6 @@
 
   // ===================== API =====================
   let bootstrapPromise = null;
-  let secondaryPromise = null;
 
   async function api(path, options = {}) {
     const controller = new AbortController();
@@ -152,31 +158,6 @@
     return bootstrapPromise;
   }
 
-  async function loadSecondaryBootstrap() {
-    if (secondaryPromise) return secondaryPromise;
-    secondaryPromise = (async () => {
-      try {
-        const secondary = await api("/api/bootstrap-secondary", { timeoutMs: 10000 });
-        if (state) {
-          Object.assign(state, secondary);
-          // Второстепенные вкладки можно дорисовать только после прихода
-          // данных; главная уже интерактивна к этому моменту.
-          renderShop();
-          renderThemePicker();
-          renderAchievements();
-          renderRating();
-          renderCalendar();
-          maybeShowWeeklyBonus();
-        }
-      } catch (err) {
-        console.warn("Secondary bootstrap failed:", err);
-      } finally {
-        secondaryPromise = null;
-      }
-    })();
-    return secondaryPromise;
-  }
-
   // ===================== RENDER ALL =====================
   function scheduleIdleWork(fn) {
     if ("requestIdleCallback" in window) {
@@ -199,14 +180,86 @@
     // Второстепенные вкладки дорисовываем после первого кадра, когда браузер
     // освободит основной поток. Качество UI не меняется — меняется только
     // порядок работы.
-    // Загружаем тяжёлые второстепенные данные после первого интерактивного
-    // кадра. Главная, привычки, план и ударный режим больше не ждут рейтинг,
-    // календарь и магазин.
-    requestAnimationFrame(() => {
-      scheduleIdleWork(() => {
-        loadSecondaryBootstrap();
-      });
-    });
+  }
+
+  // Второстепенные данные (магазин, рейтинг, достижения, календарь) отдаёт
+  // отдельный /api/bootstrap-secondary — раньше этот запрос нигде не
+  // вызывался, поэтому state.shop_items/leaderboard/achievements/calendar_events
+  // всегда оставались undefined и вкладки выглядели постоянно пустыми.
+  const secondaryPromises = new Map();
+  const secondaryLoaded = new Set();
+
+  function getTabPanel(key) {
+    return document.querySelector(`.tab-panel[data-tab="${key}"]`);
+  }
+
+  function setTabLoading(key, loading, message = "") {
+    const panel = getTabPanel(key);
+    if (!panel) return;
+    panel.classList.toggle("tab-panel--loading", !!loading);
+    panel.setAttribute("aria-busy", loading ? "true" : "false");
+    let layer = panel.querySelector(":scope > .tab-loading-state");
+    if (loading) {
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.className = "tab-loading-state";
+        layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
+        panel.prepend(layer);
+      }
+      layer.hidden = false;
+      layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
+    } else if (layer) {
+      layer.hidden = true;
+    }
+    if (message) {
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.className = "tab-loading-state";
+        panel.prepend(layer);
+      }
+      layer.hidden = false;
+      layer.innerHTML = `<div class="tab-loading-state__error">${escapeHtml(message)}</div>`;
+      panel.classList.remove("tab-panel--loading");
+      panel.setAttribute("aria-busy", "false");
+    }
+  }
+
+  async function loadBootstrapSecondary(section) {
+    const key = section || "profile";
+    if (secondaryLoaded.has(key)) return state;
+    if (secondaryPromises.has(key)) return secondaryPromises.get(key);
+
+    setTabLoading(key, true);
+    const promise = (async () => {
+      try {
+        const data = await api(`/api/bootstrap-secondary?section=${encodeURIComponent(key)}`, { timeoutMs: 10000 });
+        if (state) {
+          if (key === "profile") {
+            state.shop_items = data.shop_items || [];
+            state.achievements = data.achievements || [];
+            renderShop();
+            renderThemePicker();
+            renderAchievements();
+          } else if (key === "rating") {
+            state.leaderboard = data.leaderboard || [];
+            renderRating();
+          } else if (key === "calendar") {
+            state.calendar_events = data.calendar_events || [];
+            renderCalendar();
+          }
+          secondaryLoaded.add(key);
+          setTabLoading(key, false);
+        }
+      } catch (err) {
+        console.error(`bootstrap-secondary(${key}) failed:`, err);
+        setTabLoading(key, false, friendlyError(err) || "Не удалось загрузить раздел");
+        showToast(friendlyError(err) || "Не удалось загрузить раздел", "error");
+      }
+      return state;
+    })().finally(() => secondaryPromises.delete(key));
+
+    secondaryPromises.set(key, promise);
+    return promise;
   }
 
   // Пока Mini App не виден, декоративные анимации не должны тратить батарею/CPU.
@@ -216,6 +269,23 @@
       "app-performance-paused",
       document.hidden
     );
+  });
+
+  // Чисто атмосферные бесконечные эффекты (искры, блики) нужны только в первые
+  // секунды после открытия — дальше это просто лишняя нагрузка на GPU и повод
+  // для перегрева. Через паузу "успокаиваем" их классом decor-settled, а при
+  // возврате в приложение/смене вкладки даём короткое "оживление" заново.
+  let decorSettleTimer = null;
+  function scheduleDecorSettle(delayMs = 3500) {
+    if (decorSettleTimer) clearTimeout(decorSettleTimer);
+    document.documentElement.classList.remove("decor-settled");
+    decorSettleTimer = window.setTimeout(() => {
+      document.documentElement.classList.add("decor-settled");
+    }, delayMs);
+  }
+  scheduleDecorSettle();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) scheduleDecorSettle();
   });
 
   // ===================== УДАРНЫЙ РЕЖИМ =====================
@@ -420,10 +490,35 @@
       overlay.setAttribute("aria-hidden", "true");
       setTimeout(() => { overlay.hidden = true; }, 220);
     });
-    document.getElementById("freezeBuyBtn")?.addEventListener("click", async () => {
+    const freezeSheet = document.getElementById("freezePurchaseSheet");
+    const closeFreezeSheet = () => {
+      if (!freezeSheet) return;
+      freezeSheet.classList.remove("is-open");
+      freezeSheet.setAttribute("aria-hidden", "true");
+      setTimeout(() => { freezeSheet.hidden = true; }, 230);
+    };
+    const openFreezeSheet = () => {
+      if (!freezeSheet) return;
+      const streakNow = state?.streak;
+      if ((streakNow?.freeze_balance || 0) >= 2 || (streakNow?.freeze_purchased_count || 0) >= 2) {
+        showToast("У тебя уже максимум 2 заморозки", "error");
+        return;
+      }
+      freezeSheet.hidden = false;
+      requestAnimationFrame(() => freezeSheet.classList.add("is-open"));
+      freezeSheet.setAttribute("aria-hidden", "false");
+      haptic("light");
+    };
+    document.getElementById("freezeBuyBtn")?.addEventListener("click", openFreezeSheet);
+    document.getElementById("freezePurchaseBack")?.addEventListener("click", closeFreezeSheet);
+    document.getElementById("freezePurchaseBackdrop")?.addEventListener("click", closeFreezeSheet);
+    document.getElementById("freezePurchaseConfirm")?.addEventListener("click", async () => {
+      const confirmBtn = document.getElementById("freezePurchaseConfirm");
+      if (confirmBtn) confirmBtn.disabled = true;
       try {
-        const res = await api("/api/streak/freeze/buy", {method: "POST"});
+        await api("/api/streak/freeze/buy", {method: "POST"});
         haptic("light");
+        closeFreezeSheet();
         showToast("❄️ Заморозка куплена", "success");
         await loadBootstrap();
       } catch (e) {
@@ -433,6 +528,8 @@
           not_enough_coins: "Нужно 200 Adam Coin",
         };
         showToast(map[e?.data?.error] || friendlyError(e), "error");
+      } finally {
+        if (confirmBtn) confirmBtn.disabled = false;
       }
     });
     document.querySelectorAll("[data-weekly-reward]").forEach(btn => {
@@ -551,13 +648,6 @@
   }
 
   // ===================== RENDER: SHOP =====================
-  let shopFilter = "all";
-
-  function getShopCategory(it) {
-    const isAnswer = it.item_type === "answer_pack" || /ответ/i.test(it.name || "");
-    return isAnswer ? "answers" : "cosmetic";
-  }
-
   function renderShop() {
     const list = document.getElementById("shopList");
     const balance = document.getElementById("shopBalanceValue");
@@ -571,10 +661,8 @@
       return;
     }
 
-    const answerItems = items.filter(it => getShopCategory(it) === "answers");
-    const otherItems = items.filter(it => getShopCategory(it) !== "answers");
-    const filteredAnswerItems = shopFilter === "cosmetic" ? [] : answerItems;
-    const filteredOtherItems = shopFilter === "answers" ? [] : otherItems;
+    const answerItems = items.filter(it => it.item_type === "answer_pack" || /ответ/i.test(it.name || ""));
+    const otherItems = items.filter(it => !answerItems.includes(it));
 
     const renderItem = (it) => {
       const price = Number(it.price || 0);
@@ -611,7 +699,7 @@
       }
 
       return `
-        <li class="shop-item ${isAnswer ? "shop-item--answers" : "shop-item--cosmetic"}" data-id="${it.id}" data-shop-category="${isAnswer ? "answers" : "cosmetic"}">
+        <li class="shop-item ${isAnswer ? "shop-item--answers" : ""}" data-id="${it.id}">
           <div class="shop-item__top">
             <span class="shop-item__icon">${isAnswer ? "💬" : "✦"}</span>
             ${isAnswer ? `<span class="shop-item__tag">ДОП. ОТВЕТЫ</span>` : ""}
@@ -629,20 +717,11 @@
       `;
     };
 
-    const visibleAnswers = filteredAnswerItems;
-    const visibleOther = filteredOtherItems;
-    const chunks = [];
-    if (visibleAnswers.length) chunks.push(visibleAnswers.map(renderItem).join(""));
-    if (visibleOther.length) {
-      if (chunks.length) chunks.push(`<li class="shop-divider" aria-hidden="true"></li>`);
-      chunks.push(visibleOther.map(renderItem).join(""));
-    }
-    list.innerHTML = chunks.join("") || `<li class="empty-hint shop-empty">В этой категории пока ничего нет</li>`;
-    document.querySelectorAll(".shop-filter").forEach(btn => {
-      const active = btn.dataset.shopFilter === shopFilter;
-      btn.classList.toggle("is-active", active);
-      btn.setAttribute("aria-selected", active ? "true" : "false");
-    });
+    list.innerHTML = answerItems.map(renderItem).join("") +
+      (otherItems.length ? `
+        <li class="shop-divider" aria-hidden="true"></li>
+        ${otherItems.map(renderItem).join("")}
+      ` : "");
   }
 
   // ===================== RENDER: THEME PICKER =====================
@@ -730,12 +809,11 @@
     const list = document.getElementById("ratingList");
     const podium = document.getElementById("ratingPodium");
     const count = document.getElementById("ratingPlayerCount");
+    const countLabel = document.getElementById("ratingPlayerCountLabel");
     if (!list) return;
     let rows = Array.isArray(state.leaderboard) ? state.leaderboard.slice() : [];
-    if (rows.length === 0 && state.user) {
-      rows = [{ telegram_id: state.user.telegram_id, username: "", first_name: state.user.first_name || "Игрок", xp: state.user.xp || 0, level: state.user.level || 1, streak: state.user.streak || 0, badge: !!state.user.badge }];
-    }
     if (count) count.textContent = rows.length;
+    if (countLabel) countLabel.textContent = pluralRu(rows.length, "игрок", "игрока", "игроков");
     if (rows.length === 0) {
       if (podium) podium.innerHTML = "";
       list.innerHTML = `<li class="empty-hint">Рейтинг пока пуст</li>`;
@@ -948,11 +1026,6 @@ function initTabs() {
     if (!btn) return;
     const tab = btn.dataset.tab;
     if (!tab) return;
-    if (["calendar", "rating", "profile"].includes(tab)) {
-      // Если пользователь открыл второстепенную вкладку раньше idle-загрузки,
-      // подтягиваем её данные сразу, не показывая пустой экран.
-      loadSecondaryBootstrap();
-    }
     document.querySelectorAll(".tab-bar__item").forEach(b => b.classList.toggle("is-active", b === btn));
     document.querySelectorAll(".tab-panel").forEach(panel => {
       const active = panel.dataset.tab === tab;
@@ -965,7 +1038,13 @@ function initTabs() {
         });
       }
     });
+    // Загружаем только открытый раздел. Никаких фоновых запросов к
+    // календарю/рейтингу/профилю при нахождении на Главной.
+    if (tab === "profile" || tab === "rating" || tab === "calendar") {
+      loadBootstrapSecondary(tab);
+    }
     haptic("light");
+    scheduleDecorSettle();
   });
 }
 
@@ -1072,23 +1151,12 @@ function renderPlan() {
     mainView.hidden = false;
     mainView.innerHTML = `
       <div class="plan-item plan-item--main ${plan.main_goal_completed ? "is-done" : ""}">
-        <div class="plan-main__flame" aria-hidden="true">
-          <span class="plan-main__flame-ring"></span>
-          <img src="/static/assets/adam-impact-flame.svg" alt="">
+        <input type="checkbox" class="plan-toggle plan-toggle--main" data-main-toggle="1" ${plan.main_goal_completed ? "checked" : ""} aria-label="Отметить главную задачу выполненной">
+        <span class="plan-item__text">${escapeHtml(plan.main_goal)}</span>
+        <div class="plan-item__actions">
+          <button type="button" class="plan-icon-btn" data-main-action="edit" aria-label="Редактировать">✎</button>
+          <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-main-action="delete" aria-label="Удалить">✕</button>
         </div>
-        <div class="plan-main__topline">
-          <span class="plan-main__badge">ГЛАВНАЯ ЦЕЛЬ</span>
-          <span class="plan-main__status">${plan.main_goal_completed ? "ВЫПОЛНЕНО" : "ФОКУС ДНЯ"}</span>
-        </div>
-        <div class="plan-main__content">
-          <input type="checkbox" class="plan-toggle plan-toggle--main" data-main-toggle="1" ${plan.main_goal_completed ? "checked" : ""} aria-label="Отметить главную задачу выполненной">
-          <span class="plan-item__text">${escapeHtml(plan.main_goal)}</span>
-          <div class="plan-item__actions">
-            <button type="button" class="plan-icon-btn" data-main-action="edit" aria-label="Редактировать">✎</button>
-            <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-main-action="delete" aria-label="Удалить">✕</button>
-          </div>
-        </div>
-        <div class="plan-main__shine" aria-hidden="true"></div>
       </div>`;
     mainInput.value = "";
     mainConfirm.hidden = true;
@@ -1292,18 +1360,7 @@ function initPlanActions() {
 
 // ===================== SHOP ACTIONS =====================
   function initShopActions() {
-    const list = document.getElementById("shopList");
-    const toolbar = document.getElementById("shopToolbar");
-    if (toolbar) {
-      toolbar.addEventListener("click", (e) => {
-        const btn = e.target.closest("[data-shop-filter]");
-        if (!btn) return;
-        shopFilter = btn.dataset.shopFilter || "all";
-        haptic("light");
-        renderShop();
-      });
-    }
-    list.addEventListener("click", async (e) => {
+    document.getElementById("shopList").addEventListener("click", async (e) => {
       const btn = e.target.closest("button[data-action=buy]");
       if (!btn || btn.disabled) return;
       const li = btn.closest(".shop-item");
@@ -1313,7 +1370,11 @@ function initPlanActions() {
         await api(`/api/buy/${itemId}`, { method: "POST" });
         haptic("medium");
         showToast("Покупка совершена!", "success");
+        secondaryLoaded.delete("profile");
         await loadBootstrap();
+        if (document.querySelector('.tab-panel[data-tab="profile"]:not([hidden])')) {
+          await loadBootstrapSecondary("profile");
+        }
       } catch (err) {
         showToast(friendlyError(err), "error");
         await loadBootstrap();
@@ -1398,6 +1459,23 @@ function initPlanActions() {
   }
 
   // ===================== BOOT =====================
+function stabilizeFirstPaint() {
+    const critical = [
+        document.querySelector("header.player-card"),
+        document.querySelector('section[data-tab="home"]'),
+        document.getElementById("streakWidget")
+    ].filter(Boolean);
+    if (!critical.length) return;
+    // Не заставляем WebView держать большие слои в compositor-cache.
+    critical.forEach(el => {
+        el.style.visibility = "visible";
+        el.style.contain = el === critical[1] ? "layout style" : "layout paint";
+    });
+    requestAnimationFrame(() => {
+        critical.forEach(el => void el.offsetHeight);
+    });
+}
+
 async function boot() {
     try {
         initTelegram();
@@ -1408,8 +1486,17 @@ async function boot() {
         initThemeActions();
         initStreakUI();
         initStreakPopupClick();
+        // Критический экран готов сразу после bootstrap. Часовой пояс не должен
+        // удерживать loading-overlay и мешать первому paint (особенно в Telegram WebView).
         await loadBootstrap();
-        await syncTimezone();
+        requestAnimationFrame(() => {
+            document.documentElement.classList.remove("decor-settled");
+            // Принудительно отдаём браузеру один чистый кадр для компоновки
+            // верхней карточки + Ударного режима после тяжёлого bootstrap.
+            void document.getElementById("content")?.offsetHeight;
+        });
+        // Некритичная синхронизация — только после первого интерактивного кадра.
+        setTimeout(() => syncTimezone(), 0);
     } catch (err) {
         console.error("boot() failed:", err);
         showToast(friendlyError(err) || "Не удалось загрузить данные", "error");

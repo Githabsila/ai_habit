@@ -383,6 +383,28 @@ font-size:15px;
 }
 
 .tab-panel[hidden] { display: none; }
+.tab-panel--loading { position: relative; min-height: 260px; }
+.tab-panel--loading > :not(.tab-loading-state) { visibility: hidden !important; }
+.tab-loading-state {
+  position: absolute; inset: 0; z-index: 20;
+  min-height: 260px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  color: rgba(255,255,255,.68); font-size: 14px;
+  pointer-events: none;
+}
+.tab-loading-state__spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.12);
+  border-top-color: rgba(255,255,255,.78);
+  animation: adam-tab-spin .7s linear infinite;
+}
+.tab-loading-state__error {
+  max-width: 300px; padding: 14px 18px; border-radius: 16px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+  text-align: center; line-height: 1.4;
+}
+@keyframes adam-tab-spin { to { transform: rotate(360deg); } }
+
 
 /* ===================== HABITS ===================== */
 .habit-list {
