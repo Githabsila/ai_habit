@@ -12,7 +12,7 @@ from webapp.services.ai_coach import ask_ai
 from adam_messages import format_all_tasks_done_message, format_main_goal_done_message
 
 from db import (
-    get_user, add_user, is_banned, get_access_status,
+    get_user, add_user, is_banned, get_access_status, set_access_status,
     get_habits, get_habit, add_habit, edit_habit, delete_habit,
     complete_habit, get_progress, get_settings,
     update_reminder_time, update_ai_style, get_ai_style,
@@ -63,11 +63,19 @@ async def _authenticate(request):
 
     if not is_admin:
         status = get_access_status(telegram_id) or "approved"
+        # Новый Telegram-пользователь не должен получать 403 access_new
+        # из Mini App: это полностью ломало bootstrap и все лениво
+        # загружаемые разделы (магазин, рейтинг, календарь).
+        # Анкета в боте сохраняется как отдельный процесс, а Mini App
+        # остаётся доступным сразу после корректной Telegram-аутентификации.
+        if status == "new":
+            set_access_status(telegram_id, "approved")
+            status = "approved"
         if status != "approved":
             raise web.HTTPForbidden(
                 text=json.dumps({
                     "error": f"access_{status}",
-                    "message": "Сначала пройдите анкету в самом боте"
+                    "message": "Доступ к приложению пока ожидает подтверждения"
                 })
             )
 
