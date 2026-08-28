@@ -5659,3 +5659,56 @@ ul#shopList.shop-list,
   #shopList .shop-item__desc{font-size:9px !important}
   #shopList .buy-btn{font-size:9px !important}
 }
+
+/* Покупка заморозки — действие перенесено в нижнюю плашку */
+.freeze-balance-btn{
+  appearance:none;border:1px solid rgba(147,197,253,.22);
+  background:rgba(59,130,246,.10);color:#DCEBFF;border-radius:14px;
+  padding:8px 12px;display:inline-flex;align-items:center;gap:7px;
+  font:700 11px 'Space Grotesk',sans-serif;cursor:pointer;
+  transition:transform .18s ease,background .18s ease,border-color .18s ease;
+}
+.freeze-balance-btn:hover{background:rgba(59,130,246,.16);border-color:rgba(147,197,253,.34)}
+.freeze-balance-btn:active{transform:scale(.97)}
+.freeze-balance-btn:disabled{opacity:.45;cursor:not-allowed}
+.freeze-balance-btn .streak-bottom-icon{font-size:15px;line-height:1}
+
+/* Простая нижняя шторка подтверждения */
+.freeze-purchase-sheet{
+  position:fixed;inset:0;z-index:10050;display:flex;align-items:flex-end;justify-content:center;
+  pointer-events:auto;
+}
+.freeze-purchase-sheet[hidden]{display:none}
+.freeze-purchase-sheet__backdrop{
+  position:absolute;inset:0;background:rgba(3,4,10,.58);backdrop-filter:blur(7px);
+  opacity:0;transition:opacity .22s ease;
+}
+.freeze-purchase-card{
+  position:relative;width:min(430px,calc(100% - 24px));margin:0 12px 14px;
+  padding:18px 16px 15px;border-radius:24px;
+  background:linear-gradient(145deg,rgba(30,32,48,.98),rgba(16,18,29,.99));
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 18px 55px rgba(0,0,0,.42),0 0 28px rgba(74,137,255,.08);
+  transform:translateY(28px);opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .22s ease;
+}
+.freeze-purchase-sheet.is-open .freeze-purchase-sheet__backdrop{opacity:1}
+.freeze-purchase-sheet.is-open .freeze-purchase-card{transform:translateY(0);opacity:1}
+.freeze-purchase-card__handle{width:38px;height:4px;border-radius:99px;background:rgba(255,255,255,.16);margin:0 auto 13px}
+.freeze-purchase-card__icon{
+  width:40px;height:40px;border-radius:13px;margin:0 auto 9px;display:grid;place-items:center;
+  background:rgba(120,178,255,.10);border:1px solid rgba(150,205,255,.18);font-size:20px;
+}
+.freeze-purchase-card h3{margin:0;text-align:center;font:800 19px 'Space Grotesk',sans-serif;color:#F4F7FF}
+.freeze-purchase-card p{margin:7px auto 16px;max-width:320px;text-align:center;color:#9EA8BD;font-size:11px;line-height:1.45}
+.freeze-purchase-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.freeze-purchase-actions button{
+  height:43px;border-radius:13px;border:1px solid rgba(255,255,255,.08);
+  font:800 12px 'Space Grotesk',sans-serif;cursor:pointer;
+}
+.freeze-purchase-back{background:rgba(255,255,255,.055);color:#C5CBD8}
+.freeze-purchase-buy{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  background:linear-gradient(180deg,#f7c84a,#d99516);color:#1B1303;
+  box-shadow:0 7px 20px rgba(230,165,35,.18);
+}
+.freeze-modal-coin{width:19px;height:19px;flex:none}

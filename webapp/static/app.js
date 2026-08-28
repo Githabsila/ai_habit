@@ -450,10 +450,35 @@
       overlay.setAttribute("aria-hidden", "true");
       setTimeout(() => { overlay.hidden = true; }, 220);
     });
-    document.getElementById("freezeBuyBtn")?.addEventListener("click", async () => {
+    const freezeSheet = document.getElementById("freezePurchaseSheet");
+    const closeFreezeSheet = () => {
+      if (!freezeSheet) return;
+      freezeSheet.classList.remove("is-open");
+      freezeSheet.setAttribute("aria-hidden", "true");
+      setTimeout(() => { freezeSheet.hidden = true; }, 230);
+    };
+    const openFreezeSheet = () => {
+      if (!freezeSheet) return;
+      const streakNow = state?.streak;
+      if ((streakNow?.freeze_balance || 0) >= 2 || (streakNow?.freeze_purchased_count || 0) >= 2) {
+        showToast("У тебя уже максимум 2 заморозки", "error");
+        return;
+      }
+      freezeSheet.hidden = false;
+      requestAnimationFrame(() => freezeSheet.classList.add("is-open"));
+      freezeSheet.setAttribute("aria-hidden", "false");
+      haptic("light");
+    };
+    document.getElementById("freezeBuyBtn")?.addEventListener("click", openFreezeSheet);
+    document.getElementById("freezePurchaseBack")?.addEventListener("click", closeFreezeSheet);
+    document.getElementById("freezePurchaseBackdrop")?.addEventListener("click", closeFreezeSheet);
+    document.getElementById("freezePurchaseConfirm")?.addEventListener("click", async () => {
+      const confirmBtn = document.getElementById("freezePurchaseConfirm");
+      if (confirmBtn) confirmBtn.disabled = true;
       try {
-        const res = await api("/api/streak/freeze/buy", {method: "POST"});
+        await api("/api/streak/freeze/buy", {method: "POST"});
         haptic("light");
+        closeFreezeSheet();
         showToast("❄️ Заморозка куплена", "success");
         await loadBootstrap();
       } catch (e) {
@@ -463,6 +488,8 @@
           not_enough_coins: "Нужно 200 Adam Coin",
         };
         showToast(map[e?.data?.error] || friendlyError(e), "error");
+      } finally {
+        if (confirmBtn) confirmBtn.disabled = false;
       }
     });
     document.querySelectorAll("[data-weekly-reward]").forEach(btn => {
