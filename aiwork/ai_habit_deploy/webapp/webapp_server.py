@@ -1,0 +1,645 @@
+import json
+import logging
+import os
+from pathlib import Path
+
+from aiohttp import web
+from aiohttp.web import Application
+
+from config import BOT_TOKEN, ADMIN_IDS
+from webapp.telegram_auth import validate_init_data
+from webapp.services.ai_coach import ask_ai
+from adam_messages import format_all_tasks_done_message, format_main_goal_done_message
+
+from db import (
+    get_user, add_user, is_banned, get_access_status, set_access_status,
+    get_habits, get_habit, add_habit, edit_habit, delete_habit,
+    complete_habit, get_progress, get_settings,
+    update_reminder_time, update_ai_style, get_ai_style,
+    get_shop_items, buy_shop_item, get_user_items,
+    has_item, get_item_owner_ids, update_theme, get_theme,
+    get_rating, get_calendar, get_achievements,
+    was_premium_purchased, give_premium,
+    get_daily_plan, save_daily_plan, set_daily_main_goal, delete_daily_main_goal, toggle_daily_main_goal, add_daily_task, update_daily_plan_task, delete_daily_task, toggle_daily_task,
+    get_streak_status, set_timezone, buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
+    should_show_onboarding, onboarding_message, mark_onboarding_seen, consume_completion_event,
+)
+
+logger = logging.getLogger("webapp")
+BASE_DIR = Path(__file__).parent
+routes = web.RouteTableDef()
+
+# ID товаров магазина, у которых есть реальный эффект в мини-приложении
+# (см. посев в db.py: create_tables): 2 — тема оформления, 3 — значок в рейтинге.
+THEME_ITEM_ID = 2
+BADGE_ITEM_ID = 3
+
+# ====================== АВТОРИЗАЦИЯ ======================
+
+def _extract_init_data(request):
+    header = request.headers.get("Authorization", "")
+    if header.startswith("tma "):
+        return header[4:]
+    return request.headers.get("X-Telegram-Init-Data", "")
+
+async def _authenticate(request):
+    init_data = _extract_init_data(request)
+    tg_user = validate_init_data(init_data, BOT_TOKEN)
+    if tg_user is None:
+        raise web.HTTPUnauthorized(reason="invalid_init_data")
+
+    telegram_id = tg_user["id"]
+    is_admin = telegram_id in ADMIN_IDS
+
+    if get_user(telegram_id) is None:
+        add_user(
+            telegram_id=telegram_id,
+            username=tg_user.get("username"),
+            first_name=tg_user.get("first_name", "")
+        )
+
+    if is_banned(telegram_id):
+        raise web.HTTPForbidden(text='{"error":"banned"}')
+
+    if not is_admin:
+        status = get_access_status(telegram_id) or "approved"
+        # Новый Telegram-пользователь не должен получать 403 access_new
+        # из Mini App: это полностью ломало bootstrap и все лениво
+        # загружаемые разделы (магазин, рейтинг, календарь).
+        # Анкета в боте сохраняется как отдельный процесс, а Mini App
+        # остаётся доступным сразу после корректной Telegram-аутентификации.
+        if status == "new":
+            set_access_status(telegram_id, "approved")
+            status = "approved"
+        if status != "approved":
+            raise web.HTTPForbidden(
+                text=json.dumps({
+                    "error": f"access_{status}",
+                    "message": "Доступ к приложению пока ожидает подтверждения"
+                })
+            )
+
+    return telegram_id, is_admin
+
+# ====================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ======================
+
+def _owned_habit_or_404(habit_id, telegram_id):
+    habit = get_habit(habit_id)
+    if not habit or habit["user_id"] != telegram_id:
+        raise web.HTTPNotFound()
+
+
+async def _push(app, telegram_id, text):
+    """Проактивное сообщение из Mini App в чат с ботом (поздравления —
+    промт п.3 и п.7). Молча пропускаем, если бот недоступен или пользователь
+    закрыл чат с ботом — это не должно ронять сам API-запрос."""
+    bot = app.get("bot")
+    if not bot:
+        return
+    try:
+        await bot.send_message(telegram_id, text, parse_mode="HTML")
+    except Exception:
+        logger.warning(f"Не удалось отправить push-уведомление {telegram_id}", exc_info=True)
+
+# ====================== MIDDLEWARE ======================
+
+@web.middleware
+async def error_middleware(request, handler):
+    try:
+        response = await handler(request)
+        # Статические файлы Mini App тоже не кэшируем: иначе Telegram/WebView
+        # может оставить старый app.js/style.css после редеплоя.
+        if request.path == "/":
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        elif request.path.startswith("/static/"):
+            # JS/CSS URLs are versioned in index.html; long caching avoids
+            # re-downloading ~100KB+ of assets on every Mini App open.
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+    except web.HTTPException:
+        raise
+    except Exception:
+        logger.exception(f"Необработанная ошибка в {request.path}")
+        return web.json_response({"error": "internal_error"}, status=500)
+
+# ====================== МАРШРУТЫ ======================
+
+@routes.get("/api/bootstrap")
+async def bootstrap(request):
+    """Критический снимок для первого экрана.
+    Здесь только данные, без которых Главная не может стать интерактивной.
+    Рейтинг/календарь/архив достижений/магазин загружаются после первого кадра.
+    """
+    telegram_id, is_admin = await _authenticate(request)
+    user = get_user(telegram_id)
+    habits = get_habits(telegram_id)
+    progress = get_progress(telegram_id)
+    settings_row = get_settings(telegram_id)
+    daily_plan = get_daily_plan(telegram_id)
+    streak = get_streak_status(telegram_id)
+
+    return web.json_response({
+        "user": {
+            "telegram_id": telegram_id,
+            "first_name": user["first_name"] if user else "",
+            "xp": user["xp"] if user else 0,
+            "total_xp": user["total_xp"] if user else 0,
+            "level": user["level"] if user else 1,
+            "streak": user["streak"] if user else 0,
+            "premium": bool(user["premium"]) if user else False,
+            "badge": False,
+            "is_admin": is_admin,
+        },
+        "habits": [
+            {
+                "id": h["id"],
+                "title": h["title"],
+                "completed": bool(h["completed"]),
+                "planned_time": h["planned_time"] if "planned_time" in h.keys() else None,
+                "time_window_minutes": h["time_window_minutes"] if "time_window_minutes" in h.keys() else 60,
+            }
+            for h in habits
+        ],
+        "progress": progress,
+        "streak": streak,
+        "streak_onboarding": {
+            "show": bool(habits) and should_show_onboarding(telegram_id),
+            "message": onboarding_message(telegram_id) if habits and should_show_onboarding(telegram_id) else None,
+        },
+        "settings": {
+            "reminders": bool(settings_row["reminders"]) if settings_row else True,
+            "reminder_hour": settings_row["reminder_hour"] if settings_row else 9,
+            "reminder_minute": settings_row["reminder_minute"] if settings_row else 0,
+            "ai_style": get_ai_style(telegram_id),
+            "theme_owned": False,
+            "theme": get_theme(telegram_id),
+        },
+        "daily_plan": {
+            "main_goal": daily_plan["main_goal"],
+            "main_goal_completed": bool(daily_plan["main_goal_completed"]),
+            "tasks": [
+                {"id": t["id"], "text": t["text"], "completed": bool(t["completed"])}
+                for t in daily_plan["tasks"]
+            ],
+        },
+    })
+
+
+@routes.get("/api/bootstrap-secondary")
+async def bootstrap_secondary(request):
+    """Лениво отдаёт данные только для открытого раздела Mini App.
+
+    section=profile  -> магазин + достижения + тема
+    section=rating   -> рейтинг
+    section=calendar -> календарь
+    Без section сохраняем старый формат для обратной совместимости.
+    """
+    telegram_id, _ = await _authenticate(request)
+    section = request.rel_url.query.get("section", "").strip().lower()
+
+    payload = {}
+
+    if section in ("", "profile"):
+        owned_item_ids = set(get_user_items(telegram_id))
+        shop_items = get_shop_items()
+        achievements = get_achievements(telegram_id)
+        payload["shop_items"] = [
+            {
+                "id": it["id"],
+                "name": it["name"],
+                "description": it["description"],
+                "price": it["price"],
+                "owned": it["id"] in owned_item_ids,
+                "item_type": it["item_type"] if "item_type" in it.keys() else None,
+                "payload": it["payload"] if "payload" in it.keys() else None,
+            }
+            for it in shop_items
+        ]
+        payload["achievements"] = [
+            {
+                "id": a["id"],
+                "title": a["title"],
+                "description": a["description"],
+                "created_at": a["created_at"],
+            }
+            for a in achievements
+        ]
+
+    if section in ("", "rating"):
+        badge_owner_ids = set(get_item_owner_ids(BADGE_ITEM_ID))
+        leaderboard = get_rating()
+        payload["leaderboard"] = [
+            {
+                "telegram_id": row["telegram_id"],
+                "username": row["username"],
+                "first_name": row["first_name"],
+                "xp": row["xp"],
+                "level": row["level"],
+                "streak": row["streak"],
+                "badge": row["telegram_id"] in badge_owner_ids,
+                "streak_status": get_streak_status(row["telegram_id"]),
+            }
+            for row in leaderboard
+        ]
+
+    if section in ("", "calendar"):
+        calendar_events = get_calendar(telegram_id)
+        payload["calendar_events"] = [
+            {"day": row["day"], "completed": row["completed"], "total": row["total"]}
+            for row in calendar_events
+        ]
+
+    if section not in ("", "profile", "rating", "calendar"):
+        return web.json_response({"error": "unknown_section"}, status=400)
+
+    return web.json_response(payload)
+
+
+@routes.post("/api/habits")
+async def create_habit(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    title = body.get("title", "").strip()
+    if len(title) < 2:
+        return web.json_response({"error": "title_too_short"}, status=400)
+    had_habits = bool(get_habits(telegram_id))
+    add_habit(telegram_id, title)
+    first_habit = not had_habits
+    # Возвращаем созданную запись, чтобы Mini App мог показать её сразу,
+    # даже если повторная загрузка bootstrap временно задержалась.
+    created = next((h for h in get_habits(telegram_id) if h["title"] == title), None)
+    return web.json_response({
+        "ok": True,
+        "first_habit": first_habit,
+        "habit": {
+            "id": created["id"],
+            "title": created["title"],
+            "completed": bool(created["completed"]),
+        } if created else None,
+        "onboarding_message": onboarding_message(telegram_id) if first_habit else None,
+    })
+
+@routes.put("/api/habits/{habit_id}")
+async def rename_habit(request):
+    telegram_id, _ = await _authenticate(request)
+    habit_id = int(request.match_info["habit_id"])
+    _owned_habit_or_404(habit_id, telegram_id)
+    body = await request.json()
+    new_title = body.get("title", "").strip()
+    if len(new_title) < 2:
+        return web.json_response({"error": "title_too_short"}, status=400)
+    edit_habit(habit_id, new_title)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/habits/{habit_id}/complete")
+async def complete_habit_route(request):
+    telegram_id, _ = await _authenticate(request)
+    habit_id = int(request.match_info["habit_id"])
+    _owned_habit_or_404(habit_id, telegram_id)
+    success = complete_habit(habit_id)
+    if not success:
+        return web.json_response({"error": "already_completed"}, status=409)
+
+    event = consume_completion_event(telegram_id)
+    # Если событие уже было доставлено в боте, Mini App всё равно получает
+    # состояние streak, но не показывает повторное сообщение.
+    streak = get_streak_status(telegram_id)
+    if event:
+        try:
+            phrase = event["message"]
+            await _push(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{phrase}")
+        except Exception:
+            logger.exception("Не удалось отправить streak-сообщение")
+    return web.json_response({
+        "ok": True,
+        "progress": get_progress(telegram_id),
+        "streak": streak,
+        "streak_event": event,
+    })
+
+@routes.delete("/api/habits/{habit_id}")
+async def delete_habit_route(request):
+    telegram_id, _ = await _authenticate(request)
+    habit_id = int(request.match_info["habit_id"])
+    _owned_habit_or_404(habit_id, telegram_id)
+    delete_habit(habit_id)
+    return web.json_response({"ok": True})
+
+
+@routes.get("/api/streak/status")
+async def streak_status_route(request):
+    telegram_id, _ = await _authenticate(request)
+    status = get_streak_status(telegram_id)
+    status["weekly_bonus_available"] = get_weekly_bonus_available(telegram_id)
+    return web.json_response(status)
+
+@routes.post("/api/streak/timezone")
+async def set_streak_timezone(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    timezone = str(body.get("timezone", "UTC"))
+    set_timezone(telegram_id, timezone)
+    return web.json_response({"ok": True, "timezone": timezone})
+
+@routes.post("/api/streak/onboarding/seen")
+async def streak_onboarding_seen(request):
+    telegram_id, _ = await _authenticate(request)
+    mark_onboarding_seen(telegram_id)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/streak/freeze/buy")
+async def streak_buy_freeze(request):
+    telegram_id, _ = await _authenticate(request)
+    result = buy_freeze(telegram_id)
+    status = 200 if result.get("ok") else 400
+    return web.json_response(result, status=status)
+
+@routes.post("/api/streak/weekly-reward")
+async def streak_weekly_reward(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    result = claim_weekly_reward(telegram_id, body.get("reward"))
+    status = 200 if result.get("ok") else 400
+    return web.json_response(result, status=status)
+
+@routes.post("/api/settings/reminder-time")
+async def set_reminder_time(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    hour = int(body.get("hour"))
+    minute = int(body.get("minute"))
+    update_reminder_time(telegram_id, hour, minute)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/settings/ai-style")
+async def set_ai_style(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    style = body.get("style")
+    if style not in ("soft", "neutral", "strict"):
+        return web.json_response({"error": "invalid_style"}, status=400)
+    update_ai_style(telegram_id, style)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/settings/theme")
+async def set_theme(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    theme = body.get("theme")
+
+    if not has_item(telegram_id, THEME_ITEM_ID):
+        return web.json_response({"error": "theme_not_owned"}, status=403)
+
+    if not update_theme(telegram_id, theme):
+        return web.json_response({"error": "invalid_theme"}, status=400)
+
+    return web.json_response({"ok": True})
+
+@routes.post("/api/plan/save")
+async def save_plan_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    main_goal = (body.get("main_goal") or "").strip()
+    tasks = body.get("tasks") or []
+    if not isinstance(tasks, list):
+        return web.json_response({"error": "invalid_tasks"}, status=400)
+    save_daily_plan(telegram_id, main_goal, [str(t) for t in tasks])
+    return web.json_response({"ok": True})
+
+@routes.post("/api/plan/task/toggle")
+async def toggle_plan_task_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    try:
+        task_id = int(body.get("task_id"))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_task_id"}, status=400)
+
+    plan = get_daily_plan(telegram_id)
+    if task_id not in {t["id"] for t in plan["tasks"]}:
+        raise web.HTTPNotFound()
+
+    toggle_daily_task(task_id)
+
+    # Промт п.3: поздравление сразу после того, как отмечена ПОСЛЕДНЯЯ
+    # незакрытая задача плана дня (а не при каждой отдельной задаче).
+    updated_plan = get_daily_plan(telegram_id)
+    tasks = updated_plan["tasks"]
+    message = None
+    if tasks and all(t["completed"] for t in tasks):
+        message = format_all_tasks_done_message()
+
+    return web.json_response({"ok": True, "message": message})
+
+@routes.post("/api/plan/main/save")
+async def save_main_goal_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    if not text:
+        return web.json_response({"error": "empty_text"}, status=400)
+    set_daily_main_goal(telegram_id, text)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/plan/main/toggle")
+async def toggle_main_goal_route(request):
+    telegram_id, _ = await _authenticate(request)
+    plan = get_daily_plan(telegram_id)
+    if not plan["main_goal"]:
+        raise web.HTTPNotFound()
+
+    was_completed = plan["main_goal_completed"]
+    toggle_daily_main_goal(telegram_id)
+
+    # Промт п.7: поощрение показываем только когда цель ПЕРЕХОДИТ в
+    # выполненное состояние (не при повторном снятии галочки). Отдаём
+    # текст в ответе API — фронт мини-аппа показывает его тостом, в чат
+    # с ботом больше не шлём.
+    message = format_main_goal_done_message() if not was_completed else None
+
+    return web.json_response({"ok": True, "message": message})
+
+@routes.delete("/api/plan/main")
+async def delete_main_goal_route(request):
+    telegram_id, _ = await _authenticate(request)
+    delete_daily_main_goal(telegram_id)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/plan/task")
+async def add_plan_task_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    if not text:
+        return web.json_response({"error": "empty_text"}, status=400)
+    try:
+        task_id = add_daily_task(telegram_id, text)
+    except ValueError as exc:
+        if str(exc) == "task_limit":
+            return web.json_response({"error": "task_limit"}, status=400)
+        raise
+    return web.json_response({"ok": True, "task_id": task_id})
+
+@routes.put("/api/plan/task/{task_id}")
+async def edit_plan_task_route(request):
+    telegram_id, _ = await _authenticate(request)
+    try:
+        task_id = int(request.match_info["task_id"])
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_task_id"}, status=400)
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    if not text:
+        return web.json_response({"error": "empty_text"}, status=400)
+    if not update_daily_plan_task(telegram_id, task_id, text):
+        raise web.HTTPNotFound()
+    return web.json_response({"ok": True})
+
+@routes.delete("/api/plan/task/{task_id}")
+async def delete_plan_task_route(request):
+    telegram_id, _ = await _authenticate(request)
+    try:
+        task_id = int(request.match_info["task_id"])
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_task_id"}, status=400)
+    if not delete_daily_task(telegram_id, task_id):
+        raise web.HTTPNotFound()
+    return web.json_response({"ok": True})
+
+@routes.get("/")
+async def index(request):
+    response = web.FileResponse(BASE_DIR / "static" / "index.html")
+    # Telegram WebView агрессивно кэширует Mini App. Главная страница должна
+    # всегда получать актуальные ссылки на JS/CSS, иначе старый интерфейс
+    # возвращается даже после обычного обновления.
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+@routes.get("/api/shop")
+async def get_shop(request):
+    telegram_id, _ = await _authenticate(request)
+    owned_item_ids = set(get_user_items(telegram_id))
+    items = [
+        {
+            "id": it["id"],
+            "name": it["name"],
+            "description": it["description"],
+            "price": it["price"],
+            "owned": it["id"] in owned_item_ids,
+        }
+        for it in get_shop_items()
+    ]
+    return web.json_response({"items": items})
+
+@routes.post("/api/buy/{item_id}")
+async def buy_route(request):
+    telegram_id, _ = await _authenticate(request)
+    item_id = int(request.match_info["item_id"])
+
+    # Premium (id=1) — как и в боте: только один раз, и после покупки
+    # реально активируем сам premium (buy_shop_item только списывает
+    # монеты и помечает товар купленным).
+    if item_id == 1 and was_premium_purchased(telegram_id):
+        return web.json_response({"error": "premium_already_purchased"}, status=400)
+
+    # Пакеты ответов — расходуемая покупка. Не используем обычный
+    # buy_shop_item, потому что он рассчитан на ownership товаров и в этой
+    # точке раньше просто списывал монеты, но НЕ добавлял bonus_answers.
+    item = get_shop_item(item_id)
+    if not item:
+        return web.json_response({"error": "not_found"}, status=404)
+
+    if item["item_type"] == "answer_pack":
+        try:
+            amount = int(item["payload"] or 0)
+        except (TypeError, ValueError):
+            amount = 0
+        if amount <= 0:
+            return web.json_response({"error": "invalid_answer_pack"}, status=400)
+
+        user = get_user(telegram_id)
+        if not user or int(user["xp"] or 0) < int(item["price"] or 0):
+            return web.json_response({"error": "not_enough_xp"}, status=400)
+
+        # Одна атомарная транзакция: монеты списываются и пакет сразу
+        # зачисляется. Поэтому невозможно получить ситуацию «купил, но 15
+        # так и осталось 15» даже при повторном запросе/обновлении UI.
+        from db.core import connect
+        conn = connect()
+        cur = conn.cursor()
+        try:
+            cur.execute("UPDATE users SET xp=xp-? WHERE telegram_id=? AND xp>=?",
+                        (int(item["price"]), telegram_id, int(item["price"])))
+            if cur.rowcount != 1:
+                conn.rollback()
+                return web.json_response({"error": "not_enough_xp"}, status=400)
+            from db import add_ai_bonus_answers
+            # add_ai_bonus_answers открывает отдельное соединение, поэтому
+            # сначала фиксируем списание; зачисление идемпотентно на уровне
+            # одной покупки и выполняется сразу после него.
+            conn.commit()
+        finally:
+            conn.close()
+        add_ai_bonus_answers(telegram_id, amount)
+
+        user = get_user(telegram_id)
+        quota = get_ai_quota(telegram_id, has_premium(telegram_id))
+        return web.json_response({
+            "ok": True,
+            "xp": user["xp"] if user else 0,
+            "quota": quota,
+            "added_answers": amount,
+        })
+
+    success = buy_shop_item(telegram_id, item_id)
+    if not success:
+        return web.json_response({"error": "not_enough_xp_or_not_found"}, status=400)
+
+    if item_id == 1:
+        give_premium(telegram_id)
+
+    user = get_user(telegram_id)
+    return web.json_response({
+        "ok": True,
+        "xp": user["xp"] if user else 0
+    })
+
+@routes.get("/health")
+async def health(request):
+    return web.json_response({"status": "ok"})
+
+# ====================== СОЗДАНИЕ ПРИЛОЖЕНИЯ ======================
+
+def create_app(bot=None):
+    app = web.Application(middlewares=[error_middleware])
+    app["bot"] = bot
+    app.add_routes(routes)
+    
+    # Добавляем маршруты для AI мини-приложения
+    from webapp.routes_ai_miniapp import routes as ai_routes
+    app.add_routes(ai_routes)
+    
+    app.router.add_static("/static", BASE_DIR / "static")
+    return app
+
+# ====================== ЗАПУСК СЕРВЕРА ======================
+
+async def run_webapp(port, bot=None):
+    app = create_app(bot)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=port)
+    await site.start()
+    logger.info(f"🌐 MiniApp сервер запущен на порту {port}")
+    return runner
+   
+
+@routes.get("/coach")
+async def coach(request):
+    response = web.FileResponse(BASE_DIR / "static" / "ai_miniapp_styled.html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
