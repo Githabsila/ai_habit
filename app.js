@@ -245,8 +245,7 @@
 
     const balance = document.getElementById("freezeBalanceLabel");
     if (balance) balance.textContent = `Заморозки: ${streak.freeze_balance || 0}/2`;
-    const buy = document.getElementById("freezeBuyBtn");
-    if (buy) buy.disabled = (streak.freeze_balance || 0) >= 2 || (streak.freeze_purchased_count || 0) >= 2;
+
 
     const status = document.getElementById("streakStatusLabel");
     if (status) {
@@ -420,10 +419,35 @@
       overlay.setAttribute("aria-hidden", "true");
       setTimeout(() => { overlay.hidden = true; }, 220);
     });
-    document.getElementById("freezeBuyBtn")?.addEventListener("click", async () => {
+    const freezeOverlay = document.getElementById("freezeBuyOverlay");
+    const freezeBalanceBtn = document.getElementById("freezeBalanceBtn");
+    const freezeBack = document.getElementById("freezeBuyBack");
+    const freezeConfirm = document.getElementById("freezeBuyConfirm");
+
+    const closeFreezeBuy = () => {
+      if (!freezeOverlay) return;
+      freezeOverlay.classList.remove("show");
+      freezeOverlay.setAttribute("aria-hidden", "true");
+      setTimeout(() => { freezeOverlay.hidden = true; }, 220);
+    };
+
+    freezeBalanceBtn?.addEventListener("click", () => {
+      haptic("light");
+      if (!freezeOverlay) return;
+      freezeOverlay.hidden = false;
+      requestAnimationFrame(() => freezeOverlay.classList.add("show"));
+      freezeOverlay.setAttribute("aria-hidden", "false");
+    });
+    freezeBack?.addEventListener("click", closeFreezeBuy);
+    freezeOverlay?.addEventListener("click", (e) => {
+      if (e.target === freezeOverlay) closeFreezeBuy();
+    });
+    freezeConfirm?.addEventListener("click", async () => {
+      freezeConfirm.disabled = true;
       try {
-        const res = await api("/api/streak/freeze/buy", {method: "POST"});
-        haptic("light");
+        await api("/api/streak/freeze/buy", {method: "POST"});
+        haptic("success");
+        closeFreezeBuy();
         showToast("❄️ Заморозка куплена", "success");
         await loadBootstrap();
       } catch (e) {
@@ -433,6 +457,8 @@
           not_enough_coins: "Нужно 200 Adam Coin",
         };
         showToast(map[e?.data?.error] || friendlyError(e), "error");
+      } finally {
+        freezeConfirm.disabled = false;
       }
     });
     document.querySelectorAll("[data-weekly-reward]").forEach(btn => {
