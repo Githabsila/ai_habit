@@ -209,7 +209,11 @@
       layer.hidden = false;
       layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
     } else if (layer) {
-      layer.hidden = true;
+      // Полностью удаляем индикатор после загрузки, а не просто скрываем его.
+      // Так он не сможет остаться поверх нижнего меню из-за CSS/кэша WebView.
+      layer.remove();
+      panel.classList.remove("tab-panel--loading");
+      panel.setAttribute("aria-busy", "false");
     }
     if (message) {
       if (!layer) {

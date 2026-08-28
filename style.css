@@ -404,6 +404,9 @@ font-size:15px;
   text-align: center; line-height: 1.4;
 }
 @keyframes adam-tab-spin { to { transform: rotate(360deg); } }
+/* Индикатор загрузки существует только пока реально идёт запрос. */
+.tab-loading-state[hidden] { display: none !important; }
+
 
 
 /* ===================== HABITS ===================== */
