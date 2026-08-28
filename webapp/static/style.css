@@ -103,26 +103,53 @@ h1, h2, h3, .display {
         inset 0 1px rgba(255,255,255,.05);
 }
 
-.player-card::before{
+/* Бегущий мягкий блеск — отдельный GPU-слой. */
+.player-card::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: -35%;
+  width: 34%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255,255,255,0) 18%,
+    rgba(255,255,255,.055) 43%,
+    rgba(240,180,41,.075) 50%,
+    rgba(255,255,255,.045) 57%,
+    rgba(255,255,255,0) 82%,
+    transparent 100%
+  );
+  transform: translate3d(0,0,0) skewX(-10deg);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  contain: layout paint;
+  animation: cardShine 5.5s cubic-bezier(.35,0,.65,1) infinite;
+}
 
-content:"";
+@keyframes cardShine {
+  0%, 8% {
+    transform: translate3d(0,0,0) skewX(-10deg);
+    opacity: 0;
+  }
+  14% { opacity: .85; }
+  47% { opacity: 1; }
+  78% { opacity: .72; }
+  92%, 100% {
+    transform: translate3d(405%,0,0) skewX(-10deg);
+    opacity: 0;
+  }
+}
 
-position:absolute;
-
-width:260px;
-
-height:260px;
-
-right:-120px;
-
-top:-120px;
-
-background:
-
-radial-gradient(circle,#8B5CF650,transparent 70%);
-
-border-radius:50%;
-
+@media (prefers-reduced-motion: reduce) {
+  .player-card::before {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 .player-card__ring-wrap{
