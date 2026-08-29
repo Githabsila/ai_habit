@@ -452,6 +452,9 @@
     });
     const freezeOverlay = document.getElementById("freezeSheetOverlay");
     const freezeSheetBalance = document.getElementById("freezeSheetBalance");
+    freezeOverlay?.addEventListener("touchmove", (e) => {
+      if (freezeOverlay.classList.contains("show")) e.preventDefault();
+    }, {passive: false});
     const openFreezeSheet = () => {
       if (!freezeOverlay) return;
       const balance = Number(state?.streak?.freeze_balance ?? 0);
@@ -459,6 +462,7 @@
       freezeOverlay.hidden = false;
       freezeOverlay.setAttribute("aria-hidden", "false");
       requestAnimationFrame(() => freezeOverlay.classList.add("show"));
+      document.documentElement.classList.add("freeze-sheet-open");
       document.body.classList.add("freeze-sheet-open");
       haptic("light");
     };
@@ -466,6 +470,7 @@
       if (!freezeOverlay) return;
       freezeOverlay.classList.remove("show");
       freezeOverlay.setAttribute("aria-hidden", "true");
+      document.documentElement.classList.remove("freeze-sheet-open");
       document.body.classList.remove("freeze-sheet-open");
       setTimeout(() => { freezeOverlay.hidden = true; }, 220);
     };

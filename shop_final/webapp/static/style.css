@@ -5541,7 +5541,7 @@ button:hover,.btn:hover{filter:brightness(1.08)}
   inset:0;
   z-index:10000;
   display:flex;
-  align-items:flex-end;
+  align-items:center;
   justify-content:center;
   padding:16px;
   background:rgba(4,5,10,.42);
@@ -5563,10 +5563,10 @@ button:hover,.btn:hover{filter:brightness(1.08)}
   border-radius:26px;
   background:linear-gradient(155deg,rgba(27,29,43,.98),rgba(16,17,27,.99));
   box-shadow:0 -18px 55px rgba(0,0,0,.35),0 22px 70px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.055);
-  transform:translateY(22px);
+  transform:translateY(14px) scale(.97);
   transition:transform .24s cubic-bezier(.2,.8,.2,1);
 }
-.freeze-sheet-overlay.show .freeze-sheet{transform:translateY(0)}
+.freeze-sheet-overlay.show .freeze-sheet{transform:translateY(0) scale(1)}
 .freeze-sheet__handle{width:38px;height:4px;border-radius:99px;background:rgba(255,255,255,.22);margin:0 auto 13px}
 .freeze-sheet__close{position:absolute;right:13px;top:13px;width:32px;height:32px;border:0;border-radius:50%;background:rgba(255,255,255,.07);color:rgba(255,255,255,.72);font-size:22px;line-height:1;cursor:pointer}
 .freeze-sheet__icon{font-size:29px;line-height:1;margin:3px 0 10px;filter:drop-shadow(0 0 10px rgba(125,190,255,.28))}
@@ -5582,9 +5582,9 @@ button:hover,.btn:hover{filter:brightness(1.08)}
 .freeze-sheet__buy{width:100%;border:1px solid rgba(145,193,255,.3);border-radius:15px;padding:12px 14px;background:linear-gradient(145deg,rgba(82,142,232,.25),rgba(44,80,145,.16));color:#eaf3ff;font-size:13px;font-weight:850;box-shadow:inset 0 1px rgba(255,255,255,.07),0 9px 24px rgba(20,65,130,.18);cursor:pointer}
 .freeze-sheet__buy span{float:right;color:#9ecbff}
 .freeze-sheet__buy:disabled{opacity:.5;cursor:wait}
-body.freeze-sheet-open{overflow:hidden}
+html.freeze-sheet-open, body.freeze-sheet-open{overflow:hidden!important;overscroll-behavior:none!important;touch-action:none!important}
 @media(max-width:420px){
-  .freeze-sheet-overlay{padding:8px}
+  .freeze-sheet-overlay{padding:16px}
   .freeze-sheet{border-radius:24px;padding-left:15px;padding-right:15px}
   .freeze-sheet p{font-size:11px}
 }
