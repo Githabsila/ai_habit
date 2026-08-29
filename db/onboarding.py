@@ -11,6 +11,18 @@ from .core import connect
 #  'pending' — анкету заполнил, ждёт одобрения/автоапрува;
 #  'approved' — полный доступ к боту)
 
+def reject_user(user_id):
+    """Отклоняет заявку и блокирует пользователя как спам/нежелательного."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE users SET access_status='rejected', banned=1 WHERE telegram_id=?",
+        (user_id,)
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_access_status(user_id):
     conn = connect()
     cursor = conn.cursor()

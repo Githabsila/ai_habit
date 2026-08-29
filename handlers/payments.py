@@ -7,7 +7,7 @@ from aiogram.types import (
 )
 
 from config import PREMIUM_PRICE_STARS
-from db import give_premium_admin
+from db import give_premium_admin, set_cosmetic
 from keyboards import premium_buy_keyboard, back_menu_keyboard
 
 router = Router()
@@ -67,6 +67,24 @@ async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
 
 @router.message(F.successful_payment)
 async def successful_payment(message: Message):
+    payment = message.successful_payment
+    payload = str(payment.invoice_payload or "")
+
+    # Покупка платной рамки из Mini App через Telegram Stars.
+    if payload.startswith("avatar_frame:"):
+        parts = payload.split(":")
+        try:
+            paid_user_id = int(parts[-1])
+        except (TypeError, ValueError):
+            paid_user_id = message.from_user.id
+        if paid_user_id == message.from_user.id:
+            set_cosmetic(message.from_user.id, "frame", "paid_double_gold")
+            await message.answer(
+                "👑 Рамка Double Gold активирована! Теперь она доступна на твоей аватарке в профиле и рейтинге.",
+                reply_markup=back_menu_keyboard()
+            )
+        return
+
     give_premium_admin(message.from_user.id)
     await message.answer(
         "✅ Спасибо! Premium активирован — доступны еженедельный AI-разбор "

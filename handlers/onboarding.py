@@ -5,7 +5,7 @@ from aiogram.types import Message
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
-from keyboards import main_menu
+from keyboards import main_menu, pending_review_keyboard
 
 from db import (
     save_survey_answers,
@@ -121,6 +121,11 @@ async def survey_bot_goal(message: Message, state: FSMContext):
         return
 
     set_access_status(user_id, "pending")
+
+    # ВАЖНО: уведомление админу отправляется сразу после перевода заявки
+    # в pending — без ожидания scheduler / открытия админки.
+    await notify_admins_new_application(message.bot, user_id)
+
     await message.answer(
         "✅ Анкета получена.\n\n"
         "🕓 Идёт проверка модератором — скоро вы получите открытый "

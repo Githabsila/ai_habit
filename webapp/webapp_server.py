@@ -11,6 +11,8 @@ from webapp.telegram_auth import validate_init_data
 from webapp.services.ai_coach import ask_ai
 from adam_messages import format_all_tasks_done_message, format_main_goal_done_message
 
+from db.core import DATA_DIR
+
 from db import (
     get_user, add_user, is_banned, get_access_status, set_access_status,
     get_habits, get_habit, add_habit, edit_habit, delete_habit,
@@ -21,7 +23,7 @@ from db import (
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
     get_daily_plan, save_daily_plan, set_daily_main_goal, delete_daily_main_goal, toggle_daily_main_goal, add_daily_task, update_daily_plan_task, delete_daily_task, toggle_daily_task,
-    get_streak_status, set_timezone, buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
+    get_streak_status, set_timezone, buy_freeze, claim_weekly_reward, get_weekly_bonus_available, has_streak_frame,
     should_show_onboarding, onboarding_message, mark_onboarding_seen, consume_completion_event,
     create_daily_tasks, get_daily_tasks, claim_daily_bonus,
     get_weekly_summary, get_statistics,
@@ -159,6 +161,8 @@ async def bootstrap(request):
             "streak": user["streak"] if user else 0,
             "premium": bool(user["premium"]) if user else False,
             "badge": False,
+            "avatar_id": user["avatar_id"] if user else "default",
+            "frame_id": user["frame_id"] if user else "default",
             "is_admin": is_admin,
         },
         "habits": [
@@ -212,6 +216,8 @@ async def bootstrap_secondary(request):
 
     if section in ("", "profile"):
         owned_item_ids = set(get_user_items(telegram_id))
+        profile_user = get_user(telegram_id)
+        user_frame_id = profile_user["frame_id"] if profile_user else "default"
         shop_items = get_shop_items()
         achievements = get_achievements(telegram_id)
         payload["shop_items"] = [
@@ -220,7 +226,7 @@ async def bootstrap_secondary(request):
                 "name": it["name"],
                 "description": it["description"],
                 "price": it["price"],
-                "owned": it["id"] in owned_item_ids,
+                "owned": it["id"] in owned_item_ids or (it["item_type"] == "frame_stars" and user_frame_id == "paid_double_gold"),
                 "item_type": it["item_type"] if "item_type" in it.keys() else None,
                 "payload": it["payload"] if "payload" in it.keys() else None,
             }
@@ -248,6 +254,8 @@ async def bootstrap_secondary(request):
                 "level": row["level"],
                 "streak": row["streak"],
                 "badge": row["telegram_id"] in badge_owner_ids,
+                "avatar_id": row["avatar_id"] if "avatar_id" in row.keys() else "default",
+                "frame_id": row["frame_id"] if "frame_id" in row.keys() else "default",
                 "streak_status": get_streak_status(row["telegram_id"]),
             }
             for row in leaderboard
@@ -667,13 +675,17 @@ async def index(request):
 async def get_shop(request):
     telegram_id, _ = await _authenticate(request)
     owned_item_ids = set(get_user_items(telegram_id))
+    profile_user = get_user(telegram_id)
+    user_frame_id = profile_user["frame_id"] if profile_user else "default"
     items = [
         {
             "id": it["id"],
             "name": it["name"],
             "description": it["description"],
             "price": it["price"],
-            "owned": it["id"] in owned_item_ids,
+            "owned": it["id"] in owned_item_ids or (it["item_type"] == "frame_stars" and user_frame_id == "paid_double_gold"),
+            "item_type": it["item_type"] if "item_type" in it.keys() else None,
+            "payload": it["payload"] if "payload" in it.keys() else None,
         }
         for it in get_shop_items()
     ]
@@ -683,25 +695,143 @@ async def get_shop(request):
 async def buy_route(request):
     telegram_id, _ = await _authenticate(request)
     item_id = int(request.match_info["item_id"])
+    item = get_shop_item(item_id)
+    if not item:
+        return web.json_response({"error": "shop_item_not_found"}, status=404)
 
-    # Premium (id=1) — как и в боте: только один раз, и после покупки
-    # реально активируем сам premium (buy_shop_item только списывает
-    # монеты и помечает товар купленным).
+    item_type = item["item_type"] if "item_type" in item.keys() else "cosmetic"
+    if item_type == "frame_stars":
+        return web.json_response({"error": "use_stars_checkout"}, status=400)
+
     if item_id == 1 and was_premium_purchased(telegram_id):
         return web.json_response({"error": "premium_already_purchased"}, status=400)
 
-    success = buy_shop_item(telegram_id, item_id)
+    owned_item_ids = set(get_user_items(telegram_id))
+    repeatable = bool(item["repeatable"]) if "repeatable" in item.keys() else False
+    if not repeatable and item_id != 1 and item_id in owned_item_ids:
+        # Для уже купленной рамки/аватара разрешаем просто надеть её.
+        if item_type in ("avatar", "frame"):
+            set_cosmetic(telegram_id, item_type, item["payload"] or "default")
+            user = get_user(telegram_id)
+            return web.json_response({"ok": True, "equipped": True, "xp": user["xp"] if user else 0, "avatar_id": user["avatar_id"] if user else "default", "frame_id": user["frame_id"] if user else "default"})
+        return web.json_response({"error": "already_owned"}, status=400)
+
+    success = buy_shop_item(telegram_id, item_id, allow_repeatable=repeatable)
     if not success:
         return web.json_response({"error": "not_enough_xp_or_not_found"}, status=400)
 
     if item_id == 1:
         give_premium(telegram_id)
+    elif item_type in ("avatar", "frame"):
+        set_cosmetic(telegram_id, item_type, item["payload"] or "default")
+    elif item_type == "answer_pack":
+        from db import add_ai_bonus_answers
+        try:
+            add_ai_bonus_answers(telegram_id, int(item["payload"] or 0))
+        except (TypeError, ValueError):
+            return web.json_response({"error": "invalid_answer_pack"}, status=400)
 
     user = get_user(telegram_id)
     return web.json_response({
         "ok": True,
-        "xp": user["xp"] if user else 0
+        "xp": user["xp"] if user else 0,
+        "avatar_id": user["avatar_id"] if user else "default",
+        "frame_id": user["frame_id"] if user else "default",
     })
+
+@routes.post("/api/cosmetics/equip")
+async def equip_cosmetic(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    frame_id = str(body.get("frame_id", "default"))
+    avatar_id = body.get("avatar_id")
+
+    if frame_id != "default":
+        allowed_shop = {5: "neon", 6: "gold", 7: "paid_double_gold"}
+        allowed = frame_id in allowed_shop.values() and (
+            has_item(telegram_id, next(k for k,v in allowed_shop.items() if v == frame_id))
+            if frame_id in ("neon", "gold") else frame_id == "paid_double_gold" and get_user(telegram_id)["frame_id"] == "paid_double_gold"
+        )
+        if frame_id in ("streak_14", "streak_30"):
+            allowed = has_streak_frame(telegram_id, frame_id)
+        if not allowed:
+            return web.json_response({"error": "frame_not_owned"}, status=403)
+        set_cosmetic(telegram_id, "frame", frame_id)
+
+    if avatar_id is not None:
+        if avatar_id not in ("default", "adam"):
+            return web.json_response({"error": "invalid_avatar"}, status=400)
+        if avatar_id == "adam" and not has_item(telegram_id, 4):
+            return web.json_response({"error": "avatar_not_owned"}, status=403)
+        set_cosmetic(telegram_id, "avatar", avatar_id)
+
+    user = get_user(telegram_id)
+    return web.json_response({"ok": True, "avatar_id": user["avatar_id"], "frame_id": user["frame_id"]})
+
+@routes.post("/api/profile/avatar")
+async def upload_avatar(request):
+    telegram_id, _ = await _authenticate(request)
+    reader = await request.multipart()
+    field = await reader.next()
+    if field is None or field.name != "avatar":
+        return web.json_response({"error": "avatar_required"}, status=400)
+    content_type = (field.headers.get("Content-Type") or "").lower()
+    if content_type not in ("image/jpeg", "image/png", "image/webp"):
+        return web.json_response({"error": "unsupported_image"}, status=400)
+
+    avatars_dir = Path(DATA_DIR) / "avatars"
+    avatars_dir.mkdir(parents=True, exist_ok=True)
+    target = avatars_dir / f"{telegram_id}.jpg"
+    tmp = avatars_dir / f".{telegram_id}.upload"
+    total = 0
+    with tmp.open("wb") as f:
+        while True:
+            chunk = await field.read_chunk(64 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > 5 * 1024 * 1024:
+                tmp.unlink(missing_ok=True)
+                return web.json_response({"error": "avatar_too_large"}, status=413)
+            f.write(chunk)
+    tmp.replace(target)
+    set_cosmetic(telegram_id, "avatar", f"upload:{telegram_id}")
+    user = get_user(telegram_id)
+    return web.json_response({"ok": True, "avatar_url": f"/media/avatars/{telegram_id}.jpg?v={int(target.stat().st_mtime)}", "avatar_id": user["avatar_id"]})
+
+@routes.get("/media/avatars/{filename}")
+async def serve_avatar(request):
+    filename = request.match_info["filename"]
+    if not filename.endswith(".jpg") or not filename[:-4].isdigit():
+        raise web.HTTPNotFound()
+    path = Path(DATA_DIR) / "avatars" / filename
+    if not path.exists():
+        raise web.HTTPNotFound()
+    return web.FileResponse(path)
+
+@routes.post("/api/shop/stars/{item_id}")
+async def create_stars_invoice(request):
+    telegram_id, _ = await _authenticate(request)
+    item_id = int(request.match_info["item_id"])
+    item = get_shop_item(item_id)
+    if not item or item["item_type"] != "frame_stars":
+        return web.json_response({"error": "stars_item_not_found"}, status=404)
+    user = get_user(telegram_id)
+    if user and user["frame_id"] == "paid_double_gold":
+        return web.json_response({"error": "already_owned"}, status=400)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "payment_unavailable"}, status=503)
+    from aiogram.types import LabeledPrice
+    link = await bot.create_invoice_link(
+        title="ADAM — Double Gold",
+        description="Премиальная рамка с двойной позолотой и подсветкой для аватарки.",
+        payload=f"avatar_frame:{item_id}:{telegram_id}",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice(label="Double Gold", amount=int(item["price"]))],
+    )
+    return web.json_response({"ok": True, "invoice_url": link})
 
 @routes.get("/health")
 async def health(request):

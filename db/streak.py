@@ -8,7 +8,8 @@ from .core import connect
 from .users import get_user, add_xp
 
 MILESTONES = {
-    30: ("Первый огонь", "Бронзовое пламя", "bronze_flame"),
+    14: ("Две недели в огне", "Неоновый импульс", "streak_14"),
+    30: ("Месяц в ударе", "Золотой характер", "streak_30"),
     60: ("Стальной стержень", "Серебряный уголь", "silver_coal"),
     100: ("Сотня в огне", "Золотая искра", "gold_spark"),
     200: ("Несгораемый", "Платиновый факел", "platinum_torch"),
@@ -343,6 +344,19 @@ def get_last7(user_id):
         })
     return result
 
+def has_streak_frame(user_id, frame_code):
+    """Проверяет, открыта ли рамка за достижение ударного режима."""
+    mapping = {"streak_14": 14, "streak_30": 30}
+    milestone = mapping.get(str(frame_code))
+    if not milestone:
+        return False
+    ensure_tables()
+    conn = connect(); c = conn.cursor()
+    c.execute("SELECT 1 FROM streak_rewards WHERE user_id=? AND milestone=? LIMIT 1", (user_id, milestone))
+    ok = c.fetchone() is not None
+    conn.close()
+    return ok
+
 def get_streak_status(user_id):
     ensure_tables()
     today = local_today(user_id)
@@ -352,6 +366,17 @@ def get_streak_status(user_id):
     meta = c.fetchone()
     c.execute("SELECT streak FROM users WHERE telegram_id=?", (user_id,))
     user = c.fetchone()
+    # Мягкий бэкфилл: пользователь, который уже накопил 14/30+ дней до этой версии,
+    # тоже получает соответствующую постоянную рамку.
+    current_days = int(user["streak"] or 0) if user else 0
+    for milestone in (14, 30):
+        if current_days >= milestone:
+            title, frame, code = MILESTONES[milestone]
+            c.execute(
+                "INSERT OR IGNORE INTO streak_rewards(user_id,milestone,status,frame,permanent) VALUES(?,?,?,?,1)",
+                (user_id, milestone, title, frame),
+            )
+    conn.commit()
     c.execute("SELECT * FROM streak_rewards WHERE user_id=? ORDER BY milestone DESC", (user_id,))
     rewards = [dict(r) for r in c.fetchall()]
     conn.close()

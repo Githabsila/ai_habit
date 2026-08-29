@@ -251,6 +251,7 @@
             state.shop_items = data.shop_items || [];
             state.achievements = data.achievements || [];
             renderShop();
+            renderProfileAvatarControls();
             renderThemePicker();
             renderAchievements();
           } else if (key === "rating") {
@@ -597,6 +598,64 @@
     toastTimer = setTimeout(() => { el.classList.remove("is-visible"); }, duration || 2200);
   }
 
+  // ===================== PROFILE AVATAR / FRAMES =====================
+  function avatarMarkup(user, sizeClass = "") {
+    const name = user?.first_name || "Игрок";
+    const avatarId = String(user?.avatar_id || "default");
+    const frame = String(user?.frame_id || "default");
+    if (avatarId.startsWith("upload:")) {
+      const id = avatarId.split(":")[1];
+      return `<img class="avatar-photo ${sizeClass}" src="/media/avatars/${encodeURIComponent(id)}.jpg" alt="Аватар" loading="eager">`;
+    }
+    if (avatarId === "adam") return `<span class="avatar-fallback ${sizeClass}">A</span>`;
+    return `<span class="avatar-fallback ${sizeClass}">${escapeHtml((name[0] || "A").toUpperCase())}</span>`;
+  }
+
+  function renderProfileAvatar() {
+    const el = document.getElementById("profileAvatar");
+    if (!el || !state?.user) return;
+    const u = state.user;
+    const frame = String(u.frame_id || "default");
+    el.className = `streak-profile-avatar frame-${escapeHtml(frame)}`;
+    if (String(u.avatar_id || "default").startsWith("upload:")) {
+      const id = String(u.avatar_id).split(":")[1];
+      el.innerHTML = `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(id)}.jpg?v=${Date.now()}" alt="Аватар">`;
+    } else {
+      el.textContent = u.first_name ? (u.first_name[0] || "A").toUpperCase() : "A";
+    }
+  }
+
+  function getAvailableFrames() {
+    const frames = [
+      { id: "default", title: "Без рамки", type: "default", available: true },
+      { id: "neon", title: "Neon", type: "shop", available: !!state?.shop_items?.some(x => x.payload === "neon" && x.owned) },
+      { id: "gold", title: "Gold", type: "shop", available: !!state?.shop_items?.some(x => x.payload === "gold" && x.owned) },
+      { id: "streak_14", title: "14 дней", type: "achievement", available: !!state?.streak?.rewards?.some(x => Number(x.milestone) === 14) },
+      { id: "streak_30", title: "30 дней", type: "achievement", available: !!state?.streak?.rewards?.some(x => Number(x.milestone) === 30) },
+      { id: "paid_double_gold", title: "Double Gold", type: "paid", available: state?.user?.frame_id === "paid_double_gold" || !!state?.user?.paid_frame_owned },
+    ];
+    return frames;
+  }
+
+  function renderFramePicker() {
+    const picker = document.getElementById("profileFramePicker");
+    const hint = document.getElementById("profileFrameHint");
+    if (!picker || !state?.user) return;
+    const current = String(state.user.frame_id || "default");
+    const frames = getAvailableFrames();
+    picker.innerHTML = frames.map(f => `
+      <button class="frame-choice frame-choice--${f.id} ${current === f.id ? "is-active" : ""} ${f.available ? "" : "is-locked"}" data-frame-id="${f.id}" type="button" ${f.available ? "" : "disabled"}>
+        <span class="frame-choice__preview ${f.id === "default" ? "" : "frame-" + f.id}">${avatarMarkup(state.user)}</span>
+        <span class="frame-choice__text"><b>${escapeHtml(f.title)}</b><small>${f.available ? (f.type === "achievement" ? "Награда" : f.type === "paid" ? "Premium" : "Доступна") : (f.type === "achievement" ? `Нужно ${f.id === "streak_14" ? 14 : 30} дней` : "Не куплена")}</small></span>
+      </button>`).join("");
+    if (hint) hint.textContent = `Активна: ${frames.find(f => f.id === current)?.title || "Без рамки"}`;
+  }
+
+  function renderProfileAvatarControls() {
+    renderProfileAvatar();
+    renderFramePicker();
+  }
+
   // ===================== RENDER: PLAYER CARD =====================
   function renderPlayerCard() {
     const u = state.user || {};
@@ -605,6 +664,7 @@
     const ringFill = document.getElementById("levelRingFill");
     const xpBarFill = document.getElementById("xpBarFill");
 
+    renderProfileAvatarControls();
     document.getElementById("playerName").textContent = u.first_name || "Игрок";
     document.getElementById("streakValue").textContent = u.streak || 0;
     document.getElementById("coinValue").textContent = u.xp || 0;
@@ -708,11 +768,15 @@
       let btnLabel = "Купить";
       let btnClass = "buy-btn";
       let disabled = "";
+      const isStars = it.item_type === "frame_stars";
+      const isFrame = it.item_type === "frame";
 
-      if (it.owned && !isAnswer) {
-        btnLabel = "✓ Куплено";
-        btnClass += " is-owned";
-        disabled = "disabled";
+      if (isStars) {
+        btnLabel = it.owned ? "✓ Куплено" : "⭐ Купить";
+        if (it.owned) { btnClass += " is-owned"; disabled = "disabled"; }
+      } else if (it.owned && !isAnswer) {
+        btnLabel = isFrame ? "Надеть" : "✓ Куплено";
+        btnClass += isFrame ? " is-equip" : " is-owned";
       } else if (!canAfford) {
         btnLabel = "Не хватает";
         btnClass += " is-unavailable";
@@ -731,10 +795,10 @@
           <div class="shop-item__desc">${desc}</div>
           <div class="shop-item__footer">
             <div class="shop-item__price" aria-label="Цена">
-              ${ADAM_COIN_ICON}
-              <span>${price.toLocaleString("ru-RU")}</span>
+              ${isStars ? "⭐" : ADAM_COIN_ICON}
+              <span>${price.toLocaleString("ru-RU")}${isStars ? " Stars" : ""}</span>
             </div>
-            <button class="${btnClass}" data-action="buy" ${disabled}>${btnLabel}</button>
+            <button class="${btnClass}" data-action="${isStars ? "stars" : (it.owned && isFrame ? "equip" : "buy")}" ${disabled}>${btnLabel}</button>
           </div>
         </li>
       `;
@@ -858,7 +922,7 @@
         const frame = ss.temp_frame || "none";
         return `<div class="rating-podium-card rank-${rank} ${isMe ? "is-me" : ""}">
           <div class="rating-podium-card__crown">${medal[idx]}</div>
-          <div class="rating-podium-card__avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</div>
+          <div class="rating-podium-card__avatar frame-${escapeHtml(r.frame_id || frame)}">${String(r.avatar_id || "default").startsWith("upload:") ? `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(String(r.avatar_id).split(":")[1])}.jpg" alt="">` : escapeHtml((name[0] || "A").toUpperCase())}</div>
           <div class="rating-podium-card__rank">#${rank}</div>
           <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? "🏅" : ""}</div>
           ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
@@ -872,7 +936,7 @@
       const frame = ss.temp_frame || "none";
       return `<li class="rating-item ${isMe ? "is-me" : ""} rank-${rank}">
         <span class="rating-item__rank">${rank}</span>
-        <span class="rating-avatar frame-${escapeHtml(frame)}">${escapeHtml((name[0] || "A").toUpperCase())}</span>
+        <span class="rating-avatar frame-${escapeHtml(r.frame_id || frame)}">${String(r.avatar_id || "default").startsWith("upload:") ? `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(String(r.avatar_id).split(":")[1])}.jpg" alt="" loading="lazy">` : escapeHtml((name[0] || "A").toUpperCase())}</span>
         <span class="rating-item__name">
           <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
           ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
@@ -1386,25 +1450,86 @@ function initPlanActions() {
 
 // ===================== SHOP ACTIONS =====================
   function initShopActions() {
-    document.getElementById("shopList").addEventListener("click", async (e) => {
-      const btn = e.target.closest("button[data-action=buy]");
+    const list = document.getElementById("shopList");
+    if (!list) return;
+    list.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action]");
       if (!btn || btn.disabled) return;
       const li = btn.closest(".shop-item");
-      const itemId = li.dataset.id;
+      const itemId = li?.dataset.id;
+      const action = btn.dataset.action;
+      if (!itemId) return;
       try {
         btn.disabled = true;
-        await api(`/api/buy/${itemId}`, { method: "POST" });
+        if (action === "stars") {
+          const invoice = await api(`/api/shop/stars/${itemId}`, { method: "POST" });
+          if (!tg?.openInvoice) throw new Error("telegram_payment_unavailable");
+          tg.openInvoice(invoice.invoice_url, (status) => {
+            if (status === "paid") {
+              showToast("Рамка Double Gold куплена!", "success", 3500);
+              setTimeout(async () => { secondaryLoaded.delete("profile"); await loadBootstrap(); await loadBootstrapSecondary("profile"); }, 500);
+            }
+          });
+          return;
+        }
+        if (action === "equip") {
+          const item = (state.shop_items || []).find(x => String(x.id) === String(itemId));
+          await api("/api/cosmetics/equip", { method: "POST", body: JSON.stringify({ frame_id: item?.payload }) });
+          showToast("Рамка надета", "success");
+        } else {
+          await api(`/api/buy/${itemId}`, { method: "POST" });
+          showToast("Покупка совершена!", "success");
+        }
         haptic("medium");
-        showToast("Покупка совершена!", "success");
         secondaryLoaded.delete("profile");
         await loadBootstrap();
-        if (document.querySelector('.tab-panel[data-tab="profile"]:not([hidden])')) {
-          await loadBootstrapSecondary("profile");
-        }
+        await loadBootstrapSecondary("profile");
+      } catch (err) {
+        btn.disabled = false;
+        showToast(friendlyError(err), "error");
+      }
+    });
+  }
+
+  function initProfileAvatarActions() {
+    const trigger = document.getElementById("profilePhotoBtn");
+    const input = document.getElementById("profilePhotoInput");
+    if (!trigger || !input) return;
+    trigger.addEventListener("click", () => input.click());
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) { showToast("Выбери JPG, PNG или WEBP", "error"); return; }
+      if (file.size > 5 * 1024 * 1024) { showToast("Фото должно быть не больше 5 МБ", "error"); return; }
+      try {
+        trigger.disabled = true;
+        const form = new FormData();
+        form.append("avatar", file, file.name);
+        const res = await fetch("/api/profile/avatar", { method: "POST", headers: { "Authorization": "tma " + initData() }, body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "upload_failed");
+        state.user.avatar_id = data.avatar_id;
+        renderProfileAvatarControls();
+        renderRating();
+        haptic("medium");
+        showToast("Аватар обновлён", "success");
       } catch (err) {
         showToast(friendlyError(err), "error");
-        await loadBootstrap();
-      }
+      } finally { trigger.disabled = false; input.value = ""; }
+    });
+
+    const picker = document.getElementById("profileFramePicker");
+    picker?.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-frame-id]");
+      if (!btn || btn.disabled) return;
+      try {
+        await api("/api/cosmetics/equip", { method: "POST", body: JSON.stringify({ frame_id: btn.dataset.frameId }) });
+        state.user.frame_id = btn.dataset.frameId;
+        renderProfileAvatarControls();
+        renderRating();
+        showToast("Рамка установлена", "success");
+        haptic("light");
+      } catch (err) { showToast(friendlyError(err), "error"); }
     });
   }
 
@@ -1439,6 +1564,11 @@ function initPlanActions() {
         not_found: "Не найдено",
         banned: "Доступ ограничен",
         theme_not_owned: "Сначала купи «Тема оформления» в магазине",
+        use_stars_checkout: "Эту рамку можно купить только за Telegram Stars",
+        telegram_payment_unavailable: "Открой приложение внутри Telegram, чтобы оплатить Stars",
+        frame_not_owned: "Эта рамка ещё не открыта",
+        avatar_too_large: "Фото должно быть не больше 5 МБ",
+        unsupported_image: "Поддерживаются JPG, PNG и WEBP",
         invalid_theme: "Такой темы не существует",
         task_limit: "Можно добавить не больше 5 задач",
         invalid_init_data: "Telegram не передал данные авторизации. Закройте Mini App и откройте его снова."
@@ -1587,6 +1717,7 @@ async function boot() {
         initHabitActions();
         initPlanActions();
         initShopActions();
+        initProfileAvatarActions();
         initThemeActions();
         initStreakUI();
         initStreakPopupClick();

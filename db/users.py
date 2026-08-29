@@ -322,7 +322,7 @@ def get_rating(limit=10):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT telegram_id, username, first_name, xp, level, streak
+        SELECT telegram_id, username, first_name, xp, level, streak, avatar_id, frame_id
         FROM users
         WHERE banned=0
         ORDER BY streak DESC, xp DESC

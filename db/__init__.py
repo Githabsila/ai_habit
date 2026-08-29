@@ -150,7 +150,7 @@ from .streak import (
     buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
     should_show_onboarding, onboarding_message, mark_onboarding_seen,
     RISK_15, RISK_23, claim_notification, release_notification, notification_scope, has_completed_today, get_streak_users, consume_completion_event,
-    get_streak_reengagement_state, get_recent_streak_message_keys, record_streak_message_key,
+    get_streak_reengagement_state, get_recent_streak_message_keys, record_streak_message_key, has_streak_frame,
 )
 
 
@@ -183,7 +183,7 @@ __all__ = [
     "cache_get", "cache_set", "log_error", "get_error_stats",
     "get_shop_items", "buy_shop_item", "get_user_items",
     "has_item", "get_item_owner_ids", "update_theme", "get_theme",
-    "get_access_status", "set_access_status", "get_pending_users",
+    "get_access_status", "set_access_status", "reject_user", "get_pending_users",
     "get_users_pending_since", "get_access_status_counts",
     "save_survey_answers", "save_survey_analysis", "get_survey", "get_survey_tags",
     "search_users_by_tag", "get_users_by_tags",
@@ -193,5 +193,5 @@ __all__ = [
     "register_completion", "rollover_user", "rollover_all_users", "buy_freeze",
     "claim_weekly_reward", "get_weekly_bonus_available", "should_show_onboarding",
     "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "release_notification", "notification_scope", "has_completed_today", "get_streak_users", "consume_completion_event",
-    "get_streak_reengagement_state", "get_recent_streak_message_keys", "record_streak_message_key",
+    "get_streak_reengagement_state", "get_recent_streak_message_keys", "record_streak_message_key", "has_streak_frame",
 ]

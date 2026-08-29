@@ -320,6 +320,15 @@ class="btn btn--accent">
   <div class="streak-metric"><span>🏆</span><b id="profileMetricReward">—</b><small>статус</small></div>
 </div>
 
+<div class="profile-cosmetics-panel">
+  <div class="profile-cosmetics-head">
+    <div><b>Аватар</b><small>Фото будет видно в профиле и рейтинге</small></div>
+    <button class="profile-photo-btn" id="profilePhotoBtn" type="button">Изменить фото</button>
+    <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+  </div>
+  <div class="profile-frame-head"><b>Рамка аватарки</b><small id="profileFrameHint">Выбери доступную рамку</small></div>
+  <div class="profile-frame-picker" id="profileFramePicker"></div>
+</div>
 
 <div class="shop-head">
   <div>
@@ -519,7 +528,7 @@ class="btn btn--accent">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260829_2355_TABS_PROFILE_FIX"></script>
+<script type="module" src="/static/app.js?v=20260830_AVATAR_FRAMES_V1"></script>
 
 </body>
 </html>
