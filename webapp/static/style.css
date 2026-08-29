@@ -6395,3 +6395,71 @@ section[data-tab="profile"] .section-heading h2::first-letter{
    that defeated the [hidden] attribute. This restores it with higher
    specificity so the badge only appears once a real reward exists. */
 .streak-profile-frame[hidden]{display:none!important}
+
+/* ====== FIX: streak hero card was oversized — shrink it uniformly at every
+   width. This wins over the earlier (bigger) definitions above because it
+   comes last in the file with matching or higher specificity + !important. ====== */
+.streak-profile-card--premium{
+  grid-template-columns:48px minmax(0,1fr) !important;
+  min-height:auto !important;
+  padding:14px 16px !important;
+  gap:12px !important;
+  border-radius:22px !important;
+}
+.streak-profile-avatar-wrap{
+  width:48px !important;
+  height:48px !important;
+}
+.streak-profile-ring{
+  inset:-2px !important;
+}
+.streak-profile-avatar{
+  width:40px !important;
+  height:40px !important;
+  border-radius:14px !important;
+  font-size:16px !important;
+}
+.streak-profile-kicker{
+  font-size:8px !important;
+  margin-bottom:2px !important;
+}
+.streak-profile-status{
+  font-size:14px !important;
+  margin-top:2px !important;
+}
+.streak-profile-days{
+  margin-top:2px !important;
+  gap:4px !important;
+}
+.streak-profile-days strong{
+  font-size:20px !important;
+}
+.streak-profile-days span{
+  font-size:9px !important;
+}
+.streak-profile-frame{
+  margin-top:3px !important;
+  padding:3px 7px !important;
+  font-size:8px !important;
+}
+.share-achievement-btn{
+  margin-top:6px !important;
+  padding:5px 9px !important;
+  font-size:9px !important;
+}
+.streak-profile-fire{
+  right:12px !important;
+  top:10px !important;
+  font-size:18px !important;
+}
+@media (max-width:430px){
+  .streak-profile-card--premium{
+    grid-template-columns:44px minmax(0,1fr) !important;
+    padding:12px 14px !important;
+    gap:10px !important;
+  }
+  .streak-profile-avatar-wrap{width:44px !important;height:44px !important}
+  .streak-profile-avatar{width:37px !important;height:37px !important;font-size:15px !important}
+  .streak-profile-status{font-size:13px !important}
+  .streak-profile-days strong{font-size:18px !important}
+}

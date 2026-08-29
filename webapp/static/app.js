@@ -133,6 +133,15 @@
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           state = await api("/api/bootstrap");
+          if (!state || !state.user) {
+            // /api/bootstrap ответил без объекта user (пустой конверт,
+            // не залогиненная превью-сессия и т.п.). Раньше следующая же
+            // строка (state.user.level) кидала исключение и обрывала
+            // renderAll() ещё до renderPlayerCard() — шапка оставалась
+            // пустой без имени, без аватара, без прогресса.
+            state = state || {};
+            state.user = state.user || {};
+          }
           const newLevel = state.user.level;
           if (knownLevel !== null && newLevel > knownLevel) {
             showLevelUp(newLevel);
@@ -590,28 +599,29 @@
 
   // ===================== RENDER: PLAYER CARD =====================
   function renderPlayerCard() {
-    const u = state.user;
+    const u = state.user || {};
     const levelEl = document.getElementById("levelNumber");
     const badge = levelEl?.closest(".level-ring__badge");
     const ringFill = document.getElementById("levelRingFill");
     const xpBarFill = document.getElementById("xpBarFill");
 
     document.getElementById("playerName").textContent = u.first_name || "Игрок";
-    document.getElementById("streakValue").textContent = u.streak;
-    document.getElementById("coinValue").textContent = u.xp;
+    document.getElementById("streakValue").textContent = u.streak || 0;
+    document.getElementById("coinValue").textContent = u.xp || 0;
 
     const badgeEl = document.getElementById("playerBadge");
     if (badgeEl) badgeEl.style.display = u.badge ? "inline" : "none";
 
-    const xpIntoLevel = Math.max(0, Math.min(99.999, (u.total_xp ?? u.xp) % 100));
+    const xpIntoLevel = Math.max(0, Math.min(99.999, (u.total_xp ?? u.xp ?? 0) % 100));
     document.getElementById("xpLabel").textContent = `${Math.floor(xpIntoLevel)} / 100 XP`;
 
     // Force the browser to animate the level number only when its value changes.
+    const levelValue = u.level || 1;
     const previousLevel = levelEl?.dataset.level;
     if (levelEl) {
-      levelEl.dataset.level = String(u.level);
-      levelEl.textContent = u.level;
-      if (previousLevel !== undefined && previousLevel !== String(u.level)) {
+      levelEl.dataset.level = String(levelValue);
+      levelEl.textContent = levelValue;
+      if (previousLevel !== undefined && previousLevel !== String(levelValue)) {
         badge?.classList.remove("is-changing");
         void badge?.offsetWidth;
         badge?.classList.add("is-changing");
