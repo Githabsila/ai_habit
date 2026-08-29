@@ -6001,3 +6001,391 @@ ul#shopList.shop-list,
   font-weight:600;
   cursor:pointer;
 }
+
+/* =========================================================
+   ADAM PROFILE — FINAL PREMIUM POLISH
+   Fixes cramped profile controls, native-looking buttons and
+   weak hierarchy in Progress / Settings on narrow Telegram WebViews.
+   ========================================================= */
+
+.profile-panel-title,
+section[data-tab="profile"] .section-heading h2{
+  font-family:'Space Grotesk','Inter',sans-serif;
+}
+
+section[data-tab="profile"]{
+  padding-bottom:24px;
+}
+
+section[data-tab="profile"] .section-heading{
+  margin-top:24px !important;
+}
+
+section[data-tab="profile"] .section-heading h2{
+  display:flex;
+  align-items:center;
+  gap:9px;
+}
+
+section[data-tab="profile"] .section-heading h2::first-letter{
+  filter:drop-shadow(0 0 8px rgba(139,108,255,.28));
+}
+
+/* Hero profile card: stable layout even at 360–430px widths. */
+.streak-profile-card--premium{
+  display:grid !important;
+  grid-template-columns:76px minmax(0,1fr) auto;
+  align-items:center;
+  gap:16px !important;
+  min-height:168px !important;
+  padding:20px !important;
+  border:1px solid rgba(167,139,250,.18) !important;
+  background:
+    radial-gradient(240px 170px at 0% 0%,rgba(139,108,255,.22),transparent 72%),
+    radial-gradient(220px 160px at 100% 0%,rgba(255,180,70,.13),transparent 68%),
+    linear-gradient(145deg,#211c31 0%,#14121e 66%,#0d0c14 100%) !important;
+  box-shadow:
+    0 24px 60px rgba(0,0,0,.38),
+    0 0 0 1px rgba(255,255,255,.025),
+    inset 0 1px rgba(255,255,255,.09) !important;
+}
+
+.streak-profile-avatar-wrap{
+  width:76px !important;
+  height:76px !important;
+}
+
+.streak-profile-avatar{
+  width:62px !important;
+  height:62px !important;
+  border-radius:21px !important;
+  background:linear-gradient(145deg,#302b46,#171521) !important;
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 10px 28px rgba(0,0,0,.36),inset 0 1px rgba(255,255,255,.08) !important;
+}
+
+.streak-profile-info{
+  min-width:0 !important;
+}
+
+.streak-profile-kicker{
+  font-size:8px !important;
+  letter-spacing:.16em !important;
+  color:#BDAFFF !important;
+}
+
+.streak-profile-status{
+  font-size:19px !important;
+  line-height:1.1 !important;
+  margin-top:5px !important;
+}
+
+.streak-profile-days{
+  margin-top:5px !important;
+}
+
+.streak-profile-days strong{
+  font-size:33px !important;
+  color:#F4EEFF !important;
+  text-shadow:0 0 24px rgba(139,108,255,.28) !important;
+}
+
+.streak-profile-days span{
+  color:#AFA8BF !important;
+  font-size:10px !important;
+}
+
+.streak-profile-frame{
+  display:inline-flex !important;
+  align-items:center;
+  max-width:100%;
+  margin-top:5px !important;
+  padding:5px 8px !important;
+  border-radius:999px !important;
+  background:rgba(139,108,255,.09) !important;
+  border:1px solid rgba(167,139,250,.12) !important;
+  color:#CFC6FF !important;
+  font-size:9px !important;
+}
+
+.share-achievement-btn{
+  margin-top:9px !important;
+  padding:7px 10px !important;
+  border-radius:11px !important;
+  background:linear-gradient(145deg,rgba(139,108,255,.16),rgba(255,255,255,.045)) !important;
+  border:1px solid rgba(167,139,250,.18) !important;
+  color:#D9D1FF !important;
+  font-size:10px !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.07) !important;
+}
+
+.streak-profile-fire{
+  right:17px !important;
+  top:13px !important;
+  font-size:28px !important;
+}
+
+/* Metric cards become proper dashboard tiles. */
+.streak-profile-metrics{
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:9px !important;
+  margin-bottom:18px !important;
+}
+
+.streak-metric{
+  min-width:0;
+  min-height:88px !important;
+  padding:13px 8px !important;
+  border-radius:20px !important;
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.065),rgba(255,255,255,.022)) !important;
+  border:1px solid rgba(255,255,255,.075) !important;
+  box-shadow:0 12px 28px rgba(0,0,0,.17),inset 0 1px rgba(255,255,255,.055) !important;
+}
+
+.streak-metric span{
+  width:30px;
+  height:30px;
+  margin:0 auto 7px !important;
+  display:grid !important;
+  place-items:center;
+  border-radius:10px;
+  background:rgba(139,108,255,.10);
+  border:1px solid rgba(167,139,250,.10);
+  font-size:14px !important;
+}
+
+.streak-metric b{
+  font-size:20px !important;
+  line-height:1 !important;
+}
+
+.streak-metric small{
+  margin-top:5px !important;
+  font-size:8px !important;
+  color:#898396 !important;
+}
+
+/* Progress dashboard. */
+.progress-stats-card{
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:9px !important;
+  margin-bottom:11px !important;
+}
+
+.progress-stat{
+  position:relative;
+  overflow:hidden;
+  min-height:86px;
+  padding:14px 8px 11px !important;
+  border-radius:18px !important;
+  background:
+    radial-gradient(80px 55px at 50% 0%,rgba(139,108,255,.12),transparent 80%),
+    linear-gradient(145deg,rgba(31,27,45,.96),rgba(15,13,23,.96)) !important;
+  border:1px solid rgba(167,139,250,.11) !important;
+  box-shadow:0 10px 24px rgba(0,0,0,.16),inset 0 1px rgba(255,255,255,.06) !important;
+}
+
+.progress-stat::before{
+  content:"";
+  position:absolute;
+  top:0;
+  left:18%;
+  right:18%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(201,188,255,.35),transparent);
+}
+
+.progress-stat b{
+  font-size:21px !important;
+  line-height:1 !important;
+  color:#F5F1FF !important;
+  text-shadow:0 0 16px rgba(139,108,255,.18);
+}
+
+.progress-stat small{
+  display:block;
+  margin-top:6px;
+  font-size:8.5px !important;
+  line-height:1.25 !important;
+  color:#8E899D !important;
+  text-transform:uppercase;
+  letter-spacing:.035em;
+}
+
+.progress-ai-btn{
+  position:relative;
+  overflow:hidden;
+  height:48px !important;
+  margin-bottom:20px !important;
+  border-radius:15px !important;
+  border:1px solid rgba(167,139,250,.28) !important;
+  background:linear-gradient(135deg,#8D70FF 0%,#6847DC 58%,#4E2DB2 100%) !important;
+  color:#fff !important;
+  font-family:'Space Grotesk',sans-serif !important;
+  font-size:13px !important;
+  font-weight:700 !important;
+  letter-spacing:.01em;
+  box-shadow:0 14px 30px rgba(91,53,200,.27),inset 0 1px rgba(255,255,255,.24) !important;
+}
+
+.progress-ai-btn::after{
+  content:"";
+  position:absolute;
+  top:-30%;
+  left:-18%;
+  width:18%;
+  height:160%;
+  transform:rotate(22deg);
+  background:rgba(255,255,255,.18);
+  filter:blur(7px);
+  transition:left .55s ease;
+  pointer-events:none;
+}
+
+.progress-ai-btn:hover::after{left:105%;}
+.progress-ai-btn:disabled{filter:saturate(.65);}
+
+.progress-ai-result{
+  margin:-8px 0 20px !important;
+  border:1px solid rgba(167,139,250,.12);
+  background:linear-gradient(145deg,rgba(31,27,45,.95),rgba(14,12,21,.95)) !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.05),0 12px 28px rgba(0,0,0,.16);
+}
+
+/* Settings: three compact segmented choices instead of three white native buttons. */
+.settings-card{
+  padding:14px !important;
+  border-radius:22px !important;
+  background:
+    radial-gradient(280px 130px at 100% 0%,rgba(139,108,255,.10),transparent 70%),
+    linear-gradient(145deg,rgba(28,25,40,.96),rgba(13,12,20,.96)) !important;
+  border:1px solid rgba(167,139,250,.12) !important;
+  box-shadow:0 18px 42px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.055) !important;
+}
+
+.settings-row{
+  color:#A9A4B6 !important;
+  font-size:11px !important;
+  padding:3px 1px 10px !important;
+}
+
+.ai-style-picker{
+  display:grid !important;
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:7px !important;
+  margin-bottom:14px !important;
+}
+
+.ai-style-btn{
+  min-width:0;
+  min-height:42px;
+  padding:7px 5px !important;
+  text-align:center !important;
+  border-radius:12px !important;
+  border:1px solid rgba(255,255,255,.075) !important;
+  background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018)) !important;
+  color:#BDB7CB !important;
+  font-family:'Inter',sans-serif !important;
+  font-size:9.5px !important;
+  font-weight:650 !important;
+  line-height:1.15 !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.04) !important;
+}
+
+.ai-style-btn:hover{
+  border-color:rgba(167,139,250,.28) !important;
+  background:rgba(139,108,255,.08) !important;
+}
+
+.ai-style-btn.is-active{
+  border-color:rgba(167,139,250,.50) !important;
+  background:linear-gradient(145deg,rgba(139,108,255,.22),rgba(104,71,220,.12)) !important;
+  color:#E9E2FF !important;
+  box-shadow:0 8px 20px rgba(91,53,200,.15),inset 0 1px rgba(255,255,255,.10) !important;
+}
+
+.settings-row--danger{
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:10px !important;
+  padding:13px 1px 1px !important;
+  margin-top:2px !important;
+  border-top:1px solid rgba(255,255,255,.065) !important;
+  color:#898395 !important;
+}
+
+.settings-row--danger span{
+  max-width:calc(100% - 96px);
+  font-size:9px;
+  line-height:1.35;
+}
+
+.settings-danger-btn{
+  flex:0 0 auto;
+  margin:0 !important;
+  min-height:34px;
+  padding:7px 11px !important;
+  border-radius:10px !important;
+  border:1px solid rgba(239,68,68,.30) !important;
+  background:rgba(239,68,68,.08) !important;
+  color:#FF8E8E !important;
+  font-size:9px !important;
+  font-weight:750 !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.04) !important;
+}
+
+.settings-danger-btn:hover{
+  background:rgba(239,68,68,.14) !important;
+  border-color:rgba(239,68,68,.45) !important;
+}
+
+/* Fix native-looking controls globally when a premium component class is used. */
+.progress-ai-btn,
+.ai-style-btn,
+.settings-danger-btn,
+.share-achievement-btn{
+  appearance:none !important;
+  -webkit-appearance:none !important;
+}
+
+@media (max-width:430px){
+  section[data-tab="profile"]{padding-bottom:18px}
+  .streak-profile-card--premium{
+    grid-template-columns:62px minmax(0,1fr);
+    gap:11px !important;
+    min-height:148px !important;
+    padding:16px !important;
+  }
+  .streak-profile-avatar-wrap{width:62px !important;height:62px !important}
+  .streak-profile-avatar{width:53px !important;height:53px !important;border-radius:18px !important}
+  .streak-profile-ring{inset:-2px}
+  .streak-profile-status{font-size:16px !important}
+  .streak-profile-days strong{font-size:28px !important}
+  .streak-profile-fire{right:10px !important;top:10px !important;font-size:23px !important}
+  .share-achievement-btn{font-size:9px !important;padding:6px 8px !important}
+  .streak-profile-metrics{gap:7px !important}
+  .streak-metric{min-height:82px !important;padding:11px 5px !important}
+  .streak-metric span{width:27px;height:27px;margin-bottom:6px !important}
+  .streak-metric b{font-size:18px !important}
+  .progress-stats-card{gap:7px !important}
+  .progress-stat{min-height:82px;padding:12px 5px 9px !important}
+  .progress-stat b{font-size:19px !important}
+  .progress-stat small{font-size:7.5px !important}
+  .settings-card{padding:12px !important}
+  .ai-style-picker{gap:6px !important}
+  .ai-style-btn{min-height:40px;font-size:8.5px !important}
+}
+
+@media (max-width:360px){
+  .streak-profile-card--premium{grid-template-columns:55px minmax(0,1fr);gap:9px !important;padding:13px !important}
+  .streak-profile-avatar-wrap{width:55px !important;height:55px !important}
+  .streak-profile-avatar{width:48px !important;height:48px !important}
+  .streak-profile-status{font-size:15px !important}
+  .streak-profile-days strong{font-size:25px !important}
+  .streak-profile-days span{font-size:8px !important}
+  .progress-stat small{font-size:7px !important}
+  .ai-style-btn{font-size:8px !important}
+}

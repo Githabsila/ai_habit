@@ -1047,6 +1047,9 @@ function initTabs() {
     if (tab === "profile" || tab === "rating" || tab === "calendar") {
       loadBootstrapSecondary(tab);
     }
+    if (tab === "profile") {
+      loadProgressStats();
+    }
     haptic("light");
     scheduleDecorSettle();
   });
@@ -1480,6 +1483,254 @@ function stabilizeFirstPaint() {
     });
 }
 
+// ===================== ЗАДАНИЯ ДНЯ / ЕЖЕДНЕВНЫЙ БОНУС =====================
+function renderDailyTasks(data) {
+  const list = document.getElementById("dailyTaskList");
+  const bonusBtn = document.getElementById("dailyBonusBtn");
+  if (!list) return;
+
+  const tasks = (data && data.tasks) || [];
+
+  list.innerHTML = tasks.map(t => `
+    <li class="daily-task ${t.completed ? "is-done" : ""}">
+      <div class="daily-task__top">
+        <span class="daily-task__title">${t.completed ? "✅" : "▫️"} ${escapeHtml(t.task)}</span>
+        <span class="daily-task__reward">+${t.reward} A</span>
+      </div>
+      <div class="daily-task__bar"><div class="daily-task__bar-fill" style="width:${Math.min(100, Math.round((t.progress / Math.max(1, t.goal)) * 100))}%"></div></div>
+      <div class="daily-task__progress">${t.progress}/${t.goal}</div>
+    </li>
+  `).join("") || `<li class="empty-hint">Заданий пока нет</li>`;
+
+  if (bonusBtn) bonusBtn.hidden = !(data && data.bonus_available);
+}
+
+async function loadDailyTasks() {
+  try {
+    const data = await api("/api/daily-tasks");
+    renderDailyTasks(data);
+  } catch (err) {
+    console.error("loadDailyTasks failed:", err);
+  }
+}
+
+function initDailyTasksActions() {
+  const bonusBtn = document.getElementById("dailyBonusBtn");
+  if (!bonusBtn) return;
+  bonusBtn.addEventListener("click", async () => {
+    try {
+      const res = await api("/api/daily-bonus/claim", { method: "POST" });
+      if (res.ok) {
+        showToast("🎁 +20 Adam Coin!", "success");
+        haptic("medium");
+        bonusBtn.hidden = true;
+        await loadBootstrap();
+      } else {
+        showToast("Бонус уже забран сегодня", "error");
+      }
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
+// ===================== МОЯ ЦЕЛЬ И ВЕХИ =====================
+let milestonesState = { goal_text: "", milestones: [] };
+
+function renderMilestones(data) {
+  milestonesState = data || { goal_text: "", milestones: [] };
+  const empty = document.getElementById("milestonesEmpty");
+  const content = document.getElementById("milestonesContent");
+  const goalText = document.getElementById("milestonesGoalText");
+  const list = document.getElementById("milestoneList");
+  if (!empty || !content) return;
+
+  const hasGoal = !!(milestonesState.goal_text && milestonesState.milestones.length);
+  empty.hidden = hasGoal;
+  content.hidden = !hasGoal;
+
+  if (hasGoal) {
+    goalText.textContent = milestonesState.goal_text;
+    list.innerHTML = milestonesState.milestones.map(m => `
+      <li class="milestone-item ${m.done ? "is-done" : ""}" data-id="${m.id}">
+        <span class="milestone-item__mark">${m.done ? "✅" : "▫️"}</span>
+        <span class="milestone-item__text">${escapeHtml(m.text)}</span>
+      </li>
+    `).join("");
+  }
+}
+
+async function loadMilestones() {
+  try {
+    const data = await api("/api/milestones");
+    renderMilestones(data);
+  } catch (err) {
+    console.error("loadMilestones failed:", err);
+  }
+}
+
+function renderMilestoneSteps(values) {
+  const wrap = document.getElementById("milestoneStepsList");
+  wrap.innerHTML = values.map((v, i) => `
+    <input type="text" class="milestone-step-input" data-step="${i}" placeholder="Веха ${i + 1}..." value="${escapeHtml(v || "")}">
+  `).join("");
+}
+
+function initMilestonesActions() {
+  const form = document.getElementById("milestonesForm");
+  const content = document.getElementById("milestonesContent");
+  const empty = document.getElementById("milestonesEmpty");
+  const goalInput = document.getElementById("milestoneGoalInput");
+  const addStepBtn = document.getElementById("milestoneAddStepBtn");
+  const setupBtn = document.getElementById("milestonesSetupBtn");
+  const editBtn = document.getElementById("milestonesEditBtn");
+  const cancelBtn = document.getElementById("milestonesCancelBtn");
+  if (!form) return;
+
+  let steps = ["", "", ""];
+
+  function openForm() {
+    goalInput.value = milestonesState.goal_text || "";
+    steps = milestonesState.milestones.length
+      ? milestonesState.milestones.map(m => m.text)
+      : ["", "", ""];
+    renderMilestoneSteps(steps);
+    form.hidden = false;
+    content.hidden = true;
+    empty.hidden = true;
+  }
+
+  function closeForm() {
+    form.hidden = true;
+    renderMilestones(milestonesState);
+  }
+
+  setupBtn?.addEventListener("click", openForm);
+  editBtn?.addEventListener("click", openForm);
+  cancelBtn?.addEventListener("click", closeForm);
+
+  addStepBtn.addEventListener("click", () => {
+    steps.push("");
+    renderMilestoneSteps(steps);
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const goalText = goalInput.value.trim();
+    const stepValues = Array.from(form.querySelectorAll(".milestone-step-input"))
+      .map(inp => inp.value.trim())
+      .filter(Boolean);
+
+    if (!goalText || !stepValues.length) {
+      showToast("Укажите цель и хотя бы одну веху", "error");
+      return;
+    }
+
+    try {
+      await api("/api/milestones", {
+        method: "POST",
+        body: JSON.stringify({ goal_text: goalText, milestones: stepValues })
+      });
+      haptic("light");
+      await loadMilestones();
+      form.hidden = true;
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+
+  document.getElementById("milestoneList")?.addEventListener("click", async (e) => {
+    const li = e.target.closest(".milestone-item");
+    if (!li) return;
+    const id = li.dataset.id;
+    try {
+      await api(`/api/milestones/${id}/toggle`, { method: "POST" });
+      haptic("light");
+      await loadMilestones();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
+// ===================== ПРОГРЕСС + AI-АНАЛИЗ =====================
+async function loadProgressStats() {
+  try {
+    const data = await api("/api/progress/stats");
+    const w = data.weekly || {};
+    document.getElementById("progressStatCompleted").textContent = w.completed || 0;
+    document.getElementById("progressStatActiveDays").textContent = `${w.active_days || 0}/7`;
+    document.getElementById("progressStatXp").textContent = w.xp || 0;
+  } catch (err) {
+    console.error("loadProgressStats failed:", err);
+  }
+}
+
+function initProgressActions() {
+  const btn = document.getElementById("progressAiBtn");
+  const resultBox = document.getElementById("progressAiResult");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = "🤖 Анализирую...";
+    try {
+      const data = await api("/api/progress/ai-analysis", { method: "POST", timeoutMs: 30000 });
+      resultBox.hidden = false;
+      resultBox.textContent = data.text || "";
+      resultBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch (err) {
+      showToast(friendlyError(err) || "Не получилось сформировать анализ", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  });
+}
+
+// ===================== НАСТРОЙКИ (стиль AI, сброс прогресса) =====================
+function initSettingsActions() {
+  const picker = document.getElementById("aiStylePicker");
+  const resetBtn = document.getElementById("resetProgressBtn");
+
+  function markActiveStyle() {
+    const current = (state.settings && state.settings.ai_style) || "neutral";
+    picker?.querySelectorAll(".ai-style-btn").forEach(b => {
+      b.classList.toggle("is-active", b.dataset.style === current);
+    });
+  }
+  markActiveStyle();
+
+  picker?.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".ai-style-btn");
+    if (!btn) return;
+    try {
+      await api("/api/settings/ai-style", {
+        method: "POST",
+        body: JSON.stringify({ style: btn.dataset.style })
+      });
+      if (state.settings) state.settings.ai_style = btn.dataset.style;
+      markActiveStyle();
+      haptic("light");
+      showToast("Стиль сохранён", "success");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+
+  resetBtn?.addEventListener("click", async () => {
+    if (!window.confirm("Точно сбросить весь прогресс? Это действие необратимо.")) return;
+    try {
+      await api("/api/settings/reset-progress", { method: "POST" });
+      haptic("medium");
+      showToast("Прогресс сброшен", "success");
+      await loadBootstrap();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
 async function boot() {
     try {
         initTelegram();
@@ -1490,9 +1741,14 @@ async function boot() {
         initThemeActions();
         initStreakUI();
         initStreakPopupClick();
+        initDailyTasksActions();
+        initMilestonesActions();
+        initProgressActions();
+        initSettingsActions();
         // Критический экран готов сразу после bootstrap. Часовой пояс не должен
         // удерживать loading-overlay и мешать первому paint (особенно в Telegram WebView).
         await loadBootstrap();
+        setTimeout(() => { loadDailyTasks(); loadMilestones(); }, 0);
         requestAnimationFrame(() => {
             document.documentElement.classList.remove("decor-settled");
             // Принудительно отдаём браузеру один чистый кадр для компоновки
