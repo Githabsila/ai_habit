@@ -182,88 +182,45 @@
     // порядок работы.
   }
 
-  // Второстепенные данные (магазин, рейтинг, достижения, календарь) отдаёт
-  // отдельный /api/bootstrap-secondary — раньше этот запрос нигде не
-  // вызывался, поэтому state.shop_items/leaderboard/achievements/calendar_events
-  // всегда оставались undefined и вкладки выглядели постоянно пустыми.
-  const secondaryPromises = new Map();
-  const secondaryLoaded = new Set();
+  // Второстепенные данные загружаем одним запросом после первого кадра.
+  // Это важно для стабильности: вкладки больше не зависят от отдельных
+  // ленивых запросов и не могут остаться в состоянии вечной загрузки.
+  let secondaryPromise = null;
+  let secondaryLoaded = false;
 
-  function getTabPanel(key) {
-    return document.querySelector(`.tab-panel[data-tab="${key}"]`);
-  }
+  async function loadBootstrapSecondary() {
+    if (secondaryLoaded) return state;
+    if (secondaryPromise) return secondaryPromise;
 
-  function setTabLoading(key, loading, message = "") {
-    const panel = getTabPanel(key);
-    if (!panel) return;
-    panel.classList.toggle("tab-panel--loading", !!loading);
-    panel.setAttribute("aria-busy", loading ? "true" : "false");
-    let layer = panel.querySelector(":scope > .tab-loading-state");
-    if (loading) {
-      if (!layer) {
-        layer = document.createElement("div");
-        layer.className = "tab-loading-state";
-        layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
-        panel.prepend(layer);
-      }
-      layer.hidden = false;
-      layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
-    } else if (layer) {
-      // Полностью удаляем индикатор после загрузки, а не просто скрываем его.
-      // Так он не сможет остаться поверх нижнего меню из-за CSS/кэша WebView.
-      layer.remove();
-      panel.classList.remove("tab-panel--loading");
-      panel.setAttribute("aria-busy", "false");
-    }
-    if (message) {
-      if (!layer) {
-        layer = document.createElement("div");
-        layer.className = "tab-loading-state";
-        panel.prepend(layer);
-      }
-      layer.hidden = false;
-      layer.innerHTML = `<div class="tab-loading-state__error">${escapeHtml(message)}</div>`;
-      panel.classList.remove("tab-panel--loading");
-      panel.setAttribute("aria-busy", "false");
-    }
-  }
-
-  async function loadBootstrapSecondary(section) {
-    const key = section || "profile";
-    if (secondaryLoaded.has(key)) return state;
-    if (secondaryPromises.has(key)) return secondaryPromises.get(key);
-
-    setTabLoading(key, true);
-    const promise = (async () => {
+    secondaryPromise = (async () => {
       try {
-        const data = await api(`/api/bootstrap-secondary?section=${encodeURIComponent(key)}`, { timeoutMs: 10000 });
+        const data = await api("/api/bootstrap-secondary", { timeoutMs: 12000 });
         if (state) {
-          if (key === "profile") {
-            state.shop_items = data.shop_items || [];
-            state.achievements = data.achievements || [];
-            renderShop();
-            renderThemePicker();
-            renderAchievements();
-          } else if (key === "rating") {
-            state.leaderboard = data.leaderboard || [];
-            renderRating();
-          } else if (key === "calendar") {
-            state.calendar_events = data.calendar_events || [];
-            renderCalendar();
-          }
-          secondaryLoaded.add(key);
-          setTabLoading(key, false);
+          Object.assign(state, {
+            shop_items: data.shop_items || [],
+            achievements: data.achievements || [],
+            leaderboard: data.leaderboard || [],
+            calendar_events: data.calendar_events || []
+          });
+          // Дорисовываем все неактивные вкладки заранее. Пользователь может
+          // переключиться на них сразу — интерфейс уже будет готов.
+          renderShop();
+          renderThemePicker();
+          renderAchievements();
+          renderRating();
+          renderCalendar();
+          secondaryLoaded = true;
         }
       } catch (err) {
-        console.error(`bootstrap-secondary(${key}) failed:`, err);
-        setTabLoading(key, false, friendlyError(err) || "Не удалось загрузить раздел");
-        showToast(friendlyError(err) || "Не удалось загрузить раздел", "error");
+        // Ошибка вторичных данных не должна ломать навигацию.
+        // Главная и сами вкладки остаются доступными.
+        console.warn("bootstrap-secondary failed:", err);
+      } finally {
+        secondaryPromise = null;
       }
       return state;
-    })().finally(() => secondaryPromises.delete(key));
-
-    secondaryPromises.set(key, promise);
-    return promise;
+    })();
+    return secondaryPromise;
   }
 
   // Пока Mini App не виден, декоративные анимации не должны тратить батарею/CPU.
@@ -1042,13 +999,13 @@ function initTabs() {
         });
       }
     });
-    // Загружаем только открытый раздел. Никаких фоновых запросов к
-    // календарю/рейтингу/профилю при нахождении на Главной.
-    if (tab === "profile" || tab === "rating" || tab === "calendar") {
-      loadBootstrapSecondary(tab);
-    }
+    // Навигация всегда переключает вкладку сразу. Вторичные данные
+    // подгружаются независимо и не блокируют открытие окна.
     if (tab === "profile") {
+      loadBootstrapSecondary();
       loadProgressStats();
+    } else if (tab === "rating" || tab === "calendar") {
+      loadBootstrapSecondary();
     }
     haptic("light");
     scheduleDecorSettle();
@@ -1741,14 +1698,13 @@ async function boot() {
         initThemeActions();
         initStreakUI();
         initStreakPopupClick();
-        initDailyTasksActions();
-        initMilestonesActions();
         initProgressActions();
         initSettingsActions();
         // Критический экран готов сразу после bootstrap. Часовой пояс не должен
         // удерживать loading-overlay и мешать первому paint (особенно в Telegram WebView).
         await loadBootstrap();
-        setTimeout(() => { loadDailyTasks(); loadMilestones(); }, 0);
+        // Вторичные данные не блокируют первый экран и загружаются одним запросом.
+        setTimeout(() => { loadBootstrapSecondary(); }, 0);
         requestAnimationFrame(() => {
             document.documentElement.classList.remove("decor-settled");
             // Принудительно отдаём браузеру один чистый кадр для компоновки
