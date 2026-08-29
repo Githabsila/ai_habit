@@ -357,8 +357,17 @@
     const reward = (streak.rewards || [])[0];
     if (profileStatus) profileStatus.textContent = streakStatus || (streakDays ? "В ударе" : "Серия не начата");
     if (profileFrame) {
-      profileFrame.textContent = reward ? `🏆 ${reward.frame}` : "Твоя ударная серия!";
-      profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
+      if (reward) {
+        profileFrame.textContent = `🏆 ${reward.frame}`;
+        profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
+        profileFrame.hidden = false;
+      } else {
+        // No reward yet — avoid showing a placeholder that duplicates the
+        // "ТВОЯ УДАРНАЯ СЕРИЯ" kicker above it.
+        profileFrame.textContent = "";
+        profileFrame.className = "streak-profile-frame frame-none";
+        profileFrame.hidden = true;
+      }
     }
     const profileDays = document.getElementById("profileStreakDays");
     const profileDaysLabel = document.getElementById("profileStreakDaysLabel");

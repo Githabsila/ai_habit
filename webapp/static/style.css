@@ -6389,3 +6389,9 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   .progress-stat small{font-size:7px !important}
   .ai-style-btn{font-size:8px !important}
 }
+
+/* ====== FIX: don't show duplicate "Твоя ударная серия!" placeholder ======
+   Several earlier passes added !important rules to .streak-profile-frame
+   that defeated the [hidden] attribute. This restores it with higher
+   specificity so the badge only appears once a real reward exists. */
+.streak-profile-frame[hidden]{display:none!important}
