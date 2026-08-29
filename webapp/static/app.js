@@ -182,45 +182,88 @@
     // порядок работы.
   }
 
-  // Второстепенные данные загружаем одним запросом после первого кадра.
-  // Это важно для стабильности: вкладки больше не зависят от отдельных
-  // ленивых запросов и не могут остаться в состоянии вечной загрузки.
-  let secondaryPromise = null;
-  let secondaryLoaded = false;
+  // Второстепенные данные (магазин, рейтинг, достижения, календарь) отдаёт
+  // отдельный /api/bootstrap-secondary — раньше этот запрос нигде не
+  // вызывался, поэтому state.shop_items/leaderboard/achievements/calendar_events
+  // всегда оставались undefined и вкладки выглядели постоянно пустыми.
+  const secondaryPromises = new Map();
+  const secondaryLoaded = new Set();
 
-  async function loadBootstrapSecondary() {
-    if (secondaryLoaded) return state;
-    if (secondaryPromise) return secondaryPromise;
+  function getTabPanel(key) {
+    return document.querySelector(`.tab-panel[data-tab="${key}"]`);
+  }
 
-    secondaryPromise = (async () => {
+  function setTabLoading(key, loading, message = "") {
+    const panel = getTabPanel(key);
+    if (!panel) return;
+    panel.classList.toggle("tab-panel--loading", !!loading);
+    panel.setAttribute("aria-busy", loading ? "true" : "false");
+    let layer = panel.querySelector(":scope > .tab-loading-state");
+    if (loading) {
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.className = "tab-loading-state";
+        layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
+        panel.prepend(layer);
+      }
+      layer.hidden = false;
+      layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
+    } else if (layer) {
+      // Полностью удаляем индикатор после загрузки, а не просто скрываем его.
+      // Так он не сможет остаться поверх нижнего меню из-за CSS/кэша WebView.
+      layer.remove();
+      panel.classList.remove("tab-panel--loading");
+      panel.setAttribute("aria-busy", "false");
+    }
+    if (message) {
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.className = "tab-loading-state";
+        panel.prepend(layer);
+      }
+      layer.hidden = false;
+      layer.innerHTML = `<div class="tab-loading-state__error">${escapeHtml(message)}</div>`;
+      panel.classList.remove("tab-panel--loading");
+      panel.setAttribute("aria-busy", "false");
+    }
+  }
+
+  async function loadBootstrapSecondary(section) {
+    const key = section || "profile";
+    if (secondaryLoaded.has(key)) return state;
+    if (secondaryPromises.has(key)) return secondaryPromises.get(key);
+
+    setTabLoading(key, true);
+    const promise = (async () => {
       try {
-        const data = await api("/api/bootstrap-secondary", { timeoutMs: 12000 });
+        const data = await api(`/api/bootstrap-secondary?section=${encodeURIComponent(key)}`, { timeoutMs: 10000 });
         if (state) {
-          Object.assign(state, {
-            shop_items: data.shop_items || [],
-            achievements: data.achievements || [],
-            leaderboard: data.leaderboard || [],
-            calendar_events: data.calendar_events || []
-          });
-          // Дорисовываем все неактивные вкладки заранее. Пользователь может
-          // переключиться на них сразу — интерфейс уже будет готов.
-          renderShop();
-          renderThemePicker();
-          renderAchievements();
-          renderRating();
-          renderCalendar();
-          secondaryLoaded = true;
+          if (key === "profile") {
+            state.shop_items = data.shop_items || [];
+            state.achievements = data.achievements || [];
+            renderShop();
+            renderThemePicker();
+            renderAchievements();
+          } else if (key === "rating") {
+            state.leaderboard = data.leaderboard || [];
+            renderRating();
+          } else if (key === "calendar") {
+            state.calendar_events = data.calendar_events || [];
+            renderCalendar();
+          }
+          secondaryLoaded.add(key);
+          setTabLoading(key, false);
         }
       } catch (err) {
-        // Ошибка вторичных данных не должна ломать навигацию.
-        // Главная и сами вкладки остаются доступными.
-        console.warn("bootstrap-secondary failed:", err);
-      } finally {
-        secondaryPromise = null;
+        console.error(`bootstrap-secondary(${key}) failed:`, err);
+        setTabLoading(key, false, friendlyError(err) || "Не удалось загрузить раздел");
+        showToast(friendlyError(err) || "Не удалось загрузить раздел", "error");
       }
       return state;
-    })();
-    return secondaryPromise;
+    })().finally(() => secondaryPromises.delete(key));
+
+    secondaryPromises.set(key, promise);
+    return promise;
   }
 
   // Пока Mini App не виден, декоративные анимации не должны тратить батарею/CPU.
@@ -999,13 +1042,13 @@ function initTabs() {
         });
       }
     });
-    // Навигация всегда переключает вкладку сразу. Вторичные данные
-    // подгружаются независимо и не блокируют открытие окна.
+    // Загружаем только открытый раздел. Никаких фоновых запросов к
+    // календарю/рейтингу/профилю при нахождении на Главной.
+    if (tab === "profile" || tab === "rating" || tab === "calendar") {
+      loadBootstrapSecondary(tab);
+    }
     if (tab === "profile") {
-      loadBootstrapSecondary();
       loadProgressStats();
-    } else if (tab === "rating" || tab === "calendar") {
-      loadBootstrapSecondary();
     }
     haptic("light");
     scheduleDecorSettle();
@@ -1440,176 +1483,6 @@ function stabilizeFirstPaint() {
     });
 }
 
-// ===================== ЗАДАНИЯ ДНЯ / ЕЖЕДНЕВНЫЙ БОНУС =====================
-function renderDailyTasks(data) {
-  const list = document.getElementById("dailyTaskList");
-  const bonusBtn = document.getElementById("dailyBonusBtn");
-  if (!list) return;
-
-  const tasks = (data && data.tasks) || [];
-
-  list.innerHTML = tasks.map(t => `
-    <li class="daily-task ${t.completed ? "is-done" : ""}">
-      <div class="daily-task__top">
-        <span class="daily-task__title">${t.completed ? "✅" : "▫️"} ${escapeHtml(t.task)}</span>
-        <span class="daily-task__reward">+${t.reward} A</span>
-      </div>
-      <div class="daily-task__bar"><div class="daily-task__bar-fill" style="width:${Math.min(100, Math.round((t.progress / Math.max(1, t.goal)) * 100))}%"></div></div>
-      <div class="daily-task__progress">${t.progress}/${t.goal}</div>
-    </li>
-  `).join("") || `<li class="empty-hint">Заданий пока нет</li>`;
-
-  if (bonusBtn) bonusBtn.hidden = !(data && data.bonus_available);
-}
-
-async function loadDailyTasks() {
-  try {
-    const data = await api("/api/daily-tasks");
-    renderDailyTasks(data);
-  } catch (err) {
-    console.error("loadDailyTasks failed:", err);
-  }
-}
-
-function initDailyTasksActions() {
-  const bonusBtn = document.getElementById("dailyBonusBtn");
-  if (!bonusBtn) return;
-  bonusBtn.addEventListener("click", async () => {
-    try {
-      const res = await api("/api/daily-bonus/claim", { method: "POST" });
-      if (res.ok) {
-        showToast("🎁 +20 Adam Coin!", "success");
-        haptic("medium");
-        bonusBtn.hidden = true;
-        await loadBootstrap();
-      } else {
-        showToast("Бонус уже забран сегодня", "error");
-      }
-    } catch (err) {
-      showToast(friendlyError(err), "error");
-    }
-  });
-}
-
-// ===================== МОЯ ЦЕЛЬ И ВЕХИ =====================
-let milestonesState = { goal_text: "", milestones: [] };
-
-function renderMilestones(data) {
-  milestonesState = data || { goal_text: "", milestones: [] };
-  const empty = document.getElementById("milestonesEmpty");
-  const content = document.getElementById("milestonesContent");
-  const goalText = document.getElementById("milestonesGoalText");
-  const list = document.getElementById("milestoneList");
-  if (!empty || !content) return;
-
-  const hasGoal = !!(milestonesState.goal_text && milestonesState.milestones.length);
-  empty.hidden = hasGoal;
-  content.hidden = !hasGoal;
-
-  if (hasGoal) {
-    goalText.textContent = milestonesState.goal_text;
-    list.innerHTML = milestonesState.milestones.map(m => `
-      <li class="milestone-item ${m.done ? "is-done" : ""}" data-id="${m.id}">
-        <span class="milestone-item__mark">${m.done ? "✅" : "▫️"}</span>
-        <span class="milestone-item__text">${escapeHtml(m.text)}</span>
-      </li>
-    `).join("");
-  }
-}
-
-async function loadMilestones() {
-  try {
-    const data = await api("/api/milestones");
-    renderMilestones(data);
-  } catch (err) {
-    console.error("loadMilestones failed:", err);
-  }
-}
-
-function renderMilestoneSteps(values) {
-  const wrap = document.getElementById("milestoneStepsList");
-  wrap.innerHTML = values.map((v, i) => `
-    <input type="text" class="milestone-step-input" data-step="${i}" placeholder="Веха ${i + 1}..." value="${escapeHtml(v || "")}">
-  `).join("");
-}
-
-function initMilestonesActions() {
-  const form = document.getElementById("milestonesForm");
-  const content = document.getElementById("milestonesContent");
-  const empty = document.getElementById("milestonesEmpty");
-  const goalInput = document.getElementById("milestoneGoalInput");
-  const addStepBtn = document.getElementById("milestoneAddStepBtn");
-  const setupBtn = document.getElementById("milestonesSetupBtn");
-  const editBtn = document.getElementById("milestonesEditBtn");
-  const cancelBtn = document.getElementById("milestonesCancelBtn");
-  if (!form) return;
-
-  let steps = ["", "", ""];
-
-  function openForm() {
-    goalInput.value = milestonesState.goal_text || "";
-    steps = milestonesState.milestones.length
-      ? milestonesState.milestones.map(m => m.text)
-      : ["", "", ""];
-    renderMilestoneSteps(steps);
-    form.hidden = false;
-    content.hidden = true;
-    empty.hidden = true;
-  }
-
-  function closeForm() {
-    form.hidden = true;
-    renderMilestones(milestonesState);
-  }
-
-  setupBtn?.addEventListener("click", openForm);
-  editBtn?.addEventListener("click", openForm);
-  cancelBtn?.addEventListener("click", closeForm);
-
-  addStepBtn.addEventListener("click", () => {
-    steps.push("");
-    renderMilestoneSteps(steps);
-  });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const goalText = goalInput.value.trim();
-    const stepValues = Array.from(form.querySelectorAll(".milestone-step-input"))
-      .map(inp => inp.value.trim())
-      .filter(Boolean);
-
-    if (!goalText || !stepValues.length) {
-      showToast("Укажите цель и хотя бы одну веху", "error");
-      return;
-    }
-
-    try {
-      await api("/api/milestones", {
-        method: "POST",
-        body: JSON.stringify({ goal_text: goalText, milestones: stepValues })
-      });
-      haptic("light");
-      await loadMilestones();
-      form.hidden = true;
-    } catch (err) {
-      showToast(friendlyError(err), "error");
-    }
-  });
-
-  document.getElementById("milestoneList")?.addEventListener("click", async (e) => {
-    const li = e.target.closest(".milestone-item");
-    if (!li) return;
-    const id = li.dataset.id;
-    try {
-      await api(`/api/milestones/${id}/toggle`, { method: "POST" });
-      haptic("light");
-      await loadMilestones();
-    } catch (err) {
-      showToast(friendlyError(err), "error");
-    }
-  });
-}
-
 // ===================== ПРОГРЕСС + AI-АНАЛИЗ =====================
 async function loadProgressStats() {
   try {
@@ -1699,12 +1572,13 @@ async function boot() {
         initStreakUI();
         initStreakPopupClick();
         initProgressActions();
-        initSettingsActions();
+        // ВАЖНО: настройки используют state.settings, поэтому их нельзя
+        // инициализировать до первого bootstrap. Иначе boot() падал на
+        // state === null, а навигация и вторичные вкладки не запускались.
         // Критический экран готов сразу после bootstrap. Часовой пояс не должен
         // удерживать loading-overlay и мешать первому paint (особенно в Telegram WebView).
         await loadBootstrap();
-        // Вторичные данные не блокируют первый экран и загружаются одним запросом.
-        setTimeout(() => { loadBootstrapSecondary(); }, 0);
+        initSettingsActions();
         requestAnimationFrame(() => {
             document.documentElement.classList.remove("decor-settled");
             // Принудительно отдаём браузеру один чистый кадр для компоновки
