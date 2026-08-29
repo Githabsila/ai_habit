@@ -15,7 +15,7 @@ from db import create_tables
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
 from scheduler import scheduler
-from streak_scheduler import run_streak_rollover, run_streak_risk_notifications, run_weekly_streak_bonus
+from streak_scheduler import run_streak_rollover, run_streak_risk_notifications, run_streak_reengagement_notifications, run_weekly_streak_bonus
 from coach import (
     run_weekly_report,
     run_weekly_habit_analysis, run_task_reminder_check,
@@ -108,6 +108,11 @@ async def main():
     # у кого наступил новый локальный день.
     scheduler.add_job(run_streak_rollover, "interval", minutes=1)
     scheduler.add_job(run_streak_risk_notifications, "interval", minutes=1, args=[bot])
+    # Возврат в ударный режим: 10:00 / 16:00 / 21:00 после срыва, затем
+    # постепенно реже для тех, кто пропал надолго. Проверка каждую минуту
+    # учитывает локальный час пользователя и останавливается после первого
+    # выполненного действия в текущем дне.
+    scheduler.add_job(run_streak_reengagement_notifications, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_weekly_streak_bonus, "interval", minutes=1, args=[bot])
 
     # --- Умные напоминания ---

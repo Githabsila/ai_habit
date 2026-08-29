@@ -9,8 +9,9 @@ from config import WEBAPP_URL
 
 from db import (
     rollover_all_users, get_streak_users, get_timezone, create_daily_tasks,
-    has_completed_today, claim_notification, RISK_15, RISK_23,
-    get_weekly_bonus_available,
+    has_completed_today, claim_notification, release_notification, notification_scope, RISK_15, RISK_23,
+    get_weekly_bonus_available, get_streak_reengagement_state, get_settings,
+    get_recent_streak_message_keys, record_streak_message_key,
 )
 
 logger = logging.getLogger("streak_scheduler")
@@ -174,6 +175,130 @@ async def run_streak_risk_notifications(bot):
             _active_countdowns[(uid, sent.message_id)] = task
         except Exception:
             logger.exception("Ошибка streak-risk для %s", uid)
+
+# ============================================================
+# ВОЗВРАТ В УДАРНЫЙ РЕЖИМ
+# ============================================================
+# Это отдельная система, не зависящая от текущего streak. Если человек уже
+# когда-то выполнял привычки, но выпал из режима, ADAM продолжает мягко
+# возвращать его обратно. Тексты выбираются без LLM — быстро и без затрат
+# токенов, но с учётом срока отсутствия и времени суток.
+
+REENGAGE_MESSAGES = {
+    "10": [
+        ("r10_1", "🫵🤨 <b>Ты сдался, или докажешь обратное?</b>\n\nВчерашний день уже не вернуть. Зато сегодня можно начать новую серию. Открой ADAM и закрой хотя бы одну привычку. 🔥"),
+        ("r10_2", "⚡️ <b>Серия погасла. Характер — нет.</b>\n\nНе пытайся вернуть всё сразу. Сделай один шаг сегодня — и новый ударный режим уже начнётся. Готов?"),
+        ("r10_3", "😈 <b>Ну что, возвращаемся?</b>\n\nОдин пропуск не решает, кем ты будешь дальше. Отметь одну привычку и снова зажги свою серию. 🔥"),
+        ("r10_4", "🔥 <b>ADAM тебя не списал.</b>\n\nТы просто выпал из ритма. Вернуться можно в любой момент — даже сегодня. Начни с одной привычки."),
+        ("r10_5", "⏱️ <b>Новый старт не требует идеального дня.</b>\n\nТребуется только первое действие. Закрой одну привычку — остальное построим дальше вместе."),
+    ],
+    "16": [
+        ("r16_1", "🤬 <b>Полдня прошло. И что теперь?</b>\n\nСдаться окончательно или всё-таки сделать первый шаг? До вечера ещё есть время. Вернись в ADAM. 🔥"),
+        ("r16_2", "🫵 <b>Ты всё ещё можешь перевернуть этот день.</b>\n\nНе нужен подвиг. Одна закрытая привычка — и ты снова в игре. Сделаешь?"),
+        ("r16_3", "⚡️ <b>Пауза затянулась.</b>\n\nНо это не финал. Сегодня ещё можно начать новую серию. Выбери одну привычку и действуй."),
+        ("r16_4", "😡 <b>Ты хотел изменить себя — помнишь?</b>\n\nНе позволяй нескольким пропущенным дням решить всё за тебя. Вернись хотя бы на один шаг сегодня."),
+        ("r16_5", "🎯 <b>Сегодня ещё не проигран.</b>\n\nТвоя задача сейчас простая: одна привычка. Не думай о неделе. Думай о следующем действии."),
+    ],
+    "21": [
+        ("r21_1", "🌙 <b>Вечер. Последний шанс начать заново сегодня.</b>\n\nНе жди понедельника, первого числа или «подходящего момента». Одна привычка — и ты снова в движении. 🔥"),
+        ("r21_2", "😈 <b>Завтра можно начать. Но почему не сегодня?</b>\n\nЗакрой одну привычку сейчас и покажи себе, что ты ещё не вышел из игры."),
+        ("r21_3", "⏳ <b>Ещё один день уходит.</b>\n\nВопрос простой: ты оставишь паузу паузой или превратишь этот вечер в точку возврата?"),
+        ("r21_4", "🔥 <b>Не нужен идеальный перезапуск.</b>\n\nНужен первый вечер, когда ты снова выбрал себя. Начни с одной привычки."),
+        ("r21_5", "🫵🤨 <b>Последний вопрос от Адама:</b>\n\nТы действительно хочешь вернуться — или просто ждёшь, пока мотивация придёт сама? Сделай действие первым."),
+    ],
+    "long": [
+        ("rlong_1", "🔥 <b>Ты давно не заходил. Я это заметил.</b>\n\nТебе не нужно оправдываться. После недели или месяца паузы можно просто начать заново. Одна привычка сегодня — первый кирпич новой серии."),
+        ("rlong_2", "🫵 <b>Прошло уже {days} дн.</b>\n\nНо знаешь что? Твоя история не закончилась. Возвращайся без попытки сделать всё сразу. Начни с одной привычки."),
+        ("rlong_3", "⚡️ <b>Пауза стала длинной. Значит, нужен не упрёк, а новый старт.</b>\n\nОткрой ADAM. Выбери одну привычку. Сделай её сегодня — и дальше пойдём по шагам."),
+        ("rlong_4", "😈 <b>Месяц? Три дня? Неважно.</b>\n\nВажен следующий выбор. Ты можешь продолжить старую паузу или сегодня поставить ей точку. Начни с одной привычки."),
+        ("rlong_5", "🚀 <b>Возвращение начинается не с мотивации.</b>\n\nОно начинается с действия. Не обещай себе новую жизнь — просто закрой одну привычку сегодня."),
+        ("rlong_6", "🧠 <b>Не пытайся наверстать всё сразу.</b>\n\nТы пропустил {days} дн. — и это уже факт. Следующий факт можешь создать сам: одна выполненная привычка сегодня."),
+        ("rlong_7", "🔥 <b>Твоя серия закончилась. Твой путь — нет.</b>\n\nИногда дисциплина — это не идеальная неделя, а способность вернуться после паузы. Начни сегодня."),
+        ("rlong_8", "⚡️ <b>Адам оставляет дверь открытой.</b>\n\nНеважно, сколько дней ты был вне режима. Не нужно объяснений. Просто зайди и сделай первое действие."),
+    ],
+}
+
+def _reengagement_keyboard():
+    return _countdown_keyboard()
+
+def _choose_reengagement_message(uid, slot, inactive_days):
+    import hashlib
+    pool = REENGAGE_MESSAGES["long"] if inactive_days >= 4 else REENGAGE_MESSAGES[slot]
+    recent = set(get_recent_streak_message_keys(uid, limit=12))
+    available = [item for item in pool if item[0] not in recent]
+    if not available:
+        available = pool
+    # Детерминированный выбор не даёт двум параллельным тикам случайно выбрать
+    # один и тот же текст и делает поведение воспроизводимым.
+    seed = f"{uid}:{slot}:{inactive_days}:{datetime.now(ZoneInfo(get_timezone(uid))).date().isoformat()}"
+    idx = int(hashlib.sha256(seed.encode()).hexdigest(), 16) % len(available)
+    key, text = available[idx]
+    if "{days}" in text:
+        text = text.format(days=inactive_days)
+    return key, text
+
+async def run_streak_reengagement_notifications(bot):
+    """Возвращает выпавших пользователей в ударный режим.
+
+    1–3 дня отсутствия: 10:00, 16:00, 21:00.
+    4–7 дней: 12:00 и 20:00.
+    8–30 дней: один мягкий пинг в 18:00 через день.
+    31+ дней: один пинг в 18:00 раз в три дня.
+
+    В любой момент после первой выполненной привычки на текущий день все
+    дальнейшие сообщения автоматически прекращаются.
+    """
+    if not bot:
+        return
+
+    for uid in get_streak_users():
+        try:
+            settings = get_settings(uid)
+            if not settings or settings["reminders"] == 0:
+                continue
+            tz = ZoneInfo(get_timezone(uid))
+            now = datetime.now(tz)
+            state = get_streak_reengagement_state(uid)
+            inactive = int(state["inactive_days"] or 0)
+            if not state["has_history"] or inactive <= 0:
+                continue
+            if has_completed_today(uid):
+                continue
+
+            # Для первого дня после срыва — три разных точки, как задумано.
+            if inactive <= 3:
+                slot = str(now.hour)
+                if now.minute != 0 or slot not in ("10", "16", "21"):
+                    continue
+            elif inactive <= 7:
+                slot = str(now.hour)
+                if now.minute != 0 or slot not in ("12", "20"):
+                    continue
+            elif inactive <= 30:
+                if now.hour != 18 or now.minute != 0 or inactive % 2 != 0:
+                    continue
+                slot = "long"
+            else:
+                if now.hour != 18 or now.minute != 0 or inactive % 3 != 0:
+                    continue
+                slot = "long"
+
+            day = now.date().isoformat()
+            kind = f"streak_reengage_{slot}"
+            scope = notification_scope(bot)
+            if not claim_notification(uid, day, kind, scope):
+                continue
+
+            key, text = _choose_reengagement_message(uid, slot if slot in ("10", "16", "21") else "long", inactive)
+            try:
+                await bot.send_message(uid, text, parse_mode="HTML", reply_markup=_reengagement_keyboard())
+                record_streak_message_key(uid, key)
+            except Exception:
+                release_notification(uid, day, kind, scope)
+                raise
+        except Exception:
+            logger.exception("Ошибка streak-reengagement для %s", uid)
+
 
 async def run_weekly_streak_bonus(bot):
     if not bot:

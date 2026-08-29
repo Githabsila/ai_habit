@@ -149,6 +149,7 @@ from .streak import (
     buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
     should_show_onboarding, onboarding_message, mark_onboarding_seen,
     RISK_15, RISK_23, claim_notification, release_notification, notification_scope, has_completed_today, get_streak_users, consume_completion_event,
+    get_streak_reengagement_state, get_recent_streak_message_keys, record_streak_message_key,
 )
 
 
@@ -191,4 +192,5 @@ __all__ = [
     "register_completion", "rollover_user", "rollover_all_users", "buy_freeze",
     "claim_weekly_reward", "get_weekly_bonus_available", "should_show_onboarding",
     "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "release_notification", "notification_scope", "has_completed_today", "get_streak_users", "consume_completion_event",
+    "get_streak_reengagement_state", "get_recent_streak_message_keys", "record_streak_message_key",
 ]

@@ -395,6 +395,22 @@ class="btn btn--accent">
 
 <div class="toast" id="toast"></div>
 
+<div class="freeze-sheet-overlay" id="freezeSheetOverlay" hidden aria-hidden="true">
+  <div class="freeze-sheet" role="dialog" aria-modal="true" aria-labelledby="freezeSheetTitle">
+    <div class="freeze-sheet__handle" aria-hidden="true"></div>
+    <button class="freeze-sheet__close" id="freezeSheetClose" type="button" aria-label="Закрыть">×</button>
+    <div class="freeze-sheet__icon">❄️</div>
+    <div class="freeze-sheet__eyebrow">УДАРНЫЙ РЕЖИМ</div>
+    <h3 id="freezeSheetTitle">Заморозка серии</h3>
+    <p>Сохрани один день ударного режима, если понимаешь, что сегодня можешь не успеть выполнить привычку.</p>
+    <div class="freeze-sheet__price"><span>200</span><span class="freeze-sheet__coin">A</span><small>Adam Coin</small></div>
+    <div class="freeze-sheet__meta"><span>❄️ Баланс: <b id="freezeSheetBalance">0/2</b></span><span>до 2 покупок в неделю</span></div>
+    <button class="freeze-sheet__buy" id="freezeSheetBuy" type="button">Купить заморозку <span>200 🪙</span></button>
+  </div>
+</div>
+
+
+
 <div class="achievement-share-overlay" id="achievementShareOverlay" hidden aria-hidden="true">
   <div class="achievement-share-card">
     <div class="achievement-share-fire"><img src="/static/assets/adam-impact-flame.svg" alt=""></div>

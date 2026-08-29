@@ -133,12 +133,16 @@ def get_ai_quota(user_id, is_pro=False):
     _ensure_ai_quota_day(cur, user_id, day)
     cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=?", (user_id,))
     r=cur.fetchone(); conn.commit(); conn.close()
-    base=50 if is_pro else 15
+    try:
+        from config import AI_DAILY_PRO_COST_UNITS, AI_DAILY_FREE_COST_UNITS
+        base = AI_DAILY_PRO_COST_UNITS if is_pro else AI_DAILY_FREE_COST_UNITS
+    except Exception:
+        base = 50 if is_pro else 15
     used=int(r["used"] or 0) if r else 0
     bonus=int(r["bonus_answers"] or 0) if r else 0
     return {"used":used,"bonus":bonus,"limit":base+bonus,"remaining":max(0,base+bonus-used),"pro":is_pro}
 
-def consume_ai_answer(user_id, is_pro=False):
+def consume_ai_answer(user_id, is_pro=False, cost=1):
     from datetime import date
     conn=connect(); cur=conn.cursor(); day=str(date.today())
     _ensure_ai_quota_day(cur, user_id, day)
@@ -147,14 +151,23 @@ def consume_ai_answer(user_id, is_pro=False):
 
     used = int(r["used"] or 0) if r else 0
     bonus = int(r["bonus_answers"] or 0) if r else 0
-    base = 50 if is_pro else 15
+    try:
+        from config import AI_DAILY_PRO_COST_UNITS, AI_DAILY_FREE_COST_UNITS
+        base = AI_DAILY_PRO_COST_UNITS if is_pro else AI_DAILY_FREE_COST_UNITS
+    except Exception:
+        base = 50 if is_pro else 15
     total = base + bonus
 
-    if used >= total:
+    try:
+        cost = max(1, int(cost))
+    except (TypeError, ValueError):
+        cost = 1
+
+    if used + cost > total:
         conn.close()
         return False
 
-    cur.execute("UPDATE ai_quota SET used=used+1 WHERE user_id=?", (user_id,))
+    cur.execute("UPDATE ai_quota SET used=used+? WHERE user_id=?", (cost, user_id))
     conn.commit()
     conn.close()
     return True

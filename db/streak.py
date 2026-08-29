@@ -87,6 +87,13 @@ def ensure_tables():
         sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, day, kind)
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS streak_message_history(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        message_key TEXT NOT NULL,
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_streak_message_history_user ON streak_message_history(user_id, sent_at DESC)")
     conn.commit()
     conn.close()
 
@@ -535,3 +542,68 @@ def consume_completion_event(user_id):
         "streak": int(row["streak_after"] or 0),
         "message": row["ai_message"],
     }
+
+
+def get_streak_reengagement_state(user_id):
+    """Возвращает состояние возврата в ударный режим.
+
+    Важно: состояние считается по последнему реально закрытому локальному дню,
+    поэтому человек может вернуться даже после 3 дней, недели или месяца
+    простоя. Текущий день не считается новым пропуском, пока он не закончился.
+    """
+    ensure_tables()
+    today = local_today(user_id)
+    conn = connect()
+    c = conn.cursor()
+    c.execute(
+        "SELECT MAX(day) AS last_day FROM streak_days WHERE user_id=? AND status='completed'",
+        (user_id,),
+    )
+    row = c.fetchone()
+    c.execute("SELECT streak FROM users WHERE telegram_id=?", (user_id,))
+    user = c.fetchone()
+    conn.close()
+
+    last_day = row["last_day"] if row and row["last_day"] else None
+    if not last_day:
+        return {
+            "has_history": False,
+            "last_completed": None,
+            "inactive_days": 0,
+            "streak": int(user["streak"] or 0) if user else 0,
+        }
+
+    try:
+        last_date = date.fromisoformat(last_day)
+    except ValueError:
+        return {"has_history": False, "last_completed": None, "inactive_days": 0, "streak": 0}
+
+    inactive_days = max(0, (today - last_date).days)
+    return {
+        "has_history": True,
+        "last_completed": last_day,
+        "inactive_days": inactive_days,
+        "streak": int(user["streak"] or 0) if user else 0,
+    }
+
+def get_recent_streak_message_keys(user_id, limit=12):
+    ensure_tables()
+    conn = connect()
+    c = conn.cursor()
+    c.execute(
+        "SELECT message_key FROM streak_message_history WHERE user_id=? ORDER BY id DESC LIMIT ?",
+        (user_id, limit),
+    )
+    keys = [r["message_key"] for r in c.fetchall()]
+    conn.close()
+    return keys
+
+def record_streak_message_key(user_id, message_key):
+    ensure_tables()
+    conn = connect()
+    conn.execute(
+        "INSERT INTO streak_message_history(user_id,message_key) VALUES(?,?)",
+        (user_id, message_key),
+    )
+    conn.commit()
+    conn.close()

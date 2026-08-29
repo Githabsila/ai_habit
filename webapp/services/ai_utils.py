@@ -40,7 +40,7 @@ def build_history_text(
     return "\n".join(lines)
 
 
-def build_user_context(user_id: int) -> str:
+def build_user_context(user_id: int, max_chars: int = 2800) -> str:
     """
     Собирает данные пользователя для AI.
     """

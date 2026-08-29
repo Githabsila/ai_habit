@@ -308,6 +308,28 @@ STYLE_NOTES = {
 }
 DEFAULT_STYLE = "neutral"
 
+# Адаптивный бюджет ответа: чем длиннее вход, тем короче, но всё ещё
+# содержательнее ответ. Это снижает completion-токены без жёсткого ухудшения
+# качества и не заставляет модель писать длинные эссе.
+def _response_budget(task: str) -> tuple[int, int]:
+    n = len((task or "").strip())
+    if n <= 800:
+        return 420, 0
+    if n <= 2200:
+        return 600, 1
+    if n <= 4000:
+        return 720, 2
+    return 800, 3
+
+
+def _trim_answer_budget(text: str, max_chars: int) -> str:
+    text = (text or "").strip()
+    if len(text) <= max_chars:
+        return text
+    clipped = text[:max_chars]
+    trimmed = _trim_to_last_sentence(clipped)
+    return (trimmed if len(trimmed) >= int(max_chars * 0.55) else clipped.rsplit(" ", 1)[0]).strip()
+
 
 @dataclass
 class AgentTrace:
@@ -559,8 +581,15 @@ async def fast_answer(
     # Terra — основной быстрый режим; Sol включаем только для действительно
     # длинных/сложных запросов. Это сохраняет качество там, где оно нужно,
     # но не заставляет каждый обычный вопрос ждать frontier-модель.
-    selected_model = MODEL if len(task or "") > 900 or _needs_deep_pipeline(task) else FAST_MODEL
-    return await _ask(system, user, temperature=0.35, max_tokens=500, model=selected_model)
+    output_tokens, _cost_units = _response_budget(task)
+    # Не переводим длинный запрос автоматически на дорогую frontier-модель.
+    # Groq остаётся быстрым основным каналом, а OpenAI используется как fallback.
+    selected_model = MODEL if _needs_deep_pipeline(task) and len(task or "") > 4500 else FAST_MODEL
+    answer = await _ask(system, user, temperature=0.35, max_tokens=output_tokens, model=selected_model)
+    # Дополнительная страховка по символам: даже если модель решила быть
+    # многословной, пользователь получает законченный, компактный ответ.
+    max_chars = 1500 if len(task or "") <= 800 else 2200 if len(task or "") <= 2200 else 2800 if len(task or "") <= 4000 else 3200
+    return _trim_answer_budget(answer, max_chars)
 
 
 # ============ 0c. КРИЗИС-ГЕЙТ ============

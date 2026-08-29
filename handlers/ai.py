@@ -41,6 +41,7 @@ from db import (
     get_last_ai_message_at,
     touch_last_ai_message,
     claim_ai_first_message,
+    has_premium, get_ai_quota, consume_ai_answer,
 )
 
 from keyboards import (
@@ -52,6 +53,7 @@ from keyboards import (
 )
 
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
+from config import AI_TELEGRAM_MAX_INPUT_CHARS, AI_LONG_COST_CHARS, AI_VERY_LONG_COST_CHARS
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
 from handlers.helpers import send_long_message, edit_or_split_message
 
@@ -60,6 +62,21 @@ logger = logging.getLogger("handlers.ai")
 
 # Раз в столько сообщений пересобираем долгосрочный профиль пользователя
 MEMORY_UPDATE_EVERY = 6
+
+
+def _looks_like_habit_action(text: str) -> bool:
+    """Дешёвый локальный фильтр перед AI-классификатором привычек.
+    Обычные вопросы не должны делать дополнительный LLM-вызов."""
+    t = (text or "").strip().lower()
+    if len(t) > 700:
+        return False
+    markers = (
+        "добавь привыч", "удали привыч", "убери привыч", "удалить привыч",
+        "выполни привыч", "отметь привыч", "отметить привыч", "привычка готов",
+        "я сделал", "я выполнил", "я выполнила", "я сделалa", "готово, я",
+        "я пробежал", "я почитал", "я помедитировал",
+    )
+    return any(m in t for m in markers)
 
 
 # =====================================
@@ -193,6 +210,14 @@ async def ai_chat(message: Message, state: FSMContext):
         return
 
     user_id = message.from_user.id
+    text = (message.text or "").strip()
+
+    if len(text) > AI_TELEGRAM_MAX_INPUT_CHARS:
+        await message.answer(
+            f"✂️ Сообщение слишком длинное. Сократи его до {AI_TELEGRAM_MAX_INPUT_CHARS} символов — я сохраню главное и отвечу точнее."
+        )
+        return
+
     first_message = claim_ai_first_message(user_id)
 
     await message.bot.send_chat_action(
@@ -203,20 +228,30 @@ async def ai_chat(message: Message, state: FSMContext):
     # ✅ Команды управления привычками («добавь привычку …», «удали привычку
     # …» и т.п.) выполняются напрямую, в обход мультиагентного пайплайна —
     # быстро и без риска, что модель что-то не так поймёт.
-    habit_reply = try_handle_habit_intent(user_id, message.text)
+    habit_reply = try_handle_habit_intent(user_id, text)
 
     # ✅ Резервный путь: если явный шаблон не совпал (человек написал своими
     # словами, например «я сделал зарядку»), пробуем распознать команду
     # через лёгкий AI-классификатор — иначе сообщение ушло бы в обычный чат,
     # который мог бы РАЗГОВОРНО подтвердить действие, ничего не изменив в
     # базе (см. habit_intents.try_handle_habit_intent_ai).
-    if habit_reply is None:
-        habit_reply = await try_handle_habit_intent_ai(user_id, message.text)
+    if habit_reply is None and _looks_like_habit_action(text):
+        habit_reply = await try_handle_habit_intent_ai(user_id, text)
 
     if habit_reply is not None:
         add_ai_message(user_id, "user", message.text)
         add_ai_message(user_id, "assistant", habit_reply)
         await message.answer(habit_reply, reply_markup=ai_keyboard())
+        return
+
+    is_pro = has_premium(user_id)
+    quota = get_ai_quota(user_id, is_pro)
+    cost = 3 if len(text) > AI_VERY_LONG_COST_CHARS else 2 if len(text) > AI_LONG_COST_CHARS else 1
+    if quota["remaining"] < cost:
+        await message.answer(
+            "💬 Для такого длинного запроса сейчас недостаточно доступного лимита ADAM. "
+            "Сократи запрос или используй дополнительные ответы из магазина."
+        )
         return
 
     thinking_msg = await message.answer("Формирую ответ")
@@ -227,11 +262,12 @@ async def ai_chat(message: Message, state: FSMContext):
     try:
         result = await chat(
             user_id=user_id,
-            message=message.text,
+            message=text,
         )
         answer = result["answer"]
         is_crisis = result["is_crisis"]
         suggested_habit = result["suggested_habit"]
+        cached_answer = bool(result.get("cached"))
     except Exception as e:
         logger.exception(f"Ошибка AI-пайплайна для {user_id}")
         log_error("ai_pipeline", e, user_id)
@@ -241,8 +277,16 @@ async def ai_chat(message: Message, state: FSMContext):
         )
         is_crisis = False
         suggested_habit = None
+        cached_answer = False
 
-    add_ai_message(user_id, "user", message.text)
+    # Списываем лимит только после успешного ответа. Длинный запрос
+    # расходует 2–3 единицы вместо одной: пользователь получает полный
+    # качественный ответ, а экономика проекта защищена.
+    if not cached_answer and not consume_ai_answer(user_id, is_pro, cost=cost):
+        await message.answer("💬 Лимит ADAM закончился до завершения запроса. Попробуй ещё раз позже.")
+        return
+
+    add_ai_message(user_id, "user", text)
     assistant_message_id = add_ai_message(user_id, "assistant", answer)
 
     if not is_crisis:

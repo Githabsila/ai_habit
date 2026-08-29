@@ -23,8 +23,17 @@ from multi_agent import solve_task_multiagent
 
 
 async def chat(user_id: int, message: str):
-    history_text = build_history_text(user_id, limit=4, max_chars_per_msg=180)
-    user_context = build_user_context(user_id)
+    message = (message or "").strip()
+    # Для длинного вопроса сохраняем сам вопрос целиком, но уменьшаем
+    # вторичный контекст: именно история/профиль часто незаметно удваивают
+    # входные токены.
+    long_request = len(message) > 2200
+    history_text = build_history_text(
+        user_id,
+        limit=2 if long_request else 4,
+        max_chars_per_msg=110 if long_request else 180,
+    )
+    user_context = build_user_context(user_id, max_chars=1800 if long_request else 2800)
     style = get_ai_style(user_id)
 
     # Никакого дополнительного LLM-вызова: примерно каждый третий ответ
@@ -32,7 +41,7 @@ async def chat(user_id: int, message: str):
     previous = get_ai_history(user_id, limit=20)
     assistant_count = sum(1 for row in previous if row.get("role") == "assistant")
     humor_note = ""
-    if (assistant_count + 1) % 3 == 0:
+    if not long_request and (assistant_count + 1) % 3 == 0:
         humor_note = (
             "Иногда уместно добавить в конце одну короткую умную шутку, ироничную "
             "реплику или интересный факт, который действительно связан с темой. "
@@ -53,6 +62,7 @@ async def chat(user_id: int, message: str):
             "is_crisis": False,
             "suggested_habit": None,
             "complexity": "просто",
+            "cached": True,
         }
 
     result = await solve_task_multiagent(

@@ -36,6 +36,7 @@ from db import (
 )
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
 from datetime import datetime
+from config import AI_MAX_INPUT_CHARS, AI_LONG_COST_CHARS, AI_VERY_LONG_COST_CHARS
 import hashlib
 import asyncio
 
@@ -59,6 +60,21 @@ logger = logging.getLogger("webapp.ai_miniapp")
 
 MIN_INTERVAL_SECONDS = 3.0
 MEMORY_UPDATE_EVERY = 6
+
+
+def _looks_like_habit_action(text: str) -> bool:
+    """Дешёвый локальный фильтр перед AI-классификатором привычек.
+    Обычные вопросы не должны делать дополнительный LLM-вызов."""
+    t = (text or "").strip().lower()
+    if len(t) > 700:
+        return False
+    markers = (
+        "добавь привыч", "удали привыч", "убери привыч", "удалить привыч",
+        "выполни привыч", "отметь привыч", "отметить привыч", "привычка готов",
+        "я сделал", "я выполнил", "я выполнила", "я сделалa", "готово, я",
+        "я пробежал", "я почитал", "я помедитировал",
+    )
+    return any(m in t for m in markers)
 
 
 # ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ============
@@ -180,6 +196,13 @@ async def ai_chat_miniapp(request):
 
     pro = has_premium(user_id)
 
+    if len(message_text) > AI_MAX_INPUT_CHARS:
+        return web.json_response({
+            "error": "message_too_long",
+            "message": f"✂️ Сообщение слишком длинное. Максимум {AI_MAX_INPUT_CHARS} символов.",
+            "max_chars": AI_MAX_INPUT_CHARS,
+        }, status=413)
+
     # Проверка троттлинга
     wait = _is_throttled(user_id)
     if wait is not None:
@@ -203,7 +226,7 @@ async def ai_chat_miniapp(request):
     # обход мультиагентного пайплайна — быстро и без риска, что модель
     # РАЗГОВОРНО подтвердит действие, ничего на самом деле не изменив.
     habit_reply = try_handle_habit_intent(user_id, message_text)
-    if habit_reply is None and _looks_like_action_request(message_text):
+    if habit_reply is None and _looks_like_habit_action(message_text):
         habit_reply = await try_handle_habit_intent_ai(user_id, message_text)
 
     if habit_reply is not None:
@@ -218,8 +241,9 @@ async def ai_chat_miniapp(request):
         })
 
     # Обычные свободные ответы расходуют дневной лимит; управление привычками/планом — нет.
+    cost = 3 if len(message_text) > AI_VERY_LONG_COST_CHARS else 2 if len(message_text) > AI_LONG_COST_CHARS else 1
     quota = get_ai_quota(user_id, pro)
-    if quota["remaining"] <= 0:
+    if quota["remaining"] < cost:
         return web.json_response({
             "error":"ai_quota_exceeded",
             "message": "💬 Лимит ответов ADAM на сегодня исчерпан. Купи дополнительные ответы или активируй ADAM PRO.",
@@ -283,7 +307,7 @@ async def ai_chat_miniapp(request):
     # Списываем ответ только после успешного получения реального ответа.
     # Сбой AI/пустой ответ больше не "съедает" дневной лимит.
     if cached_answer is None:
-        if not consume_ai_answer(user_id, pro):
+        if not consume_ai_answer(user_id, pro, cost=cost):
             quota = get_ai_quota(user_id, pro)
             return web.json_response({"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}, status=402)
 

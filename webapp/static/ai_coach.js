@@ -350,7 +350,7 @@ function AiChat() {
                 React.createElement("div", { className: "composer-glow" }),
                 React.createElement("button", { className: "emoji-launcher", onClick: () => { setShowEmoji(v => !v); vibrate('light'); }, title: "\u042D\u043C\u043E\u0434\u0437\u0438" }, "\uD83D\uDE0A"),
                 React.createElement("div", { className: "input-wrapper" },
-                    React.createElement("textarea", { ref: textareaRef, value: input, onChange: e => { setInput(e.target.value); resizeInput(); }, onKeyDown: e => { if (e.key === 'Enter' && !e.shiftKey) {
+                    React.createElement("textarea", { ref: textareaRef, maxLength: 6000, value: input, onChange: e => { setInput(e.target.value); resizeInput(); }, onKeyDown: e => { if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
                             sendMsg();
                         } }, placeholder: "\u041D\u0430\u043F\u0438\u0448\u0438 ADAM...", disabled: loading || throttle, rows: "1" })),

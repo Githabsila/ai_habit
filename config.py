@@ -11,6 +11,18 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
+# ================= AI COST / INPUT LIMITS =================
+# Telegram сам ограничивает обычное текстовое сообщение, но ADAM также
+# проверяет длину на сервере, чтобы Mini App и бот имели одинаковые правила.
+AI_MAX_INPUT_CHARS = int(os.getenv("AI_MAX_INPUT_CHARS", "6000"))
+AI_TELEGRAM_MAX_INPUT_CHARS = int(os.getenv("AI_TELEGRAM_MAX_INPUT_CHARS", "4000"))
+# Стоимость одного AI-ответа в существующей системе дневной квоты.
+# Длинные запросы расходуют больше квоты, защищая экономику проекта.
+AI_LONG_COST_CHARS = int(os.getenv("AI_LONG_COST_CHARS", "2200"))
+AI_VERY_LONG_COST_CHARS = int(os.getenv("AI_VERY_LONG_COST_CHARS", "4000"))
+AI_DAILY_FREE_COST_UNITS = int(os.getenv("AI_DAILY_FREE_COST_UNITS", "15"))
+AI_DAILY_PRO_COST_UNITS = int(os.getenv("AI_DAILY_PRO_COST_UNITS", "50"))
+
 # Можно указать несколько ID через запятую: ADMIN_ID=8695214950,123456789
 _admin_ids_raw = os.getenv("ADMIN_ID", "8695214950")
 ADMIN_IDS = [int(x.strip()) for x in _admin_ids_raw.split(",") if x.strip()]
