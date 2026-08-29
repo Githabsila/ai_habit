@@ -228,6 +228,46 @@ style="width:0%">
 
 </div>
 
+<div class="milestones-card" id="milestonesCard">
+
+  <div class="section-heading">
+    <h2>🧭 Моя цель и вехи</h2>
+  </div>
+
+  <div id="milestonesEmpty" class="milestones-empty" hidden>
+    <p>Опиши свою большую цель и разбей её на несколько вех — маленьких шагов к ней.</p>
+    <button type="button" class="btn btn--accent" id="milestonesSetupBtn">Задать цель</button>
+  </div>
+
+  <div id="milestonesContent" hidden>
+    <div class="milestones-goal" id="milestonesGoalText"></div>
+    <ul class="milestone-list" id="milestoneList"></ul>
+    <button type="button" class="milestones-edit-btn" id="milestonesEditBtn">✏️ Изменить цель и вехи</button>
+  </div>
+
+  <form class="milestones-form" id="milestonesForm" hidden>
+    <input type="text" id="milestoneGoalInput" placeholder="Моя большая цель..." autocomplete="off">
+    <div id="milestoneStepsList"></div>
+    <button type="button" class="milestones-add-step-btn" id="milestoneAddStepBtn">+ Добавить веху</button>
+    <div class="milestones-form__actions">
+      <button type="submit" class="btn btn--accent">Сохранить</button>
+      <button type="button" class="btn" id="milestonesCancelBtn">Отмена</button>
+    </div>
+  </form>
+
+</div>
+
+<div class="daily-tasks-card" id="dailyTasksCard">
+
+  <div class="section-heading">
+    <h2>📅 Задания дня</h2>
+    <button type="button" class="daily-bonus-btn" id="dailyBonusBtn" hidden>🎁 Забрать бонус</button>
+  </div>
+
+  <ul class="daily-task-list" id="dailyTaskList"></ul>
+
+</div>
+
 <div class="habits-section-head" aria-label="Привычки">
   <div class="habits-section-title">Привычки</div>
   <div class="habits-section-count" id="habitsProgressLabel">0/0</div>
@@ -363,7 +403,40 @@ class="btn btn--accent">
   </div>
 </div>
 
+<div class="section-heading">
+  <h2>📊 Прогресс</h2>
+</div>
 
+<div class="progress-stats-card" id="progressStatsCard">
+  <div class="progress-stat"><b id="progressStatCompleted">0</b><small>выполнено за неделю</small></div>
+  <div class="progress-stat"><b id="progressStatActiveDays">0/7</b><small>активных дней</small></div>
+  <div class="progress-stat"><b id="progressStatXp">0</b><small>Adam Coin за неделю</small></div>
+</div>
+
+<button type="button" class="progress-ai-btn" id="progressAiBtn">🤖 AI-анализ прогресса</button>
+<div class="progress-ai-result" id="progressAiResult" hidden></div>
+
+<div class="section-heading">
+  <h2>⚙️ Настройки</h2>
+</div>
+
+<div class="settings-card">
+
+  <div class="settings-row">
+    <span>🎭 Стиль AI-наставника</span>
+  </div>
+  <div class="ai-style-picker" id="aiStylePicker">
+    <button type="button" class="ai-style-btn" data-style="soft">🌿 Мягкий</button>
+    <button type="button" class="ai-style-btn" data-style="neutral">⚖️ Нейтральный</button>
+    <button type="button" class="ai-style-btn" data-style="strict">🔥 Жёсткий тренер</button>
+  </div>
+
+  <div class="settings-row settings-row--danger">
+    <span>Сбросить весь прогресс (Adam Coin, уровень, серию, привычки)</span>
+    <button type="button" class="settings-danger-btn" id="resetProgressBtn">🗑 Сбросить</button>
+  </div>
+
+</div>
 
 </section>
 

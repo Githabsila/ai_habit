@@ -21,6 +21,25 @@ def update_reminder_time(user_id, hour, minute):
     conn.close()
 
 
+def toggle_reminders(user_id):
+    """Переключает напоминания вкл/выкл и возвращает новое значение (bool).
+    Логика 1:1 с тем, что раньше делал handlers/settings.py::toggle прямым
+    SQL — вынесено сюда, чтобы им могли пользоваться и бот, и Mini App."""
+    conn = connect()
+    cursor = conn.cursor()
+
+    current = get_settings(user_id)
+    new_value = 0 if (current and current["reminders"]) else 1
+
+    cursor.execute(
+        "UPDATE settings SET reminders=? WHERE user_id=?",
+        (new_value, user_id)
+    )
+    conn.commit()
+    conn.close()
+    return bool(new_value)
+
+
 def update_ai_style(user_id, style):
     """style: 'soft' / 'neutral' / 'strict' — стиль общения AI-наставника."""
     conn = connect()

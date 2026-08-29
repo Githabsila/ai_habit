@@ -145,105 +145,21 @@ def pending_keyboard(users):
 # =====================================
 
 def main_menu():
+    """Панель бота теперь отвечает только за то, что не переехало в
+    Mini App: сама регистрация (анкета, см. handlers/start.py и
+    handlers/onboarding.py — вне этой клавиатуры) и «Основа: умные
+    напоминания». Все остальные разделы (профиль, привычки, задания,
+    прогресс, календарь, AI, рейтинг, достижения, магазин, сообщество,
+    вехи, Premium, стиль AI, сброс прогресса) живут в Mini App —
+    он открывается кнопкой меню Telegram (см. main.py: set_chat_menu_button)."""
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
 
             [
                 InlineKeyboardButton(
-                    text="👤 Профиль",
-                    callback_data="profile"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="🎯 Мои привычки",
-                    callback_data="habits"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="📅 Ежедневные задания",
-                    callback_data="daily"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="📊 Прогресс",
-                    callback_data="progress"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="📅 Календарь",
-                    callback_data="calendar"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="🤖 AI ADAM",
-                    callback_data="ai"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="🏆 Рейтинг",
-                    callback_data="rating"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="🏅 Достижения",
-                    callback_data="achievements"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="🛒 Магазин",
-                    callback_data="shop"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="🎁 Ежедневный бонус",
-                    callback_data="daily_bonus"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="👥 Сообщество",
-                    callback_data="community"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="🧭 Моя цель и вехи",
-                    callback_data="milestones"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="💎 Premium",
-                    callback_data="premium_info"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="⚙️ Настройки",
-                    callback_data="settings"
+                    text="🔔 Умные напоминания",
+                    callback_data="reminders_menu"
                 )
             ]
 
@@ -460,17 +376,20 @@ def back_menu_keyboard():
 
 
 # =====================================
-# НАСТРОЙКИ
+# УМНЫЕ НАПОМИНАНИЯ
 # =====================================
+# Стиль AI-наставника и сброс прогресса переехали в Mini App (Profile →
+# Настройки). В боте из «Настроек» остаётся только то, что относится к
+# самой сути напоминаний — вкл/выкл и время.
 
-def settings_keyboard():
+def reminders_keyboard():
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
 
             [
                 InlineKeyboardButton(
-                    text="🔔 Напоминания",
+                    text="🔔 Вкл/выкл напоминания",
                     callback_data="toggle_reminders"
                 )
             ],
@@ -479,20 +398,6 @@ def settings_keyboard():
                 InlineKeyboardButton(
                     text="🕘 Изменить время",
                     callback_data="change_time"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="🎭 Стиль AI-наставника",
-                    callback_data="ai_style_menu"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="🗑 Сбросить прогресс",
-                    callback_data="reset_progress"
                 )
             ],
 

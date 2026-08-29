@@ -6,16 +6,10 @@ from aiogram.fsm.context import FSMContext
 from db import (
     get_settings,
     update_reminder_time,
-    reset_progress,
-    connect,
-    get_ai_style,
-    update_ai_style,
+    toggle_reminders,
 )
 
-from keyboards import ai_style_keyboard, settings_keyboard, back_menu_keyboard
-
-
-
+from keyboards import reminders_keyboard, back_menu_keyboard
 
 
 router = Router()
@@ -30,11 +24,15 @@ class SettingsState(StatesGroup):
 
 
 # =====================================
-# НАСТРОЙКИ
+# УМНЫЕ НАПОМИНАНИЯ
 # =====================================
+# Единственный раздел, оставшийся в панели бота (см. keyboards.main_menu):
+# вкл/выкл + время. Стиль AI-наставника и сброс прогресса теперь только
+# в Mini App (Profile -> Настройки, /api/settings/ai-style и
+# /api/settings/reset-progress в webapp/webapp_server.py).
 
-@router.callback_query(F.data == "settings")
-async def settings(callback: CallbackQuery):
+@router.callback_query(F.data == "reminders_menu")
+async def reminders_menu(callback: CallbackQuery):
 
     settings_data = get_settings(callback.from_user.id)
 
@@ -49,16 +47,16 @@ async def settings(callback: CallbackQuery):
 
     await callback.message.edit_text(
         f"""
-⚙️ <b>Настройки</b>
+🔔 <b>Умные напоминания</b>
 
-🔔 Напоминания:
+Статус:
 {reminders}
 
 🕒 Время:
 {hour:02}:{minute:02}
 """,
         parse_mode="HTML",
-        reply_markup=settings_keyboard()
+        reply_markup=reminders_keyboard()
     )
 
     await callback.answer()
@@ -71,68 +69,11 @@ async def settings(callback: CallbackQuery):
 @router.callback_query(F.data == "toggle_reminders")
 async def toggle(callback: CallbackQuery):
 
-    conn = connect()
-    cursor = conn.cursor()
-
-    settings_data = get_settings(callback.from_user.id)
-
-    new_value = 0 if settings_data["reminders"] else 1
-
-    cursor.execute(
-        """
-        UPDATE settings
-        SET reminders = ?
-        WHERE user_id = ?
-        """,
-        (
-            new_value,
-            callback.from_user.id
-        )
-    )
-
-    conn.commit()
-    conn.close()
+    toggle_reminders(callback.from_user.id)
 
     await callback.answer("✅ Настройки сохранены")
 
-    await settings(callback)
-
-
-# =====================================
-# СТИЛЬ AI-НАСТАВНИКА
-# =====================================
-
-@router.callback_query(F.data == "ai_style_menu")
-async def ai_style_menu(callback: CallbackQuery):
-
-    current = get_ai_style(callback.from_user.id)
-
-    await callback.message.edit_text(
-        """
-🎭 <b>Стиль AI-наставника</b>
-
-Выбери, как с тобой должен говорить AI-коуч:
-
-🌿 <b>Мягкий</b> — бережно, с поддержкой, без давления
-⚖️ <b>Нейтральный</b> — сбалансированный тон (по умолчанию)
-🔥 <b>Жёсткий тренер</b> — прямо, требовательно, без сюсюканья
-""",
-        parse_mode="HTML",
-        reply_markup=ai_style_keyboard(current)
-    )
-
-    await callback.answer()
-
-
-@router.callback_query(F.data.in_({"ai_style_soft", "ai_style_neutral", "ai_style_strict"}))
-async def ai_style_select(callback: CallbackQuery):
-
-    style = callback.data.removeprefix("ai_style_")
-    update_ai_style(callback.from_user.id, style)
-
-    await callback.answer("✅ Стиль сохранён")
-
-    await ai_style_menu(callback)
+    await reminders_menu(callback)
 
 
 # =====================================
@@ -200,21 +141,3 @@ async def save_time(message: Message, state: FSMContext):
 """,
         reply_markup=back_menu_keyboard()
     )
-
-
-# =====================================
-# СБРОС ПРОГРЕССА
-# =====================================
-
-@router.callback_query(F.data == "reset_progress")
-async def reset(callback: CallbackQuery):
-
-    reset_progress(callback.from_user.id)
-
-    await callback.answer(
-        "✅ Прогресс успешно сброшен.",
-        show_alert=True
-    )
-
-
-# ==============================

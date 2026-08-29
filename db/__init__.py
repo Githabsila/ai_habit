@@ -31,6 +31,7 @@ from .users import (
 from .settings import (
     get_settings,
     update_reminder_time,
+    toggle_reminders,
     update_ai_style,
     get_ai_style,
     update_theme,
@@ -162,7 +163,7 @@ __all__ = [
     "set_referrer", "add_referral", "get_referrals",
     "get_rating", "get_user_rank", "claim_daily_bonus",
     "get_last_ai_message_at", "touch_last_ai_message", "claim_ai_first_message",
-    "get_settings", "update_reminder_time", "update_ai_style", "get_ai_style",
+    "get_settings", "update_reminder_time", "toggle_reminders", "update_ai_style", "get_ai_style",
     "add_habit", "get_habits", "get_habit", "edit_habit", "delete_habit",
     "reset_habits", "update_streak", "complete_habit", "get_progress",
     "get_incomplete_habits", "log_daily_habits", "get_weekly_habit_breakdown",

@@ -15,7 +15,7 @@ from db import (
     get_user, add_user, is_banned, get_access_status, set_access_status,
     get_habits, get_habit, add_habit, edit_habit, delete_habit,
     complete_habit, get_progress, get_settings,
-    update_reminder_time, update_ai_style, get_ai_style,
+    update_reminder_time, toggle_reminders, update_ai_style, get_ai_style,
     get_shop_items, buy_shop_item, get_user_items,
     has_item, get_item_owner_ids, update_theme, get_theme,
     get_rating, get_calendar, get_achievements,
@@ -23,7 +23,16 @@ from db import (
     get_daily_plan, save_daily_plan, set_daily_main_goal, delete_daily_main_goal, toggle_daily_main_goal, add_daily_task, update_daily_plan_task, delete_daily_task, toggle_daily_task,
     get_streak_status, set_timezone, buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
     should_show_onboarding, onboarding_message, mark_onboarding_seen, consume_completion_event,
+    create_daily_tasks, get_daily_tasks, claim_daily_bonus,
+    get_weekly_summary, get_statistics,
+    get_milestones, save_milestones, toggle_milestone,
+    reset_progress,
+    cache_get, cache_set, log_error,
 )
+
+from datetime import date
+from multi_agent import generate_progress_analysis
+from webapp.services.ai_utils import build_user_context
 
 logger = logging.getLogger("webapp")
 BASE_DIR = Path(__file__).parent
@@ -395,6 +404,141 @@ async def set_theme(request):
     if not update_theme(telegram_id, theme):
         return web.json_response({"error": "invalid_theme"}, status=400)
 
+    return web.json_response({"ok": True})
+
+@routes.post("/api/settings/reminders/toggle")
+async def toggle_reminders_route(request):
+    telegram_id, _ = await _authenticate(request)
+    enabled = toggle_reminders(telegram_id)
+    return web.json_response({"ok": True, "reminders": enabled})
+
+@routes.post("/api/settings/reset-progress")
+async def reset_progress_route(request):
+    telegram_id, _ = await _authenticate(request)
+    reset_progress(telegram_id)
+    return web.json_response({"ok": True})
+
+# ====================== ЕЖЕДНЕВНЫЕ ЗАДАНИЯ / БОНУС ======================
+
+def _serialize_daily_tasks(tasks):
+    return [
+        {
+            "id": t["id"],
+            "task": t["task"],
+            "progress": t["progress"],
+            "goal": t["goal"],
+            "reward": t["reward"],
+            "completed": bool(t["completed"]),
+        }
+        for t in tasks
+    ]
+
+@routes.get("/api/daily-tasks")
+async def daily_tasks_route(request):
+    telegram_id, _ = await _authenticate(request)
+    tasks = get_daily_tasks(telegram_id)
+    if not tasks:
+        create_daily_tasks(telegram_id)
+        tasks = get_daily_tasks(telegram_id)
+    user = get_user(telegram_id)
+    bonus_available = (user["bonus_date"] if user and "bonus_date" in user.keys() else None) != str(date.today())
+    return web.json_response({
+        "tasks": _serialize_daily_tasks(tasks),
+        "bonus_available": bonus_available,
+    })
+
+@routes.post("/api/daily-bonus/claim")
+async def daily_bonus_claim_route(request):
+    telegram_id, _ = await _authenticate(request)
+    claimed = claim_daily_bonus(telegram_id)
+    user = get_user(telegram_id)
+    return web.json_response({
+        "ok": claimed,
+        "xp": user["xp"] if user else 0,
+    })
+
+# ====================== ПРОГРЕСС ======================
+
+@routes.get("/api/progress/stats")
+async def progress_stats_route(request):
+    telegram_id, _ = await _authenticate(request)
+    weekly = get_weekly_summary(telegram_id)
+    stats = get_statistics(telegram_id)
+    total_completed = sum(row["completed"] for row in stats) if stats else 0
+    total_xp = sum(row["gained_xp"] for row in stats) if stats else 0
+    return web.json_response({
+        "weekly": weekly,
+        "last30": {
+            "completed": total_completed,
+            "xp": total_xp,
+            "entries": len(stats) if stats else 0,
+        },
+    })
+
+@routes.post("/api/progress/ai-analysis")
+async def progress_ai_analysis_route(request):
+    telegram_id, _ = await _authenticate(request)
+
+    cache_key = f"panalysis:{telegram_id}:{date.today()}"
+    text = cache_get(cache_key)
+
+    if text is None:
+        weekly = get_weekly_summary(telegram_id)
+        weekly_text = (
+            f"Выполнено привычек: {weekly['completed']}, "
+            f"активных дней: {weekly['active_days']}/7, "
+            f"получено Adam Coin: {weekly['xp']}."
+        )
+        user_context = build_user_context(telegram_id)
+        style = get_ai_style(telegram_id)
+
+        try:
+            text = await generate_progress_analysis(user_context, weekly_text, style)
+        except Exception as e:
+            logger.exception(f"Не удалось сформировать AI-анализ прогресса для {telegram_id}")
+            log_error("progress_analysis", e, telegram_id)
+            return web.json_response({"error": "analysis_failed"}, status=502)
+
+        if text and "[ошибка агента" not in text:
+            cache_set(cache_key, text)
+
+    return web.json_response({"text": text})
+
+# ====================== МОЯ ЦЕЛЬ И ВЕХИ ======================
+
+@routes.get("/api/milestones")
+async def milestones_route(request):
+    telegram_id, _ = await _authenticate(request)
+    rows = get_milestones(telegram_id)
+    return web.json_response({
+        "goal_text": rows[0]["goal_text"] if rows else "",
+        "milestones": [
+            {"id": m["id"], "text": m["milestone_text"], "done": bool(m["done"])}
+            for m in rows
+        ],
+    })
+
+@routes.post("/api/milestones")
+async def save_milestones_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    goal_text = (body.get("goal_text") or "").strip()
+    milestones = body.get("milestones") or []
+    if not goal_text:
+        return web.json_response({"error": "empty_goal"}, status=400)
+    if not isinstance(milestones, list) or not milestones:
+        return web.json_response({"error": "empty_milestones"}, status=400)
+    save_milestones(telegram_id, goal_text, [str(m).strip() for m in milestones if str(m).strip()])
+    return web.json_response({"ok": True})
+
+@routes.post("/api/milestones/{milestone_id}/toggle")
+async def toggle_milestone_route(request):
+    telegram_id, _ = await _authenticate(request)
+    try:
+        milestone_id = int(request.match_info["milestone_id"])
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_id"}, status=400)
+    toggle_milestone(milestone_id, telegram_id)
     return web.json_response({"ok": True})
 
 @routes.post("/api/plan/save")
