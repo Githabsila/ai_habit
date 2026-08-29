@@ -6396,11 +6396,20 @@ section[data-tab="profile"] .section-heading h2::first-letter{
    specificity so the badge only appears once a real reward exists. */
 .streak-profile-frame[hidden]{display:none!important}
 
-/* ====== FIX: streak hero card was oversized — shrink it uniformly at every
-   width. This wins over the earlier (bigger) definitions above because it
-   comes last in the file with matching or higher specificity + !important. ====== */
+
+/* ====== FIX: streak hero card — force a clean horizontal row layout.
+   Placed last on purpose: several earlier passes left conflicting
+   display/flex/grid rules on .streak-profile-card--premium above (some
+   !important). Everything below is deliberately explicit — including
+   `display` and `align-items`, which earlier fixes forgot to restate —
+   so this always wins regardless of what's above it. ====== */
 .streak-profile-card--premium{
+  display:grid !important;
   grid-template-columns:48px minmax(0,1fr) !important;
+  grid-template-rows:none !important;
+  align-items:center !important;
+  justify-items:stretch !important;
+  text-align:left !important;
   min-height:auto !important;
   padding:14px 16px !important;
   gap:12px !important;
@@ -6409,6 +6418,8 @@ section[data-tab="profile"] .section-heading h2::first-letter{
 .streak-profile-avatar-wrap{
   width:48px !important;
   height:48px !important;
+  margin:0 !important;
+  grid-column:1 !important;
 }
 .streak-profile-ring{
   inset:-2px !important;
@@ -6419,15 +6430,26 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   border-radius:14px !important;
   font-size:16px !important;
 }
+.streak-profile-info{
+  grid-column:2 !important;
+  display:block !important;
+  text-align:left !important;
+  min-width:0 !important;
+}
 .streak-profile-kicker{
   font-size:8px !important;
   margin-bottom:2px !important;
+  text-align:left !important;
 }
 .streak-profile-status{
   font-size:14px !important;
   margin-top:2px !important;
+  text-align:left !important;
 }
 .streak-profile-days{
+  display:flex !important;
+  align-items:baseline !important;
+  justify-content:flex-start !important;
   margin-top:2px !important;
   gap:4px !important;
 }
@@ -6446,6 +6468,7 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   margin-top:6px !important;
   padding:5px 9px !important;
   font-size:9px !important;
+  text-align:left !important;
 }
 .streak-profile-fire{
   right:12px !important;
