@@ -46,8 +46,13 @@ def ensure_tables():
         freeze_purchased_week TEXT,
         freeze_purchased_count INTEGER DEFAULT 0,
         temp_frame TEXT,
-        temp_status TEXT
+        temp_status TEXT,
+        bonus_window_until TEXT
     )""")
+    c.execute("PRAGMA table_info(streak_meta)")
+    streak_meta_cols = {r[1] for r in c.fetchall()}
+    if "bonus_window_until" not in streak_meta_cols:
+        c.execute("ALTER TABLE streak_meta ADD COLUMN bonus_window_until TEXT")
     c.execute("""CREATE TABLE IF NOT EXISTS streak_days(
         user_id INTEGER NOT NULL,
         day TEXT NOT NULL,
@@ -522,6 +527,42 @@ def release_notification(user_id, day, kind, scope="default"):
     c.execute(
         "DELETE FROM streak_notifications WHERE user_id=? AND day=? AND kind=?",
         (user_id, day, scoped_kind),
+    )
+    conn.commit()
+    conn.close()
+
+
+# =====================================
+# ОКНО УДВОЕНИЯ Adam Coin ЗА ПООЧЕРЁДНОЕ ВЫПОЛНЕНИЕ ПРИВЫЧЕК
+# =====================================
+# Пром 8: каждая отметка привычки (кроме случая, когда открытых больше не
+# осталось) открывает/продлевает 30-минутное окно, в течение которого
+# СЛЕДУЮЩАЯ отмеченная привычка приносит удвоенные монеты. Храним как
+# простую метку времени в UTC — механика короткая (30 минут), часовой пояс
+# пользователя тут не принципиален.
+
+def get_bonus_window(user_id):
+    """Возвращает datetime окончания окна удвоения или None, если оно не
+    открыто (либо ещё не было отметок, либо уже явно очищено)."""
+    ensure_tables()
+    row = _meta(user_id)
+    until = row["bonus_window_until"] if row else None
+    if not until:
+        return None
+    try:
+        return datetime.fromisoformat(until)
+    except ValueError:
+        return None
+
+
+def set_bonus_window(user_id, until_dt):
+    """until_dt: datetime окончания окна, либо None, чтобы закрыть окно
+    (например, когда незакрытых привычек больше не осталось)."""
+    ensure_tables()
+    conn = connect()
+    conn.execute(
+        "UPDATE streak_meta SET bonus_window_until=? WHERE user_id=?",
+        (until_dt.isoformat() if until_dt else None, user_id),
     )
     conn.commit()
     conn.close()

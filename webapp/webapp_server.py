@@ -9,7 +9,10 @@ from aiohttp.web import Application
 from config import BOT_TOKEN, ADMIN_IDS
 from webapp.telegram_auth import validate_init_data
 from webapp.services.ai_coach import ask_ai
-from adam_messages import format_all_tasks_done_message, format_main_goal_done_message
+from adam_messages import (
+    format_all_tasks_done_message, format_main_goal_done_message,
+    format_secondary_task_praise, SECONDARY_TASK_PRAISE_STRICT_DAYS, SECONDARY_TASK_PRAISE_STRICT_COUNT,
+)
 
 from db.core import DATA_DIR
 
@@ -30,9 +33,11 @@ from db import (
     get_milestones, save_milestones, toggle_milestone,
     reset_progress,
     cache_get, cache_set, log_error,
+    get_bonus_window,
+    get_secondary_task_praise_state, record_secondary_task_praise,
 )
 
-from datetime import date
+from datetime import date, datetime
 from multi_agent import generate_progress_analysis
 from webapp.services.ai_utils import build_user_context
 
@@ -151,6 +156,13 @@ async def bootstrap(request):
     daily_plan = get_daily_plan(telegram_id)
     streak = get_streak_status(telegram_id)
 
+    # Пром 8: если мини-апп перезагрузили посреди активного окна удвоения
+    # Adam Coin, бейдж с обратным отсчётом должен восстановиться, а не
+    # пропасть до следующей отметки привычки.
+    bonus_until_dt = get_bonus_window(telegram_id)
+    has_incomplete_habits = any(not h["completed"] for h in habits)
+    bonus_active = bool(bonus_until_dt and bonus_until_dt > datetime.utcnow() and has_incomplete_habits)
+
     return web.json_response({
         "user": {
             "telegram_id": telegram_id,
@@ -196,6 +208,10 @@ async def bootstrap(request):
                 {"id": t["id"], "text": t["text"], "completed": bool(t["completed"])}
                 for t in daily_plan["tasks"]
             ],
+        },
+        "bonus_window": {
+            "active": bonus_active,
+            "until": bonus_until_dt.isoformat() if bonus_active else None,
         },
     })
 
@@ -329,11 +345,24 @@ async def complete_habit_route(request):
             await _push(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{phrase}")
         except Exception:
             logger.exception("Не удалось отправить streak-сообщение")
+
+    # Промт п.8: окно удвоения Adam Coin показываем большим окном только
+    # ОДИН раз в день — сразу после самой первой привычки (event не пуст
+    # только в этот момент), и только если есть чем его продолжать
+    # (2+ привычки и ещё остались незакрытые). Дальнейшие повторные
+    # открытия окна происходят молча — их отражает bonus_active/coins.
+    show_bonus_intro = bool(event) and bool(success["bonus_active"])
+
     return web.json_response({
         "ok": True,
         "progress": get_progress(telegram_id),
         "streak": streak,
         "streak_event": event,
+        "coins": success["coins"],
+        "doubled": success["doubled"],
+        "bonus_active": success["bonus_active"],
+        "bonus_until": success["bonus_until"],
+        "show_bonus_intro": show_bonus_intro,
     })
 
 @routes.delete("/api/habits/{habit_id}")
@@ -570,8 +599,10 @@ async def toggle_plan_task_route(request):
         return web.json_response({"error": "invalid_task_id"}, status=400)
 
     plan = get_daily_plan(telegram_id)
-    if task_id not in {t["id"] for t in plan["tasks"]}:
+    task = next((t for t in plan["tasks"] if t["id"] == task_id), None)
+    if task is None:
         raise web.HTTPNotFound()
+    was_completed = bool(task["completed"])
 
     toggle_daily_task(task_id)
 
@@ -582,6 +613,29 @@ async def toggle_plan_task_route(request):
     message = None
     if tasks and all(t["completed"] for t in tasks):
         message = format_all_tasks_done_message()
+    elif not was_completed:
+        # Промт п.7.1: короткая похвала за КАЖДУЮ отдельную второстепенную
+        # задачу (кроме случая выше, когда это была последняя — там уже
+        # общее поздравление). Не повторяется в течение дня; в первые
+        # 3 дня использования/15 показов — не повторяется вовсе.
+        user = get_user(telegram_id)
+        name = (user["first_name"] if user else "") or ""
+        praise_state = get_secondary_task_praise_state(telegram_id)
+        account_age_days = 0
+        created_at = user["created_at"] if user and "created_at" in user.keys() else None
+        if created_at:
+            try:
+                account_age_days = (datetime.utcnow() - datetime.fromisoformat(str(created_at))).days
+            except ValueError:
+                account_age_days = 0
+        strict_mode = (
+            account_age_days < SECONDARY_TASK_PRAISE_STRICT_DAYS
+            and praise_state["total"] < SECONDARY_TASK_PRAISE_STRICT_COUNT
+        )
+        key, message = format_secondary_task_praise(
+            name, praise_state["used_today"], praise_state["used_ever"], strict_mode
+        )
+        record_secondary_task_praise(telegram_id, key)
 
     return web.json_response({"ok": True, "message": message})
 

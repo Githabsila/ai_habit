@@ -219,6 +219,22 @@ def create_tables():
     )
     """)
 
+    # Журнал похвал за второстепенные задачи плана дня (пром 7.1) — нужен,
+    # чтобы короткие поощрения не повторялись в течение дня, а в первые
+    # 3 дня/15 отметок не повторялись вовсе. См. db/task_praise.py.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS secondary_task_praise_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        message_key TEXT NOT NULL,
+        day TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_secondary_task_praise_user ON secondary_task_praise_log(user_id, day)"
+    )
+
     # ---------------- SHOP ----------------
 
     cursor.execute("""

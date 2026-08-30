@@ -669,3 +669,6 @@ def premium_buy_keyboard():
 
 
 
+
+# Backward-compatible alias used by onboarding.py
+pending_review_keyboard = pending_keyboard

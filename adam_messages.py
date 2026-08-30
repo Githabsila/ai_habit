@@ -255,6 +255,61 @@ def format_goal_reminder_message(goal: str) -> str:
     return pick(GOAL_REMINDER_TEMPLATES, pool=TASK_EMOJIS, goal=goal)
 
 
+# =====================================
+# КОРОТКАЯ ПОХВАЛА ЗА ВТОРОСТЕПЕННУЮ ЗАДАЧУ (пром 7.1)
+# =====================================
+# Короче, чем поздравление за главную задачу/весь план. Ключ у каждой
+# фразы стабильный (используется для истории показов — см.
+# db/task_praise.py), поэтому индексы менять нельзя, можно только
+# дописывать новые в конец.
+
+SECONDARY_TASK_PRAISE = [
+    ("secondary_praise_01", "Так держать!"),
+    ("secondary_praise_02", "Классно выполнено!"),
+    ("secondary_praise_03", "Отлично сделано!"),
+    ("secondary_praise_04", "Не знал, что ты так можешь!"),
+    ("secondary_praise_05", "Чётко сделано!"),
+    ("secondary_praise_06", "Супер!"),
+    ("secondary_praise_07", "Прекрасно выполнено!"),
+    ("secondary_praise_08", "Классный результат!"),
+    ("secondary_praise_09", "Отлично!"),
+    ("secondary_praise_10", "Круто, {name}!"),
+    ("secondary_praise_11", "Замечательно!"),
+    ("secondary_praise_12", "Ура, {name}!"),
+    ("secondary_praise_13", "Браво!"),
+    ("secondary_praise_14", "Превосходно!"),
+    ("secondary_praise_15", "Вот так-то лучше!"),
+]
+
+# После 3 дней использования ИЛИ 15 показанных похвал (что наступит
+# раньше) повторы уже разрешены — до этого момента каждая фраза из пула
+# показывается не больше одного раза.
+SECONDARY_TASK_PRAISE_STRICT_DAYS = 3
+SECONDARY_TASK_PRAISE_STRICT_COUNT = 15
+
+
+def format_secondary_task_praise(name, used_today, used_ever, strict_mode) -> tuple[str, str]:
+    """Возвращает (ключ, текст) короткой похвалы.
+
+    used_today/used_ever — множества уже показанных ключей (за сегодня и за
+    всё время). strict_mode=True запрещает повтор чего-либо из used_ever,
+    не только used_today (первые 3 дня/15 показов — см. константы выше)."""
+    name = (name or "").strip() or "Игрок"
+
+    candidates = [item for item in SECONDARY_TASK_PRAISE if item[0] not in used_today]
+    if strict_mode:
+        never_shown = [item for item in candidates if item[0] not in used_ever]
+        if never_shown:
+            candidates = never_shown
+    if not candidates:
+        # Пул исчерпан даже без учёта used_today (маловероятно — в пуле 15
+        # фраз) — берём весь пул, чтобы не остаться без ответа.
+        candidates = SECONDARY_TASK_PRAISE
+
+    key, template = random.choice(candidates)
+    return key, template.format(name=name)
+
+
 MAIN_GOAL_DONE_TEMPLATES = [
     "Главная задача закрыта. Отлично — теперь можно переключиться на остальное без этого груза {emoji}",
     "Ты выполнил главную задачу дня. Хороший ход — самое важное уже позади {emoji}",

@@ -84,6 +84,29 @@
     }
   }
 
+  // Короткий приятный "дзынь" для микро-побед (похвала за задачу, монеты,
+  // бонусное окно) — не громкий системный звук, а мягкий синтезированный
+  // тон через WebAudio, чтобы не требовать отдельного аудиофайла.
+  function playChime(variant) {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      const [from, to] = variant === "bonus" ? [620, 980] : [520, 820];
+      osc.frequency.setValueAtTime(from, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(to, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.2);
+      osc.onended = () => ctx.close();
+    } catch (_) {}
+  }
+
   // ===================== API =====================
   let bootstrapPromise = null;
 
@@ -184,6 +207,8 @@
     renderHabits();
     renderPlan();
     renderStreak();
+    const bw = state?.bonus_window;
+    setBonusWindow(bw && bw.active ? bw.until : null);
     maybeShowStreakOnboarding();
 
     // Второстепенные вкладки дорисовываем после первого кадра, когда браузер
@@ -412,24 +437,8 @@
     overlay.setAttribute("aria-hidden", "false");
     requestAnimationFrame(() => overlay.classList.add("show"));
     haptic("medium");
-    try {
-      if (navigator.vibrate) navigator.vibrate([35, 25, 55]);
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (Ctx) {
-        const ctx = new Ctx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(520, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(820, ctx.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.start(); osc.stop(ctx.currentTime + 0.2);
-        osc.onended = () => ctx.close();
-      }
-    } catch (_) {}
+    try { if (navigator.vibrate) navigator.vibrate([35, 25, 55]); } catch (_) {}
+    playChime();
     const fire = document.getElementById("streakCelebrationFire");
     fire?.classList.remove("ignite");
     requestAnimationFrame(() => fire?.classList.add("ignite"));
@@ -445,6 +454,70 @@
     overlay.setAttribute("aria-hidden", "true");
     clearTimeout(streakCelebrationTimer);
     setTimeout(() => { overlay.hidden = true; }, 350);
+  }
+
+  // ===================== ДВОЙНЫЕ ADAM COIN (промт 8) =====================
+  // После самой первой привычки дня (если у пользователя 2+ привычки)
+  // показываем один раз большое окно с объяснением. Дальше механика
+  // (удвоение + продление на 30 минут при каждой следующей отметке, пока
+  // остаются незакрытые привычки) работает молча — её отражает бейдж с
+  // обратным отсчётом и подпись "×2" в тосте с монетами.
+  let pendingBonusIntro = false;
+  let bonusWindowUntil = null;
+  let bonusCountdownTimer = null;
+
+  function updateBonusBadge() {
+    const badge = document.getElementById("doubleBonusBadge");
+    const timerEl = document.getElementById("doubleBonusTimer");
+    if (!badge) return;
+    if (!bonusWindowUntil) {
+      badge.hidden = true;
+      clearInterval(bonusCountdownTimer);
+      bonusCountdownTimer = null;
+      return;
+    }
+    const msLeft = bonusWindowUntil.getTime() - Date.now();
+    if (msLeft <= 0) {
+      bonusWindowUntil = null;
+      badge.hidden = true;
+      clearInterval(bonusCountdownTimer);
+      bonusCountdownTimer = null;
+      return;
+    }
+    badge.hidden = false;
+    const totalSec = Math.ceil(msLeft / 1000);
+    const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
+    const ss = String(totalSec % 60).padStart(2, "0");
+    if (timerEl) timerEl.textContent = `${mm}:${ss}`;
+  }
+
+  function setBonusWindow(untilIso) {
+    bonusWindowUntil = untilIso ? new Date(untilIso) : null;
+    clearInterval(bonusCountdownTimer);
+    bonusCountdownTimer = null;
+    updateBonusBadge();
+    if (bonusWindowUntil) {
+      bonusCountdownTimer = setInterval(updateBonusBadge, 1000);
+    }
+  }
+
+  function openBonusIntro() {
+    const overlay = document.getElementById("doubleBonusOverlay");
+    if (!overlay) return;
+    overlay.hidden = false;
+    overlay.setAttribute("aria-hidden", "false");
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    haptic("medium");
+    try { if (navigator.vibrate) navigator.vibrate([30, 40, 30, 40, 70]); } catch (_) {}
+    playChime("bonus");
+  }
+
+  function closeBonusIntro() {
+    const overlay = document.getElementById("doubleBonusOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { overlay.hidden = true; }, 300);
   }
 
   function maybeShowStreakOnboarding() {
@@ -490,7 +563,14 @@
       if (!day) return;
       showToast(day.getAttribute("title") || "День серии", "success", 1800);
     });
-    document.getElementById("streakCelebrationContinue")?.addEventListener("click", closeStreakCelebration);
+    document.getElementById("streakCelebrationContinue")?.addEventListener("click", () => {
+      closeStreakCelebration();
+      if (pendingBonusIntro) {
+        pendingBonusIntro = false;
+        setTimeout(openBonusIntro, 380);
+      }
+    });
+    document.getElementById("doubleBonusContinue")?.addEventListener("click", closeBonusIntro);
     document.getElementById("streakOnboardingContinue")?.addEventListener("click", closeStreakOnboarding);
     document.getElementById("shareAchievementBtn")?.addEventListener("click", async () => {
       const days = Number(state?.streak?.days || 0);
@@ -596,6 +676,14 @@
     el.className = "toast is-visible" + (kind ? " is-" + kind : "");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.classList.remove("is-visible"); }, duration || 2200);
+    // Промт 7.1: короткие микро-победы (похвала за задачу, монеты за
+    // привычку) сопровождаются вибрацией и мягким звуком — обычные тосты
+    // (сохранено, ошибка и т.п.) молчат, чтобы не звенеть по любому поводу.
+    if (kind === "praise") {
+      haptic("light");
+      try { if (navigator.vibrate) navigator.vibrate([25, 20, 25]); } catch (_) {}
+      playChime();
+    }
   }
 
   // ===================== PROFILE AVATAR / FRAMES =====================
@@ -1157,8 +1245,10 @@ function initHabitActions() {
         const result = await api(`/api/habits/${habitId}/complete`, { method: "POST" });
         haptic("medium");
         await loadBootstrap();
-        showToast("+10 Adam Coin", "success");
+        const coinText = `+${result.coins || 10} Adam Coin` + (result.doubled ? " ⚡️×2" : "");
+        showToast(coinText, "praise");
         if (result.streak_event) {
+          pendingBonusIntro = !!result.show_bonus_intro;
           openStreakCelebration(result.streak_event);
         }
       } else if (action === "delete") {
@@ -1426,7 +1516,7 @@ function initPlanActions() {
     if (e.target.classList.contains("plan-toggle--main")) {
       try {
         const res = await api("/api/plan/main/toggle", { method: "POST" });
-        if (res && res.message) showToast(res.message, "success", 4500);
+        if (res && res.message) showToast(res.message, "praise", 4500);
         await loadBootstrap();
       } catch (err) {
         showToast(friendlyError(err), "error");
@@ -1438,7 +1528,7 @@ function initPlanActions() {
           method: "POST",
           body: JSON.stringify({ task_id: e.target.dataset.id })
         });
-        if (res && res.message) showToast(res.message, "success", 4500);
+        if (res && res.message) showToast(res.message, "praise", 4500);
         await loadBootstrap();
       } catch (err) {
         showToast(friendlyError(err), "error");

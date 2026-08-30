@@ -264,7 +264,8 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
             if done:
                 event = consume_completion_event(user_id)
                 extra = f"\n\n🔥 +1 день ударного режима!\n{event['message']}" if event else ""
-                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!{extra}"
+                coin_line = f"⭐ +{done['coins']} Adam Coin" + (" (×2 — успей закрыть ещё одну!)" if done["doubled"] else "")
+                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!\n{coin_line}{extra}"
             return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
         if ambiguous:
             return _ambiguous_reply(ambiguous)
@@ -278,7 +279,8 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
             if done:
                 event = consume_completion_event(user_id)
                 extra = f"\n\n🔥 +1 день ударного режима!\n{event['message']}" if event else ""
-                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!{extra}"
+                coin_line = f"⭐ +{done['coins']} Adam Coin" + (" (×2 — успей закрыть ещё одну!)" if done["doubled"] else "")
+                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!\n{coin_line}{extra}"
             return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
         if len(habits) > 1:
             return "🤔 У тебя несколько привычек — уточни, какую из них: напиши «выполни привычку <название>»."
@@ -422,7 +424,8 @@ async def try_handle_habit_intent_ai(user_id: int, text: str) -> str | None:
             return None
         done = complete_habit(habit["id"])
         if done:
-            return f"🔥 Привычка «{habit['title']}» отмечена выполненной!"
+            coin_line = f"⭐ +{done['coins']} Adam Coin" + (" (×2 — успей закрыть ещё одну!)" if done["doubled"] else "")
+            return f"🔥 Привычка «{habit['title']}» отмечена выполненной!\n{coin_line}"
         return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
 
     if action == "delete_habit":

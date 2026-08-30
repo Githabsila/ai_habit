@@ -1446,6 +1446,39 @@ box-shadow:
 }
 .toast.is-success::before{ background:var(--green); box-shadow:0 0 10px var(--green); }
 
+.toast.is-praise {
+    border-color:rgba(255,180,64,.5);
+    box-shadow:
+        0 12px 40px rgba(255,150,40,.28),
+        0 2px 8px rgba(0,0,0,.25),
+        inset 0 1px 0 rgba(255,255,255,.12);
+}
+.toast.is-praise::before{ background:#FFB840; box-shadow:0 0 10px #FFB840; }
+
+/* ===================== ДВОЙНЫЕ ADAM COIN (промт 8) ===================== */
+.double-bonus-badge{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    width:fit-content;
+    margin:8px 0 4px;
+    padding:7px 14px;
+    border-radius:999px;
+    background:linear-gradient(135deg, rgba(255,138,0,.22), rgba(239,68,68,.16));
+    border:1px solid rgba(255,150,40,.4);
+    color:#FFC876;
+    font-size:13px;
+    font-weight:700;
+    animation:doubleBonusPulse 1.8s ease-in-out infinite;
+}
+.double-bonus-badge[hidden]{ display:none; }
+.double-bonus-badge__icon{ font-size:14px; }
+@keyframes doubleBonusPulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(255,150,40,.35); }
+    50%{ box-shadow:0 0 0 6px rgba(255,150,40,0); }
+}
+.double-bonus-icon{ filter:drop-shadow(0 0 20px rgba(255,190,60,.6)); }
+
 /* ===================== LOADING ===================== */
 .loading-overlay {
   position: fixed;

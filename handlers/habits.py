@@ -289,12 +289,17 @@ async def complete(callback: CallbackQuery):
         "✅ Выполнено"
     )
 
+    coin_line = f"⭐ +{success['coins']} Adam Coin" + (" ⚡️×2" if success["doubled"] else "")
+    bonus_line = (
+        "\n⚡️ Двойные Adam Coin активны 30 минут — успей закрыть ещё одну привычку!"
+        if success["bonus_active"] else ""
+    )
     text += f"""
 
 ━━━━━━━━━━━━━━
 
-⭐ +10 Adam Coin
-
+{coin_line}
+{bonus_line}
 🏆 Уровень: {user['level']}
 
 🔥 Серия: {day_phrase(user['streak'])}

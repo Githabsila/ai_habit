@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 from .core import connect
 from .users import get_user, add_xp
@@ -6,6 +6,10 @@ from .statistics import add_statistics
 from .calendar import update_calendar
 from .daily_tasks import update_daily_task
 from .achievements import check_achievements
+
+# Пром 8: базовая награда за привычку и длительность окна удвоения.
+BASE_HABIT_COINS = 10
+BONUS_WINDOW_MINUTES = 30
 
 
 # =====================================
@@ -179,6 +183,8 @@ def update_streak(user_id):
 # =====================================
 
 def complete_habit(habit_id):
+    from .streak import get_bonus_window, set_bonus_window
+
     conn = connect()
     cursor = conn.cursor()
 
@@ -193,32 +199,62 @@ def complete_habit(habit_id):
         conn.close()
         return False
 
+    user_id = habit["user_id"]
+
     cursor.execute("UPDATE habits SET completed=1 WHERE id=?", (habit_id,))
 
     cursor.execute("""
         UPDATE users SET total_completed = total_completed + 1
         WHERE telegram_id=?
-    """, (habit["user_id"],))
+    """, (user_id,))
 
-    cursor.execute("SELECT COUNT(*) AS cnt FROM habits WHERE user_id=?", (habit["user_id"],))
+    cursor.execute("SELECT COUNT(*) AS cnt FROM habits WHERE user_id=?", (user_id,))
     total_habits = cursor.fetchone()["cnt"]
+
+    cursor.execute("SELECT COUNT(*) AS cnt FROM habits WHERE user_id=? AND completed=0", (user_id,))
+    remaining_incomplete = cursor.fetchone()["cnt"]
 
     conn.commit()
     conn.close()
 
+    # Пром 8: удвоение Adam Coin за поочерёдное выполнение привычек.
+    # Если на момент этой отметки было открыто окно (открытое предыдущей
+    # отметкой) — эта привычка приносит удвоенные монеты. Затем окно
+    # заново открывается на 30 минут вперёд, но только если у пользователя
+    # больше одной привычки и после этой отметки ещё остались незакрытые —
+    # иначе продлевать нечего, и функцию не показываем вовсе.
+    now = datetime.utcnow()
+    window_until = get_bonus_window(user_id)
+    doubled = bool(window_until and now < window_until)
+    coins = BASE_HABIT_COINS * (2 if doubled else 1)
+
+    if total_habits > 1 and remaining_incomplete > 0:
+        new_window_until = now + timedelta(minutes=BONUS_WINDOW_MINUTES)
+        set_bonus_window(user_id, new_window_until)
+    else:
+        new_window_until = None
+        set_bonus_window(user_id, None)
+
     # Перед первым действием нового локального дня проверяем вчерашний день,
     # применяем freeze или сбрасываем серию, затем считаем сегодняшний день.
     from .streak import rollover_user
-    rollover_user(habit["user_id"])
-    update_streak(habit["user_id"])
-    add_xp(habit["user_id"], 10)
-    add_statistics(habit["user_id"], completed=1, xp=10)
-    update_calendar(habit["user_id"], total_habits)
-    update_daily_task(habit["user_id"], "Выполнить привычку")
-    update_daily_task(habit["user_id"], "Получить 20 Adam Coin", 10)
-    check_achievements(habit["user_id"])
+    rollover_user(user_id)
+    update_streak(user_id)
+    add_xp(user_id, coins)
+    add_statistics(user_id, completed=1, xp=coins)
+    update_calendar(user_id, total_habits)
+    update_daily_task(user_id, "Выполнить привычку")
+    update_daily_task(user_id, "Получить 20 Adam Coin", coins)
+    check_achievements(user_id)
 
-    return True
+    return {
+        "coins": coins,
+        "doubled": doubled,
+        "total_habits": total_habits,
+        "remaining_incomplete": remaining_incomplete,
+        "bonus_active": bool(new_window_until),
+        "bonus_until": new_window_until.isoformat() if new_window_until else None,
+    }
 
 
 # =====================================

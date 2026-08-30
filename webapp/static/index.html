@@ -236,6 +236,10 @@ style="width:0%">
   <div class="habits-section-title">Привычки</div>
   <div class="habits-section-count" id="habitsProgressLabel">0/0</div>
 </div>
+<div class="double-bonus-badge" id="doubleBonusBadge" hidden aria-live="polite">
+  <span class="double-bonus-badge__icon">⚡️</span>
+  <span>x2 коины ещё <span id="doubleBonusTimer">30:00</span></span>
+</div>
 <div class="habits-section-divider" aria-hidden="true"></div>
 <ul class="habit-list" id="habitList">
 </ul>
@@ -495,6 +499,16 @@ class="btn btn--accent">
     </div>
     <div class="streak-onboarding__coach" id="streakOnboardingCoach"></div>
     <button class="streak-continue" id="streakOnboardingContinue" type="button">Я в игре</button>
+  </div>
+</div>
+
+<div class="streak-onboarding-overlay double-bonus-overlay" id="doubleBonusOverlay" hidden aria-hidden="true">
+  <div class="streak-onboarding-card double-bonus-card">
+    <div class="streak-onboarding-fire double-bonus-icon">⚡️</div>
+    <div class="streak-onboarding__eyebrow">ДВОЙНЫЕ ADAM COIN</div>
+    <h2>Удвоение очков активно 30 минут!</h2>
+    <p>Успевай выполнить и отметить ещё одну привычку, пока действует бонус — каждая отметка в этом окне приносит вдвое больше Adam Coin.</p>
+    <button class="streak-continue" id="doubleBonusContinue" type="button">Погнали!</button>
   </div>
 </div>
 
