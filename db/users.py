@@ -228,6 +228,27 @@ def give_xp_admin(user_id, xp):
 
 
 # =====================================
+# АЛМАЗЫ (пром 8, доп.) — премиальная валюта: только за деньги/Stars или
+# небольшая награда за идеальный месяц серии 2+ привычек.
+# =====================================
+
+def add_diamonds(user_id, amount):
+    conn = connect()
+    conn.execute("UPDATE users SET diamonds = diamonds + ? WHERE telegram_id=?", (amount, user_id))
+    conn.commit()
+    conn.close()
+
+
+def get_diamonds(user_id):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT diamonds FROM users WHERE telegram_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return int(row["diamonds"] or 0) if row else 0
+
+
+# =====================================
 # БАН
 # =====================================
 

@@ -129,6 +129,25 @@ def create_tables():
         cursor.execute("UPDATE users SET total_xp = xp")
         cursor.execute("UPDATE users SET level = total_xp / 100 + 1")
 
+    # Пром 8 (доп.): «алмазы» — премиальная валюта, которую нельзя заработать
+    # обычными действиями, только купить за деньги/Stars, либо получить
+    # небольшое количество в награду за идеальный месяц серии 2+ привычек
+    # (см. db/monthly_streak.py).
+    if "diamonds" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN diamonds INTEGER DEFAULT 0")
+
+    # ---------------- ПОДПИСКА: триал → оплата → закрытый канал (пром 13) ----------------
+    # Отдельно от "Premium" (косметический тариф выше) — это доступ к
+    # самому боту после 3-дневного триала. subscription_paid_until=NULL
+    # значит "ещё ни разу не платил"; subscription_first_payment_at нужен,
+    # чтобы отличить первый платёж (по скидке) от продления (полная цена).
+    if "subscription_paid_until" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN subscription_paid_until TIMESTAMP")
+    if "subscription_first_payment_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN subscription_first_payment_at TIMESTAMP")
+    if "channel_access_granted_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN channel_access_granted_at TIMESTAMP")
+
     # ---------------- SETTINGS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS settings(
@@ -184,6 +203,50 @@ def create_tables():
         cursor.execute("ALTER TABLE habits ADD COLUMN planned_time TEXT")
     if "time_window_minutes" not in habits_columns:
         cursor.execute("ALTER TABLE habits ADD COLUMN time_window_minutes INTEGER DEFAULT 60")
+
+    # ---------------- МЕСЯЧНАЯ СЕРИЯ 2+ ПРИВЫЧЕК (доп. к пром 8) ----------------
+    # multi_habit_days — локальный день, в который пользователь закрыл 2+
+    # привычки (см. db/habits.py complete_habit) — это и есть "1 балл" к
+    # месячному счётчику. monthly_streak_rewards — выданные награды за
+    # идеальный месяц (все дни месяца с 2+ привычками), одна запись на
+    # месяц на пользователя, чтобы не выдать повторно.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS multi_habit_days(
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(user_id, day)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS monthly_streak_rewards(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        month_key TEXT NOT NULL,
+        coins INTEGER DEFAULT 0,
+        diamonds INTEGER DEFAULT 0,
+        event_delivered INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, month_key)
+    )
+    """)
+
+    # Журнал удалений привычек (пром 10.2) — нужен для анти-абузной блокировки
+    # добавления новых привычек: если сегодня уже была отметка выполнения и
+    # сегодня же что-то удалили, это похоже на попытку накрутить Adam Coin
+    # (закрыть → удалить → добавить новую → закрыть...), поэтому добавление
+    # новых привычек блокируется до сброса в 00:00. См. db/habits.py.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS habit_deletions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_habit_deletions_user ON habit_deletions(user_id, day)"
+    )
 
     # ---------------- ПЛАН ДНЯ (Mini App) ----------------
     # main_goal — общая цель дня, tasks — до 5 отдельных задач (например
@@ -254,6 +317,11 @@ def create_tables():
         cursor.execute("ALTER TABLE shop_items ADD COLUMN payload TEXT DEFAULT ''")
     if "repeatable" not in shop_columns:
         cursor.execute("ALTER TABLE shop_items ADD COLUMN repeatable INTEGER DEFAULT 0")
+    if "daily_limit_per_user" not in shop_columns:
+        # Пром 9: пакеты доп. ответов ADAM можно купить не больше N раз в
+        # день (0 = без ограничения) — иначе можно было бы бесконечно
+        # докупать лимит запросов за Adam Coin.
+        cursor.execute("ALTER TABLE shop_items ADD COLUMN daily_limit_per_user INTEGER DEFAULT 0")
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS user_items(
@@ -310,6 +378,30 @@ def create_tables():
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (7,'👑 Рамка: Double Gold','Платная премиальная рамка с двойной позолотой и подсветкой',299,'frame_stars','paid_double_gold',0)")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (20,'💬 +5 ответов ADAM','5 дополнительных ответов ADAM к вашему текущему лимиту',100,'answer_pack','5',1)")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (21,'💬 +20 ответов ADAM','20 дополнительных ответов ADAM к вашему текущему лимиту',300,'answer_pack','20',1)")
+
+    # Пром 9: пересборка экономики AI-запросов — обычный пакет за Adam Coin
+    # даёт +10 (было +5), и оба пакета за монеты теперь ограничены одной
+    # покупкой в день каждый. Плюс два новых пакета покрупнее — уже только
+    # за Telegram Stars (реальные деньги), тоже по одному разу в день.
+    # ВАЖНО: цены в Stars ниже — плейсхолдер, требуют финального ревью
+    # (курс Stars→USD задаёт Telegram и меняется).
+    cursor.execute("""
+        UPDATE shop_items
+        SET name='💬 +10 ответов ADAM',
+            description='10 дополнительных ответов ADAM к вашему текущему лимиту',
+            payload='10', item_type='answer_pack', repeatable=1
+        WHERE id=20
+    """)
+    cursor.execute("UPDATE shop_items SET item_type='answer_pack', repeatable=1 WHERE id=21")
+    cursor.execute("UPDATE shop_items SET daily_limit_per_user=1 WHERE id IN (20,21)")
+    cursor.execute("""
+        INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable,daily_limit_per_user)
+        VALUES (22,'💬 +50 ответов ADAM','50 дополнительных ответов ADAM — оплата Telegram Stars',150,'answer_pack_stars','50',1,1)
+    """)
+    cursor.execute("""
+        INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable,daily_limit_per_user)
+        VALUES (23,'💬 +100 ответов ADAM','100 дополнительных ответов ADAM — оплата Telegram Stars',280,'answer_pack_stars','100',1,1)
+    """)
 
     # ---------------- DAILY TASKS ----------------
     cursor.execute("""

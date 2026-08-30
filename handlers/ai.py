@@ -403,7 +403,20 @@ async def ai_add_suggested_habit(callback: CallbackQuery):
             show_alert=True
         )
         return
-    add_habit(callback.from_user.id, habit_title)
+    try:
+        add_habit(callback.from_user.id, habit_title)
+    except ValueError as exc:
+        if str(exc) == "habit_limit":
+            await callback.answer("⚠️ Можно добавить не больше 7 привычек.", show_alert=True)
+        elif str(exc) == "habit_add_locked":
+            await callback.answer(
+                "⚠️ Сегодня уже была отметка и удаление привычки — "
+                "добавление новых открыто с 00:00.",
+                show_alert=True,
+            )
+        else:
+            raise
+        return
     await callback.answer(f"✅ Добавлено: «{habit_title}»", show_alert=True)
     try:
         await callback.message.edit_reply_markup(

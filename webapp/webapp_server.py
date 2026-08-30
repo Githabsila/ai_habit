@@ -12,6 +12,7 @@ from webapp.services.ai_coach import ask_ai
 from adam_messages import (
     format_all_tasks_done_message, format_main_goal_done_message,
     format_secondary_task_praise, SECONDARY_TASK_PRAISE_STRICT_DAYS, SECONDARY_TASK_PRAISE_STRICT_COUNT,
+    format_perfect_habit_streak_message, format_month_end_reward_message,
 )
 
 from db.core import DATA_DIR
@@ -21,8 +22,9 @@ from db import (
     get_habits, get_habit, add_habit, edit_habit, delete_habit,
     complete_habit, get_progress, get_settings,
     update_reminder_time, toggle_reminders, update_ai_style, get_ai_style,
-    get_shop_items, buy_shop_item, get_user_items,
+    get_shop_items, buy_shop_item, get_user_items, get_shop_item,
     has_item, get_item_owner_ids, update_theme, get_theme,
+    has_reached_daily_limit, log_stars_purchase,
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
     get_daily_plan, save_daily_plan, set_daily_main_goal, delete_daily_main_goal, toggle_daily_main_goal, add_daily_task, update_daily_plan_task, delete_daily_task, toggle_daily_task,
@@ -35,6 +37,8 @@ from db import (
     cache_get, cache_set, log_error,
     get_bonus_window,
     get_secondary_task_praise_state, record_secondary_task_praise,
+    get_monthly_progress, consume_month_end_reward_event,
+    get_subscription_status, try_grant_channel_access, bot_access_allowed,
 )
 
 from datetime import date, datetime
@@ -94,6 +98,20 @@ async def _authenticate(request):
                     "message": "Доступ к приложению пока ожидает подтверждения"
                 })
             )
+
+    # Пром 13: гейт триал → подписка. Выключен по умолчанию
+    # (config.SUBSCRIPTION_GATE_ENABLED) и даже включённый не трогает
+    # пользователей, зарегистрированных до SUBSCRIPTION_GATE_CUTOVER —
+    # см. db/subscription.py bot_access_allowed/gate_applies_to.
+    if not is_admin and not bot_access_allowed(telegram_id):
+        status = get_subscription_status(telegram_id)
+        raise web.HTTPForbidden(
+            text=json.dumps({
+                "error": "trial_expired",
+                "message": "Пробный период закончился",
+                "subscription": status,
+            })
+        )
 
     return telegram_id, is_admin
 
@@ -171,12 +189,14 @@ async def bootstrap(request):
             "total_xp": user["total_xp"] if user else 0,
             "level": user["level"] if user else 1,
             "streak": user["streak"] if user else 0,
+            "diamonds": user["diamonds"] if user and "diamonds" in user.keys() else 0,
             "premium": bool(user["premium"]) if user else False,
             "badge": False,
             "avatar_id": user["avatar_id"] if user else "default",
             "frame_id": user["frame_id"] if user else "default",
             "is_admin": is_admin,
         },
+        "monthly_progress": get_monthly_progress(telegram_id),
         "habits": [
             {
                 "id": h["id"],
@@ -298,7 +318,15 @@ async def create_habit(request):
     if len(title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)
     had_habits = bool(get_habits(telegram_id))
-    add_habit(telegram_id, title)
+    try:
+        add_habit(telegram_id, title)
+    except ValueError as exc:
+        # habit_limit — уже максимум 7 привычек; habit_add_locked — сегодня
+        # уже была отметка + удаление привычки, добавление заблокировано до
+        # 00:00 (пром 10.2, защита от накрутки Adam Coin).
+        if str(exc) in ("habit_limit", "habit_add_locked"):
+            return web.json_response({"error": str(exc)}, status=400)
+        raise
     first_habit = not had_habits
     # Возвращаем созданную запись, чтобы Mini App мог показать её сразу,
     # даже если повторная загрузка bootstrap временно задержалась.
@@ -346,12 +374,50 @@ async def complete_habit_route(request):
         except Exception:
             logger.exception("Не удалось отправить streak-сообщение")
 
+    # Пром 13: если подписка уже оплачена и серия только что достигла
+    # нужного порога — выдаём доступ в закрытый канал автоматически (без
+    # этого пользователю пришлось бы возвращаться к сообщению об оплате).
+    # try_grant_channel_access сам проверяет has_paid/channel_eligible/
+    # channel_granted и ничего не делает, если условия не выполнены —
+    # безопасно вызывать при каждой отметке привычки.
+    bot = request.app.get("bot")
+    if bot is not None:
+        try:
+            invite = await try_grant_channel_access(bot, telegram_id)
+            if invite:
+                await _push(
+                    request.app, telegram_id,
+                    f"🔑 Ты выполнил нужную серию ударного режима подряд — вот ссылка в закрытый канал: {invite}",
+                )
+        except Exception:
+            logger.exception("Не удалось выдать доступ в закрытый канал")
+
     # Промт п.8: окно удвоения Adam Coin показываем большим окном только
     # ОДИН раз в день — сразу после самой первой привычки (event не пуст
     # только в этот момент), и только если есть чем его продолжать
     # (2+ привычки и ещё остались незакрытые). Дальнейшие повторные
     # открытия окна происходят молча — их отражает bonus_active/coins.
     show_bonus_intro = bool(event) and bool(success["bonus_active"])
+
+    # Пром 8 (доп.): короткая похвала за "идеальный день" (закрыты все
+    # привычки, их было 2+), плюс — раз в месяц, только на последний день —
+    # награда за идеальный месяц (см. db/monthly_streak.py).
+    perfect_day_message = (
+        format_perfect_habit_streak_message(success["total_habits"])
+        if success.get("perfect_day") else None
+    )
+    month_reward_event = consume_month_end_reward_event(telegram_id)
+    month_reward_message = None
+    if month_reward_event:
+        month_reward_message = format_month_end_reward_message(
+            days=get_monthly_progress(telegram_id)["total"],
+            coins=month_reward_event["coins"],
+            diamonds=month_reward_event["diamonds"],
+        )
+        try:
+            await _push(request.app, telegram_id, f"💎 {month_reward_message}")
+        except Exception:
+            logger.exception("Не удалось отправить сообщение о награде месяца")
 
     return web.json_response({
         "ok": True,
@@ -363,6 +429,11 @@ async def complete_habit_route(request):
         "bonus_active": success["bonus_active"],
         "bonus_until": success["bonus_until"],
         "show_bonus_intro": show_bonus_intro,
+        "perfect_day_message": perfect_day_message,
+        "monthly_progress": get_monthly_progress(telegram_id),
+        "month_end_reward": (
+            {"message": month_reward_message, **month_reward_event} if month_reward_event else None
+        ),
     })
 
 @routes.delete("/api/habits/{habit_id}")
@@ -754,11 +825,17 @@ async def buy_route(request):
         return web.json_response({"error": "shop_item_not_found"}, status=404)
 
     item_type = item["item_type"] if "item_type" in item.keys() else "cosmetic"
-    if item_type == "frame_stars":
+    if item_type in ("frame_stars", "answer_pack_stars"):
         return web.json_response({"error": "use_stars_checkout"}, status=400)
 
     if item_id == 1 and was_premium_purchased(telegram_id):
         return web.json_response({"error": "premium_already_purchased"}, status=400)
+
+    # Пром 9: пакеты доп. ответов ADAM за Adam Coin — не больше 1 раза в
+    # день каждый (daily_limit_per_user), иначе лимит AI-запросов можно
+    # было бы докупать бесконечно.
+    if has_reached_daily_limit(telegram_id, item_id, item):
+        return web.json_response({"error": "daily_limit_reached"}, status=400)
 
     owned_item_ids = set(get_user_items(telegram_id))
     repeatable = bool(item["repeatable"]) if "repeatable" in item.keys() else False
@@ -868,22 +945,36 @@ async def create_stars_invoice(request):
     telegram_id, _ = await _authenticate(request)
     item_id = int(request.match_info["item_id"])
     item = get_shop_item(item_id)
-    if not item or item["item_type"] != "frame_stars":
+    if not item or item["item_type"] not in ("frame_stars", "answer_pack_stars"):
         return web.json_response({"error": "stars_item_not_found"}, status=404)
-    user = get_user(telegram_id)
-    if user and user["frame_id"] == "paid_double_gold":
-        return web.json_response({"error": "already_owned"}, status=400)
+
+    if item["item_type"] == "frame_stars":
+        user = get_user(telegram_id)
+        if user and user["frame_id"] == "paid_double_gold":
+            return web.json_response({"error": "already_owned"}, status=400)
+        title = "ADAM — Double Gold"
+        description = "Премиальная рамка с двойной позолотой и подсветкой для аватарки."
+        payload = f"avatar_frame:{item_id}:{telegram_id}"
+    else:
+        # Пром 9: пакеты +50/+100 ответов ADAM за Stars — не больше 1 раза
+        # в день каждый, как и монетные пакеты (см. has_reached_daily_limit).
+        if has_reached_daily_limit(telegram_id, item_id, item):
+            return web.json_response({"error": "daily_limit_reached"}, status=400)
+        title = item["name"]
+        description = item["description"]
+        payload = f"answer_pack_stars:{item_id}:{telegram_id}"
+
     bot = request.app.get("bot")
     if bot is None:
         return web.json_response({"error": "payment_unavailable"}, status=503)
     from aiogram.types import LabeledPrice
     link = await bot.create_invoice_link(
-        title="ADAM — Double Gold",
-        description="Премиальная рамка с двойной позолотой и подсветкой для аватарки.",
-        payload=f"avatar_frame:{item_id}:{telegram_id}",
+        title=title,
+        description=description,
+        payload=payload,
         provider_token="",
         currency="XTR",
-        prices=[LabeledPrice(label="Double Gold", amount=int(item["price"]))],
+        prices=[LabeledPrice(label=title, amount=int(item["price"]))],
     )
     return web.json_response({"ok": True, "invoice_url": link})
 

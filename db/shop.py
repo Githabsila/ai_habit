@@ -96,6 +96,47 @@ def buy_shop_item(user_id, item_id, allow_repeatable=False):
 def get_shop_item(item_id):
     conn=connect(); cur=conn.cursor(); cur.execute("SELECT * FROM shop_items WHERE id=?", (item_id,)); row=cur.fetchone(); conn.close(); return row
 
+
+def count_purchases_today(user_id, item_id):
+    """Сколько раз пользователь уже купил этот товар сегодня — основа
+    daily_limit_per_user (пром 9). Считает по user_items.purchased_at,
+    поэтому применимо и к покупкам за Adam Coin (buy_shop_item), и к
+    покупкам за Stars, если их тоже логировать туда же (см.
+    log_stars_purchase)."""
+    conn = connect()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COUNT(*) AS n FROM user_items WHERE user_id=? AND item_id=? AND purchased_at=?",
+        (user_id, item_id, str(date.today())),
+    )
+    n = int(cur.fetchone()["n"] or 0)
+    conn.close()
+    return n
+
+
+def has_reached_daily_limit(user_id, item_id, item=None):
+    item = item or get_shop_item(item_id)
+    if not item:
+        return True
+    limit = int(item["daily_limit_per_user"]) if "daily_limit_per_user" in item.keys() else 0
+    if limit <= 0:
+        return False
+    return count_purchases_today(user_id, item_id) >= limit
+
+
+def log_stars_purchase(user_id, item_id):
+    """Покупки за Telegram Stars списываются не через buy_shop_item (та
+    функция тратит Adam Coin), поэтому для дневного лимита их нужно
+    отдельно занести в тот же user_items — см. answer_pack_stars в
+    handlers/payments.py."""
+    conn = connect()
+    conn.execute(
+        "INSERT INTO user_items(user_id, item_id, purchased_at) VALUES (?, ?, ?)",
+        (user_id, item_id, str(date.today())),
+    )
+    conn.commit()
+    conn.close()
+
 def set_cosmetic(user_id, item_type, payload):
     conn=connect(); cur=conn.cursor();
     col = "avatar_id" if item_type == "avatar" else "frame_id"

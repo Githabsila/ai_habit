@@ -155,6 +155,10 @@ style="width:0%">
     </button>
     <div class="streak-widget__status"><span class="streak-status-dot"></span><span id="streakStatusLabel">Не дай огню погаснуть.</span></div>
   </div>
+  <div class="streak-widget__monthly" id="monthlyProgressRow" hidden>
+    <span class="streak-bottom-icon">💎</span>
+    <span>Идеальных дней месяца: <b id="monthlyProgressLabel">0/30</b></span>
+  </div>
 </div>
 
 <div class="freeze-purchase-sheet" id="freezePurchaseSheet" hidden aria-hidden="true">
@@ -476,9 +480,17 @@ class="btn btn--accent">
 
 <div class="streak-celebration-overlay" id="streakCelebrationOverlay" hidden aria-hidden="true">
   <div class="streak-celebration">
-    <div class="fire-orbit fire-orbit--1"></div>
-    <div class="fire-orbit fire-orbit--2"></div>
-    <div class="streak-flame" id="streakCelebrationFire" aria-hidden="true"><img src="/static/assets/adam-impact-flame.svg" alt="" /></div>
+    <span class="cc-ember cc-ember--1"></span>
+    <span class="cc-ember cc-ember--2"></span>
+    <span class="cc-ember cc-ember--3"></span>
+    <span class="cc-ember cc-ember--4"></span>
+    <div class="cc-flame-orbit" aria-hidden="true">
+      <div class="cc-orbit cc-orbit--a"></div>
+      <div class="cc-orbit cc-orbit--b"></div>
+      <span class="cc-flame-halo"></span>
+      <span class="cc-flame-base"></span>
+      <div class="streak-flame" id="streakCelebrationFire">🔥</div>
+    </div>
     <div class="streak-flash"></div>
     <div class="streak-celebration__kicker">УДАРНЫЙ РЕЖИМ</div>
     <div class="streak-celebration__title">+1 день ударного режима!</div>

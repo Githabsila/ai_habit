@@ -667,6 +667,14 @@ def premium_buy_keyboard():
     )
 
 
+def subscription_buy_keyboard(price_stars: int):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"⭐ Оплатить {price_stars} Stars", callback_data="buy_subscription")],
+        ]
+    )
+
+
 
 
 

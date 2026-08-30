@@ -14,6 +14,8 @@ from .users import (
     give_premium_admin,
     add_xp,
     give_xp_admin,
+    add_diamonds,
+    get_diamonds,
     ban_user,
     unban_user,
     is_banned,
@@ -53,6 +55,7 @@ from .habits import (
     get_weekly_habit_breakdown,
     get_habits_needing_reminder,
     mark_habit_reminder_sent,
+    can_add_habit, has_deleted_habit_today, MAX_HABITS,
 )
 
 from .daily_plan import (
@@ -119,6 +122,7 @@ from .shop import (
     has_item,
     get_item_owner_ids,
     get_shop_item, set_cosmetic, add_ai_bonus_answers, get_ai_quota, consume_ai_answer,
+    count_purchases_today, has_reached_daily_limit, log_stars_purchase,
 )
 
 from .onboarding import (
@@ -159,12 +163,25 @@ from .task_praise import (
     record_secondary_task_praise,
 )
 
+from .monthly_streak import (
+    get_monthly_progress,
+    claim_month_end_reward,
+    consume_month_end_reward_event,
+)
+
+from .subscription import (
+    get_trial_day, is_in_trial, has_active_subscription, has_ever_paid,
+    get_subscription_price_stars, record_subscription_payment,
+    gate_applies_to, bot_access_allowed, get_subscription_status,
+    mark_channel_access_granted, try_grant_channel_access,
+)
+
 
 __all__ = [
     "DB_NAME", "DATA_DIR", "DB_PATH", "connect", "create_tables",
     "add_user", "get_user", "get_users_count", "get_all_users", "get_all_users_info",
     "has_premium", "was_premium_purchased", "give_premium", "give_premium_admin",
-    "add_xp", "give_xp_admin",
+    "add_xp", "give_xp_admin", "add_diamonds", "get_diamonds",
     "ban_user", "unban_user", "is_banned", "reset_progress",
     "set_referrer", "add_referral", "get_referrals",
     "get_rating", "get_user_rank", "claim_daily_bonus",
@@ -174,6 +191,7 @@ __all__ = [
     "reset_habits", "update_streak", "complete_habit", "get_progress",
     "get_incomplete_habits", "log_daily_habits", "get_weekly_habit_breakdown",
     "get_habits_needing_reminder", "mark_habit_reminder_sent",
+    "can_add_habit", "has_deleted_habit_today", "MAX_HABITS",
     "get_daily_plan", "save_daily_plan", "set_daily_main_goal", "delete_daily_main_goal",
     "toggle_daily_main_goal", "add_daily_task", "update_daily_plan_task", "delete_daily_task",
     "toggle_daily_task",
@@ -189,6 +207,7 @@ __all__ = [
     "cache_get", "cache_set", "log_error", "get_error_stats",
     "get_shop_items", "buy_shop_item", "get_user_items",
     "has_item", "get_item_owner_ids", "update_theme", "get_theme",
+    "count_purchases_today", "has_reached_daily_limit", "log_stars_purchase",
     "get_access_status", "set_access_status", "reject_user", "get_pending_users",
     "get_users_pending_since", "get_access_status_counts",
     "save_survey_answers", "save_survey_analysis", "get_survey", "get_survey_tags",
@@ -202,4 +221,9 @@ __all__ = [
     "get_streak_reengagement_state", "get_recent_streak_message_keys", "record_streak_message_key", "has_streak_frame",
     "get_bonus_window", "set_bonus_window",
     "get_secondary_task_praise_state", "record_secondary_task_praise",
+    "get_monthly_progress", "claim_month_end_reward", "consume_month_end_reward_event",
+    "get_trial_day", "is_in_trial", "has_active_subscription", "has_ever_paid",
+    "get_subscription_price_stars", "record_subscription_payment",
+    "gate_applies_to", "bot_access_allowed", "get_subscription_status",
+    "mark_channel_access_granted", "try_grant_channel_access",
 ]

@@ -81,10 +81,23 @@ async def save_habit(message: Message, state: FSMContext):
 
     was_first_habit = len(get_habits(message.from_user.id)) == 0
 
-    add_habit(
-        message.from_user.id,
-        title
-    )
+    try:
+        add_habit(
+            message.from_user.id,
+            title
+        )
+    except ValueError as exc:
+        await state.clear()
+        if str(exc) == "habit_limit":
+            await message.answer("⚠️ Можно добавить не больше 7 привычек.")
+        elif str(exc) == "habit_add_locked":
+            await message.answer(
+                "⚠️ Сегодня уже была отметка и удаление привычки — "
+                "добавление новых открыто с 00:00."
+            )
+        else:
+            raise
+        return
 
     await state.clear()
 

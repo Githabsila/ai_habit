@@ -414,6 +414,21 @@
     if (metricStreak) metricStreak.textContent = streakDays;
     if (metricFreeze) metricFreeze.textContent = `${streak.freeze_balance || 0}/2`;
     if (metricReward) metricReward.textContent = reward ? `${reward.milestone} дн.` : "—";
+
+    // Пром 8 (доп.): счётчик "идеальных дней месяца" (2+ привычки подряд).
+    // Показываем только если есть хоть один балл — иначе просто шум для
+    // тех, кто ещё не встретил механику удвоения.
+    const monthly = state?.monthly_progress;
+    const monthlyRow = document.getElementById("monthlyProgressRow");
+    const monthlyLabel = document.getElementById("monthlyProgressLabel");
+    if (monthlyRow && monthlyLabel) {
+      if (monthly && monthly.points > 0) {
+        monthlyRow.hidden = false;
+        monthlyLabel.textContent = `${monthly.points}/${monthly.total}`;
+      } else {
+        monthlyRow.hidden = true;
+      }
+    }
   }
 
   function openStreakCelebration(event) {
@@ -856,12 +871,16 @@
       let btnLabel = "Купить";
       let btnClass = "buy-btn";
       let disabled = "";
-      const isStars = it.item_type === "frame_stars";
+      const isStars = it.item_type === "frame_stars" || it.item_type === "answer_pack_stars";
       const isFrame = it.item_type === "frame";
 
       if (isStars) {
-        btnLabel = it.owned ? "✓ Куплено" : "⭐ Купить";
-        if (it.owned) { btnClass += " is-owned"; disabled = "disabled"; }
+        // answer_pack_stars повторяемый (можно покупать ежедневно), поэтому
+        // "owned" на нём не должно навсегда блокировать кнопку — в отличие
+        // от Double Gold (frame_stars), купленной один раз навсегда.
+        const starsLockedForever = isStars && it.owned && !isAnswer;
+        btnLabel = starsLockedForever ? "✓ Куплено" : "⭐ Купить";
+        if (starsLockedForever) { btnClass += " is-owned"; disabled = "disabled"; }
       } else if (it.owned && !isAnswer) {
         btnLabel = isFrame ? "Надеть" : "✓ Куплено";
         btnClass += isFrame ? " is-equip" : " is-owned";
@@ -1251,6 +1270,16 @@ function initHabitActions() {
           pendingBonusIntro = !!result.show_bonus_intro;
           openStreakCelebration(result.streak_event);
         }
+        // Пром 8 (доп.): "идеальный день" и, раз в месяц, награда за
+        // идеальный месяц — показываем следом за тостом монет, со сдвигом,
+        // чтобы не перекрывать друг друга в одном #toast элементе.
+        if (result.perfect_day_message) {
+          setTimeout(() => showToast(result.perfect_day_message, "praise", 4200), 2400);
+        }
+        if (result.month_end_reward?.message) {
+          setTimeout(() => showToast(result.month_end_reward.message, "praise", 5500),
+            result.perfect_day_message ? 6800 : 2400);
+        }
       } else if (action === "delete") {
         if (!confirm("Удалить эту привычку?")) return;
         await api(`/api/habits/${habitId}`, { method: "DELETE" });
@@ -1552,11 +1581,12 @@ function initPlanActions() {
       try {
         btn.disabled = true;
         if (action === "stars") {
+          const item = (state.shop_items || []).find(x => String(x.id) === String(itemId));
           const invoice = await api(`/api/shop/stars/${itemId}`, { method: "POST" });
           if (!tg?.openInvoice) throw new Error("telegram_payment_unavailable");
           tg.openInvoice(invoice.invoice_url, (status) => {
             if (status === "paid") {
-              showToast("Рамка Double Gold куплена!", "success", 3500);
+              showToast(`${item?.name || "Покупка"} — оплата прошла!`, "praise", 3500);
               setTimeout(async () => { secondaryLoaded.delete("profile"); await loadBootstrap(); await loadBootstrapSecondary("profile"); }, 500);
             }
           });
@@ -1661,6 +1691,9 @@ function initPlanActions() {
         unsupported_image: "Поддерживаются JPG, PNG и WEBP",
         invalid_theme: "Такой темы не существует",
         task_limit: "Можно добавить не больше 5 задач",
+        habit_limit: "Можно добавить не больше 7 привычек",
+        daily_limit_reached: "Этот пакет уже куплен сегодня — доступен снова завтра",
+        habit_add_locked: "Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00",
         invalid_init_data: "Telegram не передал данные авторизации. Закройте Mini App и откройте его снова."
     };
 

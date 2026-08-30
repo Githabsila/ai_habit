@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import datetime, timedelta
 
 from .core import connect
 
@@ -13,9 +13,22 @@ from .core import connect
 # настоящая реализация поверх таблиц daily_plans / daily_plan_tasks
 # (см. миграцию в db/core.py).
 
+# Пром 14: задачи плана дня — в отличие от привычек (обнуляются строго в
+# 00:00) — считаются "сегодняшними" до 3:00 ночи. Многие работают по ночам
+# и не успевают закрыть задачи ровно до полуночи; привычки при этом всё
+# равно обнуляются в 00:00 (см. db/streak.py rollover_user/reset_habits_for_user
+# — их этот сдвиг не касается).
+PLAN_DAY_ROLLOVER_HOUR = 3
+
+
+def _effective_plan_date():
+    now = datetime.now()
+    effective = now if now.hour >= PLAN_DAY_ROLLOVER_HOUR else now - timedelta(days=1)
+    return str(effective.date())
+
 
 def get_daily_plan(user_id, plan_date=None):
-    plan_date = plan_date or str(date.today())
+    plan_date = plan_date or _effective_plan_date()
 
     conn = connect()
     cursor = conn.cursor()
@@ -205,7 +218,7 @@ def get_plan_tasks_needing_reminder(user_id, hours=2):
           AND t.completed=0
           AND t.reminder_sent=0
           AND t.created_at <= datetime('now', ?)
-    """, (user_id, str(date.today()), f"-{hours} hours"))
+    """, (user_id, _effective_plan_date(), f"-{hours} hours"))
     tasks = cursor.fetchall()
     conn.close()
     return tasks
@@ -236,7 +249,7 @@ def get_plans_needing_goal_reminder(user_id, hours=2):
               SELECT 1 FROM daily_plan_tasks t
               WHERE t.plan_id = p.id AND t.completed = 1
           )
-    """, (user_id, str(date.today()), f"-{hours} hours"))
+    """, (user_id, _effective_plan_date(), f"-{hours} hours"))
     plans = cursor.fetchall()
     conn.close()
     return plans

@@ -2661,6 +2661,9 @@ body[data-theme="violet"] .player-card{
    чтобы не было рассинхронизации между несколькими переопределениями. */
 .streak-day{position:relative;min-width:0}
 .streak-widget__bottom{display:flex;justify-content:space-between;gap:10px;margin-top:11px;font-size:11px;color:var(--text-muted)}
+.streak-widget__monthly{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:#c9b8ff}
+.streak-widget__monthly[hidden]{display:none}
+.streak-widget__monthly b{color:#e4d6ff;font-weight:800}
 .streak-profile-card{display:flex;gap:14px;align-items:center;margin:0 0 20px;padding:16px;border-radius:22px;background:linear-gradient(145deg,rgba(30,30,45,.95),rgba(18,18,27,.95));border:1px solid rgba(255,255,255,.06)}
 .streak-profile-avatar{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;font:800 24px 'Space Grotesk',sans-serif;background:#242438;position:relative;box-shadow:0 0 0 3px rgba(255,122,24,.22),0 0 24px rgba(255,122,24,.14)}
 .streak-profile-info{min-width:0}.streak-profile-status{font-weight:800;font-size:17px}.streak-profile-frame{font-size:12px;color:#A9A9BC;margin-top:5px}
@@ -2679,18 +2682,37 @@ body[data-theme="violet"] .player-card{
 }
 .streak-celebration-overlay.show,.streak-onboarding-overlay.show,.streak-weekly-overlay.show{opacity:1}
 .streak-celebration-overlay[hidden],.streak-onboarding-overlay[hidden],.streak-weekly-overlay[hidden]{display:none}
-.streak-celebration{position:relative;width:min(500px,100%);min-height:590px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow:hidden;border-radius:34px;padding:30px 22px;background:radial-gradient(circle at 50% 34%,rgba(255,122,24,.2),transparent 32%),linear-gradient(180deg,#1b1010,#09090f 68%);border:1px solid rgba(255,122,24,.25);box-shadow:0 30px 90px rgba(0,0,0,.55)}
-.streak-flame{width:126px;height:146px;display:grid;place-items:center;margin-top:-18px;margin-bottom:2px;transform:translateY(-145px) scale(.24);opacity:0;filter:drop-shadow(0 0 18px rgba(255,122,24,.42));will-change:transform,filter}
-.streak-flame img{display:block;width:126px;height:146px;object-fit:contain}
+.streak-celebration{position:relative;width:min(500px,100%);min-height:590px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow:hidden;border-radius:34px;padding:30px 22px;background:radial-gradient(circle at 50% 30%,rgba(255,140,40,.24),transparent 36%),radial-gradient(circle at 82% 78%,rgba(124,92,255,.14),transparent 42%),linear-gradient(180deg,#1c1016,#09090f 68%);border:1px solid rgba(255,140,40,.28);box-shadow:0 30px 90px rgba(0,0,0,.55),inset 0 0 60px rgba(255,110,30,.06)}
+
+/* ---- Огонёк второго раздела (промт 14): та же связка "эмодзи + halo +
+   орбиты с искрой", что и в виджете серии на главном экране, но в своём
+   собственном масштабе — средний размер, не занимает всю карточку. ---- */
+.cc-flame-orbit{position:relative;width:150px;height:150px;display:grid;place-items:center;margin-top:-6px;margin-bottom:4px}
+.cc-flame-halo{position:absolute;width:112px;height:112px;border-radius:50%;background:radial-gradient(circle,rgba(255,150,45,.34),rgba(255,90,20,.08) 55%,transparent 75%);filter:blur(4px);animation:ccHaloBreathe 2.6s ease-in-out infinite}
+.cc-flame-base{position:absolute;width:54px;height:18px;bottom:22px;border-radius:50%;background:radial-gradient(circle,rgba(255,140,40,.55),transparent 72%);filter:blur(3px)}
+@keyframes ccHaloBreathe{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.1)}}
+.cc-orbit{position:absolute;border:1px solid rgba(255,140,40,.22);border-radius:50%;pointer-events:none}
+.cc-orbit::after{content:"";position:absolute;width:6px;height:6px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3d6,#ffad61 55%,#ff7a18 100%);box-shadow:0 0 10px 1px #ff7a18;right:-2px;top:22px}
+.cc-orbit--a{width:150px;height:150px;animation:orbit 5s linear infinite}
+.cc-orbit--b{width:206px;height:206px;border-color:rgba(151,111,255,.22);animation:orbit 8s linear infinite reverse}
+.cc-orbit--b::after{background:radial-gradient(circle at 35% 30%,#f1e9ff,#c3a9ff 55%,#9d7cff 100%);box-shadow:0 0 10px 1px #7c5cff;left:-2px;right:auto;top:16px}
+.streak-flame{position:relative;z-index:2;font-size:62px;line-height:1;display:grid;place-items:center;transform:translateY(-90px) scale(.3);opacity:0;filter:drop-shadow(0 0 18px rgba(255,122,24,.42));will-change:transform,filter}
 .streak-flame.ignite{animation:streakFireIn 1.05s cubic-bezier(.18,.9,.3,1.15) forwards,streakFlameLife 1.8s ease-in-out 1.05s infinite}
-@keyframes streakFireIn{0%{transform:translateY(-145px) scale(.24);opacity:0}65%{transform:translateY(-4px) scale(1.08);opacity:1}100%{transform:translateY(-8px) scale(1);opacity:1}}
-@keyframes streakFlameLife{0%,100%{transform:translateY(-8px) scale(1) rotate(-1deg);filter:drop-shadow(0 0 18px rgba(255,122,24,.42))}25%{transform:translateY(-15px) scale(1.035) rotate(1deg);filter:drop-shadow(0 0 28px rgba(255,180,45,.62))}50%{transform:translateY(-4px) scale(.985) rotate(-.5deg);filter:drop-shadow(0 0 22px rgba(255,122,24,.52))}75%{transform:translateY(-13px) scale(1.02) rotate(.8deg);filter:drop-shadow(0 0 30px rgba(255,200,70,.58))}}
+@keyframes streakFireIn{0%{transform:translateY(-90px) scale(.3);opacity:0}65%{transform:translateY(0) scale(1.1);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
+@keyframes streakFlameLife{0%,100%{transform:translateY(0) scale(1) rotate(-1deg);filter:drop-shadow(0 0 18px rgba(255,122,24,.42))}25%{transform:translateY(-5px) scale(1.035) rotate(1deg);filter:drop-shadow(0 0 28px rgba(255,180,45,.62))}50%{transform:translateY(2px) scale(.985) rotate(-.5deg);filter:drop-shadow(0 0 22px rgba(255,122,24,.52))}75%{transform:translateY(-4px) scale(1.02) rotate(.8deg);filter:drop-shadow(0 0 30px rgba(255,200,70,.58))}}
 .streak-flash{position:absolute;width:180px;height:180px;border-radius:50%;background:rgba(255,200,90,.9);filter:blur(35px);opacity:0;animation:streakFlash 1.2s ease-out .75s}
 @keyframes streakFlash{0%{opacity:0;transform:scale(.2)}30%{opacity:.8}100%{opacity:0;transform:scale(2.1)}}
-.fire-orbit{position:absolute;border:1px solid rgba(255,122,24,.18);border-radius:50%;pointer-events:none}
-.fire-orbit--1{width:260px;height:260px;animation:orbit 4s linear infinite}
-.fire-orbit--2{width:360px;height:360px;animation:orbit 7s linear infinite reverse}
 @keyframes orbit{to{transform:rotate(360deg)}}
+
+/* Едва заметные тлеющие искры, поднимающиеся по карточке — фон, не отвлекает
+   от самого огонька, но добавляет карточке "живости". */
+.cc-ember{position:absolute;bottom:8%;width:4px;height:4px;border-radius:50%;background:#ffb15e;box-shadow:0 0 8px 2px rgba(255,140,40,.6);opacity:0;animation:ccEmberRise 5.5s ease-in infinite}
+.cc-ember--1{left:18%;animation-delay:.2s}
+.cc-ember--2{left:78%;animation-delay:1.6s}
+.cc-ember--3{left:34%;animation-delay:3s}
+.cc-ember--4{left:64%;animation-delay:4.1s}
+@keyframes ccEmberRise{0%{opacity:0;transform:translateY(0) scale(.6)}12%{opacity:.85}80%{opacity:.35}100%{opacity:0;transform:translateY(-320px) scale(1.1)}}
+
 .streak-celebration__kicker,.streak-onboarding__eyebrow{font-size:10px;letter-spacing:.2em;font-weight:800;color:#FF9D52}
 .streak-celebration__title{font:800 29px 'Space Grotesk',sans-serif;margin-top:10px}
 .streak-celebration__message{font-size:16px;line-height:1.5;color:#D9D9E6;max-width:380px;margin:13px auto 20px;min-height:48px}
@@ -2709,7 +2731,7 @@ body[data-theme="violet"] .player-card{
 .weekly-choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
 .weekly-choice-grid button{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:#fff;border-radius:17px;padding:18px 10px;font-weight:800}
 .weekly-choice-grid button:hover{border-color:rgba(255,122,24,.5);background:rgba(255,122,24,.1)}
-@media(max-width:420px){.streak-flame{width:112px;height:130px;margin-top:-20px}.streak-flame img{width:112px;height:130px}.streak-widget__top{align-items:flex-start}.freeze-buy-btn{font-size:10px;padding:9px}.streak-celebration{min-height:560px}.streak-celebration__title{font-size:25px}.weekly-choice-grid{grid-template-columns:1fr}}
+@media(max-width:420px){.streak-flame{font-size:52px}.cc-flame-orbit{width:130px;height:130px}.cc-flame-halo{width:96px;height:96px}.cc-orbit--a{width:130px;height:130px}.cc-orbit--b{width:180px;height:180px}.streak-widget__top{align-items:flex-start}.freeze-buy-btn{font-size:10px;padding:9px}.streak-celebration{min-height:560px}.streak-celebration__title{font-size:25px}.weekly-choice-grid{grid-template-columns:1fr}}
 
 .rating-item{display:flex!important;align-items:center;gap:9px}
 .rating-avatar{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:grid;place-items:center;background:#25253A;font-weight:800;position:relative}
@@ -4321,8 +4343,10 @@ section[data-tab="home"] .streak-widget__hero-row{
 .app-performance-paused .xp-bar__fill::after,
 .app-performance-paused .tab-bar__item.is-active .tab-bar__icon,
 .app-performance-paused .impactday-fire,
-.app-performance-paused .fire-orbit--1,
-.app-performance-paused .fire-orbit--2,
+.app-performance-paused .cc-orbit--a,
+.app-performance-paused .cc-orbit--b,
+.app-performance-paused .cc-ember,
+.app-performance-paused .cc-flame-halo,
 .app-performance-paused .rating-hero::after,
 .app-performance-paused .rating-hero__glow--one,
 .app-performance-paused .rating-live-dot,
@@ -4384,8 +4408,10 @@ section[data-tab="home"] .streak-widget__hero-row{
   .xp-bar__fill::after,
   .tab-bar__item.is-active .tab-bar__icon,
   .impactday-fire,
-  .fire-orbit--1,
-  .fire-orbit--2,
+  .cc-orbit--a,
+  .cc-orbit--b,
+  .cc-ember,
+  .cc-flame-halo,
   .rating-hero::after,
   .rating-hero__glow--one,
   .rating-live-dot,

@@ -25,6 +25,7 @@ from coach import (
 from onboarding_auto import run_auto_approve
 from goal_feedback import run_goal_feedback
 from morning_ping import run_morning_ping
+from subscription_scheduler import run_trial_reminders
 from backups.backup import start_backup_scheduler
 from middlewares.access_control import AccessControlMiddleware
 
@@ -130,6 +131,10 @@ async def main():
     scheduler.add_job(run_week_end_ping, "cron", day_of_week="sun", hour=18, minute=0, args=[bot])
     scheduler.add_job(run_month_start_ping, "cron", day=1, hour=7, minute=30, args=[bot])
     scheduler.add_job(run_month_end_ping, "cron", day="last", hour=18, minute=30, args=[bot])
+
+    # --- Пром 13: напоминания триала → подписки (сам гейт по умолчанию
+    # выключен, см. config.SUBSCRIPTION_GATE_ENABLED) ---
+    scheduler.add_job(run_trial_reminders, "interval", minutes=1, args=[bot])
 
     scheduler.start()
     logger.info("✅ Планировщик запущен")

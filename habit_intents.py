@@ -192,7 +192,14 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
             if 0 <= hh <= 23 and 0 <= mm <= 59:
                 planned_time = f"{hh:02d}:{mm:02d}"
                 title = _clean(raw[:tm.start()])
-        add_habit(user_id, title, planned_time=planned_time)
+        try:
+            add_habit(user_id, title, planned_time=planned_time)
+        except ValueError as exc:
+            if str(exc) == "habit_limit":
+                return "⚠️ Можно добавить не больше 7 привычек."
+            if str(exc) == "habit_add_locked":
+                return "⚠️ Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00."
+            raise
         return f"✅ Привычка «{title}» добавлена" + (f" на {planned_time}." if planned_time else "!")
 
     m = _RENAME_RE.match(text)
@@ -440,7 +447,14 @@ async def try_handle_habit_intent_ai(user_id: int, text: str) -> str | None:
         title = _clean(decision.get("title") or "")
         if not title:
             return None
-        add_habit(user_id, title)
+        try:
+            add_habit(user_id, title)
+        except ValueError as exc:
+            if str(exc) == "habit_limit":
+                return "⚠️ Можно добавить не больше 7 привычек."
+            if str(exc) == "habit_add_locked":
+                return "⚠️ Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00."
+            raise
         return f"✅ Привычка «{title}» добавлена!"
 
     if action == "complete_task":

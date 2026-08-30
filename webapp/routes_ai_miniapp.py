@@ -504,6 +504,11 @@ async def ai_add_habit_miniapp(request):
     try:
         add_habit(user_id, habit_title)
         return web.json_response({"ok": True, "habit": habit_title})
+    except ValueError as exc:
+        if str(exc) in ("habit_limit", "habit_add_locked"):
+            return web.json_response({"error": str(exc)}, status=400)
+        logger.exception(f"Ошибка при добавлении привычки для {user_id}")
+        return web.json_response({"error": "internal_error"}, status=500)
     except Exception:
         logger.exception(f"Ошибка при добавлении привычки для {user_id}")
         return web.json_response({"error": "internal_error"}, status=500)
