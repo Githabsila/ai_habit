@@ -554,7 +554,10 @@
       text: "Одна главная задача и до 5 обычных. Своя логика, свой темп — не смешивается с привычками.",
     },
     {
-      icon: "🪙",
+      // Эмодзи монеты (U+1FA99) не везде рендерится — вместо него та же
+      // SVG-иконка Adam Coin, что используется по всему приложению
+      // (профиль, магазин, рейтинг), гарантированно отрисовывается всегда.
+      icon: ADAM_COIN_ICON,
       title: "Adam Coin открывают вещи",
       text: "Зарабатывай монеты за привычки и задачи — трать их в магазине на рамки, темы и заморозки серии.",
     },
@@ -581,7 +584,7 @@
     const dots = document.getElementById("appTourDots");
     const back = document.getElementById("appTourBack");
     const next = document.getElementById("appTourNext");
-    if (icon) icon.textContent = step.icon;
+    if (icon) icon.innerHTML = step.icon;
     if (title) title.textContent = step.title;
     if (text) text.textContent = step.text;
     if (dots) {
