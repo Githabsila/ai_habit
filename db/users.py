@@ -31,6 +31,21 @@ def add_user(telegram_id, username, first_name):
     from .daily_tasks import create_daily_tasks
     create_daily_tasks(telegram_id)
 
+    _ensure_admin_premium(telegram_id)
+
+
+def _ensure_admin_premium(telegram_id):
+    """Администраторы бота (config.ADMIN_IDS) всегда получают Premium
+    навсегда, без покупки — вызывается при каждом add_user (idempotent),
+    так что действует и для уже существующих админов, и для тех, кого
+    добавят в ADMIN_IDS позже."""
+    try:
+        from config import ADMIN_IDS
+    except Exception:
+        return
+    if telegram_id in ADMIN_IDS:
+        give_premium_admin(telegram_id)
+
 
 def get_user(telegram_id):
     conn = connect()

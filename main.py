@@ -10,8 +10,8 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 
-from config import BOT_TOKEN, WEBAPP_URL, PORT
-from db import create_tables
+from config import BOT_TOKEN, WEBAPP_URL, PORT, ADMIN_IDS
+from db import create_tables, get_user, give_premium_admin
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
 from scheduler import scheduler
@@ -55,6 +55,14 @@ logger = logging.getLogger("main")
 # ====================== ИНИЦИАЛИЗАЦИЯ БД ======================
 create_tables()
 logger.info("✅ База данных подключена")
+
+# Администраторы бота всегда получают Premium навсегда, без покупки.
+# add_user() уже делает это для НОВЫХ пользователей (db/users.py
+# _ensure_admin_premium) — здесь то же самое для админов, которые уже
+# существуют в базе с прошлых запусков.
+for _admin_id in ADMIN_IDS:
+    if get_user(_admin_id):
+        give_premium_admin(_admin_id)
 
 # ====================== БЭКАПЫ ======================
 start_backup_scheduler()

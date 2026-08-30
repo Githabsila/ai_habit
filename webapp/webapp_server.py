@@ -23,7 +23,7 @@ from db import (
     complete_habit, get_progress, get_settings,
     update_reminder_time, toggle_reminders, update_ai_style, get_ai_style,
     get_shop_items, buy_shop_item, get_user_items, get_shop_item,
-    has_item, get_item_owner_ids, update_theme, get_theme,
+    has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
     has_reached_daily_limit, log_stars_purchase,
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
