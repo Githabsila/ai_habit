@@ -164,8 +164,7 @@ async def ai_chat_miniapp(request):
         "message_id": 123
     }
     """
-    from webapp.telegram_auth import validate_init_data
-    from config import BOT_TOKEN
+    from webapp.auth_helpers import authenticate
 
     try:
         data = await request.json()
@@ -184,15 +183,10 @@ async def ai_chat_miniapp(request):
             status=400
         )
 
-    # Аутентификация через Telegram
-    tg_user = validate_init_data(init_data, BOT_TOKEN)
-    if tg_user is None:
-        return web.json_response(
-            {"error": "unauthorized", "message": "Не получилось подтвердить, что это ты. Закрой и открой Mini App заново."},
-            status=401
-        )
-
-    user_id = tg_user["id"]
+    # Аутентификация + проверка бана/анкеты/гейта подписки (пром: раньше
+    # тут была только проверка подписи initData — забаненный или не
+    # прошедший гейт пользователь мог бесплатно жечь AI-квоту).
+    user_id, _is_admin = await authenticate(init_data)
 
     pro = has_premium(user_id)
 
@@ -344,17 +338,12 @@ async def get_ai_history_miniapp(request):
         ]
     }
     """
-    from webapp.telegram_auth import validate_init_data
-    from config import BOT_TOKEN
+    from webapp.auth_helpers import authenticate
 
     init_data = request.rel_url.query.get("init_data", "")
     limit = int(request.rel_url.query.get("limit", "50"))
 
-    tg_user = validate_init_data(init_data, BOT_TOKEN)
-    if tg_user is None:
-        return web.json_response({"error": "unauthorized"}, status=401)
-
-    user_id = tg_user["id"]
+    user_id, _is_admin = await authenticate(init_data)
     history = get_ai_history(user_id)
 
     if not history:
@@ -389,8 +378,7 @@ async def ai_feedback_miniapp(request):
         "reason": "слишком длинный" или null (опционально)
     }
     """
-    from webapp.telegram_auth import validate_init_data
-    from config import BOT_TOKEN
+    from webapp.auth_helpers import authenticate
 
     try:
         data = await request.json()
@@ -402,11 +390,7 @@ async def ai_feedback_miniapp(request):
     rating = data.get("rating")
     reason = data.get("reason")
 
-    tg_user = validate_init_data(init_data, BOT_TOKEN)
-    if tg_user is None:
-        return web.json_response({"error": "unauthorized"}, status=401)
-
-    user_id = tg_user["id"]
+    user_id, _is_admin = await authenticate(init_data)
 
     if rating not in ["up", "down"]:
         return web.json_response({"error": "invalid_rating"}, status=400)
@@ -434,8 +418,7 @@ async def ai_daily_tip_miniapp(request):
         "tip": "💡 Совет дня: ..."
     }
     """
-    from webapp.telegram_auth import validate_init_data
-    from config import BOT_TOKEN
+    from webapp.auth_helpers import authenticate
 
     try:
         data = await request.json()
@@ -443,11 +426,7 @@ async def ai_daily_tip_miniapp(request):
         return web.json_response({"error": "invalid_json"}, status=400)
 
     init_data = data.get("init_data", "")
-    tg_user = validate_init_data(init_data, BOT_TOKEN)
-    if tg_user is None:
-        return web.json_response({"error": "unauthorized"}, status=401)
-
-    user_id = tg_user["id"]
+    user_id, _is_admin = await authenticate(init_data)
 
     # Не кэшируем совет: каждый тап получает свежий снимок задач и привычек.
     # Утренний ответ не должен жить до вечера, если пользователь уже закрыл
@@ -481,8 +460,7 @@ async def ai_add_habit_miniapp(request):
         "habit_title": "Бегать по утрам"
     }
     """
-    from webapp.telegram_auth import validate_init_data
-    from config import BOT_TOKEN
+    from webapp.auth_helpers import authenticate
 
     try:
         data = await request.json()
@@ -495,11 +473,7 @@ async def ai_add_habit_miniapp(request):
     if not habit_title:
         return web.json_response({"error": "empty_habit"}, status=400)
 
-    tg_user = validate_init_data(init_data, BOT_TOKEN)
-    if tg_user is None:
-        return web.json_response({"error": "unauthorized"}, status=401)
-
-    user_id = tg_user["id"]
+    user_id, _is_admin = await authenticate(init_data)
 
     try:
         add_habit(user_id, habit_title)
@@ -516,11 +490,8 @@ async def ai_add_habit_miniapp(request):
 
 @routes.get("/api/ai/quota")
 async def ai_quota_endpoint(request):
-    from webapp.telegram_auth import validate_init_data
-    from config import BOT_TOKEN
+    from webapp.auth_helpers import authenticate
     init_data = request.headers.get("X-Telegram-Init-Data", "")
-    tg_user = validate_init_data(init_data, BOT_TOKEN)
-    if tg_user is None:
-        return web.json_response({"error":"unauthorized"}, status=401)
-    pro=has_premium(tg_user["id"])
-    return web.json_response(get_ai_quota(tg_user["id"], pro))
+    user_id, _is_admin = await authenticate(init_data)
+    pro = has_premium(user_id)
+    return web.json_response(get_ai_quota(user_id, pro))

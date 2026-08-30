@@ -5,7 +5,7 @@ from aiogram.types import Message
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
-from keyboards import main_menu, pending_review_keyboard
+from keyboards import main_menu
 
 from db import (
     save_survey_answers,
@@ -18,6 +18,7 @@ from db import (
 )
 
 from multi_agent import analyze_onboarding_survey, suggest_first_step
+from alerts import notify_admins
 
 router = Router()
 logger = logging.getLogger("handlers.onboarding")
@@ -123,8 +124,20 @@ async def survey_bot_goal(message: Message, state: FSMContext):
     set_access_status(user_id, "pending")
 
     # ВАЖНО: уведомление админу отправляется сразу после перевода заявки
-    # в pending — без ожидания scheduler / открытия админки.
-    await notify_admins_new_application(message.bot, user_id)
+    # в pending — без ожидания scheduler / открытия админки. Раньше здесь
+    # вызывалась несуществующая notify_admins_new_application() — это
+    # роняло весь хендлер с NameError на каждой обычной (не Premium)
+    # анкете, поэтому пользователь никогда не видел подтверждение
+    # "Анкета получена", а админ вообще не узнавал о новой заявке.
+    username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.full_name
+    try:
+        await notify_admins(
+            message.bot,
+            f"Новая заявка на доступ: {username} (id {user_id}).\nПосмотреть — «🕓 Заявки на доступ» в /admin.",
+        )
+    except Exception as e:
+        logger.exception(f"Не удалось уведомить админов о новой заявке {user_id}")
+        log_error("notify_admins_pending", e, user_id)
 
     await message.answer(
         "✅ Анкета получена.\n\n"

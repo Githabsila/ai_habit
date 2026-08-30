@@ -59,20 +59,24 @@ def buy_shop_item(user_id, item_id, allow_repeatable=False):
         conn.close()
         return False
 
-    cursor.execute("SELECT xp FROM users WHERE telegram_id=?", (user_id,))
-    user = cursor.fetchone()
-
-    if not user or user["xp"] < item["price"]:
-        conn.close()
-        return False
-
     # Списываем только тратимую валюту (xp / Adam Coin). total_xp и level
     # НЕ трогаем — покупки в магазине не должны понижать уровень игрока
     # (раньше level считался прямо от xp, и покупка вещи буквально
     # отбрасывала игрока на уровень назад).
-    cursor.execute("""
-        UPDATE users SET xp = xp - ? WHERE telegram_id=?
-    """, (item["price"], user_id))
+    #
+    # Проверка баланса встроена прямо в WHERE этого UPDATE вместо
+    # отдельного SELECT перед ним — раньше два параллельных запроса на
+    # покупку могли оба пройти проверку по одному и тому же балансу до
+    # того, как любой из них закоммитится, и оба списать деньги, уводя
+    # баланс в минус (TOCTOU). rowcount==0 значит, что денег не хватило
+    # (или пользователь не найден).
+    cursor.execute(
+        "UPDATE users SET xp = xp - ? WHERE telegram_id=? AND xp >= ?",
+        (item["price"], user_id, item["price"]),
+    )
+    if cursor.rowcount == 0:
+        conn.close()
+        return False
 
     if allow_repeatable or ("repeatable" in item.keys() and bool(item["repeatable"])):
         # Повторяемый товар не должен упираться в уникальность user_items.
