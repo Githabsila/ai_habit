@@ -209,6 +209,7 @@
     renderStreak();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
+    maybeShowAppTour();
     maybeShowStreakOnboarding();
 
     // Второстепенные вкладки дорисовываем после первого кадра, когда браузер
@@ -533,6 +534,116 @@
     overlay.classList.remove("show");
     overlay.setAttribute("aria-hidden", "true");
     setTimeout(() => { overlay.hidden = true; }, 300);
+  }
+
+  // ===================== ОБУЧЕНИЕ ПРИ ПЕРВОМ ВХОДЕ =====================
+  const APP_TOUR_STEPS = [
+    {
+      icon: "👋",
+      title: "Добро пожаловать в Project ADAM",
+      text: "Я — твой личный ИИ-наставник по привычкам. Покажу за минуту, что тут где и зачем.",
+    },
+    {
+      icon: "🎯",
+      title: "Привычки держат серию",
+      text: "Отмечай хотя бы одну привычку в день, чтобы не терять ударный режим. Вторая подряд в течение 30 минут — уже двойные Adam Coin.",
+    },
+    {
+      icon: "✦",
+      title: "План дня — отдельно от привычек",
+      text: "Одна главная задача и до 5 обычных. Своя логика, свой темп — не смешивается с привычками.",
+    },
+    {
+      icon: "🪙",
+      title: "Adam Coin открывают вещи",
+      text: "Зарабатывай монеты за привычки и задачи — трать их в магазине на рамки, темы и заморозки серии.",
+    },
+    {
+      icon: "🤖",
+      title: "Спроси у ADAM",
+      text: "Обсуди цель, разбери день или просто спроси совет — отвечаю прямо во вкладке «ИИ».",
+    },
+    {
+      icon: "🏆",
+      title: "Сравнивай и настраивай",
+      text: "Смотри своё место в рейтинге, собирай рамки за серию, настраивай профиль. Погнали!",
+    },
+  ];
+  let appTourStep = 0;
+
+  function renderAppTourStep(animate) {
+    const step = APP_TOUR_STEPS[appTourStep];
+    if (!step) return;
+    const icon = document.getElementById("appTourIcon");
+    const body = document.getElementById("appTourBody");
+    const title = document.getElementById("appTourTitle");
+    const text = document.getElementById("appTourText");
+    const dots = document.getElementById("appTourDots");
+    const back = document.getElementById("appTourBack");
+    const next = document.getElementById("appTourNext");
+    if (icon) icon.textContent = step.icon;
+    if (title) title.textContent = step.title;
+    if (text) text.textContent = step.text;
+    if (dots) {
+      dots.innerHTML = APP_TOUR_STEPS.map((_, i) =>
+        `<span class="app-tour-dot ${i === appTourStep ? "is-active" : ""}"></span>`
+      ).join("");
+    }
+    if (back) back.hidden = appTourStep === 0;
+    if (next) next.textContent = appTourStep === APP_TOUR_STEPS.length - 1 ? "Начать" : "Далее";
+    if (animate && icon && body) {
+      [icon, body].forEach(el => {
+        el.classList.remove("tour-anim");
+        void el.offsetWidth;
+        el.classList.add("tour-anim");
+      });
+    }
+  }
+
+  function openAppTour() {
+    const overlay = document.getElementById("appTourOverlay");
+    if (!overlay) return;
+    appTourStep = 0;
+    renderAppTourStep(false);
+    overlay.hidden = false;
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    overlay.setAttribute("aria-hidden", "false");
+    haptic("light");
+  }
+
+  function closeAppTour() {
+    const overlay = document.getElementById("appTourOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { overlay.hidden = true; }, 280);
+    api("/api/tour/seen", { method: "POST" }).catch(() => {});
+  }
+
+  let appTourShownThisSession = false;
+  function maybeShowAppTour() {
+    if (!state?.show_app_tour || appTourShownThisSession) return;
+    appTourShownThisSession = true;
+    openAppTour();
+  }
+
+  function initAppTour() {
+    document.getElementById("appTourNext")?.addEventListener("click", () => {
+      if (appTourStep >= APP_TOUR_STEPS.length - 1) {
+        closeAppTour();
+        return;
+      }
+      appTourStep += 1;
+      renderAppTourStep(true);
+      haptic("light");
+    });
+    document.getElementById("appTourBack")?.addEventListener("click", () => {
+      if (appTourStep === 0) return;
+      appTourStep -= 1;
+      renderAppTourStep(true);
+      haptic("light");
+    });
+    document.getElementById("appTourSkip")?.addEventListener("click", closeAppTour);
   }
 
   function maybeShowStreakOnboarding() {
@@ -1836,6 +1947,7 @@ function initSettingsActions() {
 async function boot() {
     try {
         initTelegram();
+        initAppTour();
         initTabs();
         initHabitActions();
         initPlanActions();

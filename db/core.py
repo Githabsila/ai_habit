@@ -136,6 +136,13 @@ def create_tables():
     if "diamonds" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN diamonds INTEGER DEFAULT 0")
 
+    # Обучение по основному функционалу при первом входе (не путать с
+    # streak_meta.onboarding_seen — то показывается только после первой
+    # добавленной привычки и только про ударный режим). Это — один раз за
+    # всё время использования аккаунта, показывает весь Mini App целиком.
+    if "app_tour_seen" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN app_tour_seen INTEGER DEFAULT 0")
+
     # ---------------- ПОДПИСКА: триал → оплата → закрытый канал (пром 13) ----------------
     # Отдельно от "Premium" (косметический тариф выше) — это доступ к
     # самому боту после 3-дневного триала. subscription_paid_until=NULL

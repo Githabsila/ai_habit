@@ -39,6 +39,7 @@ from db import (
     get_secondary_task_praise_state, record_secondary_task_praise,
     get_monthly_progress, consume_month_end_reward_event,
     get_subscription_status, try_grant_channel_access, bot_access_allowed,
+    should_show_app_tour, mark_app_tour_seen,
 )
 
 from datetime import date, datetime
@@ -213,6 +214,7 @@ async def bootstrap(request):
             "show": bool(habits) and should_show_onboarding(telegram_id),
             "message": onboarding_message(telegram_id) if habits and should_show_onboarding(telegram_id) else None,
         },
+        "show_app_tour": should_show_app_tour(telegram_id),
         "settings": {
             "reminders": bool(settings_row["reminders"]) if settings_row else True,
             "reminder_hour": settings_row["reminder_hour"] if settings_row else 9,
@@ -464,6 +466,12 @@ async def set_streak_timezone(request):
 async def streak_onboarding_seen(request):
     telegram_id, _ = await _authenticate(request)
     mark_onboarding_seen(telegram_id)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/tour/seen")
+async def app_tour_seen(request):
+    telegram_id, _ = await _authenticate(request)
+    mark_app_tour_seen(telegram_id)
     return web.json_response({"ok": True})
 
 @routes.post("/api/streak/freeze/buy")

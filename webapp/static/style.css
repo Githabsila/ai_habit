@@ -6564,3 +6564,116 @@ section[data-tab="profile"] .section-heading h2::first-letter{
 .profile-cosmetics-panel{margin:12px 0 16px;padding:14px;border:1px solid rgba(255,255,255,.07);border-radius:20px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:0 10px 28px rgba(0,0,0,.14)}
 .profile-cosmetics-head,.profile-frame-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.profile-cosmetics-head>div,.profile-frame-head{min-width:0}.profile-cosmetics-head b,.profile-frame-head b{display:block;font-size:12px}.profile-cosmetics-head small,.profile-frame-head small{display:block;margin-top:3px;color:#858191;font-size:9px}.profile-photo-btn{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.055);color:#fff;border-radius:11px;padding:8px 10px;font-size:10px;font-weight:800;cursor:pointer}.profile-photo-btn:disabled{opacity:.5}.profile-frame-head{margin-top:15px}.profile-frame-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}.frame-choice{display:flex;align-items:center;gap:8px;min-width:0;padding:8px;border:1px solid rgba(255,255,255,.07);border-radius:14px;background:rgba(255,255,255,.025);color:#fff;text-align:left;cursor:pointer}.frame-choice.is-active{border-color:rgba(255,209,72,.45);background:rgba(255,209,72,.07)}.frame-choice.is-locked{opacity:.38;cursor:not-allowed}.frame-choice__preview{width:34px;height:34px;flex:0 0 34px;border-radius:11px;background:#25253A;display:grid;place-items:center;font-size:12px;font-weight:900}.frame-choice__preview.frame-neon{box-shadow:0 0 0 2px #3CF2FF,0 0 10px rgba(60,242,255,.5)}.frame-choice__preview.frame-gold{box-shadow:0 0 0 2px #FFD34E,0 0 10px rgba(255,211,78,.45)}.frame-choice__preview.frame-streak_14{box-shadow:0 0 0 2px #54F4FF,0 0 10px rgba(84,244,255,.5)}.frame-choice__preview.frame-streak_30{box-shadow:0 0 0 2px #FFE27A,0 0 10px rgba(255,226,122,.55)}.frame-choice__preview.frame-paid_double_gold{box-shadow:0 0 0 1px #FFF3AE,0 0 0 3px #C88912,0 0 0 5px #FFE58A,0 0 13px rgba(255,190,40,.7)}.frame-choice__text{min-width:0}.frame-choice__text b{display:block;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.frame-choice__text small{display:block;margin-top:2px;color:#7f7b89;font-size:8px;white-space:nowrap}.shop-item .buy-btn.is-equip{border-color:rgba(255,211,78,.3);color:#FFD66B}.shop-item[data-id="7"]{border-color:rgba(255,207,69,.22);box-shadow:0 0 28px rgba(255,184,35,.09)}
 @media(max-width:600px){.profile-frame-picker{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* =========================================================
+   СТРИК-ВИДЖЕТ — МАКСИМАЛЬНЫЙ ПРЕМИУМ-ПРОХОД
+   1) Убрана верхняя шапка "УДАРНЫЙ РЕЖИМ" (дублировала карточку профиля,
+      элемент .streak-widget__top удалён из HTML) — карточка теперь
+      начинается сразу со счётчика дней и огонька в кольцах.
+   2) Огонёк в кольцах увеличен и остаётся круглым внутри своего бейджа
+      (сами кольца тоже чуть шире, чтобы огонёк не казался тесным).
+   3) Более глубокий, насыщенный фон карточки — тёплый + фиолетовый
+      акцент, вместо плоского коричневатого градиента.
+   Идёт в конце файла намеренно — перекрывает более ранние переопределения
+   этих же классов, накопившиеся за несколько прошлых правок.
+   ========================================================= */
+.streak-widget--hero{
+  background:
+    radial-gradient(560px 280px at 92% -8%, rgba(255,150,45,.24), transparent 58%),
+    radial-gradient(460px 260px at -8% 108%, rgba(139,92,246,.20), transparent 62%),
+    linear-gradient(155deg, rgba(48,26,20,.97), rgba(24,16,28,.98) 55%, rgba(13,10,18,.99)) !important;
+  border:1px solid rgba(255,164,92,.30) !important;
+  box-shadow:
+    0 34px 90px rgba(0,0,0,.42),
+    inset 0 1px rgba(255,255,255,.10),
+    inset 0 0 70px rgba(255,110,30,.05) !important;
+}
+.streak-widget__hero-row{margin:4px 0 3px !important}
+.streak-widget__count strong{font-size:40px !important;text-shadow:0 8px 26px rgba(255,101,32,.24) !important}
+
+.streak-widget__flame-orbit{width:114px !important;height:114px !important;flex-basis:114px !important}
+.streak-widget__flame-halo{width:86px !important;height:86px !important}
+.streak-widget__flame-base{width:42px !important;height:15px !important;bottom:20px !important}
+.streak-widget__mini-flame{
+  width:64px !important;height:64px !important;
+  font-size:44px !important;
+  box-shadow:0 0 0 1px rgba(255,194,87,.14),0 0 30px rgba(255,112,25,.28) !important;
+}
+@media(max-width:420px){
+  .streak-widget__flame-orbit{width:96px !important;height:96px !important;flex-basis:96px !important}
+  .streak-widget__flame-halo{width:72px !important;height:72px !important}
+  .streak-widget__mini-flame{width:54px !important;height:54px !important;font-size:37px !important}
+}
+
+/* Фон приложения — чуть глубже и насыщеннее, тот же дух, больше контраста. */
+body{
+  background:
+    radial-gradient(circle at top left,#33208A 0%,transparent 38%),
+    radial-gradient(circle at top right,#6D28E8 0%,transparent 33%),
+    radial-gradient(circle at bottom,#0B0F1A 0%,transparent 42%),
+    linear-gradient(180deg,#07070C,#0C0C14) !important;
+}
+
+/* =========================================================
+   ОБУЧЕНИЕ ПРИ ПЕРВОМ ВХОДЕ (app tour)
+   ========================================================= */
+.app-tour-overlay{
+  position:fixed;inset:0;z-index:10100;display:grid;place-items:center;padding:18px;
+  background:rgba(3,3,8,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  opacity:0;transition:opacity .3s ease;
+}
+.app-tour-overlay.show{opacity:1}
+.app-tour-overlay[hidden]{display:none}
+.app-tour-card{
+  position:relative;width:min(420px,100%);padding:34px 26px 26px;
+  border-radius:32px;text-align:center;
+  background:
+    radial-gradient(420px 240px at 15% -10%,rgba(139,92,246,.22),transparent 60%),
+    radial-gradient(360px 220px at 100% 110%,rgba(255,150,45,.16),transparent 62%),
+    linear-gradient(160deg,rgba(30,26,42,.98),rgba(12,11,18,.99));
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 40px 100px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.08);
+  transform:translateY(10px) scale(.98);opacity:0;transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .28s ease;
+}
+.app-tour-overlay.show .app-tour-card{transform:translateY(0) scale(1);opacity:1}
+.app-tour-skip{
+  position:absolute;top:18px;right:18px;border:0;background:transparent;
+  color:#8b879b;font-size:11px;font-weight:700;cursor:pointer;padding:6px 8px;
+}
+.app-tour-skip:hover{color:#c9c5da}
+.app-tour-icon-wrap{position:relative;width:96px;height:96px;margin:0 auto 18px;display:grid;place-items:center}
+.app-tour-icon-glow{
+  position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,150,45,.32),rgba(139,92,246,.14) 55%,transparent 75%);
+  filter:blur(6px);animation:appTourGlowBreathe 2.6s ease-in-out infinite;
+}
+@keyframes appTourGlowBreathe{0%,100%{opacity:.6;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
+.app-tour-icon{
+  position:relative;z-index:2;width:74px;height:74px;border-radius:50%;
+  display:grid;place-items:center;font-size:36px;
+  background:linear-gradient(150deg,rgba(255,255,255,.10),rgba(255,255,255,.02));
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:inset 0 1px rgba(255,255,255,.14),0 14px 30px rgba(0,0,0,.3);
+}
+.app-tour-body{min-height:112px}
+.app-tour-title{
+  font:800 23px 'Space Grotesk',sans-serif;letter-spacing:-.02em;margin:0 0 10px;color:#fff;
+}
+.app-tour-text{margin:0 auto;max-width:320px;color:#B8B4C8;font-size:14px;line-height:1.55}
+.app-tour-body.tour-anim,.app-tour-icon.tour-anim{animation:appTourStepIn .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes appTourStepIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.app-tour-dots{display:flex;justify-content:center;gap:6px;margin:22px 0 20px}
+.app-tour-dot{width:6px;height:6px;border-radius:99px;background:rgba(255,255,255,.16);transition:width .25s ease,background .25s ease}
+.app-tour-dot.is-active{width:20px;background:linear-gradient(90deg,#FF8A00,#EF4444)}
+.app-tour-actions{display:flex;gap:10px}
+.app-tour-back{
+  flex:0 0 auto;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);
+  color:#cfcbe0;border-radius:16px;padding:14px 18px;font-weight:800;font-size:14px;cursor:pointer;
+}
+.app-tour-back[hidden]{display:none}
+.app-tour-next{
+  flex:1 1 auto;border:0;border-radius:16px;padding:15px 18px;font-weight:800;font-size:14px;color:#fff;cursor:pointer;
+  background:linear-gradient(135deg,#FF8A00,#EF4444);box-shadow:0 14px 34px rgba(239,68,68,.26);
+}
+.app-tour-next:active{transform:translateY(1px)}
+@media(max-width:380px){.app-tour-card{padding:28px 20px 22px}.app-tour-title{font-size:20px}}

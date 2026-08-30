@@ -114,20 +114,6 @@ style="width:0%">
   <div class="streak-widget__spark streak-widget__spark--2"></div>
   <div class="streak-widget__spark streak-widget__spark--3"></div>
   <div class="streak-widget__spark streak-widget__spark--4"></div>
-  <div class="streak-widget__top">
-    <div class="streak-widget__brand">
-      <div class="streak-widget__icon-wrap" aria-hidden="true">
-        <span class="streak-widget__icon-flare"></span>
-        <span class="streak-widget__icon-ember streak-widget__icon-ember--a"></span>
-        <span class="streak-widget__icon-ember streak-widget__icon-ember--b"></span>
-        <span class="streak-widget__icon">🔥</span>
-      </div>
-      <div>
-        <div class="streak-widget__eyebrow"><span class="streak-live-dot"></span> УДАРНЫЙ РЕЖИМ</div>
-        <div class="streak-widget__title">Твоя серия <span>в огне</span></div>
-      </div>
-    </div>
-  </div>
 
   <div class="streak-widget__hero-row">
     <div class="streak-widget__count">
@@ -548,6 +534,25 @@ class="btn btn--accent">
     <div class="levelup-sparkles">✨🎉✨</div>
     <div class="levelup-title">LEVEL UP</div>
     <div class="levelup-level">Новый уровень: <span id="levelupValue">0</span></div>
+  </div>
+</div>
+
+<div class="app-tour-overlay" id="appTourOverlay" hidden aria-hidden="true">
+  <div class="app-tour-card" role="dialog" aria-modal="true" aria-labelledby="appTourTitle">
+    <button class="app-tour-skip" id="appTourSkip" type="button">Пропустить</button>
+    <div class="app-tour-icon-wrap">
+      <span class="app-tour-icon-glow"></span>
+      <div class="app-tour-icon" id="appTourIcon">👋</div>
+    </div>
+    <div class="app-tour-body" id="appTourBody">
+      <h2 class="app-tour-title" id="appTourTitle"></h2>
+      <p class="app-tour-text" id="appTourText"></p>
+    </div>
+    <div class="app-tour-dots" id="appTourDots"></div>
+    <div class="app-tour-actions">
+      <button class="app-tour-back" id="appTourBack" type="button">Назад</button>
+      <button class="app-tour-next" id="appTourNext" type="button">Далее</button>
+    </div>
   </div>
 </div>
 
