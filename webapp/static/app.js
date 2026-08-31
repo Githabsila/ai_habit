@@ -1782,6 +1782,12 @@ function initPlanActions() {
         });
         haptic("light");
         await loadBootstrap();
+        // ВАЖНО: renderThemePicker() — единственное место, которое реально
+        // ставит document.body[data-theme] (от него зависят все цвета темы
+        // по всему бота). loadBootstrap() выше обновляет только state —
+        // без этого вызова тема молча сохранялась на сервере, но на экране
+        // ничего не менялось до следующей полной перезагрузки страницы.
+        renderThemePicker();
       } catch (err) {
         showToast(friendlyError(err), "error");
       }
