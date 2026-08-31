@@ -1,3 +1,4 @@
+import gzip
 import json
 import logging
 import os
@@ -1015,6 +1016,52 @@ async def run_webapp(port, bot=None):
     logger.info(f"🌐 MiniApp сервер запущен на порту {port}")
     return runner
    
+
+# ====================== ГЛАВНЫЕ CSS/JS СЖИМАЕМ ВРУЧНУЮ ======================
+# style.css/app.js — самые тяжёлые файлы (~200 КБ и ~85 КБ), и они
+# намеренно отдаются с no-cache (иначе Telegram-вебвью может держать
+# старую версию после редеплоя — см. error_middleware выше). Значит эти
+# файлы качаются заново при КАЖДОМ открытии Mini App. aiohttp.add_static
+# сам их не сжимает (отдаёт через FileResponse/sendfile без gzip), поэтому
+# для именно этих двух путей — отдельный маршрут со сжатием в памяти.
+# Кэш инвалидируется по mtime файла, так что редеплой подхватывается
+# автоматически, без риска "залипшей" версии.
+_gzip_asset_cache = {}
+
+
+def _serve_gzip_asset(request, file_path: Path, content_type: str):
+    try:
+        mtime = file_path.stat().st_mtime
+    except OSError:
+        raise web.HTTPNotFound()
+
+    cached = _gzip_asset_cache.get(file_path)
+    if not cached or cached[0] != mtime:
+        plain = file_path.read_bytes()
+        compressed = gzip.compress(plain, compresslevel=6)
+        cached = (mtime, plain, compressed)
+        _gzip_asset_cache[file_path] = cached
+    _, plain, compressed = cached
+
+    accepts_gzip = "gzip" in request.headers.get("Accept-Encoding", "")
+    body = compressed if accepts_gzip else plain
+    response = web.Response(body=body, content_type=content_type, charset="utf-8")
+    if accepts_gzip:
+        response.headers["Content-Encoding"] = "gzip"
+    response.headers["Vary"] = "Accept-Encoding"
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
+@routes.get("/static/style.css")
+async def static_style_css(request):
+    return _serve_gzip_asset(request, BASE_DIR / "static" / "style.css", "text/css")
+
+
+@routes.get("/static/app.js")
+async def static_app_js(request):
+    return _serve_gzip_asset(request, BASE_DIR / "static" / "app.js", "text/javascript")
+
 
 @routes.get("/coach")
 async def coach(request):

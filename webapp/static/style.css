@@ -6750,6 +6750,14 @@ body{
   transform:scale(.94) !important;
   filter:brightness(.96);
 }
+/* .habit-item и .shop-item сами по себе не кликабельны (кликабельны
+   кнопки внутри — check/del/buy), но :active у CSS корректно всплывает
+   на родителя, пока нажата кнопка внутри него — так что лёгкий отклик
+   всей карточки, а не только кнопки, тут уместен и не вводит в
+   заблуждение. */
+.habit-item:active,.shop-item:active{
+  transform:scale(.985) !important;
+}
 .add-habit-btn:disabled:active,.buy-btn:disabled:active,
 .btn:disabled:active,.progress-ai-btn:disabled:active{
   transform:none !important;
