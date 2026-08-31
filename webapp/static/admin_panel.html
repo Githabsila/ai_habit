@@ -72,14 +72,52 @@ body{
 .card + .card{animation-delay:.04s}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .card-title{
-  display:flex;align-items:center;gap:8px;
-  font:800 13px/1 'Space Grotesk',sans-serif;letter-spacing:.02em;
-  margin-bottom:12px;color:#EAE5FA;
+  display:flex;align-items:center;gap:10px;
+  font:800 13.5px/1 'Space Grotesk',sans-serif;letter-spacing:.01em;
+  margin-bottom:14px;color:#EAE5FA;
 }
-.card-title .dot{width:6px;height:6px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9A8,#F0B429);box-shadow:0 0 8px rgba(240,180,41,.6)}
+.card-icon{
+  width:30px;height:30px;border-radius:10px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:14px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 6px 14px rgba(0,0,0,.25);
+}
+.card-icon--violet{background:linear-gradient(145deg,#9578ff,#6847dc)}
+.card-icon--gold{background:linear-gradient(145deg,#FFD76A,#EFB331)}
+.card-icon--teal{background:linear-gradient(145deg,#3EE0A8,#0F9D6C)}
+.card-icon--red{background:linear-gradient(145deg,#FF8A6B,#E23B3B)}
 
-/* ===== stats text (report_html) ===== */
-.stats-body{font-size:12.5px;line-height:1.9;color:#D8D4E6}
+/* ===== section grouping — визуальные "разделения" верхнего уровня ===== */
+.section-label{
+  font:800 10px/1 'Space Grotesk',sans-serif;
+  letter-spacing:.16em;text-transform:uppercase;
+  color:#6E6980;
+  margin:22px 6px 10px;
+}
+.section-label:first-child{margin-top:2px}
+
+/* ===== stats (report_html — сгруппированные строки, не сплошной текст) ===== */
+.stats-group-label{
+  font:800 9.5px/1 'Space Grotesk',sans-serif;
+  letter-spacing:.14em;text-transform:uppercase;
+  color:#a996ff;
+  margin:14px 2px 8px;
+}
+.stats-group-label:first-child{margin-top:0}
+.stat-row{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:9px 10px;border-radius:13px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.05);
+  margin-bottom:6px;
+}
+.stat-row-icon{
+  width:26px;height:26px;border-radius:9px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:13px;
+  background:rgba(255,255,255,.05);
+}
+.stat-row-body{display:flex;flex-wrap:wrap;gap:5px 16px;flex:1;min-width:0;padding-top:2px}
+.stat-chip{font-size:12px;line-height:1.5;color:#C9C4DA;min-width:0;overflow-wrap:anywhere}
+.stat-chip b{color:#fff;font-weight:800}
 .stats-body b{color:#fff}
 
 /* ===== buttons ===== */
@@ -138,12 +176,21 @@ textarea.field{resize:vertical;min-height:88px}
 
 /* ===== user card result ===== */
 .user-card{
-  border:1px solid var(--border);border-radius:15px;
-  background:rgba(255,255,255,.03);padding:12px;margin-top:10px;
+  border:1px solid var(--border);border-radius:16px;
+  background:rgba(255,255,255,.03);padding:14px;margin-top:12px;
+  animation:cardIn .32s cubic-bezier(.2,.8,.2,1) both;
 }
-.user-card-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:#C9C4DA}
-.user-card-row b{color:#fff}
-.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
+.user-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.user-card-name{font:800 15px/1.2 'Space Grotesk',sans-serif;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.user-tile{
+  border:1px solid rgba(255,255,255,.05);border-radius:12px;
+  background:rgba(255,255,255,.035);
+  padding:9px 11px;
+}
+.user-tile-label{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.user-tile-value{font-size:13.5px;font-weight:800;margin-top:3px;color:#fff}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:10.5px;font-weight:700;flex:0 0 auto}
 .badge-ok{background:rgba(52,211,153,.15);color:var(--green)}
 .badge-bad{background:rgba(239,68,68,.15);color:#FF8080}
 
@@ -248,6 +295,38 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>';
   }
 
+  // Строки report_html (см. admin_digest_scheduler.py::build_stats_report)
+  // разделены пустой строкой, каждая начинается с эмодзи. Раньше это лилось
+  // одним сплошным абзацем — теперь режем на подписанные группы строк.
+  var STATS_GROUPS = {
+    '👥':'Аудитория','💎':'Аудитория','⭐':'Аудитория',
+    '🔐':'Воронка входа','📝':'Воронка входа','💬':'Воронка входа',
+    '💳':'Монетизация',
+    '✅':'Привычки',
+    '🔥':'ИИ и расходы','🤖':'ИИ и расходы',
+    '🩺':'Здоровье'
+  };
+
+  function renderStats(html){
+    var text = String(html || '').replace(/^\s*📊\s*<b>Статистика бота<\/b>\s*/, '').trim();
+    var blocks = text.split(/\n\s*\n/).map(function(b){ return b.trim(); }).filter(Boolean);
+    var out = '';
+    var lastGroup = null;
+    blocks.forEach(function(block){
+      var m = block.match(/^(\S+)\s+([\s\S]*)$/);
+      var icon = m ? m[1] : '•';
+      var rest = m ? m[2] : block;
+      var group = STATS_GROUPS[icon];
+      if (group && group !== lastGroup){
+        out += '<div class="stats-group-label">' + escapeHtml(group) + '</div>';
+        lastGroup = group;
+      }
+      var chips = rest.split(' · ').map(function(p){ return '<span class="stat-chip">' + p + '</span>'; }).join('');
+      out += '<div class="stat-row"><div class="stat-row-icon">' + icon + '</div><div class="stat-row-body">' + chips + '</div></div>';
+    });
+    return out || '<div class="empty-note">Нет данных</div>';
+  }
+
   function renderPanel(state){
     root.innerHTML =
       '<div class="header">' +
@@ -259,21 +338,25 @@ textarea.field{resize:vertical;min-height:88px}
         '<button class="header-back" id="backBtn">✕</button>' +
       '</div>' +
 
+      '<div class="section-label">Мониторинг</div>' +
+
       '<div class="card">' +
-        '<div class="card-title"><span class="dot"></span>Статистика</div>' +
-        '<div class="stats-body">' + state.report_html + '</div>' +
+        '<div class="card-title"><span class="card-icon card-icon--violet">📊</span>Статистика</div>' +
+        '<div class="stats-body">' + renderStats(state.report_html) + '</div>' +
         '<div class="btn-row" style="margin-top:12px">' +
           '<button class="btn" id="refreshStatsBtn">↻ Обновить</button>' +
         '</div>' +
       '</div>' +
 
       '<div class="card">' +
-        '<div class="card-title"><span class="dot"></span>Заявки на доступ</div>' +
+        '<div class="card-title"><span class="card-icon card-icon--gold">⏳</span>Заявки на доступ</div>' +
         '<div id="pendingList"><div class="empty-note">Загружаю…</div></div>' +
       '</div>' +
 
+      '<div class="section-label">Управление</div>' +
+
       '<div class="card">' +
-        '<div class="card-title"><span class="dot"></span>Пользователь по ID</div>' +
+        '<div class="card-title"><span class="card-icon card-icon--teal">🔎</span>Пользователь по ID</div>' +
         '<input class="field" id="userIdInput" type="number" inputmode="numeric" placeholder="Telegram ID">' +
         '<div class="btn-row" style="margin-top:10px">' +
           '<button class="btn btn-accent" id="lookupBtn">🔎 Найти</button>' +
@@ -282,7 +365,7 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
-        '<div class="card-title"><span class="dot"></span>Рассылка</div>' +
+        '<div class="card-title"><span class="card-icon card-icon--red">📢</span>Рассылка</div>' +
         '<textarea class="field" id="broadcastText" placeholder="Текст сообщения… (можно HTML-теги Telegram: &lt;b&gt;, &lt;i&gt;)"></textarea>' +
         '<input class="field" id="broadcastTag" type="text" placeholder="Тег (необязательно) — пусто = всем" style="margin-top:8px">' +
         '<div class="btn-row" style="margin-top:10px">' +
@@ -306,7 +389,7 @@ textarea.field{resize:vertical;min-height:88px}
     btn.disabled = true;
     try{
       var data = await api('/api/admin/stats');
-      document.querySelector('.stats-body').innerHTML = data.report_html;
+      document.querySelector('.stats-body').innerHTML = renderStats(data.report_html);
       haptic('light');
     }catch(e){ showToast('Не получилось обновить'); }
     finally{ btn.disabled = false; }
@@ -323,6 +406,7 @@ textarea.field{resize:vertical;min-height:88px}
       box.innerHTML = data.users.map(function(u){
         var name = u.username ? ('@' + escapeHtml(u.username)) : escapeHtml(u.first_name || '');
         return '<div class="list-row">' +
+          '<span class="card-icon card-icon--violet" style="width:28px;height:28px;font-size:12px">👤</span>' +
           '<div class="list-row-name"><b>' + name + '</b><small>ID ' + u.telegram_id + '</small></div>' +
           '<button class="btn btn-accent" data-approve="' + u.telegram_id + '">✅ Одобрить</button>' +
         '</div>';
@@ -363,14 +447,18 @@ textarea.field{resize:vertical;min-height:88px}
     var name = u.username ? ('@' + escapeHtml(u.username)) : escapeHtml(u.first_name || '—');
     box.innerHTML =
       '<div class="user-card">' +
-        '<div class="user-card-row"><span>Имя</span><b>' + name + '</b></div>' +
-        '<div class="user-card-row"><span>Premium</span><b>' + (u.premium ? '💎 да' : '—') + '</b></div>' +
-        '<div class="user-card-row"><span>Статус</span><b>' +
+        '<div class="user-card-head">' +
+          '<div class="user-card-name">' + name + '</div>' +
           (u.banned ? '<span class="badge badge-bad">заблокирован</span>' : '<span class="badge badge-ok">активен</span>') +
-        '</b></div>' +
-        '<div class="user-card-row"><span>Adam Coin / уровень</span><b>' + u.xp + ' / ' + u.level + '</b></div>' +
-        '<div class="user-card-row"><span>Серия</span><b>🔥 ' + u.streak + '</b></div>' +
-        '<div class="user-card-row"><span>Доступ</span><b>' + escapeHtml(u.access_status || '—') + '</b></div>' +
+        '</div>' +
+        '<div class="user-card-grid">' +
+          '<div class="user-tile"><div class="user-tile-label">ID</div><div class="user-tile-value">' + u.telegram_id + '</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Premium</div><div class="user-tile-value">' + (u.premium ? '💎 да' : '—') + '</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Adam Coin</div><div class="user-tile-value">' + u.xp + '</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Уровень</div><div class="user-tile-value">' + u.level + '</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Серия</div><div class="user-tile-value">🔥 ' + u.streak + '</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Доступ</div><div class="user-tile-value">' + escapeHtml(u.access_status || '—') + '</div></div>' +
+        '</div>' +
         '<div class="btn-row" style="margin-top:12px">' +
           (u.banned
             ? '<button class="btn btn-accent" id="unbanBtn">✅ Разбанить</button>'

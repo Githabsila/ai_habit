@@ -6941,6 +6941,51 @@ body{
   100%{opacity:0;transform:translate(-50%,-50%) scale(1.35)}
 }
 
+/* Дышащее свечение-корона позади огня — делает иконку центром внимания
+   карточки, а не просто картинкой. */
+.as-fire-corona{
+  position:absolute;
+  left:50%;top:50%;
+  width:172%;height:172%;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(255,180,84,.55),rgba(255,122,24,.18) 46%,transparent 72%);
+  filter:blur(6px);
+  animation:asCoronaBreathe 3.4s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes asCoronaBreathe{
+  0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.94)}
+  50%{opacity:.95;transform:translate(-50%,-50%) scale(1.08)}
+}
+
+/* Тлеющие искры, поднимающиеся от огня — маленькая деталь, которая
+   делает иконку "живой". */
+.as-ember{
+  position:absolute;
+  bottom:14%;
+  width:3px;height:3px;
+  border-radius:50%;
+  background:radial-gradient(circle,#FFF3D2,#FFA53E 70%);
+  box-shadow:0 0 6px 1px rgba(255,165,64,.85);
+  opacity:0;
+  animation:asEmberRise 2.4s ease-in infinite;
+  pointer-events:none;
+}
+.as-ember--1{left:38%;animation-delay:0s}
+.as-ember--2{left:54%;animation-delay:.8s}
+.as-ember--3{left:46%;animation-delay:1.6s}
+@keyframes asEmberRise{
+  0%{opacity:0;transform:translateY(0) scale(.6)}
+  18%{opacity:1;transform:translateY(-8px) scale(1)}
+  100%{opacity:0;transform:translateY(-46px) scale(.4)}
+}
+
+/* Огонь заметно крупнее и ярче — фокус всей карточки. */
+.achievement-share-fire img{
+  filter:drop-shadow(0 0 30px rgba(255,138,32,.65)) drop-shadow(0 0 60px rgba(255,90,20,.3));
+}
+
 .achievement-share-kicker{
   display:flex;align-items:center;justify-content:center;gap:8px;
 }
@@ -6996,17 +7041,19 @@ body{
 .performance-lite .as-orb,
 .performance-lite .as-spark,
 .performance-lite .as-fire-ring,
+.performance-lite .as-fire-corona,
+.performance-lite .as-ember,
 .performance-lite .achievement-share-close::after,
 .performance-lite .as-close-emoji,
 .performance-lite .achievement-share-days{
   animation:none !important;
 }
 .performance-lite .achievement-share-close{animation:none !important;background-position:0 50%}
-.performance-lite .as-spark{display:none !important}
+.performance-lite .as-spark,.performance-lite .as-ember{display:none !important}
 @media (prefers-reduced-motion:reduce){
   .achievement-share-card,
   .achievement-share-card::before,
-  .as-orb,.as-spark,.as-fire-ring,
+  .as-orb,.as-spark,.as-fire-ring,.as-fire-corona,.as-ember,
   .achievement-share-close,.achievement-share-close::after,
   .as-close-emoji,.achievement-share-days{
     animation:none !important;
