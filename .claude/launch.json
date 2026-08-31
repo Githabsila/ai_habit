@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "adam-webapp",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["test_webapp.py"],
+      "port": 8080
+    }
+  ]
+}

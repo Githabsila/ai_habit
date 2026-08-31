@@ -6814,7 +6814,11 @@ body{
 .player-card__admin-btn{
   position:absolute;
   top:16px;right:16px;
-  z-index:3;
+  /* .player-card__info выше по каскаду сидит на z-index:4 (см. строку
+     ~4973) — если у кнопки z-index ниже, длинное имя/приветствие
+     визуально ложится поверх неё и ворует клики. Кнопка должна быть
+     самым верхним слоем карточки. */
+  z-index:6;
   width:34px;height:34px;
   border-radius:11px;
   display:grid;place-items:center;
@@ -6828,3 +6832,185 @@ body{
 .player-card__admin-btn svg{width:17px;height:17px;display:block}
 .player-card__admin-btn:active{transform:scale(.88);filter:brightness(1.1)}
 .performance-lite .player-card__admin-btn{transition:none !important}
+/* Резерв места под кнопку — ставится в app.js::renderPlayerCard() только
+   для админов, чтобы у обычных пользователей строка с именем не теряла
+   ширину впустую. */
+.player-card.has-admin-btn .player-card__name{padding-right:46px}
+
+/* =========================================================
+   ЭКРАН «ПОДЕЛИТЬСЯ ДОСТИЖЕНИЕМ» — ПРЕМИАЛЬНЫЙ РЕДИЗАЙН
+   Финальный слой каскада поверх всех .achievement-share-*
+   правил выше по файлу: вращающаяся золотая рамка, кольца
+   вокруг огня, дрейфующие искры и мягкие световые пятна.
+   Весь декор гасится в .performance-lite / prefers-reduced-motion,
+   чтобы не грузить слабые устройства.
+   ========================================================= */
+.achievement-share-card{
+  position:relative;
+  overflow:hidden;
+  isolation:isolate;
+  transform:translateY(14px) scale(.96);
+  opacity:0;
+  transition:transform .42s cubic-bezier(.2,.9,.25,1.12),opacity .32s ease;
+}
+.achievement-share-overlay.show .achievement-share-card{
+  transform:translateY(0) scale(1);
+  opacity:1;
+}
+/* Вращающаяся золотая обводка — тонкое кольцо-градиент под краем карточки. */
+.achievement-share-card::before{
+  content:"";
+  position:absolute;
+  inset:-40%;
+  z-index:0;
+  background:conic-gradient(from 0deg,transparent 0deg,rgba(255,163,64,.55) 40deg,transparent 110deg,transparent 250deg,rgba(139,108,255,.4) 300deg,transparent 360deg);
+  animation:asBorderSpin 7s linear infinite;
+  pointer-events:none;
+}
+.achievement-share-card::after{
+  content:"";
+  position:absolute;
+  inset:1.5px;
+  z-index:0;
+  border-radius:inherit;
+  background:
+    radial-gradient(360px 220px at 50% 0,rgba(143,114,255,.20),transparent 72%),
+    linear-gradient(145deg,rgba(30,27,42,.98),rgba(9,8,14,.99));
+  pointer-events:none;
+}
+.achievement-share-card>*{position:relative;z-index:1}
+@keyframes asBorderSpin{to{transform:rotate(360deg)}}
+
+/* Мягкие световые пятна на фоне карточки. */
+.as-orb{
+  position:absolute;
+  /* z-index:1, не 0 — .achievement-share-card::after (фон карточки)
+     рисуется ПОСЛЕ всех настоящих детей независимо от их DOM-порядка,
+     поэтому z-index:0 здесь оказался бы под непрозрачным фоном и
+     пятно было бы просто не видно. DOM-порядок (пятна раньше текста)
+     уже сам держит их визуально позади контента при равном z-index. */
+  z-index:1;
+  border-radius:50%;
+  filter:blur(38px);
+  opacity:.55;
+  pointer-events:none;
+}
+.as-orb--1{width:200px;height:200px;left:-60px;top:-40px;background:radial-gradient(circle,rgba(255,138,32,.55),transparent 70%);animation:asOrbDrift 9s ease-in-out infinite}
+.as-orb--2{width:220px;height:220px;right:-70px;bottom:-60px;background:radial-gradient(circle,rgba(139,108,255,.45),transparent 70%);animation:asOrbDrift 11s ease-in-out infinite reverse}
+@keyframes asOrbDrift{
+  0%,100%{transform:translate(0,0) scale(1)}
+  50%{transform:translate(14px,-10px) scale(1.08)}
+}
+
+/* Дрейфующие искры-звёздочки. */
+.as-spark{
+  position:absolute;
+  z-index:1;
+  width:4px;height:4px;
+  border-radius:50%;
+  background:#FFD98A;
+  box-shadow:0 0 10px 2px rgba(255,197,105,.85);
+  opacity:0;
+  animation:asSparkFloat 3.6s ease-in-out infinite;
+  pointer-events:none;
+}
+.as-spark--1{left:14%;top:22%;animation-delay:.1s}
+.as-spark--2{right:16%;top:30%;animation-delay:1.1s}
+.as-spark--3{left:22%;bottom:26%;animation-delay:2s}
+.as-spark--4{right:20%;bottom:34%;animation-delay:2.7s}
+@keyframes asSparkFloat{
+  0%,100%{opacity:0;transform:translateY(4px) scale(.6)}
+  40%{opacity:1;transform:translateY(-6px) scale(1)}
+  70%{opacity:.6;transform:translateY(-14px) scale(.85)}
+}
+
+/* Кольца вокруг иконки огня. */
+.achievement-share-fire{position:relative}
+.as-fire-ring{
+  position:absolute;
+  left:50%;top:50%;
+  border-radius:50%;
+  border:1px solid rgba(255,163,64,.35);
+  pointer-events:none;
+  transform:translate(-50%,-50%);
+}
+.as-fire-ring--a{width:130%;height:130%;animation:asRingPulse 2.6s ease-out infinite}
+.as-fire-ring--b{width:130%;height:130%;animation:asRingPulse 2.6s ease-out infinite 1.3s}
+@keyframes asRingPulse{
+  0%{opacity:.65;transform:translate(-50%,-50%) scale(.72)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.35)}
+}
+
+.achievement-share-kicker{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.achievement-share-kicker span{color:#FFA940;font-size:9px;opacity:.85}
+.achievement-share-title{
+  background:linear-gradient(135deg,#FFE7B8,#FF9D3D 55%,#FF6A32);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.achievement-share-days{
+  filter:drop-shadow(0 4px 18px rgba(255,138,32,.35));
+  animation:asDaysPulse 2.6s ease-in-out infinite;
+}
+@keyframes asDaysPulse{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.035)}
+}
+
+.achievement-share-close{
+  position:relative;
+  overflow:hidden;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  background:linear-gradient(135deg,#FFA53E,#FF6A32 55%,#EF4444);
+  background-size:180% 180%;
+  animation:asCloseGradient 3.2s ease-in-out infinite;
+  box-shadow:0 14px 34px rgba(239,68,68,.28),inset 0 1px 0 rgba(255,255,255,.22);
+  transition:transform .16s cubic-bezier(.34,1.56,.64,1);
+}
+.achievement-share-close:active{transform:scale(.965)}
+.achievement-share-close::after{
+  content:"";
+  position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.32) 40%,transparent 60%);
+  transform:translateX(-120%);
+  animation:asCloseSheen 3.4s ease-in-out infinite;
+}
+@keyframes asCloseGradient{
+  0%,100%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+}
+@keyframes asCloseSheen{
+  0%,55%{transform:translateX(-120%)}
+  85%,100%{transform:translateX(120%)}
+}
+.as-close-emoji{display:inline-block;animation:asCloseBounce 1.8s ease-in-out infinite}
+@keyframes asCloseBounce{
+  0%,100%{transform:translateY(0) rotate(0)}
+  50%{transform:translateY(-2px) rotate(-8deg)}
+}
+
+/* Слабые устройства и запрос на уменьшение движения — гасим весь декор,
+   оставляя только сам факт появления карточки. */
+.performance-lite .achievement-share-card::before,
+.performance-lite .as-orb,
+.performance-lite .as-spark,
+.performance-lite .as-fire-ring,
+.performance-lite .achievement-share-close::after,
+.performance-lite .as-close-emoji,
+.performance-lite .achievement-share-days{
+  animation:none !important;
+}
+.performance-lite .achievement-share-close{animation:none !important;background-position:0 50%}
+.performance-lite .as-spark{display:none !important}
+@media (prefers-reduced-motion:reduce){
+  .achievement-share-card,
+  .achievement-share-card::before,
+  .as-orb,.as-spark,.as-fire-ring,
+  .achievement-share-close,.achievement-share-close::after,
+  .as-close-emoji,.achievement-share-days{
+    animation:none !important;
+    transition:opacity .2s ease !important;
+    transform:none !important;
+  }
+}

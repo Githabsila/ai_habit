@@ -890,7 +890,12 @@
     if (badgeEl) badgeEl.style.display = u.badge ? "inline" : "none";
 
     const adminBtn = document.getElementById("adminPanelBtn");
-    if (adminBtn) adminBtn.hidden = !u.is_admin;
+    if (adminBtn) {
+        adminBtn.hidden = !u.is_admin;
+        // Резервируем место под кнопку в строке с именем, иначе длинное
+        // имя/приветствие визуально и по кликам перекрывает кнопку.
+        adminBtn.closest(".player-card")?.classList.toggle("has-admin-btn", !!u.is_admin);
+    }
 
     const xpIntoLevel = Math.max(0, Math.min(99.999, (u.total_xp ?? u.xp ?? 0) % 100));
     document.getElementById("xpLabel").textContent = `${Math.floor(xpIntoLevel)} / 100 XP`;
