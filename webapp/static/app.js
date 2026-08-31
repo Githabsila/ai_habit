@@ -129,8 +129,15 @@
       let data = null;
       try { data = await res.json(); } catch (e) { /* пусто */ }
       if (!res.ok) {
-        const err = new Error((data && data.error) || "request_failed");
-        err.data = data;
+        // "request_failed" — внутренний технический фолбэк для случая, когда
+        // сервер не прислал data.error (сеть оборвалась/сервер отдал не JSON).
+        // Раньше это слово всплывало прямо в интерфейсе как есть — кладём
+        // его в err.data.error тоже, чтобы friendlyError() всегда находил
+        // понятный русский текст через свою карту кодов, а не показывал
+        // технический код напрямую.
+        const code = (data && data.error) || "request_failed";
+        const err = new Error(code);
+        err.data = Object.assign({}, data, { error: code });
         err.status = res.status;
         throw err;
       }
@@ -228,28 +235,31 @@
     return document.querySelector(`.tab-panel[data-tab="${key}"]`);
   }
 
-  function setTabLoading(key, loading, message = "") {
+  function setTabLoading(key, loading, message = "", retryKey = "") {
     const panel = getTabPanel(key);
     if (!panel) return;
     panel.classList.toggle("tab-panel--loading", !!loading);
     panel.setAttribute("aria-busy", loading ? "true" : "false");
     let layer = panel.querySelector(":scope > .tab-loading-state");
+
+    // ВАЖНО: раньше здесь при loading=false сразу удаляли layer.remove(),
+    // а затем НИЖЕ (при message) пытались переиспользовать ту же
+    // переменную layer — но removе() отсоединяет узел от DOM, а не
+    // обнуляет переменную, так что баннер ошибки молча писался в
+    // невидимый отсоединённый элемент и никогда не появлялся на экране.
+    // Теперь у каждого состояния (загрузка / ошибка / ничего) — свой
+    // явный путь без повторного использования удалённого узла.
     if (loading) {
       if (!layer) {
         layer = document.createElement("div");
         layer.className = "tab-loading-state";
-        layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
         panel.prepend(layer);
       }
       layer.hidden = false;
       layer.innerHTML = '<div class="tab-loading-state__spinner" aria-hidden="true"></div><span>Загрузка…</span>';
-    } else if (layer) {
-      // Полностью удаляем индикатор после загрузки, а не просто скрываем его.
-      // Так он не сможет остаться поверх нижнего меню из-за CSS/кэша WebView.
-      layer.remove();
-      panel.classList.remove("tab-panel--loading");
-      panel.setAttribute("aria-busy", "false");
+      return;
     }
+
     if (message) {
       if (!layer) {
         layer = document.createElement("div");
@@ -257,11 +267,30 @@
         panel.prepend(layer);
       }
       layer.hidden = false;
-      layer.innerHTML = `<div class="tab-loading-state__error">${escapeHtml(message)}</div>`;
-      panel.classList.remove("tab-panel--loading");
-      panel.setAttribute("aria-busy", "false");
+      layer.innerHTML =
+        `<div class="tab-loading-state__error">${escapeHtml(message)}</div>` +
+        (retryKey
+          ? `<button type="button" class="tab-loading-state__retry" data-retry-section="${escapeHtml(retryKey)}">↻ Повторить</button>`
+          : "");
+      return;
     }
+
+    // Ни загрузки, ни ошибки — индикатор целиком не нужен.
+    // Полностью удаляем его, а не просто скрываем — так он не сможет
+    // остаться поверх нижнего меню из-за CSS/кэша WebView.
+    if (layer) layer.remove();
   }
+
+  // Один делегированный обработчик на все кнопки "Повторить" в баннерах
+  // ошибок вкладок — сами баннеры создаются/пересоздаются динамически.
+  document.addEventListener("click", (e) => {
+    const retryBtn = e.target.closest(".tab-loading-state__retry");
+    if (!retryBtn) return;
+    const key = retryBtn.dataset.retrySection;
+    if (!key) return;
+    haptic("light");
+    loadBootstrapSecondary(key);
+  });
 
   async function loadBootstrapSecondary(section) {
     const key = section || "profile";
@@ -270,31 +299,45 @@
 
     setTabLoading(key, true);
     const promise = (async () => {
-      try {
-        const data = await api(`/api/bootstrap-secondary?section=${encodeURIComponent(key)}`, { timeoutMs: 10000 });
-        if (state) {
-          if (key === "profile") {
-            state.shop_items = data.shop_items || [];
-            state.achievements = data.achievements || [];
-            renderShop();
-            renderProfileAvatarControls();
-            renderThemePicker();
-            renderAchievements();
-          } else if (key === "rating") {
-            state.leaderboard = data.leaderboard || [];
-            renderRating();
-          } else if (key === "calendar") {
-            state.calendar_events = data.calendar_events || [];
-            renderCalendar();
+      let lastError = null;
+      // Один короткий повтор при временной сетевой заминке — так же, как
+      // уже делает loadBootstrap() для главного экрана. Без этого любой
+      // единичный сбой сети навсегда оставлял вкладку с "request_failed"
+      // до ручной перезагрузки Mini App.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const data = await api(`/api/bootstrap-secondary?section=${encodeURIComponent(key)}`, { timeoutMs: 10000 });
+          if (state) {
+            if (key === "profile") {
+              state.shop_items = data.shop_items || [];
+              state.achievements = data.achievements || [];
+              renderShop();
+              renderProfileAvatarControls();
+              renderThemePicker();
+              renderAchievements();
+            } else if (key === "rating") {
+              state.leaderboard = data.leaderboard || [];
+              renderRating();
+            } else if (key === "calendar") {
+              state.calendar_events = data.calendar_events || [];
+              renderCalendar();
+            }
+            secondaryLoaded.add(key);
+            setTabLoading(key, false);
           }
-          secondaryLoaded.add(key);
-          setTabLoading(key, false);
+          return state;
+        } catch (err) {
+          lastError = err;
+          if (attempt === 0 && (!err.status || err.status >= 500 || err.code === "timeout")) {
+            await new Promise(resolve => setTimeout(resolve, 350));
+            continue;
+          }
+          break;
         }
-      } catch (err) {
-        console.error(`bootstrap-secondary(${key}) failed:`, err);
-        setTabLoading(key, false, friendlyError(err) || "Не удалось загрузить раздел");
-        showToast(friendlyError(err) || "Не удалось загрузить раздел", "error");
       }
+      console.error(`bootstrap-secondary(${key}) failed:`, lastError);
+      setTabLoading(key, false, friendlyError(lastError) || "Не удалось загрузить раздел", key);
+      showToast(friendlyError(lastError) || "Не удалось загрузить раздел", "error");
       return state;
     })().finally(() => secondaryPromises.delete(key));
 
@@ -1826,7 +1869,10 @@ function initPlanActions() {
         habit_limit: "Можно добавить не больше 7 привычек",
         daily_limit_reached: "Этот пакет уже куплен сегодня — доступен снова завтра",
         habit_add_locked: "Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00",
-        invalid_init_data: "Telegram не передал данные авторизации. Закройте Mini App и откройте его снова."
+        invalid_init_data: "Telegram не передал данные авторизации. Закройте Mini App и откройте его снова.",
+        request_failed: "Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.",
+        not_admin: "Доступно только администраторам",
+        bot_unavailable: "Бот временно недоступен, попробуйте позже"
     };
 
     return map[code] || (err && err.message) || "Неизвестная ошибка";

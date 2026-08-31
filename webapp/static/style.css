@@ -403,6 +403,23 @@ font-size:15px;
   background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
   text-align: center; line-height: 1.4;
 }
+/* .tab-loading-state целиком имеет pointer-events:none (строка выше —
+   он лежит поверх контента только визуально, кликов на спиннер не
+   нужно), но кнопка "Повторить" внутри баннера ошибки должна быть
+   кликабельна — явный auto пересиливает унаследованный none. */
+.tab-loading-state__retry {
+  pointer-events: auto;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font: 700 12.5px/1 inherit;
+  color: #EAE5FA;
+  background: linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.02));
+  cursor: pointer;
+  transition: transform .15s cubic-bezier(.34,1.56,.64,1), filter .15s ease;
+}
+.tab-loading-state__retry:active { transform: scale(.95); filter: brightness(.95); }
+.performance-lite .tab-loading-state__retry { transition: none !important; }
 @keyframes adam-tab-spin { to { transform: rotate(360deg); } }
 /* Индикатор загрузки существует только пока реально идёт запрос. */
 .tab-loading-state[hidden] { display: none !important; }
@@ -1566,10 +1583,13 @@ body {
     drop-shadow(0 0 14px rgba(240,180,41,.35));
 }
 
-/* Премиальные привычки */
+/* Премиальные привычки
+   backdrop-filter тут раньше стоял на КАЖДОЙ карточке (их до 7 в списке) —
+   фон и так почти непрозрачный (72%), визуальная разница от блюра
+   минимальна, а цена перекомпоновки при скролле — нет: до 7 отдельных
+   GPU-слоёв, каждый пересчитывает размытие на каждый кадр скролла. */
 .habit-item {
-  background: rgba(20,16,31,.72);
-  backdrop-filter: blur(16px);
+  background: rgba(21,17,32,.86);
 
   border: 1px solid rgba(255,255,255,.06);
   border-radius: 22px;
@@ -4767,12 +4787,22 @@ section[data-tab="home"] .streak-widget__hero-row{
 
 
 /* =========================================================
-   PAINT STABILITY 28.08
+   PAINT STABILITY 28.08 → расширено 31.08
    Telegram WebView иногда теряет отдельные compositor-слои при сочетании
-   content-visibility + backdrop-filter + нескольких анимированных pseudo-
-   elements. Критический первый экран должен иметь обычный paint path.
+   content-visibility:auto + backdrop-filter + нескольких анимированных
+   pseudo-elements: при скролле вверх контент, который браузер решил
+   "пропустить" (ещё не пересекал viewport), должен внезапно посчитать
+   layout+paint синхронно за один кадр — экран на мгновение подвисает,
+   а затем "разлипает", когда пересчёт догоняет. Раньше это было
+   исправлено только для главной вкладки — но ровно тот же content-
+   visibility:auto висит на .tab-panel вообще без contain-intrinsic-size,
+   поэтому календарь/рейтинг/профиль ловят тот же фриз. Вкладки и так
+   уже полностью выключены из layout через [hidden] (строка выше) —
+   доп. пропуск контента ВНУТРИ активной вкладки не даёт выгоды, только
+   риск, так что отключаем content-visibility:auto везде, не только
+   на главной.
    ========================================================= */
-section[data-tab="home"].tab-panel {
+.tab-panel {
   content-visibility: visible !important;
   contain: layout style !important;
 }
@@ -7094,7 +7124,12 @@ body{
 .as-medal{
   position:relative;
   width:176px;height:150px;
-  margin:0 auto 6px;
+  /* .as-medal-disc/.as-medal-tail внутри — position:absolute, поэтому
+     их собственные отступы никак не влияют на поток документа: весь
+     зазор до кикера ниже держится ТОЛЬКО на margin-bottom самой .as-medal.
+     Хвосты ленты доходят почти до низа контейнера (top:56% + высота +
+     наклон) — без явного запаса они наезжают на текст под медалью. */
+  margin:0 auto 34px;
 }
 .as-medal-tail{
   position:absolute;
@@ -7131,7 +7166,6 @@ body{
   margin:0;
 }
 
-.achievement-share-kicker{margin-top:2px}
 
 .as-divider{
   width:100%;height:1px;
