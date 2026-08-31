@@ -7116,9 +7116,46 @@ body{
    снизу. Финальный слой каскада поверх всех .achievement-share-*
    и .as-* правил выше по файлу.
    ========================================================= */
+/* Раньше вся раскладка (flex-колонка + max-height:78vh) жила прямо на
+   .achievement-share-card — на невысоких окнах (десктопный Telegram,
+   короткий viewport) flexbox начинал СЖИМАТЬ детей, чтобы уместиться
+   в 78vh. Но .as-medal-disc/.as-fire-ring/.as-ember внутри медали —
+   position:absolute, они НЕ сжимаются вместе с обёрткой .as-medal —
+   поэтому кольцо с огнём оставались полного размера, а сама обёртка
+   .as-medal схлопывалась в несколько раз тоньше нужного. Следующий
+   элемент (заголовок) вставал по итоговой — маленькой — высоте
+   обёртки и наезжал прямо на кольцо. Кнопка внизу могла обрезаться
+   вовсе (card держит overflow:hidden ради рамки).
+   Теперь card — просто рамка+фон, а весь контент живёт в .as-scroll,
+   которому можно честно проскроллиться, если он не помещается,
+   вместо того чтобы уродливо сжиматься. */
 .achievement-share-card{
-  padding-top:26px;
+  display:block;
+  min-height:0;
+  max-height:none;
+  padding:0;
 }
+.as-scroll{
+  width:100%;
+  max-height:min(640px,82vh);
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  /* flex-start, НЕ center — center вместе с overflow:auto в некоторых
+     WebKit-версиях прячет "верхний" оверфлоу от скролла (тот же класс
+     бага уже правили в чате с ИИ-коучем). */
+  justify-content:flex-start;
+  text-align:center;
+  padding:34px 24px 28px;
+}
+.as-scroll::-webkit-scrollbar{display:none}
+/* Каждый прямой ребёнок — flex-shrink:0: пусть контент лучше честно
+   проскроллится, чем сломает точную геометрию медали/ленты. */
+.as-scroll>*{flex-shrink:0}
 
 .as-brand{
   display:flex;align-items:center;justify-content:center;gap:7px;
