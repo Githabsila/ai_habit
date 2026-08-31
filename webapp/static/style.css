@@ -7115,6 +7115,12 @@ body{
   width:16px;height:16px;border-radius:5px;flex:0 0 auto;
   display:grid;place-items:center;
   font:800 9px/1 'Space Grotesk',sans-serif;
+  /* .as-brand задаёт letter-spacing:.26em всей строке — без сброса тут
+     буква "A" наследует его и браузер резервирует лишний интервал
+     СПРАВА от глифа, из-за чего центрирование по grid визуально
+     съезжает влево. */
+  letter-spacing:normal;
+  text-align:center;
   background:linear-gradient(145deg,#FFD76A,#F0B429);
   color:#241a02;
   box-shadow:0 2px 8px rgba(240,180,41,.4);
