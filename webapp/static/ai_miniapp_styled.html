@@ -1344,4 +1344,82 @@ body{
  .header{padding-left:max(18px,calc((100% - 900px)/2)) !important;padding-right:max(18px,calc((100% - 900px)/2)) !important}
 }
 
+/* =========================================================
+   САМИ СООБЩЕНИЯ — финальный премиальный слой (последний в
+   каскаде, поэтому реально то, что видно на экране).
+   ========================================================= */
+.message-bubble{
+ border-radius:22px !important;
+ padding:14px 17px !important;
+ box-shadow:0 18px 44px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.09) !important;
+}
+.message.assistant .message-bubble{
+ position:relative;
+ background:
+   linear-gradient(180deg,rgba(255,255,255,.05),transparent 40%),
+   linear-gradient(150deg,rgba(40,34,56,.96),rgba(15,12,21,.97)) !important;
+ border:1px solid rgba(178,160,255,.16) !important;
+ border-radius:6px 22px 22px 22px !important;
+ box-shadow:
+   0 18px 46px rgba(0,0,0,.32),
+   0 0 0 1px rgba(0,0,0,.2),
+   inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+.message.assistant .message-bubble{padding-top:32px !important}
+.message.assistant .message-bubble::before{
+ content:"" !important;
+ position:absolute !important;left:15px !important;top:16px !important;
+ width:6px !important;height:6px !important;border-radius:50% !important;
+ background:radial-gradient(circle at 35% 30%,#FFE9A8,#F0B429) !important;
+ box-shadow:0 0 8px rgba(240,180,41,.65) !important;
+ margin:0 !important;padding:0 !important;border:0 !important;
+ opacity:1 !important;
+}
+.message.assistant .message-bubble::after{
+ content:"ADAM" !important;
+ position:absolute !important;left:27px !important;top:12px !important;
+ font:800 9px/1 'Space Grotesk',sans-serif !important;
+ letter-spacing:.14em !important;
+ color:#C9BBFF !important;
+}
+.message.user .message-bubble{
+ background:
+   linear-gradient(180deg,rgba(255,255,255,.10),transparent 45%),
+   linear-gradient(150deg,#9C82FF,#6B49DF) !important;
+ border:1px solid rgba(255,255,255,.16) !important;
+ border-radius:22px 6px 22px 22px !important;
+ box-shadow:
+   0 18px 42px rgba(90,58,205,.34),
+   inset 0 1px 0 rgba(255,255,255,.26) !important;
+}
+.message.assistant .message-bubble > div,
+.message.assistant .message-bubble{
+ text-shadow:0 1px 1px rgba(0,0,0,.18);
+}
+.message-meta{padding:0 5px !important}
+.message-time{color:#84809A !important;font-weight:600 !important;letter-spacing:.01em}
+.message-mini-actions{gap:4px !important}
+.message-mini-actions button{
+ border-radius:9px !important;
+ background:rgba(255,255,255,.05) !important;
+ border:1px solid rgba(255,255,255,.07) !important;
+ color:#B9B2D0 !important;
+}
+.message-mini-actions button:hover{
+ background:rgba(167,139,250,.16) !important;
+ border-color:rgba(167,139,250,.30) !important;
+ color:#fff !important;
+}
+.msg-avatar{
+ box-shadow:0 8px 20px rgba(91,53,200,.4),0 0 0 1px rgba(255,255,255,.10) !important;
+}
+@media(prefers-reduced-motion:no-preference){
+ .message.assistant .message-bubble{animation:adamBubbleGlow 3.6s ease-in-out infinite}
+}
+.performance-lite .message.assistant .message-bubble{animation:none !important}
+@keyframes adamBubbleGlow{
+ 0%,100%{box-shadow:0 18px 46px rgba(0,0,0,.32),0 0 0 1px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.08)}
+ 50%{box-shadow:0 18px 46px rgba(0,0,0,.32),0 0 22px rgba(143,114,255,.10),inset 0 1px 0 rgba(255,255,255,.08)}
+}
+
 </style>
