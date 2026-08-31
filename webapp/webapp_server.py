@@ -25,6 +25,7 @@ from db import (
     update_reminder_time, toggle_reminders, update_ai_style, get_ai_style,
     get_shop_items, buy_shop_item, get_user_items, get_shop_item,
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
+    touch_last_seen,
     has_reached_daily_limit, log_stars_purchase,
     get_rating, get_calendar, get_achievements,
     was_premium_purchased, give_premium,
@@ -114,6 +115,12 @@ async def _authenticate(request):
                 "subscription": status,
             })
         )
+
+    # Аналитика (db/analytics.py): каждый успешно авторизованный запрос
+    # Mini App = живой пользователь сегодня. _authenticate вызывается из
+    # каждого API-роута, поэтому это надёжный источник DAU без отдельного
+    # мидлвара на каждый маршрут.
+    touch_last_seen(telegram_id)
 
     return telegram_id, is_admin
 

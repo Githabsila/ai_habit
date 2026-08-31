@@ -26,6 +26,7 @@ from onboarding_auto import run_auto_approve
 from goal_feedback import run_goal_feedback
 from morning_ping import run_morning_ping
 from subscription_scheduler import run_trial_reminders
+from admin_digest_scheduler import run_admin_daily_digest, DIGEST_HOUR_UTC
 from backups.backup import start_backup_scheduler
 from middlewares.access_control import AccessControlMiddleware
 
@@ -143,6 +144,11 @@ async def main():
     # --- Пром 13: напоминания триала → подписки (сам гейт по умолчанию
     # выключен, см. config.SUBSCRIPTION_GATE_ENABLED) ---
     scheduler.add_job(run_trial_reminders, "interval", minutes=1, args=[bot])
+
+    # Ежедневная проактивная сводка админам (DAU, ошибки за 24ч, расход
+    # AI-квоты против общего потолка, воронки, конверсия подписки) — не
+    # ждём, пока кто-то сам зайдёт в /admin → "Статистика".
+    scheduler.add_job(run_admin_daily_digest, "cron", hour=DIGEST_HOUR_UTC, minute=0, args=[bot])
 
     scheduler.start()
     logger.info("✅ Планировщик запущен")

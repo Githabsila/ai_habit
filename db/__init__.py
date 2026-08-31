@@ -178,6 +178,13 @@ from .subscription import (
     mark_channel_access_granted, try_grant_channel_access,
 )
 
+from .analytics import (
+    touch_last_seen, get_dau, get_subscription_conversion,
+    get_ai_usage_today, get_habit_completion_rate,
+    get_survey_funnel, get_first_ai_message_funnel,
+    log_ai_tokens, get_ai_tokens_today, get_ai_tokens_by_provider_today,
+)
+
 
 __all__ = [
     "DB_NAME", "DATA_DIR", "DB_PATH", "connect", "create_tables",
@@ -189,6 +196,10 @@ __all__ = [
     "set_referrer", "add_referral", "get_referrals",
     "get_rating", "get_user_rank", "claim_daily_bonus",
     "get_last_ai_message_at", "touch_last_ai_message", "claim_ai_first_message",
+    "touch_last_seen", "get_dau", "get_subscription_conversion",
+    "get_ai_usage_today", "get_habit_completion_rate",
+    "get_survey_funnel", "get_first_ai_message_funnel",
+    "log_ai_tokens", "get_ai_tokens_today", "get_ai_tokens_by_provider_today",
     "get_settings", "update_reminder_time", "toggle_reminders", "update_ai_style", "get_ai_style",
     "add_habit", "get_habits", "get_habit", "edit_habit", "delete_habit",
     "reset_habits", "update_streak", "complete_habit", "get_progress",

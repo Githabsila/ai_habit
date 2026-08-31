@@ -18,7 +18,7 @@ from config import BOT_TOKEN, ADMIN_IDS
 from webapp.telegram_auth import validate_init_data
 from db import (
     get_user, add_user, is_banned, get_access_status, set_access_status,
-    bot_access_allowed,
+    bot_access_allowed, touch_last_seen,
 )
 
 
@@ -69,4 +69,5 @@ async def authenticate(init_data):
         if not bot_access_allowed(telegram_id):
             raise _error(web.HTTPForbidden, "trial_expired", "Пробный период закончился")
 
+    touch_last_seen(telegram_id)
     return telegram_id, is_admin

@@ -1,5 +1,0 @@
-openai
-aiogram
-python-dotenv
-apscheduler
-aiohttp

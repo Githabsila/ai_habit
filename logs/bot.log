@@ -70,3 +70,4 @@ client_session: <aiohttp.client.ClientSession object at 0x000001BA339D74D0>
 2026-08-05 06:39:54 | ERROR   | aiogram.dispatcher | Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
 2026-08-05 06:39:54 | WARNING | aiogram.dispatcher | Sleep for 4.963135 seconds and try again... (tryings = 11, bot id = 8986439296)
 2026-08-05 06:39:54 | INFO    | main | 🛑 Веб-сервер остановлен
+2026-08-31 16:39:18 | INFO    | main | ✅ База данных подключена

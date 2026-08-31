@@ -1,7 +1,7 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import Message
 from config import ADMIN_IDS
 from keyboards import main_menu
 
@@ -101,20 +101,5 @@ async def start(message: Message, state: FSMContext):
 
 Выберите раздел 👇
         """,
-        reply_markup=main_menu()
+        reply_markup=main_menu(is_admin=message.from_user.id in ADMIN_IDS)
     )
-
-    if message.from_user.id in ADMIN_IDS:
-        await message.answer(
-            "👑 Админ-панель",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="👑 Открыть админку",
-                            callback_data="admin"
-                        )
-                    ]
-                ]
-            )
-        )

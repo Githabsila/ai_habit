@@ -6,6 +6,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
 from keyboards import main_menu
+from config import ADMIN_IDS
 
 from db import (
     save_survey_answers,
@@ -188,7 +189,7 @@ async def grant_access(bot, user_id: int, bot_goal: str = None):
             chat_id=user_id,
             text=APPROVED_INTRO + extra_text,
             parse_mode="HTML",
-            reply_markup=main_menu()
+            reply_markup=main_menu(is_admin=user_id in ADMIN_IDS)
         )
     except Exception:
         logger.warning(f"Не удалось уведомить пользователя {user_id} об одобрении доступа")

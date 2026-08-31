@@ -402,6 +402,32 @@ def _trim_to_last_sentence(text: str) -> str:
     return text[:matches[-1].end()].rstrip()
 
 
+def _log_usage(response, provider: str) -> None:
+    """Пишет реальный расход токенов этого вызова в db/analytics.py —
+    единственное место во всём проекте, где это делается, поэтому
+    покрывает ВСЕ фичи на LLM (чат, совет дня, утренние сообщения,
+    еженедельный разбор, анализ анкеты), а не только ручной чат.
+
+    chat.completions (Groq) и responses (OpenAI) отдают usage в
+    немного разных полях — берём defensively, что есть."""
+    try:
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return
+        tokens = (
+            getattr(usage, "total_tokens", None)
+            or (
+                (getattr(usage, "input_tokens", 0) or 0)
+                + (getattr(usage, "output_tokens", 0) or 0)
+            )
+        )
+        if tokens:
+            from db.analytics import log_ai_tokens
+            log_ai_tokens(tokens, provider)
+    except Exception:
+        pass
+
+
 async def _ask(
     system: str,
     user: str,
@@ -436,6 +462,7 @@ async def _ask(
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        _log_usage(response, "groq")
         result = _strip_markdown((response.choices[0].message.content or "").strip())
         if not result:
             raise RuntimeError("Groq вернул пустой ответ")
@@ -451,6 +478,7 @@ async def _ask(
             input=user,
             max_output_tokens=max_tokens,
         )
+        _log_usage(response, "openai")
         text = _strip_markdown((response.output_text or "").strip())
         status = getattr(response, "status", None)
         if status == "incomplete":

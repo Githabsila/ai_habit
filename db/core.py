@@ -155,6 +155,12 @@ def create_tables():
     if "channel_access_granted_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN channel_access_granted_at TIMESTAMP")
 
+    # last_seen — для DAU/WAU в аналитике (db/analytics.py). Обновляется на
+    # каждый заход в Mini App (webapp/auth_helpers.py) и на каждое сообщение
+    # боту (middlewares/access_control.py), поэтому отражает обе поверхности.
+    if "last_seen" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP")
+
     # ---------------- SETTINGS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS settings(
@@ -374,6 +380,24 @@ def create_tables():
         bonus_answers INTEGER DEFAULT 0
     )
     """)
+
+    # ---------------- РЕАЛЬНЫЙ РАСХОД ТОКЕНОВ LLM ----------------
+    # В отличие от ai_quota (которая считает только ручной чат ADAM и
+    # используется для лимита конкретного пользователя), эта таблица
+    # пишется из ЕДИНОЙ точки всех вызовов LLM — multi_agent.py::_ask —
+    # и поэтому покрывает вообще всё: чат, "Совет дня", утренние
+    # сообщения, еженедельный разбор, анализ анкеты онбординга и т.д.
+    # Именно эти автоматические напоминания раньше нигде не считались.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ai_token_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        day TEXT NOT NULL,
+        tokens INTEGER DEFAULT 0,
+        provider TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_token_log_day ON ai_token_log(day)")
 
     # Косметика профиля: рамки за Adam Coin. Повторный INSERT безопасен для существующей БД.
     cursor.execute("UPDATE shop_items SET item_type='premium' WHERE id=1")

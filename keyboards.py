@@ -144,27 +144,38 @@ def pending_keyboard(users):
 # ГЛАВНОЕ МЕНЮ
 # =====================================
 
-def main_menu():
+def main_menu(is_admin=False):
     """Панель бота теперь отвечает только за то, что не переехало в
     Mini App: сама регистрация (анкета, см. handlers/start.py и
     handlers/onboarding.py — вне этой клавиатуры) и «Основа: умные
     напоминания». Все остальные разделы (профиль, привычки, задания,
     прогресс, календарь, AI, рейтинг, достижения, магазин, сообщество,
     вехи, Premium, стиль AI, сброс прогресса) живут в Mini App —
-    он открывается кнопкой меню Telegram (см. main.py: set_chat_menu_button)."""
+    он открывается кнопкой меню Telegram (см. main.py: set_chat_menu_button).
 
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+    is_admin=True добавляет кнопку "Админ-панель" — раньше она приходила
+    отдельным вторым сообщением только на /start (см. handlers/start.py) и
+    пропадала при возврате в главное меню откуда-то ещё; теперь она прямо
+    в этом меню и видна только тем, чей telegram_id есть в config.ADMIN_IDS."""
 
-            [
-                InlineKeyboardButton(
-                    text="🔔 Умные напоминания",
-                    callback_data="reminders_menu"
-                )
-            ]
-
+    rows = [
+        [
+            InlineKeyboardButton(
+                text="🔔 Умные напоминания",
+                callback_data="reminders_menu"
+            )
         ]
-    )
+    ]
+
+    if is_admin:
+        rows.append([
+            InlineKeyboardButton(
+                text="🛠 Админ-панель",
+                callback_data="admin"
+            )
+        ])
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 # =====================================

@@ -15,11 +15,8 @@ from db import (
     give_xp_admin,
     ban_user,
     unban_user,
-    get_ai_feedback_stats,
-    get_error_stats,
     get_pending_users,
     set_access_status,
-    get_access_status_counts,
     get_survey,
     get_survey_tags,
     get_ai_history,
@@ -404,57 +401,12 @@ async def admin_stats(callback: CallbackQuery):
     if callback.from_user.id not in ADMIN_IDS:
         return
 
-    users = get_all_users_info()
-    total = len(users)
+    # Общий текст со scheduler'ом ежедневной автосводки — одна и та же
+    # логика для кнопки "по запросу" и для проактивной рассылки, см.
+    # admin_digest_scheduler.py.
+    from admin_digest_scheduler import build_stats_report
 
-    premium = sum(1 for u in users if u["premium"])
-    banned = sum(1 for u in users if u["banned"])
-    total_xp = sum(u["xp"] for u in users)
-    total_level = sum(u["level"] for u in users)
-    avg_level = round(total_level / total, 2) if total else 0
-
-    fb = get_ai_feedback_stats()
-    if fb["total"]:
-        fb_line = f"👍 {fb['up']} / 👎 {fb['down']} (позитивных: {fb['positive_share']}%)"
-    else:
-        fb_line = "оценок пока нет"
-
-    errors = get_error_stats(hours=24)
-    if errors["total"]:
-        err_line = f"⚠️ {errors['total']} за 24ч (" + ", ".join(
-            f"{row['scope']}: {row['cnt']}" for row in errors["by_scope"]
-        ) + ")"
-    else:
-        err_line = "за 24ч ошибок не было ✅"
-
-    access_counts = get_access_status_counts()
-    pending_n = access_counts.get("pending", 0)
-    new_n = access_counts.get("new", 0)
-    approved_n = access_counts.get("approved", 0)
-
-    await callback.message.answer(
-        f"""
-📊 <b>Статистика бота</b>
-
-👥 Пользователей: <b>{total}</b>
-
-💎 Premium: <b>{premium}</b>
-
-🚫 Заблокировано: <b>{banned}</b>
-
-⭐ Всего Adam Coin: <b>{total_xp}</b>
-
-🏅 Средний уровень: <b>{avg_level}</b>
-
-🔐 Доступ: одобрено <b>{approved_n}</b> / на проверке <b>{pending_n}</b> / анкету не прошли <b>{new_n}</b>
-
-🤖 Оценки ответов AI: <b>{fb_line}</b>
-
-🩺 Мониторинг ошибок: <b>{err_line}</b>
-""",
-        parse_mode="HTML"
-    )
-
+    await callback.message.answer(build_stats_report(), parse_mode="HTML")
     await callback.answer()
 
 

@@ -1,5 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
+from config import ADMIN_IDS
 from keyboards import (
     habits_keyboard,
     main_menu,
@@ -37,7 +38,7 @@ async def back_menu(callback: CallbackQuery):
     await callback.message.edit_text(
         "🏠 <b>Главное меню</b>",
         parse_mode="HTML",
-        reply_markup=main_menu()
+        reply_markup=main_menu(is_admin=callback.from_user.id in ADMIN_IDS)
     )
 
     await callback.answer()

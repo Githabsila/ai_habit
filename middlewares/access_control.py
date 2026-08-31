@@ -2,7 +2,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
 
 from config import ADMIN_IDS
-from db import bot_access_allowed, get_subscription_status
+from db import bot_access_allowed, get_subscription_status, touch_last_seen
 from keyboards import subscription_buy_keyboard
 
 # Пром 13: колбэки, которые обязаны проходить даже для заблокированного
@@ -26,6 +26,13 @@ class AccessControlMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         user_id = user.id
+        # Аналитика (db/analytics.py): любое сообщение/колбэк боту = живой
+        # пользователь сегодня. Не должно ронять обработку сообщения, если
+        # вдруг не получится записать (например гонка до add_user).
+        try:
+            touch_last_seen(user_id)
+        except Exception:
+            pass
         if user_id in ADMIN_IDS:
             return await handler(event, data)
 

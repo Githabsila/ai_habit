@@ -78,12 +78,6 @@ def record_subscription_payment(user_id, months=1):
     conn = connect()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT subscription_first_payment_at FROM users WHERE telegram_id=?",
-        (user_id,),
-    )
-    row = cursor.fetchone()
-    first_payment_at = row["subscription_first_payment_at"] if row else None
-    cursor.execute(
         """UPDATE users
            SET subscription_paid_until=?,
                subscription_first_payment_at=COALESCE(subscription_first_payment_at, CURRENT_TIMESTAMP)
