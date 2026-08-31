@@ -1238,6 +1238,7 @@ body{
 .app-container{background:transparent !important}
 .header{
  padding:12px 16px 14px !important;
+ padding-top:calc(12px + var(--tg-safe-top, 0px) + 46px) !important;
  background:rgba(10,8,15,.72) !important;
  border-bottom:1px solid var(--adam-chat-line) !important;
  box-shadow:0 18px 45px rgba(0,0,0,.32) !important;
@@ -1365,22 +1366,24 @@ body{
    0 0 0 1px rgba(0,0,0,.2),
    inset 0 1px 0 rgba(255,255,255,.08) !important;
 }
-.message.assistant .message-bubble{padding-top:32px !important}
-.message.assistant .message-bubble::before{
- content:"" !important;
- position:absolute !important;left:15px !important;top:16px !important;
- width:6px !important;height:6px !important;border-radius:50% !important;
- background:radial-gradient(circle at 35% 30%,#FFE9A8,#F0B429) !important;
- box-shadow:0 0 8px rgba(240,180,41,.65) !important;
- margin:0 !important;padding:0 !important;border:0 !important;
- opacity:1 !important;
-}
-.message.assistant .message-bubble::after{
- content:"ADAM" !important;
- position:absolute !important;left:27px !important;top:12px !important;
+/* "ADAM" — обычный DOM-элемент, а не ::before/::after с абсолютным
+   позиционированием (та версия в редких вебвью съезжала/переносилась
+   по буквам — реальный блок в потоке документа так сломаться не может). */
+.message.assistant .message-bubble::before,
+.message.assistant .message-bubble::after{content:none !important}
+.msg-sender{
+ display:flex !important;align-items:center !important;gap:6px !important;
+ width:fit-content !important;
+ margin:0 0 8px 2px !important;
+ white-space:nowrap !important;
  font:800 9px/1 'Space Grotesk',sans-serif !important;
  letter-spacing:.14em !important;
  color:#C9BBFF !important;
+}
+.msg-sender-dot{
+ flex:0 0 auto !important;width:6px !important;height:6px !important;border-radius:50% !important;
+ background:radial-gradient(circle at 35% 30%,#FFE9A8,#F0B429) !important;
+ box-shadow:0 0 8px rgba(240,180,41,.65) !important;
 }
 .message.user .message-bubble{
  background:
@@ -1420,6 +1423,37 @@ body{
 @keyframes adamBubbleGlow{
  0%,100%{box-shadow:0 18px 46px rgba(0,0,0,.32),0 0 0 1px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.08)}
  50%{box-shadow:0 18px 46px rgba(0,0,0,.32),0 0 22px rgba(143,114,255,.10),inset 0 1px 0 rgba(255,255,255,.08)}
+}
+
+/* Лента сообщений: последнее сообщение всегда у низа (не болтается
+   вверху с пустотой под ним), и нельзя "утянуть" скролл ниже последнего
+   сообщения резиновым оверскроллом. */
+.messages-container{
+ justify-content:flex-end !important;
+ overscroll-behavior-y:contain !important;
+}
+
+/* Пузырь сообщения всегда по размеру своего текста — раньше в редких
+   вебвью короткие сообщения ("Да" и т.п.) могли растягиваться на всю
+   стоку и переноситься по буквам. */
+.message-bubble{
+ width:fit-content !important;
+ max-width:93% !important;
+ word-break:normal !important;
+ overflow-wrap:break-word !important;
+}
+.message.user > div{
+ max-width:100% !important;
+ display:flex !important;
+ flex-direction:column !important;
+ align-items:flex-end !important;
+}
+
+/* Эмодзи — предпочитаем родной цветной шрифт устройства (на iPhone это
+   и есть настоящие Apple-эмодзи), а не системный текстовый рендер. */
+.emoji-launcher,.emoji-panel,.message-bubble,.quick-icon,.header-title-icon,
+.icon-btn,.empty-icon,.welcome-prompts button,.quick-prompts button{
+ font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",'Inter',sans-serif !important;
 }
 
 </style>
