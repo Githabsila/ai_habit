@@ -7061,3 +7061,107 @@ body{
     transform:none !important;
   }
 }
+
+/* =========================================================
+   ЭКРАН «ПОДЕЛИТЬСЯ ДОСТИЖЕНИЕМ» — ПОЛНЫЙ РЕДИЗАЙН 2.0
+   Карточка больше не просто иконка+текст, а именная медаль
+   на ленте — бренд-плашка сверху, медальон с огнём и ленточными
+   хвостами, разделитель и мини-статистика (уровень / Adam Coin)
+   снизу. Финальный слой каскада поверх всех .achievement-share-*
+   и .as-* правил выше по файлу.
+   ========================================================= */
+.achievement-share-card{
+  padding-top:26px;
+}
+
+.as-brand{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  font:800 9.5px/1 'Space Grotesk',sans-serif;
+  letter-spacing:.26em;
+  color:#9A8FB0;
+  margin-bottom:20px;
+}
+.as-brand-mark{
+  width:16px;height:16px;border-radius:5px;flex:0 0 auto;
+  display:grid;place-items:center;
+  font:800 9px/1 'Space Grotesk',sans-serif;
+  background:linear-gradient(145deg,#FFD76A,#F0B429);
+  color:#241a02;
+  box-shadow:0 2px 8px rgba(240,180,41,.4);
+}
+
+/* ----- медаль: лента + медальон с огнём ----- */
+.as-medal{
+  position:relative;
+  width:176px;height:150px;
+  margin:0 auto 6px;
+}
+.as-medal-tail{
+  position:absolute;
+  top:56%;
+  width:30px;height:58px;
+  z-index:0;
+  background:linear-gradient(180deg,#FFD76A,#C6810D);
+  clip-path:polygon(0 0,100% 0,100% 78%,50% 100%,0 78%);
+  box-shadow:0 10px 20px rgba(0,0,0,.35);
+}
+.as-medal-tail--l{left:50%;transform:translateX(calc(-50% - 30px)) rotate(-15deg)}
+.as-medal-tail--r{left:50%;transform:translateX(calc(-50% + 30px)) rotate(15deg)}
+
+.as-medal-disc.achievement-share-fire{
+  position:absolute;
+  left:50%;top:6px;
+  transform:translateX(-50%);
+  z-index:2;
+  width:124px;height:124px;
+  margin:0;
+  border-radius:50%;
+  display:grid;place-items:center;
+  background:
+    radial-gradient(circle at 50% 34%,rgba(255,180,84,.4),transparent 62%),
+    linear-gradient(150deg,#251c12,#0d0a08);
+  box-shadow:
+    0 0 0 3px rgba(240,180,41,.95),
+    0 0 0 7px rgba(240,180,41,.20),
+    0 22px 46px rgba(0,0,0,.5),
+    inset 0 2px 7px rgba(255,255,255,.10);
+}
+.as-medal-disc.achievement-share-fire img{
+  width:60px;height:70px;
+  margin:0;
+}
+
+.achievement-share-kicker{margin-top:2px}
+
+.as-divider{
+  width:100%;height:1px;
+  margin:18px 0 16px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent);
+}
+
+.as-stat-strip{
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:20px;
+}
+.as-stat{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:0 26px;
+}
+.as-stat-icon{font-size:16px;line-height:1}
+.as-stat-icon--coin{width:17px;height:17px;display:block}
+.as-stat b{font:800 18px/1 'Space Grotesk',sans-serif;color:#fff}
+.as-stat small{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:#8f8299}
+.as-stat-sep{width:1px;height:32px;background:rgba(255,255,255,.10)}
+
+.achievement-share-note{margin-top:0}
+
+@media (max-width:600px){
+  .as-medal{width:160px;height:138px}
+  .as-medal-disc.achievement-share-fire{width:112px;height:112px}
+  .as-medal-disc.achievement-share-fire img{width:54px;height:63px}
+  .as-medal-tail{width:26px;height:50px}
+  .as-medal-tail--l{transform:translateX(calc(-50% - 26px)) rotate(-15deg)}
+  .as-medal-tail--r{transform:translateX(calc(-50% + 26px)) rotate(15deg)}
+}
+
+.performance-lite .as-medal-tail,.performance-lite .as-medal-disc{transition:none !important}

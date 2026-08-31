@@ -707,8 +707,12 @@
       const overlay = document.getElementById("achievementShareOverlay");
       const daysEl = document.getElementById("achievementShareDays");
       const statusEl = document.getElementById("achievementShareStatus");
+      const levelEl = document.getElementById("achievementShareLevel");
+      const coinsEl = document.getElementById("achievementShareCoins");
       if (daysEl) daysEl.textContent = formatDays(days);
       if (statusEl) statusEl.textContent = status;
+      if (levelEl) levelEl.textContent = state?.user?.level || 1;
+      if (coinsEl) coinsEl.textContent = state?.user?.xp || 0;
       if (overlay) {
         overlay.hidden = false;
         requestAnimationFrame(() => overlay.classList.add("show"));

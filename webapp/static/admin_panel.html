@@ -35,7 +35,7 @@ body{
   min-height:100vh;
   padding-bottom:40px;
 }
-.wrap{max-width:640px;margin:0 auto;padding:16px 14px calc(24px + env(safe-area-inset-bottom,0px));}
+.wrap{max-width:640px;margin:0 auto;padding:calc(16px + var(--tg-safe-top,0px)) 14px calc(24px + env(safe-area-inset-bottom,0px));}
 
 /* ===== header ===== */
 .header{
@@ -248,6 +248,22 @@ textarea.field{resize:vertical;min-height:88px}
   var tg = window.Telegram && window.Telegram.WebApp;
   try{ tg.ready(); tg.expand(); }catch(e){}
   try{ tg.setHeaderColor('#07060b'); tg.setBackgroundColor('#07060b'); }catch(e){}
+
+  // Официальный WebView Telegram рисует свои "Закрыть / ˅ / ⋮" поверх
+  // страницы сверху — без этого шапка панели пряталась под них
+  // (см. contentSafeAreaInset — то же самое уже используется в ai_coach.js).
+  function applySafeArea(){
+    try{
+      var top = ((tg.contentSafeAreaInset && tg.contentSafeAreaInset.top) || 0)
+        + ((tg.safeAreaInset && tg.safeAreaInset.top) || 0);
+      document.documentElement.style.setProperty('--tg-safe-top', top + 'px');
+    }catch(e){}
+  }
+  applySafeArea();
+  try{
+    tg.onEvent('safeAreaChanged', applySafeArea);
+    tg.onEvent('contentSafeAreaChanged', applySafeArea);
+  }catch(e){}
 
   var root = document.getElementById('root');
   var toastEl = document.getElementById('toast');
