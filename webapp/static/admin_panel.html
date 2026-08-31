@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --bg:#07060b;
+  --glass:rgba(20,17,29,.72);
+  --glass-strong:rgba(28,24,40,.94);
+  --border:rgba(255,255,255,.09);
+  --text:#F2EFFB;
+  --muted:#938DA6;
+  --violet:#8f72ff;
+  --violet-deep:#6542dc;
+  --gold:#F0B429;
+  --red:#EF4444;
+  --green:#34D399;
+  --radius:20px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;min-height:100%}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  color:var(--text);
+  background:
+    radial-gradient(700px 430px at 50% -8%,rgba(126,92,246,.22),transparent 62%),
+    radial-gradient(500px 400px at 100% 45%,rgba(240,180,41,.06),transparent 65%),
+    var(--bg);
+  min-height:100vh;
+  padding-bottom:40px;
+}
+.wrap{max-width:640px;margin:0 auto;padding:16px 14px calc(24px + env(safe-area-inset-bottom,0px));}
+
+/* ===== header ===== */
+.header{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 4px 18px;
+}
+.header-icon{
+  width:46px;height:46px;border-radius:16px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:21px;
+  background:linear-gradient(145deg,#9578ff,#6847dc);
+  box-shadow:0 10px 26px rgba(104,71,220,.35),inset 0 1px 0 rgba(255,255,255,.22);
+}
+.header-copy{min-width:0}
+.header-title{font:800 18px/1.15 'Space Grotesk',sans-serif;letter-spacing:-.01em}
+.header-sub{margin-top:2px;font-size:11px;color:var(--muted)}
+.header-back{
+  margin-left:auto;flex:0 0 auto;width:38px;height:38px;border-radius:12px;
+  display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.04);
+  color:var(--text);font-size:16px;cursor:pointer;transition:transform .15s ease,background .15s ease;
+}
+.header-back:active{transform:scale(.92)}
+
+/* ===== cards ===== */
+.card{
+  position:relative;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:linear-gradient(150deg,rgba(35,30,48,.9),rgba(15,13,22,.94));
+  box-shadow:0 16px 40px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06);
+  padding:16px;
+  margin-bottom:14px;
+  animation:cardIn .42s cubic-bezier(.2,.8,.2,1) both;
+}
+.card + .card{animation-delay:.04s}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card-title{
+  display:flex;align-items:center;gap:8px;
+  font:800 13px/1 'Space Grotesk',sans-serif;letter-spacing:.02em;
+  margin-bottom:12px;color:#EAE5FA;
+}
+.card-title .dot{width:6px;height:6px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9A8,#F0B429);box-shadow:0 0 8px rgba(240,180,41,.6)}
+
+/* ===== stats text (report_html) ===== */
+.stats-body{font-size:12.5px;line-height:1.9;color:#D8D4E6}
+.stats-body b{color:#fff}
+
+/* ===== buttons ===== */
+.btn{
+  border:1px solid var(--border);
+  border-radius:13px;
+  padding:10px 14px;
+  font:700 12.5px/1 'Inter',sans-serif;
+  color:var(--text);
+  background:linear-gradient(145deg,rgba(255,255,255,.07),rgba(255,255,255,.02));
+  cursor:pointer;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),filter .15s ease;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn:active{transform:scale(.95);filter:brightness(.95)}
+.btn:disabled{opacity:.45;pointer-events:none}
+.btn-accent{
+  background:linear-gradient(135deg,#8e70ff,#6847dc);
+  border-color:rgba(255,255,255,.14);
+  box-shadow:0 10px 24px rgba(104,71,220,.28),inset 0 1px 0 rgba(255,255,255,.2);
+}
+.btn-gold{
+  background:linear-gradient(135deg,#FFD76A,#EFB331);
+  border-color:rgba(255,255,255,.2);
+  color:#221A02;
+  box-shadow:0 10px 24px rgba(240,180,41,.25),inset 0 1px 0 rgba(255,255,255,.4);
+}
+.btn-danger{
+  background:linear-gradient(135deg,rgba(239,68,68,.85),rgba(185,40,40,.9));
+  border-color:rgba(255,255,255,.12);
+}
+.btn-row{display:flex;flex-wrap:wrap;gap:8px}
+.btn-block{width:100%;justify-content:center}
+
+/* ===== inputs ===== */
+.field{
+  width:100%;border:1px solid var(--border);border-radius:13px;
+  background:rgba(255,255,255,.04);color:var(--text);
+  padding:11px 13px;font:500 13px/1.4 'Inter',sans-serif;
+  outline:none;transition:border-color .15s ease,box-shadow .15s ease;
+}
+.field:focus{border-color:rgba(143,114,255,.5);box-shadow:0 0 0 3px rgba(143,114,255,.12)}
+.field::placeholder{color:#6E6980}
+textarea.field{resize:vertical;min-height:88px}
+
+/* ===== pending list ===== */
+.list-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 4px;border-bottom:1px solid rgba(255,255,255,.05);
+}
+.list-row:last-child{border-bottom:none}
+.list-row-name{flex:1;min-width:0;font-size:12.5px}
+.list-row-name b{display:block;font-size:13px}
+.list-row-name small{color:var(--muted)}
+.empty-note{color:var(--muted);font-size:12px;padding:6px 2px}
+
+/* ===== user card result ===== */
+.user-card{
+  border:1px solid var(--border);border-radius:15px;
+  background:rgba(255,255,255,.03);padding:12px;margin-top:10px;
+}
+.user-card-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:#C9C4DA}
+.user-card-row b{color:#fff}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
+.badge-ok{background:rgba(52,211,153,.15);color:var(--green)}
+.badge-bad{background:rgba(239,68,68,.15);color:#FF8080}
+
+/* ===== toast ===== */
+.toast{
+  position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(8px);
+  background:rgba(20,17,29,.96);border:1px solid var(--border);border-radius:13px;
+  padding:11px 18px;font-size:12.5px;box-shadow:0 20px 50px rgba(0,0,0,.4);
+  opacity:0;pointer-events:none;transition:opacity .22s ease,transform .22s ease;
+  z-index:50;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ===== gate / loading ===== */
+.gate{
+  min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;text-align:center;padding:20px;
+}
+.gate-icon{font-size:40px}
+.spinner{
+  width:26px;height:26px;border-radius:50%;
+  border:3px solid rgba(143,114,255,.2);border-top-color:#a78bfa;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== performance-lite: слабые устройства — без анимаций ===== */
+.performance-lite .card{animation:none !important}
+.performance-lite .btn{transition:none !important}
+.performance-lite .toast{transition:opacity .05s linear !important}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="root">
+  <div class="gate">
+    <div class="spinner"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  try{
+    var lowPower = (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4)
+      || (navigator.deviceMemory && navigator.deviceMemory <= 4)
+      || (navigator.connection && navigator.connection.saveData);
+    if (lowPower) document.documentElement.classList.add('performance-lite');
+  }catch(e){}
+
+  var tg = window.Telegram && window.Telegram.WebApp;
+  try{ tg.ready(); tg.expand(); }catch(e){}
+  try{ tg.setHeaderColor('#07060b'); tg.setBackgroundColor('#07060b'); }catch(e){}
+
+  var root = document.getElementById('root');
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+
+  function showToast(text){
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 2200);
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function haptic(kind){
+    try{ tg.HapticFeedback.impactOccurred(kind || 'light'); }catch(e){}
+  }
+
+  function initData(){ return (tg && tg.initData) || ''; }
+
+  async function api(path, opts){
+    opts = opts || {};
+    var headers = Object.assign({ 'Authorization': 'tma ' + initData() }, opts.headers || {});
+    if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    var res = await fetch(path, Object.assign({}, opts, { headers: headers }));
+    var data = null;
+    try{ data = await res.json(); }catch(e){}
+    if (!res.ok){
+      var err = new Error((data && data.error) || ('http_' + res.status));
+      err.status = res.status; err.data = data;
+      throw err;
+    }
+    return data;
+  }
+
+  function renderGate(message, isError){
+    root.innerHTML =
+      '<div class="gate">' +
+        '<div class="gate-icon">' + (isError ? '⛔' : '🔐') + '</div>' +
+        '<div style="font:700 14px Inter,sans-serif;color:#D8D4E6">' + escapeHtml(message) + '</div>' +
+      '</div>';
+  }
+
+  function renderPanel(state){
+    root.innerHTML =
+      '<div class="header">' +
+        '<div class="header-icon">🛠</div>' +
+        '<div class="header-copy">' +
+          '<div class="header-title">Admin Panel</div>' +
+          '<div class="header-sub">Project ADAM · ' + state.total_users + ' пользователей</div>' +
+        '</div>' +
+        '<button class="header-back" id="backBtn">✕</button>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title"><span class="dot"></span>Статистика</div>' +
+        '<div class="stats-body">' + state.report_html + '</div>' +
+        '<div class="btn-row" style="margin-top:12px">' +
+          '<button class="btn" id="refreshStatsBtn">↻ Обновить</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title"><span class="dot"></span>Заявки на доступ</div>' +
+        '<div id="pendingList"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title"><span class="dot"></span>Пользователь по ID</div>' +
+        '<input class="field" id="userIdInput" type="number" inputmode="numeric" placeholder="Telegram ID">' +
+        '<div class="btn-row" style="margin-top:10px">' +
+          '<button class="btn btn-accent" id="lookupBtn">🔎 Найти</button>' +
+        '</div>' +
+        '<div id="userCardBox"></div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title"><span class="dot"></span>Рассылка</div>' +
+        '<textarea class="field" id="broadcastText" placeholder="Текст сообщения… (можно HTML-теги Telegram: &lt;b&gt;, &lt;i&gt;)"></textarea>' +
+        '<input class="field" id="broadcastTag" type="text" placeholder="Тег (необязательно) — пусто = всем" style="margin-top:8px">' +
+        '<div class="btn-row" style="margin-top:10px">' +
+          '<button class="btn btn-gold btn-block" id="broadcastBtn">📢 Отправить</button>' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById('backBtn').addEventListener('click', function(){
+      haptic('light');
+      window.location.href = '/';
+    });
+    document.getElementById('refreshStatsBtn').addEventListener('click', refreshStats);
+    document.getElementById('lookupBtn').addEventListener('click', lookupUser);
+    document.getElementById('broadcastBtn').addEventListener('click', sendBroadcast);
+
+    loadPending();
+  }
+
+  async function refreshStats(){
+    var btn = document.getElementById('refreshStatsBtn');
+    btn.disabled = true;
+    try{
+      var data = await api('/api/admin/stats');
+      document.querySelector('.stats-body').innerHTML = data.report_html;
+      haptic('light');
+    }catch(e){ showToast('Не получилось обновить'); }
+    finally{ btn.disabled = false; }
+  }
+
+  async function loadPending(){
+    var box = document.getElementById('pendingList');
+    try{
+      var data = await api('/api/admin/pending');
+      if (!data.users.length){
+        box.innerHTML = '<div class="empty-note">Никого нет в очереди ✅</div>';
+        return;
+      }
+      box.innerHTML = data.users.map(function(u){
+        var name = u.username ? ('@' + escapeHtml(u.username)) : escapeHtml(u.first_name || '');
+        return '<div class="list-row">' +
+          '<div class="list-row-name"><b>' + name + '</b><small>ID ' + u.telegram_id + '</small></div>' +
+          '<button class="btn btn-accent" data-approve="' + u.telegram_id + '">✅ Одобрить</button>' +
+        '</div>';
+      }).join('');
+      box.querySelectorAll('[data-approve]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          var id = btn.dataset.approve;
+          btn.disabled = true;
+          try{
+            await api('/api/admin/approve/' + id, { method: 'POST' });
+            haptic('medium');
+            showToast('Доступ открыт');
+            loadPending();
+          }catch(e){ showToast('Ошибка'); btn.disabled = false; }
+        });
+      });
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  async function lookupUser(){
+    var input = document.getElementById('userIdInput');
+    var box = document.getElementById('userCardBox');
+    var id = (input.value || '').trim();
+    if (!id){ showToast('Введи ID'); return; }
+    box.innerHTML = '<div class="empty-note">Ищу…</div>';
+    try{
+      var u = await api('/api/admin/user/' + id);
+      renderUserCard(u);
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Пользователь не найден</div>';
+    }
+  }
+
+  function renderUserCard(u){
+    var box = document.getElementById('userCardBox');
+    var name = u.username ? ('@' + escapeHtml(u.username)) : escapeHtml(u.first_name || '—');
+    box.innerHTML =
+      '<div class="user-card">' +
+        '<div class="user-card-row"><span>Имя</span><b>' + name + '</b></div>' +
+        '<div class="user-card-row"><span>Premium</span><b>' + (u.premium ? '💎 да' : '—') + '</b></div>' +
+        '<div class="user-card-row"><span>Статус</span><b>' +
+          (u.banned ? '<span class="badge badge-bad">заблокирован</span>' : '<span class="badge badge-ok">активен</span>') +
+        '</b></div>' +
+        '<div class="user-card-row"><span>Adam Coin / уровень</span><b>' + u.xp + ' / ' + u.level + '</b></div>' +
+        '<div class="user-card-row"><span>Серия</span><b>🔥 ' + u.streak + '</b></div>' +
+        '<div class="user-card-row"><span>Доступ</span><b>' + escapeHtml(u.access_status || '—') + '</b></div>' +
+        '<div class="btn-row" style="margin-top:12px">' +
+          (u.banned
+            ? '<button class="btn btn-accent" id="unbanBtn">✅ Разбанить</button>'
+            : '<button class="btn btn-danger" id="banBtn">🚫 Заблокировать</button>') +
+          '<button class="btn btn-gold" id="premiumBtn">💎 Premium</button>' +
+        '</div>' +
+        '<div class="btn-row" style="margin-top:8px">' +
+          '<button class="btn" data-xp="10">+10 XP</button>' +
+          '<button class="btn" data-xp="50">+50 XP</button>' +
+          '<button class="btn" data-xp="100">+100 XP</button>' +
+        '</div>' +
+      '</div>';
+
+    var banBtn = document.getElementById('banBtn');
+    var unbanBtn = document.getElementById('unbanBtn');
+    var premiumBtn = document.getElementById('premiumBtn');
+
+    if (banBtn) banBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'ban'); });
+    if (unbanBtn) unbanBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'unban'); });
+    premiumBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'premium'); });
+
+    box.querySelectorAll('[data-xp]').forEach(function(btn){
+      btn.addEventListener('click', function(){ giveXp(u.telegram_id, parseInt(btn.dataset.xp, 10)); });
+    });
+  }
+
+  async function userAction(id, action){
+    try{
+      await api('/api/admin/user/' + id + '/' + action, { method: 'POST' });
+      haptic('medium');
+      showToast('Готово ✅');
+      var u = await api('/api/admin/user/' + id);
+      renderUserCard(u);
+    }catch(e){ showToast('Ошибка'); }
+  }
+
+  async function giveXp(id, amount){
+    try{
+      await api('/api/admin/user/' + id + '/xp', { method: 'POST', body: JSON.stringify({ amount: amount }) });
+      haptic('medium');
+      showToast('+' + amount + ' Adam Coin начислено');
+      var u = await api('/api/admin/user/' + id);
+      renderUserCard(u);
+    }catch(e){ showToast('Ошибка'); }
+  }
+
+  async function sendBroadcast(){
+    var textEl = document.getElementById('broadcastText');
+    var tagEl = document.getElementById('broadcastTag');
+    var btn = document.getElementById('broadcastBtn');
+    var text = (textEl.value || '').trim();
+    if (!text){ showToast('Пустой текст'); return; }
+
+    var tag = (tagEl.value || '').trim();
+    var target = tag ? ('по тегу «' + tag + '»') : 'всем пользователям';
+    var ok = window.confirm('Отправить это сообщение ' + target + '? Отменить рассылку после отправки нельзя.');
+    if (!ok) return;
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Отправляю…';
+    try{
+      var data = await api('/api/admin/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({ text: text, tag: tag || null }),
+      });
+      haptic('medium');
+      showToast('✅ Отправлено: ' + data.success + ', ошибок: ' + data.failed);
+      textEl.value = '';
+      tagEl.value = '';
+    }catch(e){
+      showToast('Не получилось отправить');
+    }finally{
+      btn.disabled = false;
+      btn.innerHTML = '📢 Отправить';
+    }
+  }
+
+  async function boot(){
+    if (!initData()){
+      renderGate('Открой эту страницу внутри Telegram', true);
+      return;
+    }
+    try{
+      var stats = await api('/api/admin/stats');
+      renderPanel(stats);
+    }catch(e){
+      if (e.status === 403){
+        renderGate('⛔ Доступ только для администраторов', true);
+      } else {
+        renderGate('Не получилось загрузить панель', true);
+      }
+    }
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

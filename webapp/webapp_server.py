@@ -69,7 +69,14 @@ async def _authenticate(request):
     init_data = _extract_init_data(request)
     tg_user = validate_init_data(init_data, BOT_TOKEN)
     if tg_user is None:
-        raise web.HTTPUnauthorized(reason="invalid_init_data")
+        # reason= сам по себе не даёт тела ответа — фронт (app.js api())
+        # читает err.data.error, и без тела friendlyError() не мог
+        # показать "Telegram не передал данные авторизации", падая на
+        # обобщённое "Неизвестная ошибка".
+        raise web.HTTPUnauthorized(
+            text=json.dumps({"error": "invalid_init_data"}),
+            content_type="application/json",
+        )
 
     telegram_id = tg_user["id"]
     is_admin = telegram_id in ADMIN_IDS
@@ -82,7 +89,7 @@ async def _authenticate(request):
         )
 
     if is_banned(telegram_id):
-        raise web.HTTPForbidden(text='{"error":"banned"}')
+        raise web.HTTPForbidden(text='{"error":"banned"}', content_type="application/json")
 
     if not is_admin:
         status = get_access_status(telegram_id) or "approved"
@@ -99,7 +106,8 @@ async def _authenticate(request):
                 text=json.dumps({
                     "error": f"access_{status}",
                     "message": "Доступ к приложению пока ожидает подтверждения"
-                })
+                }),
+                content_type="application/json",
             )
 
     # Пром 13: гейт триал → подписка. Выключен по умолчанию
@@ -113,7 +121,8 @@ async def _authenticate(request):
                 "error": "trial_expired",
                 "message": "Пробный период закончился",
                 "subscription": status,
-            })
+            }),
+            content_type="application/json",
         )
 
     # Аналитика (db/analytics.py): каждый успешно авторизованный запрос
@@ -1008,7 +1017,11 @@ def create_app(bot=None):
     # Добавляем маршруты для AI мини-приложения
     from webapp.routes_ai_miniapp import routes as ai_routes
     app.add_routes(ai_routes)
-    
+
+    # Маршруты админ-панели — каждый сам проверяет is_admin (см. файл)
+    from webapp.routes_admin import routes as admin_routes
+    app.add_routes(admin_routes)
+
     app.router.add_static("/static", BASE_DIR / "static")
     return app
 
@@ -1073,5 +1086,15 @@ async def static_app_js(request):
 @routes.get("/coach")
 async def coach(request):
     response = web.FileResponse(BASE_DIR / "static" / "ai_miniapp_styled.html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
+@routes.get("/admin")
+async def admin_panel_page(request):
+    """Страница отдаётся всем — реальная защита на уровне API
+    (webapp/routes_admin.py::_authenticate_admin на каждом запросе),
+    страница сама скрывает контент, пока не подтвердит is_admin."""
+    response = web.FileResponse(BASE_DIR / "static" / "admin_panel.html")
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response

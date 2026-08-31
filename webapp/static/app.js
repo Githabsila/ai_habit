@@ -889,6 +889,9 @@
     const badgeEl = document.getElementById("playerBadge");
     if (badgeEl) badgeEl.style.display = u.badge ? "inline" : "none";
 
+    const adminBtn = document.getElementById("adminPanelBtn");
+    if (adminBtn) adminBtn.hidden = !u.is_admin;
+
     const xpIntoLevel = Math.max(0, Math.min(99.999, (u.total_xp ?? u.xp ?? 0) % 100));
     document.getElementById("xpLabel").textContent = `${Math.floor(xpIntoLevel)} / 100 XP`;
 
@@ -1998,6 +2001,13 @@ document.getElementById("aiCoachBtn").addEventListener("click", () => {
     if (overlay) overlay.hidden = false;
     // небольшая пауза, чтобы браузер успел отрисовать монетку до ухода со страницы
     setTimeout(() => { window.location.href = "/coach"; }, 60);
+});
+
+document.getElementById("adminPanelBtn")?.addEventListener("click", () => {
+    haptic("light");
+    const overlay = document.getElementById("loadingOverlay");
+    if (overlay) overlay.hidden = false;
+    setTimeout(() => { window.location.href = "/admin"; }, 60);
 });
 
 })();
