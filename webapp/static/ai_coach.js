@@ -38,10 +38,24 @@ try {
 }
 catch (e) { }
 const CHAT_STORAGE_KEY = 'adam_chat_history';
+// Чинит "кривые" сообщения — перенос строки, случайно воткнутый прямо
+// в середину слова (некоторые мобильные клавиатуры вставляют его вместо
+// отправки, событие insertLineBreak — теперь перехватывается на вводе,
+// но старые сообщения, уже сохранённые в sessionStorage/истории ДО этого
+// фикса, так и останутся "Д\nа" навсегда без этой чистки при отрисовке).
+// Схлопывает перенос строки, только если по обе стороны от него нет
+// пробела — то есть он реально рвёт одно слово пополам, а не отделяет
+// два разных предложения/абзаца (настоящий Shift+Enter трогать нельзя).
+function fixBrokenText(text) {
+    if (typeof text !== 'string' || !text)
+        return text;
+    return text.replace(/(\S)\n+(\S)/g, '$1$2');
+}
 function loadStoredMessages() {
     try {
         const raw = sessionStorage.getItem(CHAT_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : [];
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(m => ({ ...m, text: fixBrokenText(m.text) })) : [];
     }
     catch (e) {
         return [];
@@ -95,7 +109,7 @@ function AiChat() {
             const normalized = data.history.map((m, i) => ({
                 id: m.id || `history-${i}`,
                 role: m.role === 'assistant' ? 'assistant' : 'user',
-                text: m.message || '',
+                text: fixBrokenText(m.message || ''),
                 time: formatTime(m.timestamp || m.created_at),
                 canRate: m.role === 'assistant'
             }));
@@ -122,7 +136,7 @@ function AiChat() {
         el.style.height = Math.min(el.scrollHeight, 132) + 'px';
     };
     const sendText = useCallback(async (rawText) => {
-        const text = (rawText || '').trim();
+        const text = fixBrokenText((rawText || '').trim());
         if (!text || loading || throttle)
             return;
         vibrate('light');
