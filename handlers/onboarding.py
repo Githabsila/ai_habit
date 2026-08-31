@@ -16,6 +16,7 @@ from db import (
     log_error,
     get_user,
     add_habit,
+    survey_variant,
 )
 
 from multi_agent import analyze_onboarding_survey, suggest_first_step
@@ -42,16 +43,33 @@ class Onboarding(StatesGroup):
 # Вызывается из handlers/start.py для новых пользователей (access_status
 # == 'new'). Отдельная функция, а не хендлер на команду — анкета всегда
 # начинается только из /start, когда мы уже знаем, что пользователь новый.
+#
+# A/B-тест вступительного текста (db.survey_variant — чистая функция от
+# telegram_id, без миграций и хранения): A — старая "закрытый клуб"
+# формулировка, B — тёплая формулировка через пользу для самого юзера.
+# Конверсию по вариантам — db.analytics.get_survey_funnel_by_variant(),
+# видно в /admin → Статистика.
 
-async def begin_survey(message: Message, state: FSMContext):
-    await state.set_state(Onboarding.business)
-    await message.answer(
+SURVEY_INTRO_VARIANTS = {
+    "A": (
         "🔒 <b>Project ADAM</b> — закрытый проект. Доступ открывается не всем "
         "и не сразу — сначала короткая анкета, дальше её смотрит модератор.\n\n"
         "Отвечайте свободным текстом, в одном сообщении на каждый вопрос.\n\n"
-        "<b>1/4.</b> Чем вы занимаетесь — работа, бизнес, дело?",
-        parse_mode="HTML"
-    )
+        "<b>1/4.</b> Чем вы занимаетесь — работа, бизнес, дело?"
+    ),
+    "B": (
+        "👋 <b>Привет! Я ADAM</b> — твой личный ИИ-наставник по привычкам.\n\n"
+        "Чтобы советы были по делу, а не общими фразами, задам 4 коротких "
+        "вопроса — это займёт меньше минуты.\n\n"
+        "<b>1/4.</b> Чем вы занимаетесь — работа, бизнес, дело?"
+    ),
+}
+
+
+async def begin_survey(message: Message, state: FSMContext):
+    await state.set_state(Onboarding.business)
+    variant = survey_variant(message.from_user.id)
+    await message.answer(SURVEY_INTRO_VARIANTS[variant], parse_mode="HTML")
 
 
 # =====================================

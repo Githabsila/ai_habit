@@ -244,6 +244,23 @@ def create_tables():
     )
     """)
 
+    # ---------------- НЕДЕЛЬНЫЕ ЧЕЛЛЕНДЖИ С ДРУГОМ (пром: соц. механика
+    # поверх уже существующей рефералки) ----------------
+    # Один ряд = один челлендж между двумя людьми на start_day..end_day
+    # (обычно 7 дней). Прогресс каждого считается на лету из calendar
+    # (день "активен", если completed > 0), а не хранится отдельно —
+    # меньше состояния для рассинхрона.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS challenges(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        partner_id INTEGER NOT NULL,
+        start_day TEXT NOT NULL,
+        end_day TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     # Журнал удалений привычек (пром 10.2) — нужен для анти-абузной блокировки
     # добавления новых привычек: если сегодня уже была отметка выполнения и
     # сегодня же что-то удалили, это похоже на попытку накрутить Adam Coin

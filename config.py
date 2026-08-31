@@ -44,6 +44,11 @@ AI_GLOBAL_DAILY_UNIT_CEILING = int(os.getenv("AI_GLOBAL_DAILY_UNIT_CEILING", "50
 # сюда с запасом ~20%, чтобы алерт приходил ДО того, как реально кончится.
 AI_DAILY_TOKEN_CEILING = int(os.getenv("AI_DAILY_TOKEN_CEILING", "2000000"))
 
+# Сколько ошибок за последний час считается "всплеском" — при превышении
+# админам сразу шлётся алерт (error_alert_scheduler.py), не дожидаясь
+# ежедневной сводки в 8 утра.
+ERROR_SPIKE_THRESHOLD = int(os.getenv("ERROR_SPIKE_THRESHOLD", "10"))
+
 # Можно указать несколько ID через запятую: ADMIN_ID=8695214950,123456789
 _admin_ids_raw = os.getenv("ADMIN_ID", "8695214950")
 ADMIN_IDS = [int(x.strip()) for x in _admin_ids_raw.split(",") if x.strip()]

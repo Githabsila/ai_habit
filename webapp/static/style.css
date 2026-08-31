@@ -7257,4 +7257,145 @@ body{
   .as-medal-tail--r{transform:translateX(calc(-50% + 26px)) rotate(15deg)}
 }
 
+/* =========================================================
+   СВОЁ ВРЕМЯ НАПОМИНАНИЯ У ПРИВЫЧКИ + ШАБЛОНЫ ДЛЯ НОВИЧКОВ
+   ========================================================= */
+.add-form__time{
+  flex:0 0 auto !important;
+  width:92px !important;
+  min-width:92px;
+  padding:0 6px !important;
+  font-size:13px !important;
+  color-scheme:dark;
+}
+/* Без этого при нехватке ширины (узкий экран + новое time-поле) кнопка
+   "+" схлопывалась почти до нуля и вылезала за рамку формы — flex-shrink
+   по умолчанию не 0, а форма не переносит детей на новую строку. */
+.add-form .btn--accent{flex:0 0 74px !important}
+/* text-инпуты по умолчанию не сжимаются ниже собственной intrinsic-
+   ширины (~170-220px в большинстве браузеров) — с новым time-полем это
+   уже не помещалось на узких экранах и вся форма вылезала за рамку. */
+.add-form input[type="text"]{min-width:0 !important}
+.habit-item__time{
+  flex:0 0 auto;
+  height:34px;
+  padding:0 10px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  color:var(--text-muted,#9C97AE);
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .2s ease,color .2s ease;
+}
+.habit-item__time.is-set{
+  background:rgba(240,180,41,.14);
+  border-color:rgba(240,180,41,.3);
+  color:#FFD76A;
+}
+.habit-item__time:active{transform:scale(.92)}
+.habit-item__time-input{
+  flex:0 0 auto;
+  width:100px;
+  height:34px;
+  padding:0 8px;
+  border-radius:12px;
+  border:1px solid rgba(240,180,41,.4);
+  background:rgba(240,180,41,.1);
+  color:#FFD76A;
+  font-size:12px;
+  color-scheme:dark;
+}
+
+.habit-templates{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  list-style:none;
+  padding:12px 2px 0;
+}
+.habit-template-chip{
+  display:flex;align-items:center;gap:6px;
+  padding:9px 14px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  color:var(--text,#EAE5FA);
+  font-size:13px;
+  font-weight:600;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .2s ease,border-color .2s ease;
+}
+.habit-template-chip:active{transform:scale(.95);background:rgba(139,108,255,.14);border-color:rgba(139,108,255,.35)}
+.performance-lite .habit-item__time,.performance-lite .habit-template-chip{transition:none !important}
+
 .performance-lite .as-medal-tail,.performance-lite .as-medal-disc{transition:none !important}
+
+/* =========================================================
+   ДАННЫЕ И ПОДДЕРЖКА — экспорт CSV, недельный шаринг, фидбек
+   ========================================================= */
+.data-support-card{display:flex;flex-direction:column;gap:8px}
+.data-support-btn{
+  display:flex;align-items:center;gap:12px;
+  width:100%;padding:12px 14px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.03);
+  text-align:left;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .2s ease;
+}
+.data-support-btn:active{transform:scale(.98);background:rgba(139,108,255,.08)}
+.data-support-btn__icon{
+  flex:0 0 auto;
+  width:38px;height:38px;border-radius:12px;
+  display:grid;place-items:center;font-size:17px;
+  background:rgba(139,108,255,.14);
+}
+.data-support-btn__text{display:flex;flex-direction:column;gap:2px}
+.data-support-btn__text b{font-size:14px;color:var(--text,#EAE5FA)}
+.data-support-btn__text small{font-size:11px;color:var(--text-muted,#9C97AE)}
+.performance-lite .data-support-btn{transition:none !important}
+
+/* ----- форма фидбека (та же "нижняя шторка", что и заморозка) ----- */
+.feedback-sheet{
+  position:fixed;inset:0;z-index:10050;display:flex;align-items:flex-end;justify-content:center;
+  pointer-events:auto;
+}
+.feedback-sheet[hidden]{display:none}
+.feedback-sheet__backdrop{
+  position:absolute;inset:0;background:rgba(3,4,10,.58);backdrop-filter:blur(7px);
+  opacity:0;transition:opacity .22s ease;
+}
+.feedback-card{
+  position:relative;width:min(430px,calc(100% - 24px));margin:0 12px 14px;
+  padding:18px 16px 16px;border-radius:24px;
+  background:linear-gradient(145deg,rgba(30,32,48,.98),rgba(16,18,29,.99));
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 18px 55px rgba(0,0,0,.42);
+  transform:translateY(28px);opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .22s ease;
+}
+.feedback-sheet.is-open .feedback-sheet__backdrop{opacity:1}
+.feedback-sheet.is-open .feedback-card{transform:translateY(0);opacity:1}
+.feedback-card__icon{
+  width:40px;height:40px;border-radius:13px;margin:0 auto 9px;display:grid;place-items:center;
+  background:rgba(139,108,255,.12);border:1px solid rgba(167,139,250,.2);font-size:20px;
+}
+.feedback-card h3{margin:0;text-align:center;font:800 19px 'Space Grotesk',sans-serif;color:#F4F7FF}
+.feedback-card p{margin:7px auto 14px;max-width:340px;text-align:center;color:#9EA8BD;font-size:11px;line-height:1.45}
+.feedback-textarea{
+  width:100%;min-height:96px;padding:12px 14px;margin-bottom:12px;
+  border-radius:14px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.035);color:#fff;font-size:14px;line-height:1.4;
+  resize:vertical;
+}
+.feedback-textarea:focus{outline:1px solid var(--violet,#8b6cff)}
+.feedback-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.feedback-actions button{
+  height:43px;border-radius:13px;border:1px solid rgba(255,255,255,.08);
+  font:800 12px 'Space Grotesk',sans-serif;cursor:pointer;
+}
+.feedback-send-btn{
+  background:linear-gradient(135deg,#8e70ff,#6847dc);color:#fff;
+  box-shadow:0 8px 20px rgba(104,71,220,.3);
+}
+.feedback-send-btn:disabled{opacity:.5}

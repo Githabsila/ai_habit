@@ -25,6 +25,8 @@ from db import (
     get_first_ai_message_funnel,
     get_ai_tokens_today,
     get_ai_tokens_by_provider_today,
+    get_retention_summary,
+    get_survey_funnel_by_variant,
 )
 
 logger = logging.getLogger("admin_digest_scheduler")
@@ -65,6 +67,8 @@ def build_stats_report():
 
     dau = get_dau(days=1)
     sub = get_subscription_conversion()
+    ret = get_retention_summary()
+    ab = get_survey_funnel_by_variant()
 
     # "Единицы квоты" — только ручной чат, для контроля злоупотреблений
     # одним пользователем (см. handlers/ai.py consume_ai_answer).
@@ -96,6 +100,8 @@ def build_stats_report():
 
 👥 Пользователей: <b>{total}</b> · сегодня заходили: <b>{dau}</b>
 
+📈 Retention: D1 <b>{ret['d1']['rate_percent']}%</b> ({ret['d1']['returned']}/{ret['d1']['cohort_size']}) · D7 <b>{ret['d7']['rate_percent']}%</b> ({ret['d7']['returned']}/{ret['d7']['cohort_size']}) · D30 <b>{ret['d30']['rate_percent']}%</b> ({ret['d30']['returned']}/{ret['d30']['cohort_size']})
+
 💎 Premium: <b>{premium}</b> · 🚫 Заблокировано: <b>{banned}</b>
 
 ⭐ Всего Adam Coin: <b>{total_xp}</b> · Средний уровень: <b>{avg_level}</b>
@@ -103,6 +109,8 @@ def build_stats_report():
 🔐 Доступ: одобрено <b>{approved_n}</b> / на проверке <b>{pending_n}</b> / анкету не прошли <b>{new_n}</b>
 
 📝 Воронка входа: анкету завершили <b>{survey['completed_survey']}</b>/{survey['total']} · доступ открыт <b>{survey['approved']}</b>
+
+🧪 A/B вступления анкеты: A <b>{ab['A']['rate_percent']}%</b> ({ab['A']['completed']}/{ab['A']['total']}) · B <b>{ab['B']['rate_percent']}%</b> ({ab['B']['completed']}/{ab['B']['total']})
 
 💬 Первое сообщение ADAM написали: <b>{first_ai['sent_first_message']}</b>/{first_ai['approved']} одобренных ({first_ai['rate_percent']}%)
 

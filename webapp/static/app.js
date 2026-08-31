@@ -24,6 +24,30 @@
     return `${Number(n) || 0} ${pluralRu(n, "день", "дня", "дней")}`;
   }
 
+  // Общая карточка-медаль "Поделиться" — раньше умела показывать только
+  // серию дней подряд, теперь принимает произвольный заголовок/большое
+  // число/статус, чтобы её же переиспользовать для недельного итога
+  // (см. initDataSupportActions -> #shareWeeklyBtn).
+  function openAchievementShare({ title, big, status }) {
+    const overlay = document.getElementById("achievementShareOverlay");
+    const titleEl = document.getElementById("achievementShareTitle");
+    const daysEl = document.getElementById("achievementShareDays");
+    const statusEl = document.getElementById("achievementShareStatus");
+    const levelEl = document.getElementById("achievementShareLevel");
+    const coinsEl = document.getElementById("achievementShareCoins");
+    if (titleEl) titleEl.textContent = title;
+    if (daysEl) daysEl.textContent = big;
+    if (statusEl) statusEl.textContent = status;
+    if (levelEl) levelEl.textContent = state?.user?.level || 1;
+    if (coinsEl) coinsEl.textContent = state?.user?.xp || 0;
+    if (overlay) {
+      overlay.hidden = false;
+      requestAnimationFrame(() => overlay.classList.add("show"));
+      overlay.setAttribute("aria-hidden", "false");
+      haptic("light");
+    }
+  }
+
 
   // Иконка Adam Coin — инлайн SVG вместо шрифтовой иконки "diamond",
   // чтобы совпадать с фирменным золотым логотипом монеты.
@@ -744,23 +768,13 @@
     });
     document.getElementById("doubleBonusContinue")?.addEventListener("click", closeBonusIntro);
     document.getElementById("streakOnboardingContinue")?.addEventListener("click", closeStreakOnboarding);
-    document.getElementById("shareAchievementBtn")?.addEventListener("click", async () => {
+    document.getElementById("shareAchievementBtn")?.addEventListener("click", () => {
       const days = Number(state?.streak?.days || 0);
-      const status = state?.streak?.temp_status || "Ударный режим";
-      const overlay = document.getElementById("achievementShareOverlay");
-      const daysEl = document.getElementById("achievementShareDays");
-      const statusEl = document.getElementById("achievementShareStatus");
-      const levelEl = document.getElementById("achievementShareLevel");
-      const coinsEl = document.getElementById("achievementShareCoins");
-      if (daysEl) daysEl.textContent = formatDays(days);
-      if (statusEl) statusEl.textContent = status;
-      if (levelEl) levelEl.textContent = state?.user?.level || 1;
-      if (coinsEl) coinsEl.textContent = state?.user?.xp || 0;
-      if (overlay) {
-        overlay.hidden = false;
-        requestAnimationFrame(() => overlay.classList.add("show"));
-        overlay.setAttribute("aria-hidden", "false");
-      }
+      openAchievementShare({
+        title: "Ударный режим",
+        big: formatDays(days),
+        status: state?.streak?.temp_status || "Ударный режим",
+      });
     });
     document.getElementById("achievementShareClose")?.addEventListener("click", () => {
       const overlay = document.getElementById("achievementShareOverlay");
@@ -989,7 +1003,15 @@
     }
 
     if (habits.length === 0) {
-      list.innerHTML = `<li class="empty-hint">Пока нет привычек — добавь первую ниже 👇</li>`;
+      // Готовые привычки-шаблоны решают проблему "чистого листа" —
+      // непонятно, с чего начать, при первом открытии.
+      list.innerHTML =
+        `<li class="empty-hint">Пока нет привычек — добавь первую ниже 👇</li>` +
+        `<li class="habit-templates">` +
+        HABIT_TEMPLATES.map(t =>
+          `<button type="button" class="habit-template-chip" data-template="${escapeHtml(t.title)}">${t.emoji} ${escapeHtml(t.title)}</button>`
+        ).join("") +
+        `</li>`;
       return;
     }
 
@@ -997,10 +1019,20 @@
       <li class="habit-item ${h.completed ? "is-done" : ""}" data-id="${h.id}">
         <button class="habit-item__check" data-action="complete" ${h.completed ? "disabled" : ""}>${h.completed ? "✓" : ""}</button>
         <span class="habit-item__title">${escapeHtml(h.title)}</span>
+        <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
       </li>
     `).join("");
   }
+
+  // Готовые привычки для новичков — один тап, без набора текста.
+  const HABIT_TEMPLATES = [
+    { emoji: "💧", title: "Пить воду" },
+    { emoji: "🚶", title: "10 000 шагов" },
+    { emoji: "📖", title: "Читать 20 минут" },
+    { emoji: "🧘", title: "Медитация" },
+    { emoji: "😴", title: "Лечь спать вовремя" },
+  ];
 
   // ===================== RENDER: SHOP =====================
   function renderShop() {
@@ -1421,12 +1453,60 @@ function initHabitActions() {
   if (!habitList || !addHabitForm) return;
 
   habitList.addEventListener("click", async (e) => {
+    // Чип готового шаблона привычки (только в пустом состоянии) — сразу
+    // отправляем как обычное создание, без набора текста руками.
+    const templateChip = e.target.closest("[data-template]");
+    if (templateChip) {
+      const input = document.getElementById("newHabitInput");
+      if (input) input.value = templateChip.dataset.template;
+      addHabitForm.requestSubmit ? addHabitForm.requestSubmit() : addHabitForm.dispatchEvent(new Event("submit", { cancelable: true }));
+      return;
+    }
+
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
     const li = btn.closest(".habit-item");
     if (!li) return;
     const habitId = li.dataset.id;
     const action = btn.dataset.action;
+
+    if (action === "edit-time") {
+      // Превращаем чип "⏰ HH:MM" во встроенный нативный time-picker —
+      // без модалок, изменение сохраняется сразу по выбору времени.
+      const current = btn.dataset.time || "";
+      const timeInput = document.createElement("input");
+      timeInput.type = "time";
+      timeInput.className = "habit-item__time-input";
+      timeInput.value = current;
+      btn.replaceWith(timeInput);
+      timeInput.focus();
+      try { timeInput.showPicker && timeInput.showPicker(); } catch (_) {}
+      let committed = false;
+      const commit = async () => {
+        if (committed) return;
+        committed = true;
+        const newTime = timeInput.value || "";
+        const titleEl = li.querySelector(".habit-item__title");
+        try {
+          await api(`/api/habits/${habitId}`, {
+            method: "PUT",
+            body: JSON.stringify({ title: titleEl ? titleEl.textContent : "", planned_time: newTime }),
+          });
+          haptic("light");
+          showToast(newTime ? `Напоминание в ${newTime}` : "Напоминание убрано", "success");
+        } catch (err) {
+          showToast(friendlyError(err), "error");
+        }
+        await loadBootstrap();
+      };
+      timeInput.addEventListener("change", commit);
+      timeInput.addEventListener("blur", () => {
+        // Пикер закрыли без выбора — просто вернуть чип на место.
+        setTimeout(() => { if (!committed && document.body.contains(timeInput)) renderHabits(); }, 150);
+      });
+      return;
+    }
+
     try {
       if (action === "complete") {
         btn.disabled = true;
@@ -1463,6 +1543,7 @@ function initHabitActions() {
   addHabitForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const input = document.getElementById("newHabitInput");
+    const timeInput = document.getElementById("newHabitTime");
     const submitBtn = addHabitForm.querySelector('button[type="submit"]');
     const title = input.value.trim();
     if (title.length < 2) {
@@ -1470,12 +1551,13 @@ function initHabitActions() {
       input.focus();
       return;
     }
+    const plannedTime = timeInput ? timeInput.value : "";
 
     if (submitBtn) submitBtn.disabled = true;
     try {
       const result = await api("/api/habits", {
         method: "POST",
-        body: JSON.stringify({ title })
+        body: JSON.stringify({ title, planned_time: plannedTime || undefined })
       });
 
       // Сразу показываем созданную привычку, не заставляя интерфейс ждать
@@ -1486,6 +1568,7 @@ function initHabitActions() {
       }
 
       input.value = "";
+      if (timeInput) timeInput.value = "";
       haptic("light");
       showToast("Привычка добавлена", "success");
 
@@ -2011,6 +2094,92 @@ function initSettingsActions() {
   });
 }
 
+// ===================== ДАННЫЕ И ПОДДЕРЖКА =====================
+// Экспорт CSV, шаринг недельного итога, форма бага/фидбека прямо из
+// Mini App — раньше единственным каналом было написать разработчику
+// лично, что резко снижает вероятность честного отчёта о проблеме.
+function initDataSupportActions() {
+  document.getElementById("shareWeeklyBtn")?.addEventListener("click", () => {
+    const completed = Number(document.getElementById("progressStatCompleted")?.textContent || 0);
+    const activeDays = document.getElementById("progressStatActiveDays")?.textContent || "0/7";
+    openAchievementShare({
+      title: "Итог недели",
+      big: `${completed} ${pluralRu(completed, "привычка", "привычки", "привычек")}`,
+      status: `Активных дней: ${activeDays}`,
+    });
+  });
+
+  document.getElementById("exportDataBtn")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      // Не через api() — тот всегда парсит JSON, а тут нужен сырой CSV.
+      const res = await fetch("/api/export/habits.csv", {
+        headers: { "Authorization": "tma " + initData() },
+      });
+      if (!res.ok) throw new Error("export_failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "adam_habits.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      haptic("light");
+      showToast("Файл готов", "success");
+    } catch (err) {
+      showToast("Не получилось скачать данные", "error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  const feedbackSheet = document.getElementById("feedbackSheet");
+  const feedbackText = document.getElementById("feedbackText");
+  const closeFeedback = () => {
+    if (!feedbackSheet) return;
+    feedbackSheet.classList.remove("is-open");
+    feedbackSheet.setAttribute("aria-hidden", "true");
+    setTimeout(() => { feedbackSheet.hidden = true; }, 230);
+  };
+  document.getElementById("openFeedbackBtn")?.addEventListener("click", () => {
+    if (!feedbackSheet) return;
+    feedbackSheet.hidden = false;
+    requestAnimationFrame(() => feedbackSheet.classList.add("is-open"));
+    feedbackSheet.setAttribute("aria-hidden", "false");
+    haptic("light");
+    setTimeout(() => feedbackText?.focus(), 250);
+  });
+  document.getElementById("feedbackCancel")?.addEventListener("click", closeFeedback);
+  document.getElementById("feedbackBackdrop")?.addEventListener("click", closeFeedback);
+  document.getElementById("feedbackSend")?.addEventListener("click", async () => {
+    const text = (feedbackText?.value || "").trim();
+    if (text.length < 5) {
+      showToast("Опиши проблему чуть подробнее", "error");
+      return;
+    }
+    const sendBtn = document.getElementById("feedbackSend");
+    if (sendBtn) sendBtn.disabled = true;
+    try {
+      const activeTab = document.querySelector(".tab-bar__item.is-active")?.dataset.tab || "неизвестно";
+      await api("/api/feedback", {
+        method: "POST",
+        body: JSON.stringify({ text, tab: activeTab }),
+      });
+      haptic("medium");
+      showToast("Спасибо! Уже читаем", "success");
+      if (feedbackText) feedbackText.value = "";
+      closeFeedback();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  });
+}
+
 async function boot() {
     try {
         initTelegram();
@@ -2031,6 +2200,7 @@ async function boot() {
         // удерживать loading-overlay и мешать первому paint (особенно в Telegram WebView).
         await loadBootstrap();
         initSettingsActions();
+        initDataSupportActions();
         requestAnimationFrame(() => {
             document.documentElement.classList.remove("decor-settled");
             // Принудительно отдаём браузеру один чистый кадр для компоновки

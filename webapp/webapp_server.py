@@ -329,6 +329,21 @@ async def bootstrap_secondary(request):
     return web.json_response(payload)
 
 
+import re as _re
+_PLANNED_TIME_RE = _re.compile(r'^([01]\d|2[0-3]):([0-5]\d)$')
+
+def _parse_planned_time(raw):
+    """Своё время напоминания у привычки — 'HH:MM' в локальном времени
+    пользователя, или None ('без личного времени'). Пустая строка —
+    валидное 'не задано', любая непустая нераспознанная строка — ошибка,
+    чтобы кривой ввод не тихо терялся."""
+    if raw in (None, ""):
+        return None
+    raw = str(raw).strip()
+    if not _PLANNED_TIME_RE.match(raw):
+        raise ValueError("invalid_time")
+    return raw
+
 @routes.post("/api/habits")
 async def create_habit(request):
     telegram_id, _ = await _authenticate(request)
@@ -336,9 +351,13 @@ async def create_habit(request):
     title = body.get("title", "").strip()
     if len(title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)
+    try:
+        planned_time = _parse_planned_time(body.get("planned_time"))
+    except ValueError:
+        return web.json_response({"error": "invalid_time"}, status=400)
     had_habits = bool(get_habits(telegram_id))
     try:
-        add_habit(telegram_id, title)
+        add_habit(telegram_id, title, planned_time=planned_time)
     except ValueError as exc:
         # habit_limit — уже максимум 7 привычек; habit_add_locked — сегодня
         # уже была отметка + удаление привычки, добавление заблокировано до
@@ -357,6 +376,7 @@ async def create_habit(request):
             "id": created["id"],
             "title": created["title"],
             "completed": bool(created["completed"]),
+            "planned_time": created["planned_time"] if created and "planned_time" in created.keys() else None,
         } if created else None,
         "onboarding_message": onboarding_message(telegram_id) if first_habit else None,
     })
@@ -370,7 +390,21 @@ async def rename_habit(request):
     new_title = body.get("title", "").strip()
     if len(new_title) < 2:
         return web.json_response({"error": "title_too_short"}, status=400)
+    try:
+        planned_time = _parse_planned_time(body.get("planned_time"))
+    except ValueError:
+        return web.json_response({"error": "invalid_time"}, status=400)
+    # edit_habit(planned_time=...) через COALESCE обновил бы NULL как
+    # "не менять" — а нам как раз нужно уметь ОЧИЩАТЬ время (пользователь
+    # снял галочку "напоминать"), поэтому колонку планового времени
+    # обновляем отдельным явным запросом, а не через edit_habit().
     edit_habit(habit_id, new_title)
+    if "planned_time" in body:
+        from db.core import connect
+        conn = connect()
+        conn.execute("UPDATE habits SET planned_time=? WHERE id=?", (planned_time, habit_id))
+        conn.commit()
+        conn.close()
     return web.json_response({"ok": True})
 
 @routes.post("/api/habits/{habit_id}/complete")
@@ -607,6 +641,86 @@ async def progress_stats_route(request):
             "entries": len(stats) if stats else 0,
         },
     })
+
+@routes.get("/api/export/habits.csv")
+async def export_habits_csv_route(request):
+    """Экспорт полной истории по привычкам в CSV — платящие пользователи
+    видят, что их прогресс не заперт внутри бота, и могут унести его
+    с собой (в Excel/Google Sheets)."""
+    telegram_id, _ = await _authenticate(request)
+    import csv
+    import io
+    from db.core import connect
+
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT day, habit_title, completed FROM habit_logs WHERE user_id=? ORDER BY day DESC, habit_title",
+        (telegram_id,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    buf = io.StringIO()
+    # ﻿ (BOM) — чтобы Excel сам определил UTF-8 и не превратил
+    # кириллицу в кракозябры при открытии двойным кликом.
+    buf.write("﻿")
+    writer = csv.writer(buf)
+    writer.writerow(["Дата", "Привычка", "Выполнено"])
+    for row in rows:
+        writer.writerow([row["day"], row["habit_title"], "Да" if row["completed"] else "Нет"])
+
+    response = web.Response(text=buf.getvalue(), content_type="text/csv", charset="utf-8")
+    response.headers["Content-Disposition"] = f'attachment; filename="adam_habits_{telegram_id}.csv"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@routes.post("/api/feedback")
+async def feedback_route(request):
+    """Форма бага/фидбека прямо из Mini App — раньше единственный канал
+    был написать админу лично, что резко снижало вероятность честного
+    отчёта о проблеме. Уходит всем админам с автоприложенным контекстом
+    (кто, откуда, с какой вкладки)."""
+    telegram_id, _ = await _authenticate(request)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "bot_unavailable"}, status=503)
+
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+
+    text = (body.get("text") or "").strip()
+    if not text:
+        return web.json_response({"error": "empty_text"}, status=400)
+    if len(text) > 2000:
+        return web.json_response({"error": "text_too_long"}, status=400)
+    tab = (body.get("tab") or "неизвестно")[:40]
+
+    user_row = get_user(telegram_id)
+    username = user_row["username"] if user_row and "username" in user_row.keys() else None
+    who = f"@{username}" if username else str(telegram_id)
+    message = (
+        f"💬 Фидбек от {who} (ID {telegram_id})\n"
+        f"Вкладка: {tab}\n\n"
+        f"{text}"
+    )
+
+    from config import ADMIN_IDS
+    delivered = 0
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(chat_id=admin_id, text=message)
+            delivered += 1
+        except Exception:
+            logger.warning(f"Не удалось доставить фидбек админу {admin_id}")
+
+    if not delivered:
+        return web.json_response({"error": "delivery_failed"}, status=502)
+    return web.json_response({"ok": True})
+
 
 @routes.post("/api/progress/ai-analysis")
 async def progress_ai_analysis_route(request):
@@ -1005,7 +1119,21 @@ async def create_stars_invoice(request):
 
 @routes.get("/health")
 async def health(request):
-    return web.json_response({"status": "ok"})
+    """Раньше просто подтверждал, что процесс жив — не ловил случай,
+    когда сам процесс отвечает, а БД недоступна (диск/volume отвалился
+    и т.п.). Теперь реально проверяет соединение с БД и возвращает 503
+    (а не 200) при проблеме — важно для внешнего аптайм-монитора: он
+    должен видеть именно нездоровый статус-код, не просто текст в теле.
+    Ничего не пишет — SELECT 1 никак не трогает данные."""
+    from db.core import connect
+    try:
+        conn = connect()
+        conn.execute("SELECT 1")
+        conn.close()
+        return web.json_response({"status": "ok", "db": "ok"})
+    except Exception as e:
+        logger.exception("Health check: БД недоступна")
+        return web.json_response({"status": "degraded", "db": "error", "detail": str(e)}, status=503)
 
 # ====================== СОЗДАНИЕ ПРИЛОЖЕНИЯ ======================
 

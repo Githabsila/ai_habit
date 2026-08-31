@@ -1,8 +1,12 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
-from db import find_match_by_tags, get_referrals
-from keyboards import community_keyboard, back_menu_keyboard
+from db import (
+    find_match_by_tags, get_referrals, get_referred_users,
+    create_challenge, get_active_challenge_for_user, get_challenge_progress,
+    get_user,
+)
+from keyboards import community_keyboard, back_menu_keyboard, challenge_partner_keyboard
 
 router = Router()
 
@@ -117,3 +121,105 @@ async def my_referrals(callback: CallbackQuery):
     )
 
     await callback.answer()
+
+
+# =====================================
+# НЕДЕЛЬНЫЙ ЧЕЛЛЕНДЖ С ДРУГОМ
+# =====================================
+# Следующий шаг поверх уже существующей рефералки: не просто "пригласи
+# друга ради бонуса", а совместный челлендж на 7 дней — реальная соц.
+# механика вместо голого счётчика приглашений.
+
+def _display_name(row):
+    if not row:
+        return "друг"
+    return f"@{row['username']}" if row["username"] else (row["first_name"] or str(row["telegram_id"]))
+
+
+@router.callback_query(F.data == "start_challenge")
+async def start_challenge(callback: CallbackQuery):
+    user_id = callback.from_user.id
+
+    active = get_active_challenge_for_user(user_id)
+    if active:
+        progress = get_challenge_progress(active)
+        i_am_owner = progress["user_id"] == user_id
+        partner_id = progress["partner_id"] if i_am_owner else progress["user_id"]
+        my_days = progress["user_days"] if i_am_owner else progress["partner_days"]
+        their_days = progress["partner_days"] if i_am_owner else progress["user_days"]
+        partner_name = _display_name(get_user(partner_id))
+        if my_days > their_days:
+            verdict = "Ты впереди! 🔥"
+        elif their_days > my_days:
+            verdict = "Друг впереди — успей подтянуться 💪"
+        else:
+            verdict = "Идёте вровень 🤝"
+        await callback.message.edit_text(
+            "🏁 <b>Недельный челлендж</b>\n\n"
+            f"С {partner_name} — день {progress['days_elapsed']}/{progress['total_days']}\n\n"
+            f"Ты: <b>{my_days}</b>/{progress['total_days']} активных дней\n"
+            f"{partner_name}: <b>{their_days}</b>/{progress['total_days']} активных дней\n\n"
+            f"{verdict}",
+            parse_mode="HTML",
+            reply_markup=community_keyboard(),
+        )
+        await callback.answer()
+        return
+
+    referred = get_referred_users(user_id)
+    if not referred:
+        await callback.message.edit_text(
+            "🏁 <b>Недельный челлендж</b>\n\n"
+            "Пока некого позвать — сначала пригласите хотя бы одного друга "
+            "(«🤝 Пригласить друга»), а потом сможете начать с ним недельный "
+            "челлендж.",
+            parse_mode="HTML",
+            reply_markup=community_keyboard(),
+        )
+        await callback.answer()
+        return
+
+    await callback.message.edit_text(
+        "🏁 <b>Недельный челлендж</b>\n\n"
+        "Выберите, с кем из приглашённых друзей начать 7-дневный челлендж — "
+        "у кого больше активных дней к концу недели, тот победил:",
+        parse_mode="HTML",
+        reply_markup=challenge_partner_keyboard(referred),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("challenge_with:"))
+async def challenge_with(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    partner_id = int(callback.data.split(":", 1)[1])
+
+    ok, error = create_challenge(user_id, partner_id)
+    if not ok:
+        text = (
+            "У вас уже есть активный челлендж — посмотрите прогресс в "
+            "«🏁 Недельный челлендж»." if error == "already_active"
+            else "Что-то пошло не так, попробуйте ещё раз."
+        )
+        await callback.message.edit_text(text, reply_markup=community_keyboard())
+        await callback.answer()
+        return
+
+    partner_name = _display_name(get_user(partner_id))
+    await callback.message.edit_text(
+        f"🏁 Челлендж с {partner_name} начался! 7 дней — у кого больше активных "
+        "дней к концу недели, тот победил. Прогресс смотрите здесь же, в "
+        "«🏁 Недельный челлендж».",
+        reply_markup=community_keyboard(),
+    )
+    await callback.answer("Челлендж начат!")
+
+    try:
+        my_name = _display_name(get_user(user_id))
+        await callback.bot.send_message(
+            partner_id,
+            f"🏁 {my_name} позвал(а) тебя на недельный челлендж в Project ADAM! "
+            "Открой «Сообщество» → «🏁 Недельный челлендж», чтобы увидеть прогресс.",
+        )
+    except Exception:
+        pass  # партнёр мог заблокировать бота — не критично

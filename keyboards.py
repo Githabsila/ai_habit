@@ -607,6 +607,13 @@ def community_keyboard():
 
             [
                 InlineKeyboardButton(
+                    text="🏁 Недельный челлендж",
+                    callback_data="start_challenge"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
                     text="⬅️ Главное меню",
                     callback_data="back_menu"
                 )
@@ -614,6 +621,20 @@ def community_keyboard():
 
         ]
     )
+
+
+def challenge_partner_keyboard(referred_users):
+    """Кнопка на каждого уже приглашённого друга — выбрать его для
+    недельного челленджа."""
+    rows = [
+        [InlineKeyboardButton(
+            text=("@" + u["username"]) if u["username"] else (u["first_name"] or str(u["telegram_id"])),
+            callback_data=f"challenge_with:{u['telegram_id']}",
+        )]
+        for u in referred_users
+    ]
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="community")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 # =====================================

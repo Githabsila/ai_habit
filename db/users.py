@@ -7,6 +7,15 @@ from .core import connect
 # ПОЛЬЗОВАТЕЛИ
 # =====================================
 
+def survey_variant(telegram_id):
+    """A/B-вариант вступительного текста анкеты — чисто детерминированная
+    функция от telegram_id (чётность), без отдельного хранения в БД: тот
+    же пользователь всегда получает тот же вариант, а долю по варианту
+    можно посчитать прямо в SQL через `telegram_id % 2` (см. db/analytics.py
+    get_survey_funnel_by_variant) — не нужна ни миграция, ни бэкфилл для
+    уже существующих пользователей."""
+    return "B" if telegram_id % 2 else "A"
+
 def add_user(telegram_id, username, first_name):
     conn = connect()
     cursor = conn.cursor()
@@ -361,6 +370,21 @@ def get_referrals(user_id):
     if not user:
         return 0
     return user["referrals"]
+
+
+def get_referred_users(user_id):
+    """Список тех, кого пригласил user_id — в отличие от get_referrals()
+    (просто счётчик), нужен, чтобы предложить кого-то из уже приглашённых
+    друзей для недельного челленджа (db/challenges.py)."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT telegram_id, username, first_name FROM users WHERE referrer_id=? ORDER BY id DESC",
+        (user_id,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
 
 
 # =====================================

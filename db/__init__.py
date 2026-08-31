@@ -4,6 +4,7 @@ from .core import DB_NAME, DATA_DIR, DB_PATH, connect, create_tables
 
 from .users import (
     add_user,
+    survey_variant,
     get_user,
     get_users_count,
     get_all_users,
@@ -183,12 +184,19 @@ from .analytics import (
     get_ai_usage_today, get_habit_completion_rate,
     get_survey_funnel, get_first_ai_message_funnel,
     log_ai_tokens, get_ai_tokens_today, get_ai_tokens_by_provider_today,
+    get_retention, get_retention_summary,
+    get_survey_funnel_by_variant,
+)
+
+from .challenges import (
+    create_challenge, get_active_challenge_for_user,
+    get_active_challenge_between, get_challenge_progress,
 )
 
 
 __all__ = [
     "DB_NAME", "DATA_DIR", "DB_PATH", "connect", "create_tables",
-    "add_user", "get_user", "get_users_count", "get_all_users", "get_all_users_info",
+    "add_user", "survey_variant", "get_user", "get_users_count", "get_all_users", "get_all_users_info",
     "has_premium", "was_premium_purchased", "give_premium", "give_premium_admin",
     "add_xp", "give_xp_admin", "add_diamonds", "get_diamonds",
     "should_show_app_tour", "mark_app_tour_seen",
@@ -200,6 +208,10 @@ __all__ = [
     "get_ai_usage_today", "get_habit_completion_rate",
     "get_survey_funnel", "get_first_ai_message_funnel",
     "log_ai_tokens", "get_ai_tokens_today", "get_ai_tokens_by_provider_today",
+    "get_retention", "get_retention_summary", "get_survey_funnel_by_variant",
+    "create_challenge", "get_active_challenge_for_user",
+    "get_active_challenge_between", "get_challenge_progress",
+    "get_referred_users",
     "get_settings", "update_reminder_time", "toggle_reminders", "update_ai_style", "get_ai_style",
     "add_habit", "get_habits", "get_habit", "edit_habit", "delete_habit",
     "reset_habits", "update_streak", "complete_habit", "get_progress",

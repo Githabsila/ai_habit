@@ -21,12 +21,14 @@ from coach import (
     run_weekly_habit_analysis, run_task_reminder_check,
     run_habit_checkpoint_10, run_habit_checkpoint_12, run_day_progress_check,
     run_week_start_ping, run_week_end_ping, run_month_start_ping, run_month_end_ping,
+    run_planned_time_reminders,
 )
 from onboarding_auto import run_auto_approve
 from goal_feedback import run_goal_feedback
 from morning_ping import run_morning_ping
 from subscription_scheduler import run_trial_reminders
 from admin_digest_scheduler import run_admin_daily_digest, DIGEST_HOUR_UTC
+from error_alert_scheduler import run_error_spike_check
 from backups.backup import start_backup_scheduler
 from middlewares.access_control import AccessControlMiddleware
 
@@ -104,6 +106,10 @@ async def main():
 
     # --- ПЛАНИРОВЩИК ---
     scheduler.add_job(run_task_reminder_check, "interval", minutes=15, args=[bot])
+    # Своё время напоминания у привычки (habits.planned_time) — опционально,
+    # молчит для тех, у кого не задано. Каждую минуту, как и остальные
+    # job'ы, завязанные на точную локальную минуту пользователя.
+    scheduler.add_job(run_planned_time_reminders, "interval", minutes=1, args=[bot])
     # Контрольная точка проверяется каждую минуту и сама учитывает
     # локальный часовой пояс каждого пользователя. Это важно на Railway,
     # где timezone контейнера может отличаться от timezone пользователя.
@@ -149,6 +155,9 @@ async def main():
     # AI-квоты против общего потолка, воронки, конверсия подписки) — не
     # ждём, пока кто-то сам зайдёт в /admin → "Статистика".
     scheduler.add_job(run_admin_daily_digest, "cron", hour=DIGEST_HOUR_UTC, minute=0, args=[bot])
+
+    # Реалтайм-алерт при всплеске ошибок — не ждём до утренней сводки.
+    scheduler.add_job(run_error_spike_check, "interval", minutes=10, args=[bot])
 
     scheduler.start()
     logger.info("✅ Планировщик запущен")

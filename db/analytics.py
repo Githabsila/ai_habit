@@ -148,6 +148,68 @@ def get_survey_funnel():
     return {"total": total, "completed_survey": completed_survey, "approved": approved}
 
 
+def get_retention(days_ago):
+    """Классический когортный ретеншн: пользователи, ЗАРЕГИСТРИРОВАВШИЕСЯ
+    ровно `days_ago` дней назад (в этот календарный день) — сколько % из
+    них были активны (last_seen) в последние 48 часов, то есть буквально
+    вернулись примерно в day N. days_ago=1/7/30 → D1/D7/D30.
+    В отличие от DAU (сколько активны сегодня вообще) это отвечает на
+    другой вопрос: «продукт удерживает тех, кто пришёл N дней назад,
+    или люди пробуют один раз и больше не возвращаются?»."""
+    conn = connect()
+    cursor = conn.cursor()
+    cohort_date = (date.today() - timedelta(days=days_ago)).isoformat()
+    cursor.execute(
+        "SELECT COUNT(*) AS n FROM users WHERE date(created_at)=?",
+        (cohort_date,),
+    )
+    cohort_size = int(cursor.fetchone()["n"] or 0)
+    if not cohort_size:
+        conn.close()
+        return {"cohort_size": 0, "returned": 0, "rate_percent": 0.0}
+    since = (datetime.utcnow() - timedelta(hours=48)).isoformat()
+    cursor.execute(
+        "SELECT COUNT(*) AS n FROM users WHERE date(created_at)=? AND last_seen IS NOT NULL AND last_seen >= ?",
+        (cohort_date, since),
+    )
+    returned = int(cursor.fetchone()["n"] or 0)
+    conn.close()
+    rate = round(100 * returned / cohort_size, 1)
+    return {"cohort_size": cohort_size, "returned": returned, "rate_percent": rate}
+
+
+def get_retention_summary():
+    """D1/D7/D30 разом — то, что реально показывает, работает ли продукт
+    на удержание, а не только сколько людей открыли его сегодня (DAU)."""
+    return {
+        "d1": get_retention(1),
+        "d7": get_retention(7),
+        "d30": get_retention(30),
+    }
+
+
+def get_survey_funnel_by_variant():
+    """Конверсия анкеты (started → completed) в разрезе A/B-варианта
+    вступительного текста (handlers/onboarding.py::begin_survey,
+    users.survey_variant — чистая функция от чётности telegram_id, не
+    хранится отдельно, поэтому считается прямо в SQL через `% 2`)."""
+    conn = connect()
+    cursor = conn.cursor()
+    out = {}
+    for variant, mod_value in (("A", 0), ("B", 1)):
+        cursor.execute("SELECT COUNT(*) AS n FROM users WHERE telegram_id % 2 = ?", (mod_value,))
+        total = int(cursor.fetchone()["n"] or 0)
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM users WHERE telegram_id % 2 = ? AND survey_completed_at IS NOT NULL",
+            (mod_value,),
+        )
+        completed = int(cursor.fetchone()["n"] or 0)
+        rate = round(100 * completed / total, 1) if total else 0.0
+        out[variant] = {"total": total, "completed": completed, "rate_percent": rate}
+    conn.close()
+    return out
+
+
 def get_first_ai_message_funnel():
     """Сколько одобренных пользователей вообще написали ADAM хотя бы раз
     (ai_intro_shown=1 ставится в claim_ai_first_message — db/ai.py)."""

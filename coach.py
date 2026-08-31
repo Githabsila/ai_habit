@@ -32,6 +32,7 @@ from db import (
     get_daily_plan,
     get_timezone,
     claim_notification, release_notification, notification_scope,
+    get_habits, mark_habit_reminder_sent,
 )
 from multi_agent import generate_weekly_habit_feedback
 from adam_messages import (
@@ -43,6 +44,7 @@ from adam_messages import (
     format_week_end_message,
     format_month_start_message,
     format_month_end_message,
+    format_planned_time_reminder_message,
 )
 
 logger = logging.getLogger("coach")
@@ -208,6 +210,56 @@ async def run_task_reminder_check(bot):
                 mark_goal_reminder_sent(plan["id"])
 
     logger.info(f"Индивидуальные напоминания по задачам: отправлено {sent} сообщений")
+
+
+# =====================================
+# СВОЁ ВРЕМЯ НАПОМИНАНИЯ У ПРИВЫЧКИ
+# =====================================
+#
+# В отличие от отключённых выше 2-часовых пингов (спам по системному
+# правилу) — это опционально: пользователь сам ставит время конкретной
+# привычке (habits.planned_time, см. webapp/webapp_server.py), и только
+# для тех, кто его поставил, приходит персональное напоминание строго
+# в это время. Молчит для всех остальных привычек — планового времени
+# по умолчанию нет ни у одной.
+
+async def run_planned_time_reminders(bot):
+    """Раз в минуту (main.py) — у кого из привычек planned_time совпало
+    с текущей локальной минутой пользователя, тот ещё не выполнен и по
+    нему сегодня ещё не напоминали."""
+    users = get_all_users()
+    sent = 0
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+        settings = get_settings(telegram_id)
+        if not settings or settings["reminders"] == 0:
+            continue
+
+        now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+        current_hhmm = now_local.strftime("%H:%M")
+
+        for habit in get_habits(telegram_id):
+            if habit["completed"] or habit["reminder_sent"]:
+                continue
+            if habit["planned_time"] != current_hhmm:
+                continue
+            try:
+                await bot.send_message(
+                    telegram_id,
+                    format_planned_time_reminder_message(habit["title"]),
+                )
+                sent += 1
+            except Exception as e:
+                log_error("planned_time_reminder", e, telegram_id)
+            finally:
+                # Помечаем отправленным даже при ошибке доставки — иначе
+                # временный сбой Telegram превратится в повтор на каждый
+                # следующий тик планировщика (раз в минуту) до конца дня.
+                mark_habit_reminder_sent(habit["id"])
+
+    if sent:
+        logger.info(f"Напоминания по своему времени привычки: отправлено {sent}")
 
 
 # =====================================

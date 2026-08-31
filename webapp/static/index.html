@@ -225,6 +225,13 @@ id="newHabitInput"
 placeholder="Новая привычка..."
 >
 
+<input
+type="time"
+id="newHabitTime"
+class="add-form__time"
+title="Своё время напоминания (необязательно)"
+aria-label="Время напоминания">
+
 <button
 type="submit"
 class="btn btn--accent">
@@ -388,6 +395,25 @@ class="btn btn--accent">
 
 </div>
 
+<div class="section-heading">
+  <h2>Данные и поддержка</h2>
+</div>
+
+<div class="settings-card data-support-card">
+  <button type="button" class="data-support-btn" id="shareWeeklyBtn">
+    <span class="data-support-btn__icon">📈</span>
+    <span class="data-support-btn__text"><b>Поделиться итогом недели</b><small>Красивая карточка с результатами за 7 дней</small></span>
+  </button>
+  <button type="button" class="data-support-btn" id="exportDataBtn">
+    <span class="data-support-btn__icon">📤</span>
+    <span class="data-support-btn__text"><b>Скачать мои данные</b><small>Вся история привычек в CSV</small></span>
+  </button>
+  <button type="button" class="data-support-btn" id="openFeedbackBtn">
+    <span class="data-support-btn__icon">💬</span>
+    <span class="data-support-btn__text"><b>Сообщить о проблеме</b><small>Напрямую разработчику, с контекстом</small></span>
+  </button>
+</div>
+
 </section>
 
 </main>
@@ -434,6 +460,21 @@ class="btn btn--accent">
      привязывалась к низу длинной панели вкладки, а не к экрану, поэтому
      приходилось листать страницу вниз, чтобы её увидеть. Все остальные
      fixed-оверлеи уже жили здесь, вне #app — теперь и эта тоже. -->
+<div class="feedback-sheet" id="feedbackSheet" hidden aria-hidden="true">
+  <div class="feedback-sheet__backdrop" id="feedbackBackdrop"></div>
+  <section class="feedback-card" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
+    <div class="freeze-purchase-card__handle"></div>
+    <div class="feedback-card__icon">💬</div>
+    <h3 id="feedbackTitle">Сообщить о проблеме</h3>
+    <p>Опиши, что пошло не так — сообщение уйдёт разработчику вместе с тем, на какой ты сейчас вкладке.</p>
+    <textarea id="feedbackText" class="feedback-textarea" placeholder="Например: не начисляются Adam Coin за привычку…" maxlength="2000"></textarea>
+    <div class="feedback-actions">
+      <button type="button" class="freeze-purchase-back" id="feedbackCancel">Отмена</button>
+      <button type="button" class="feedback-send-btn" id="feedbackSend">Отправить</button>
+    </div>
+  </section>
+</div>
+
 <div class="freeze-purchase-sheet" id="freezePurchaseSheet" hidden aria-hidden="true">
   <div class="freeze-purchase-sheet__backdrop" id="freezePurchaseBackdrop"></div>
   <section class="freeze-purchase-card" role="dialog" aria-modal="true" aria-labelledby="freezePurchaseTitle">
@@ -480,7 +521,7 @@ class="btn btn--accent">
       </div>
     </div>
 
-    <div class="achievement-share-title">Ударный режим</div>
+    <div class="achievement-share-title" id="achievementShareTitle">Ударный режим</div>
     <div class="achievement-share-days" id="achievementShareDays">1 день</div>
     <div class="achievement-share-status" id="achievementShareStatus">Ударный режим</div>
 

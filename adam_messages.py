@@ -83,6 +83,21 @@ def format_habit_checkpoint_message(incomplete_habits, hour: int) -> str:
     )
 
 
+# =====================================
+# СВОЁ ВРЕМЯ НАПОМИНАНИЯ У ПРИВЫЧКИ
+# =====================================
+
+PLANNED_TIME_REMINDER_TEMPLATES = [
+    "⏰ Как раз время для «{title}» {emoji}",
+    "🔔 Пора: «{title}». Ты сам выбрал это время — доверься себе {emoji}",
+    "✨ Момент для «{title}» настал. Пара минут — и готово {emoji}",
+    "📌 «{title}» ждёт своего времени — а оно как раз сейчас {emoji}",
+]
+
+def format_planned_time_reminder_message(title: str) -> str:
+    return pick(PLANNED_TIME_REMINDER_TEMPLATES, pool=SOFT_EMOJIS, title=title)
+
+
 def format_habit_checkpoint_10_message(incomplete_habits) -> str:
     """Совместимость со старыми вызовами: контрольная точка в 10:00."""
     return format_habit_checkpoint_message(incomplete_habits, 10)
