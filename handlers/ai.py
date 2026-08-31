@@ -263,6 +263,7 @@ async def ai_chat(message: Message, state: FSMContext):
         result = await chat(
             user_id=user_id,
             message=text,
+            first_message=first_message,
         )
         answer = result["answer"]
         is_crisis = result["is_crisis"]

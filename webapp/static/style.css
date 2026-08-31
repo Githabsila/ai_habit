@@ -6728,3 +6728,51 @@ body{
   transition:transform .32s cubic-bezier(.34,1.56,.64,1),box-shadow .22s ease !important;
 }
 #aiCoachBtn:active .tab-bar__icon{transform:scale(.90) !important}
+
+/* =========================================================
+   ЕДИНАЯ ТАКТИЛЬНАЯ ОБРАТНАЯ СВЯЗЬ НА КНОПКАХ ПО ВСЕМУ БОТУ.
+   У части кнопок (добавить привычку, купить в магазине, сменить
+   фото, сбросить прогресс, поделиться, темы ИИ) не было :active —
+   на телефоне это ощущается "мёртвым", без отклика на тап. Один
+   общий слой на все интерактивные элементы сразу, без переопределения
+   их собственных цветов/фонов.
+   ========================================================= */
+.add-habit-btn,.buy-btn,.freeze-balance-btn,.profile-photo-btn,
+.settings-danger-btn,.share-achievement-btn,.ai-style-btn,
+.plan-icon-btn,.btn,.progress-ai-btn,.theme-swatch,.frame-choice{
+  transition:transform .16s cubic-bezier(.34,1.56,.64,1),box-shadow .18s ease,filter .18s ease !important;
+}
+.add-habit-btn:active,.buy-btn:active,.freeze-balance-btn:active,
+.profile-photo-btn:active,.settings-danger-btn:active,
+.share-achievement-btn:active,.ai-style-btn:active,
+.plan-icon-btn:active,.btn:active,.progress-ai-btn:active,
+.theme-swatch:active,.frame-choice:active{
+  transform:scale(.94) !important;
+  filter:brightness(.96);
+}
+.add-habit-btn:disabled:active,.buy-btn:disabled:active,
+.btn:disabled:active,.progress-ai-btn:disabled:active{
+  transform:none !important;
+}
+
+/* Лёгкое появление секций при первой отрисовке страницы — без этого
+   контент вкладки просто "выскакивает" целиком, с этим — собранно и
+   дорого на вид. Один проигрыш, дальше не мешает обычному скроллу. */
+@media(prefers-reduced-motion:no-preference){
+  .player-card,.plan-card,.streak-widget,.streak-profile-card,
+  .settings-card,.progress-stats-card,.calendar-card{
+    animation:adamSectionIn .5s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .plan-card{animation-delay:.04s}
+  .streak-widget{animation-delay:.08s}
+  .settings-card{animation-delay:.05s}
+  .progress-stats-card{animation-delay:.03s}
+}
+.performance-lite .player-card,.performance-lite .plan-card,
+.performance-lite .streak-widget,.performance-lite .streak-profile-card,
+.performance-lite .settings-card,.performance-lite .progress-stats-card,
+.performance-lite .calendar-card{animation:none !important}
+@keyframes adamSectionIn{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:translateY(0)}
+}

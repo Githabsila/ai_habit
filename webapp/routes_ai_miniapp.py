@@ -443,9 +443,6 @@ async def ai_daily_tip_miniapp(request):
             status=500
         )
 
-        if tip and "[ошибка агента" not in tip:
-            cache_set(cache_key, tip)
-
     return web.json_response({"tip": tip})
 
 

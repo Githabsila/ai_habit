@@ -22,7 +22,7 @@ from webapp.services.ai_utils import (
 from multi_agent import solve_task_multiagent
 
 
-async def chat(user_id: int, message: str):
+async def chat(user_id: int, message: str, first_message: bool = False):
     message = (message or "").strip()
     # Для длинного вопроса сохраняем сам вопрос целиком, но уменьшаем
     # вторичный контекст: именно история/профиль часто незаметно удваивают
@@ -70,6 +70,7 @@ async def chat(user_id: int, message: str):
         history=history_text,
         user_context=user_context,
         style=style,
+        first_message=first_message,
         humor_note=humor_note,
     )
 
