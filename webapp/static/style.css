@@ -6758,6 +6758,28 @@ body{
 .habit-item:active,.shop-item:active{
   transform:scale(.985) !important;
 }
+
+/* =========================================================
+   БЕСПОЙДНЫЕ SVG-ИКОНКИ НИЖНЕГО МЕНЮ вместо системного шрифта
+   Material Symbols (одинаковые "гугловские" значки есть в тысяче
+   других приложений — свой рисованный набор ощущается заметно
+   дороже). currentColor — значит вся уже настроенная логика
+   активного/неактивного цвета продолжает работать без изменений,
+   1em — значит значок масштабируется ровно как раньше масштабировался
+   текстовый глиф (в том числе увеличенный значок ИИ в своей плашке).
+   ========================================================= */
+.tab-bar__icon svg{
+  width:1em !important;
+  height:1em !important;
+  display:block;
+  overflow:visible;
+}
+.tab-bar__item.is-active .tab-bar__icon svg{
+  filter:drop-shadow(0 0 6px rgba(255,213,79,.4));
+}
+#aiCoachBtn .tab-bar__icon svg{
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));
+}
 .add-habit-btn:disabled:active,.buy-btn:disabled:active,
 .btn:disabled:active,.progress-ai-btn:disabled:active{
   transform:none !important;
