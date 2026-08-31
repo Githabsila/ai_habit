@@ -7021,6 +7021,8 @@ body{
 }
 .achievement-share-kicker span{color:#FFA940;font-size:9px;opacity:.85}
 .achievement-share-title{
+  /* +2мм от прежнего положения — воздух между кольцом и заголовком. */
+  margin-top:20px;
   background:linear-gradient(135deg,#FFE7B8,#FF9D3D 55%,#FF6A32);
   -webkit-background-clip:text;background-clip:text;color:transparent;
 }
@@ -7036,14 +7038,28 @@ body{
 .achievement-share-close{
   position:relative;
   overflow:hidden;
-  display:flex;align-items:center;justify-content:center;gap:8px;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  padding:19px 20px;
+  border-radius:20px;
+  font-size:16px;
+  font-weight:800;
+  letter-spacing:.005em;
   background:linear-gradient(135deg,#FFA53E,#FF6A32 55%,#EF4444);
   background-size:180% 180%;
-  animation:asCloseGradient 3.2s ease-in-out infinite;
-  box-shadow:0 14px 34px rgba(239,68,68,.28),inset 0 1px 0 rgba(255,255,255,.22);
+  /* Две анимации сразу: бег градиента (был) + дыхание свечения (новое) —
+     кнопка сама притягивает взгляд, а не ждёт, пока её заметят. */
+  animation:asCloseGradient 3.2s ease-in-out infinite, asCloseGlow 2.4s ease-in-out infinite, asCloseIn .5s .15s cubic-bezier(.2,.9,.25,1.15) both;
   transition:transform .16s cubic-bezier(.34,1.56,.64,1);
 }
 .achievement-share-close:active{transform:scale(.965)}
+@keyframes asCloseGlow{
+  0%,100%{box-shadow:0 16px 38px rgba(239,68,68,.32),0 4px 16px rgba(255,138,32,.26),inset 0 1px 0 rgba(255,255,255,.28)}
+  50%{box-shadow:0 20px 50px rgba(239,68,68,.5),0 6px 24px rgba(255,138,32,.4),inset 0 1px 0 rgba(255,255,255,.34)}
+}
+@keyframes asCloseIn{
+  from{opacity:0;transform:translateY(10px) scale(.94)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
 .achievement-share-close::after{
   content:"";
   position:absolute;inset:0;
