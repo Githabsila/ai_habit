@@ -311,6 +311,8 @@ function AiChat() {
                         React.createElement("div", { className: "message-bubble" }, m.text),
                         React.createElement("div", { className: "message-time user-time" }, m.time))),
                 m.role === 'assistant' && React.createElement("div", { className: "message assistant" },
+                    React.createElement("div", { className: "msg-avatar" },
+                        React.createElement("img", { src: "/static/assets/adam-avatar.png", alt: "" })),
                     React.createElement("div", { className: "assistant-message-wrap" },
                         m.isCrisis && React.createElement("div", { className: "crisis-alert" }, "\u26A0\uFE0F \u0412\u0430\u0436\u043D\u043E"),
                         React.createElement("div", { className: "message-bubble" },

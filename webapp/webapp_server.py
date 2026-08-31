@@ -192,7 +192,7 @@ async def bootstrap(request):
             "streak": user["streak"] if user else 0,
             "diamonds": user["diamonds"] if user and "diamonds" in user.keys() else 0,
             "premium": bool(user["premium"]) if user else False,
-            "badge": False,
+            "badge": has_item(telegram_id, BADGE_ITEM_ID),
             "avatar_id": user["avatar_id"] if user else "default",
             "frame_id": user["frame_id"] if user else "default",
             "is_admin": is_admin,
@@ -220,7 +220,7 @@ async def bootstrap(request):
             "reminder_hour": settings_row["reminder_hour"] if settings_row else 9,
             "reminder_minute": settings_row["reminder_minute"] if settings_row else 0,
             "ai_style": get_ai_style(telegram_id),
-            "theme_owned": False,
+            "theme_owned": has_item(telegram_id, THEME_ITEM_ID),
             "theme": get_theme(telegram_id),
         },
         "daily_plan": {
