@@ -648,13 +648,12 @@ window.onerror = function(msg, url, line, col, error) {
     .message.assistant .assistant-message-wrap{min-width:0}
 
 
-/* PERFORMANCE PASS 28.08 — чат: минимум постоянной GPU-нагрузки. */
-@media (max-width: 600px){
-  .header,.chat-toolbar,.input-area,.message.assistant .message-bubble{
-    backdrop-filter:none!important;
-    -webkit-backdrop-filter:none!important;
-  }
-}
+/* PERFORMANCE PASS 28.08 — было: отключали стеклянный блюр на ЛЮБОМ
+   экране уже с 600px, то есть буквально на всех телефонах — включая
+   мощные, для которых blur не проблема. Экран узкий ≠ слабое железо
+   (iPhone Pro тоже <600px). Решение о производительности принимает
+   .performance-lite ниже (реальная проверка hardwareConcurrency /
+   deviceMemory / saveData), а не ширина вьюпорта. */
 @media (prefers-reduced-motion: no-preference){
   .app-performance-paused *,.app-performance-paused *::before,.app-performance-paused *::after{
     animation-play-state:paused!important;
@@ -665,7 +664,7 @@ window.onerror = function(msg, url, line, col, error) {
 }
 
 /* PERFORMANCE LITE — keep the chat responsive on weaker phones. */
-.performance-lite .header,.performance-lite .chat-toolbar,.performance-lite .quick-prompts,.performance-lite .message-mini-actions button,.performance-lite .input-area,.performance-lite .emoji-panel,.performance-lite .input-row{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.performance-lite .header,.performance-lite .chat-toolbar,.performance-lite .quick-prompts,.performance-lite .message-mini-actions button,.performance-lite .input-area,.performance-lite .emoji-panel,.performance-lite .input-row,.performance-lite .message-bubble{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .performance-lite body::before,.performance-lite .header-title-icon::after,.performance-lite .adam-spark,.performance-lite .composer-glow{animation:none!important;display:none!important}
 .performance-lite .message{animation:none!important}
 .performance-lite .typing-shimmer{animation:none!important;color:inherit}
@@ -1425,12 +1424,22 @@ body{
  50%{box-shadow:0 18px 46px rgba(0,0,0,.32),0 0 22px rgba(143,114,255,.10),inset 0 1px 0 rgba(255,255,255,.08)}
 }
 
-/* Лента сообщений: последнее сообщение всегда у низа (не болтается
-   вверху с пустотой под ним), и нельзя "утянуть" скролл ниже последнего
-   сообщения резиновым оверскроллом. */
+/* Лента сообщений: последнее сообщение у низа, когда переписка короткая
+   (spacer-блок в JS перед сообщениями забирает всё свободное место через
+   flex-grow), а когда сообщений много и лента не помещается — обычный
+   скролл как везде. ВАЖНО: не через justify-content:flex-end — в паре
+   с overflow-y:auto это в части WebView вообще блокирует скролл
+   (известный баг флексбокса), поэтому именно flex-grow на отдельном
+   элементе, а не justify-content на самом скролл-контейнере.
+   overscroll-behavior — чтобы нельзя было "утянуть" резиновым скроллом
+   ниже последнего сообщения; листать вверх по уже открытой истории
+   при этом работает как обычно, это не трогает. */
 .messages-container{
- justify-content:flex-end !important;
  overscroll-behavior-y:contain !important;
+}
+.messages-spacer{
+ flex:1 1 auto !important;
+ min-height:0 !important;
 }
 
 /* Пузырь сообщения всегда по размеру своего текста — раньше в редких
@@ -1455,5 +1464,40 @@ body{
 .icon-btn,.empty-icon,.welcome-prompts button,.quick-prompts button{
  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",'Inter',sans-serif !important;
 }
+
+/* =========================================================
+   БОГАТЫЙ СТЕКЛЯННЫЙ ЭФФЕКT — усиленное стекло на header/composer/
+   пузырях + блик. Раньше на любом экране <600px блюр вообще
+   выключался (см. правку PERFORMANCE PASS выше) — теперь он есть
+   везде, кроме реально слабых телефонов (.performance-lite).
+   ========================================================= */
+.header{
+ -webkit-backdrop-filter:blur(34px) saturate(1.6) !important;
+ backdrop-filter:blur(34px) saturate(1.6) !important;
+}
+.input-area,.composer{
+ -webkit-backdrop-filter:blur(30px) saturate(1.5) !important;
+ backdrop-filter:blur(30px) saturate(1.5) !important;
+}
+.message-bubble{
+ -webkit-backdrop-filter:blur(22px) saturate(1.4) !important;
+ backdrop-filter:blur(22px) saturate(1.4) !important;
+}
+.message.assistant .message-bubble,
+.message.user .message-bubble{
+ position:relative;
+ overflow:hidden;
+}
+.message-bubble::after{
+ content:"" !important;
+ position:absolute;inset:0;pointer-events:none;
+ background:linear-gradient(115deg,rgba(255,255,255,.16) 0%,transparent 26%,transparent 74%,rgba(255,255,255,.05) 100%);
+ mix-blend-mode:overlay;
+}
+.chat-toolbar,.quick-prompts,.emoji-panel,.quota-panel,.habit-suggestion,.thinking{
+ -webkit-backdrop-filter:blur(24px) saturate(1.4) !important;
+ backdrop-filter:blur(24px) saturate(1.4) !important;
+}
+.performance-lite .message-bubble::after{display:none !important}
 
 </style>
