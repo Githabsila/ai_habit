@@ -7268,18 +7268,28 @@ body{
    кнопка "Добавить" (с иконкой и подписью вместо голого "+") — в едином
    премиальном золотом акценте, как остальные основные CTA в приложении. */
 .habit-add-form{
+  /* .add-form{position:sticky;bottom:0} (общее правило, выше по файлу)
+     было задумано для формы плана дня, но там же и отключено обратно —
+     см. .plan-add-form{position:static} чуть ниже. Для этой формы такого
+     сброса не было: sticky относительно всего документа (ни один предок
+     не скроллится сам) заставлял поле "прилипать" по центру экрана и
+     наезжать на текст карточек выше/ниже при прокрутке — это и был тот
+     самый нахлёст на "План дня"/"Главная задача дня" на скриншоте, а не
+     просто "громоздкое" поле. */
+  position:static;
   flex-direction:column;
   align-items:stretch;
-  gap:12px;
+  gap:10px;
   /* Тот же премиальный градиент, что и у .plan-card/.calendar-card и т.п.
-     (см. "UNIVERSAL CARDS" выше) — раньше здесь был плоский тёмный фон
-     с крошечным padding:8px, заметно бедней остальных карточек экрана. */
-  padding:16px !important;
-  border-radius:26px !important;
+     (см. "UNIVERSAL CARDS" выше), но без лишнего размаха — раньше плоский
+     тёмный фон с padding:8px выглядел бедно, а первая версия правки (16px,
+     радиус 26px, крупная тень) — наоборот, слишком тяжеловесно. */
+  padding:12px !important;
+  border-radius:20px !important;
   background:
-    radial-gradient(360px 140px at 100% 0,rgba(139,108,255,.08),transparent 70%),
+    radial-gradient(320px 120px at 100% 0,rgba(139,108,255,.07),transparent 70%),
     linear-gradient(145deg,rgba(28,25,39,.92),rgba(13,12,20,.92)) !important;
-  box-shadow:0 15px 40px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.05) !important;
+  box-shadow:0 10px 26px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.045) !important;
 }
 .habit-add-form__text{
   width:100%;
@@ -7289,10 +7299,10 @@ body{
      себя ПОВЕРХ height:56px, и поле схлопывалось до ~19px (высоты текста).
      !important здесь — не украшательство, а обязательный фикс этого бага. */
   flex:0 0 auto !important;
-  height:58px !important;
-  padding:0 20px !important;
-  border-radius:18px !important;
-  font-size:16px !important;
+  height:52px !important;
+  padding:0 18px !important;
+  border-radius:16px !important;
+  font-size:15px !important;
 }
 .habit-add-form__row2{
   display:flex;
@@ -7309,9 +7319,9 @@ body{
   display:flex;
   align-items:center;
   gap:7px;
-  flex:0 0 124px;
-  height:54px;
-  padding:0 14px;
+  flex:0 0 118px;
+  height:50px;
+  padding:0 13px;
   border-radius:16px;
   background:rgba(255,255,255,.03);
   border:1px solid rgba(255,255,255,.08);
@@ -7354,21 +7364,21 @@ body{
    контраста на фиолетовом (тот же приём, что и у plan-add-form__btn). */
 .habit-add-form__submit{
   flex:1;
-  min-width:120px;
+  min-width:112px;
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:8px;
-  height:54px;
+  gap:7px;
+  height:50px;
   border-radius:16px;
   cursor:pointer;
   font-family:'Space Grotesk', sans-serif;
-  font-size:15px;
+  font-size:14px;
   font-weight:700;
   color:#FFD76A;
 }
 .habit-add-form__submit-icon{
-  font-size:19px;
+  font-size:17px;
   line-height:1;
   font-weight:800;
 }
