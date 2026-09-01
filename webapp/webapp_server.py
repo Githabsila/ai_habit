@@ -55,6 +55,8 @@ from db import (
     is_xp_booster_active,
     set_public_profile_enabled, get_public_profile,
     send_reaction, get_recent_reactions_received, has_reacted_today, REACTION_EMOJIS,
+    set_long_term_goals, get_long_term_goals,
+    get_struggling_habits, suggest_optimal_reminder_time,
 )
 
 from datetime import date, datetime, timezone
@@ -286,9 +288,18 @@ async def bootstrap(request):
                     if "frequency_per_week" in h.keys() and h["frequency_per_week"] else None
                 ),
                 "chain_trigger_habit_id": h["chain_trigger_habit_id"] if "chain_trigger_habit_id" in h.keys() else None,
+                # Roadmap #23/#36 — только когда у привычки ЕЩЁ нет своего
+                # времени: если планово время уже стоит, подсказывать нечего.
+                "suggested_time": (
+                    suggest_optimal_reminder_time(h["id"], telegram_id)
+                    if not (h["planned_time"] if "planned_time" in h.keys() else None) else None
+                ),
             }
             for h in habits
         ],
+        # Roadmap #22 — привычки, проваленные несколько дней подряд, для
+        # мягкой подсказки "может, снизить планку?".
+        "struggling_habits": get_struggling_habits(telegram_id),
         "habit_categories": HABIT_CATEGORIES,
         "progress": progress,
         "streak": streak,
@@ -311,6 +322,7 @@ async def bootstrap(request):
                 else None
             ),
             "public_profile_enabled": bool(user["public_profile_enabled"]) if user and "public_profile_enabled" in user.keys() else False,
+            "long_term_goals": get_long_term_goals(telegram_id),
         },
         "daily_plan": {
             "main_goal": daily_plan["main_goal"],
@@ -966,6 +978,16 @@ async def reactions_route(request):
         ],
         "available_emojis": REACTION_EMOJIS,
     })
+
+
+@routes.post("/api/settings/goals")
+async def set_goals_route(request):
+    """Roadmap #25 — долгосрочные цели пользователя, которые AI-наставник
+    держит в контексте (см. webapp/services/ai_utils.py)."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    saved = set_long_term_goals(telegram_id, body.get("text"))
+    return web.json_response({"ok": True, "text": saved})
 
 
 @routes.post("/api/settings/reset-progress")

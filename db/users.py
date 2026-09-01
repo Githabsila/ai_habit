@@ -231,6 +231,39 @@ def give_premium_admin(user_id):
 
 
 # =====================================
+# Roadmap #25 — долгосрочные жизненные цели для AI-наставника
+# =====================================
+# Отдельно от разовой анкеты онбординга (user_survey.life_goal, см.
+# db/onboarding.py) — тот текст задаётся один раз при первом входе и не
+# у всех пользователей вообще есть (для тех, кто был в БД до анкеты).
+# long_term_goals пользователь может завести/переписать в любой момент из
+# настроек, и он всегда есть на колонке users (без зависимости от
+# отдельной строки user_survey) — см. build_user_context/
+# build_proactive_context в webapp/services/ai_utils.py, куда это
+# подмешивается в контекст AI-наставника.
+MAX_LONG_TERM_GOALS_LENGTH = 500
+
+
+def set_long_term_goals(user_id, text):
+    text = (text or "").strip()[:MAX_LONG_TERM_GOALS_LENGTH]
+    conn = connect()
+    conn.execute(
+        "UPDATE users SET long_term_goals=? WHERE telegram_id=?",
+        (text or None, user_id),
+    )
+    conn.commit()
+    conn.close()
+    return text
+
+
+def get_long_term_goals(user_id):
+    user = get_user(user_id)
+    if not user or "long_term_goals" not in user.keys():
+        return None
+    return user["long_term_goals"]
+
+
+# =====================================
 # Roadmap #32 — разовый бустер x2 Adam Coin за Telegram Stars
 # =====================================
 

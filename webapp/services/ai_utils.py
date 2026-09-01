@@ -9,6 +9,7 @@ from db import (
     get_daily_plan,
     get_timezone,
     get_proactive_topic,
+    get_long_term_goals,
 )
 
 
@@ -104,6 +105,15 @@ def build_user_context(user_id: int, max_chars: int = 2800) -> str:
         lines.append("")
         lines.append("План на сегодня пока не составлен.")
 
+    # Roadmap #25 — долгосрочные цели, которые пользователь сам задал в
+    # настройках (в отличие от profile_summary ниже — это не
+    # авто-суммаризация переписки, а явный текст от самого пользователя,
+    # который он мог редактировать когда угодно).
+    long_term_goals = get_long_term_goals(user_id)
+    if long_term_goals:
+        lines.append("")
+        lines.append(f"Долгосрочная цель пользователя (важно держать в уме, упоминать когда уместно): {long_term_goals}")
+
     profile = get_user_profile(user_id)
     profile_summary = profile["summary"] if profile else None
 
@@ -173,6 +183,9 @@ def build_proactive_context(user_id: int) -> str:
             if task["text"]:
                 status = "выполнено" if task["completed"] else "не выполнено"
                 lines.append(f"• Задача: {task['text']} — {status}")
+    long_term_goals = get_long_term_goals(user_id)
+    if long_term_goals:
+        lines.append(f"Долгосрочная цель пользователя: {long_term_goals}")
     topic = get_proactive_topic(user_id)
     if topic:
         lines.append("Одноразовая тема для мягкого напоминания: " + topic)

@@ -238,6 +238,7 @@ style="width:0%">
   <span>x2 коины ещё <span id="doubleBonusTimer">30:00</span></span>
 </div>
 <div class="habits-section-divider" aria-hidden="true"></div>
+<div class="struggling-habit-banner" id="strugglingHabitBanner" hidden></div>
 <div class="habit-filter-row" id="habitFilterRow" hidden></div>
 <ul class="habit-list" id="habitList">
 </ul>
@@ -486,6 +487,14 @@ class="habit-add-form__submit">
     <select id="quietHoursStart" class="quiet-hours-select" aria-label="Начало тихих часов"></select>
     <span>до</span>
     <select id="quietHoursEnd" class="quiet-hours-select" aria-label="Конец тихих часов"></select>
+  </div>
+
+  <div class="settings-row">
+    <span>🧭 Твои долгосрочные цели</span>
+  </div>
+  <div class="goals-row">
+    <textarea id="longTermGoalsInput" class="goals-textarea" maxlength="500" placeholder="Например: пробежать марафон к декабрю, выучить испанский... AI-наставник будет держать это в уме."></textarea>
+    <button type="button" class="goals-save-btn" id="longTermGoalsSaveBtn">Сохранить</button>
   </div>
 
   <div class="settings-row">
@@ -768,7 +777,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260901_PUBLIC_PROFILE_REACTIONS_V1"></script>
+<script type="module" src="/static/app.js?v=20260901_AI_INSIGHTS_GOALS_V1"></script>
 
 </body>
 </html>

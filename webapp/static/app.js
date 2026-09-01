@@ -1147,6 +1147,32 @@
     // есть категория. Пустой ряд чипов, когда фильтровать нечего, — тот
     // самый лишний шум, который эта фаза редизайна убирает.
     const filterRow = document.getElementById("habitFilterRow");
+    // Roadmap #22 — мягкая подсказка про постоянно проваливаемую привычку.
+    // Не навязчиво: одна карточка (первая по числу провалов), с
+    // возможностью закрыть на сегодня (sessionStorage, не БД — если
+    // ничего не поменялось, подсказка честно вернётся завтра).
+    const strugglingBanner = document.getElementById("strugglingHabitBanner");
+    if (strugglingBanner) {
+      const struggling = Array.isArray(state.struggling_habits) ? state.struggling_habits : [];
+      const top = struggling[0];
+      let dismissedKey = null;
+      try { dismissedKey = top ? sessionStorage.getItem("dismissedStruggle_" + top.habit_id) : null; } catch (_) {}
+      if (!top || dismissedKey) {
+        strugglingBanner.hidden = true;
+      } else {
+        strugglingBanner.hidden = false;
+        strugglingBanner.innerHTML = `
+          <span class="struggling-habit-banner__icon">🤖</span>
+          <span class="struggling-habit-banner__text">«${escapeHtml(top.title)}» не получается ${top.missed} из последних дней — может, снизить планку (реже в неделю или счётчик поменьше)?</span>
+          <button type="button" class="struggling-habit-banner__close" aria-label="Закрыть">✕</button>
+        `;
+        strugglingBanner.querySelector(".struggling-habit-banner__close")?.addEventListener("click", () => {
+          try { sessionStorage.setItem("dismissedStruggle_" + top.habit_id, "1"); } catch (_) {}
+          strugglingBanner.hidden = true;
+        });
+      }
+    }
+
     // Roadmap #7 — список для "После какой привычки предложить" в форме
     // добавления обновляем при каждом рендере, чтобы новая привычка сразу
     // была доступна как возможный триггер для следующей.
@@ -1219,6 +1245,11 @@
       const noteBtn = h.completed
         ? `<button class="habit-item__note" data-action="note" aria-label="Заметка/фото">📝</button>`
         : "";
+      // Roadmap #23/#36 — подсказка времени, только пока у привычки ещё
+      // нет своего planned_time (иначе она и так уже видна как чип ⏰).
+      const suggestBtn = h.suggested_time
+        ? `<button class="habit-item__suggest-time" data-action="accept-suggested-time" data-time="${h.suggested_time}" title="AI заметил: обычно ты делаешь это в это время">🤖 ${h.suggested_time}?</button>`
+        : "";
 
       if (h.skip_reason) {
         return `
@@ -1253,6 +1284,7 @@
         <button class="${checkClass}" data-action="${isCounter && !h.completed ? "progress" : "complete"}" ${h.completed ? "disabled" : ""}>${checkLabel}</button>
         ${badges}<span class="habit-item__title">${escapeHtml(h.title)}</span>
         <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
+        ${suggestBtn}
         ${noteBtn}
         ${h.completed ? "" : `<button class="habit-item__skip" data-action="skip" aria-label="Пропустить сегодня">⏭</button>`}
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
@@ -2026,6 +2058,22 @@ function initHabitActions() {
       return;
     }
 
+    if (action === "accept-suggested-time") {
+      const titleEl = li.querySelector(".habit-item__title");
+      try {
+        await api(`/api/habits/${habitId}`, {
+          method: "PUT",
+          body: JSON.stringify({ title: titleEl ? titleEl.textContent : "", planned_time: btn.dataset.time }),
+        });
+        haptic("light");
+        showToast(`Напоминание в ${btn.dataset.time}`, "success");
+        await loadBootstrap();
+      } catch (err) {
+        showToast(friendlyError(err), "error");
+      }
+      return;
+    }
+
     if (action === "skip") {
       // Не шлём запрос сразу — сначала даём выбрать причину (готовые чипы
       // ниже строки), сам API-вызов уходит по клику на конкретный чип
@@ -2792,6 +2840,27 @@ function initQuietHoursActions() {
   endSelect.addEventListener("change", save);
 }
 
+// Roadmap #25 — долгосрочные цели пользователя для AI-наставника.
+function initGoalsActions() {
+  const input = document.getElementById("longTermGoalsInput");
+  const saveBtn = document.getElementById("longTermGoalsSaveBtn");
+  if (!input || !saveBtn) return;
+  input.value = (state.settings && state.settings.long_term_goals) || "";
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true;
+    try {
+      await api("/api/settings/goals", { method: "POST", body: JSON.stringify({ text: input.value }) });
+      if (state.settings) state.settings.long_term_goals = input.value.trim();
+      haptic("light");
+      showToast("Цель сохранена", "success");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+}
+
 // Roadmap #17 — публичный шаринг-профиль: тумблер + кнопка "скопировать
 // ссылку" в настройках, плюс лента полученных реакций (roadmap #19) там же.
 function initPublicProfileActions() {
@@ -2952,6 +3021,7 @@ async function boot() {
         initDailyQuestActions();
         initRatingActions();
         initPublicProfileActions();
+        initGoalsActions();
         initPlanActions();
         initShopActions();
         initProfileAvatarActions();

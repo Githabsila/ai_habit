@@ -6490,6 +6490,34 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   font-weight:700;
 }
 
+/* Roadmap #25 — долгосрочные цели пользователя (текст для AI-наставника). */
+.goals-row{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:0 2px 14px;
+}
+.goals-textarea{
+  width:100%;
+  min-height:64px;
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+  color:var(--text,#EAE5FA);
+  font-family:inherit;
+  font-size:12.5px;
+  resize:vertical;
+}
+.goals-save-btn{
+  align-self:flex-end;
+  padding:6px 14px;
+  border-radius:10px;
+  font-size:11.5px;
+  font-weight:700;
+  cursor:pointer;
+}
+
 /* Roadmap #17 — публичный профиль: строка "скопировать ссылку". */
 .public-profile-row{
   display:flex;
@@ -7837,6 +7865,45 @@ body{
   border-color:rgba(139,108,255,.45);
   background:rgba(139,108,255,.14);
   color:#cfc6ff;
+}
+
+/* Roadmap #22 — мягкая подсказка про постоянно проваливаемую привычку. */
+.struggling-habit-banner{
+  display:flex;align-items:flex-start;gap:10px;
+  margin-bottom:12px;
+  padding:12px 14px;
+  border-radius:16px;
+  border:1px solid rgba(139,108,255,.25);
+  background:linear-gradient(135deg,rgba(139,108,255,.10),rgba(104,71,220,.06));
+}
+.struggling-habit-banner[hidden]{display:none !important}
+.struggling-habit-banner__icon{flex:0 0 auto;font-size:16px}
+.struggling-habit-banner__text{flex:1;font-size:12px;line-height:1.4;color:var(--text,#EAE5FA)}
+.struggling-habit-banner__close{
+  flex:0 0 auto;
+  width:22px;height:22px;
+  display:grid;place-items:center;
+  border-radius:8px;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.08);
+  color:var(--text-muted,#9D9DB3);
+  font-size:11px;
+  cursor:pointer;
+}
+
+/* Roadmap #23/#36 — чип "AI подобрал время". */
+.habit-item__suggest-time{
+  flex:0 0 auto;
+  padding:0 10px;
+  height:34px;
+  border-radius:12px;
+  border:1px solid rgba(255,209,102,.3);
+  background:rgba(255,209,102,.10);
+  color:#FFD76A;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+  cursor:pointer;
 }
 
 .habit-item__skip{
