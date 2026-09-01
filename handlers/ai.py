@@ -17,13 +17,14 @@ from webapp.services.ai_utils import (
 # from webapp.services.ai_service import chat
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, BufferedInputFile
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
 from db import (
     add_ai_message,
+    get_ai_message_text,
     get_ai_history,
     get_progress,
     get_habits,
@@ -212,6 +213,29 @@ async def ai_chat(message: Message, state: FSMContext):
     user_id = message.from_user.id
     text = (message.text or "").strip()
 
+    # Roadmap #21 — голосовые сообщения AI-коучу: расшифровываем через
+    # Whisper и дальше ведём ТОЧНО так же, как обычный текст (распознавание
+    # команд про привычки, весь мультиагентный пайплайн и т.д.) — голос
+    # это просто альтернативный способ ввести text, не отдельная ветка.
+    if not text and message.voice:
+        await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
+        try:
+            file = await message.bot.get_file(message.voice.file_id)
+            buf = await message.bot.download_file(file.file_path)
+            audio_bytes = buf.read()
+        except Exception:
+            audio_bytes = None
+        if audio_bytes:
+            from multi_agent import transcribe_voice
+            text = (await transcribe_voice(audio_bytes)) or ""
+        if not text:
+            await message.answer("🎙️ Не получилось распознать голосовое — попробуй ещё раз или напиши текстом.")
+            return
+    elif not text:
+        # Ни текста, ни голоса (стикер, фото и т.п. в этом состоянии чата) —
+        # обрабатывать нечего.
+        return
+
     if len(text) > AI_TELEGRAM_MAX_INPUT_CHARS:
         await message.answer(
             f"✂️ Сообщение слишком длинное. Сократи его до {AI_TELEGRAM_MAX_INPUT_CHARS} символов — я сохраню главное и отвечу точнее."
@@ -239,7 +263,7 @@ async def ai_chat(message: Message, state: FSMContext):
         habit_reply = await try_handle_habit_intent_ai(user_id, text)
 
     if habit_reply is not None:
-        add_ai_message(user_id, "user", message.text)
+        add_ai_message(user_id, "user", text)
         add_ai_message(user_id, "assistant", habit_reply)
         await message.answer(habit_reply, reply_markup=ai_keyboard())
         return
@@ -331,6 +355,35 @@ async def ai_feedback(callback: CallbackQuery):
                 raise
     await callback.answer(
         "Спасибо за оценку! 🙏" if rating == "up" else "Жаль! Уточни, что не так — по желанию 👇"
+    )
+
+
+# =====================================
+# Roadmap #47 — озвучка ответа AI (TTS)
+# =====================================
+
+@router.callback_query(F.data.startswith("ai_voice_"))
+async def ai_voice(callback: CallbackQuery):
+    message_id = int(callback.data.split("_")[-1])
+    text = get_ai_message_text(message_id, callback.from_user.id)
+    if not text:
+        await callback.answer("Не нашёл этот ответ — возможно, история уже очищена", show_alert=True)
+        return
+    await callback.answer("🔊 Озвучиваю...")
+    # send_audio (не send_voice) — send_voice в Bot API ожидает конкретно
+    # OGG/OPUS для отрисовки как "голосовое сообщение" с волной, обычный
+    # mp3 от OpenAI TTS туда лучше не пытаться протащить; send_audio даёт
+    # такой же результат для пользователя (проигрывается тут же в чате),
+    # просто как обычный аудио-файл, а не "голосовая" бабблом.
+    await callback.message.bot.send_chat_action(chat_id=callback.message.chat.id, action="upload_voice")
+    from multi_agent import generate_speech
+    audio_bytes = await generate_speech(text)
+    if not audio_bytes:
+        await callback.message.answer("❌ Не получилось озвучить — попробуй чуть позже.")
+        return
+    await callback.message.answer_audio(
+        BufferedInputFile(audio_bytes, filename="adam_voice.mp3"),
+        title="Ответ ADAM",
     )
 
 

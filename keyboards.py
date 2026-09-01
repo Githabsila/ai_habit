@@ -294,6 +294,10 @@ def ai_feedback_keyboard(message_id: int, suggested_habit: str | None = None):
         InlineKeyboardButton(
             text="👎",
             callback_data=f"ai_fb_down_{message_id}"
+        ),
+        InlineKeyboardButton(
+            text="🔊 Озвучить",
+            callback_data=f"ai_voice_{message_id}"
         )
     ])
 

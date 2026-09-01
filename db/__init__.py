@@ -157,6 +157,7 @@ from .calendar import (
 from .ai import (
     add_ai_message,
     get_ai_history,
+    get_ai_message_text,
     clear_ai_history,
     save_ai_feedback,
     get_ai_feedback_stats,
@@ -311,7 +312,7 @@ __all__ = [
     "create_daily_tasks", "get_daily_tasks", "update_daily_task",
     "check_achievements", "get_achievements", "ACHIEVEMENT_ICONS",
     "update_calendar", "get_calendar", "get_progress_comparison",
-    "add_ai_message", "get_ai_history", "clear_ai_history", "save_ai_feedback", "get_ai_feedback_stats",
+    "add_ai_message", "get_ai_history", "get_ai_message_text", "clear_ai_history", "save_ai_feedback", "get_ai_feedback_stats",
     "save_feedback_reason", "get_recent_negative_reasons",
     "get_user_profile", "update_user_profile", "get_proactive_topic", "bump_profile_counter",
     "cache_get", "cache_set", "log_error", "get_error_stats",

@@ -27,6 +27,21 @@ def get_ai_history(user_id, limit=20):
     return [dict(row) for row in reversed(rows)]
 
 
+def get_ai_message_text(message_id, user_id):
+    """Roadmap #47 — озвучка конкретного ответа AI по его id (кнопка
+    "🔊 Озвучить" под сообщением). user_id проверяем явно — иначе кто
+    угодно, зная id чужого сообщения, мог бы попросить бота озвучить его."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT message FROM ai_messages WHERE id=? AND user_id=?",
+        (message_id, user_id),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row["message"] if row else None
+
+
 def clear_ai_history(user_id):
     conn = connect()
     cursor = conn.cursor()

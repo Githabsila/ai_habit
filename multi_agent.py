@@ -1071,6 +1071,57 @@ def _apply_first_response_note(answer: str, first_message: bool, user_context: s
             if not answer.startswith(prefix):
                 return prefix + "\n\n" + answer
     return answer
+
+
+# =====================================
+# Roadmap #21 — голосовые сообщения AI-коучу (speech-to-text)
+# Roadmap #47 — озвучка сводок (text-to-speech)
+# Оба через тот же OpenAI-ключ, что уже используется для текстового AI —
+# новой интеграции/ключа не требуется, просто ещё два вызова того же
+# клиента. Раз в API OpenAI за эти вызовы отдельно тарифицируются —
+# бюджет на API вырастет пропорционально использованию этих двух фич.
+# =====================================
+
+async def transcribe_voice(audio_bytes: bytes, filename: str = "voice.ogg") -> Optional[str]:
+    """Расшифровывает голосовое сообщение в текст через Whisper. Язык не
+    фиксируем — Whisper сам определяет его по речи, поэтому подходит и для
+    будущей английской локализации (roadmap #46) без отдельной ветки."""
+    client = _get_openai_client()
+    if client is None:
+        return None
+    try:
+        result = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=(filename, audio_bytes),
+        )
+        text = (result.text or "").strip()
+        return text or None
+    except Exception:
+        logger.exception("Не удалось распознать голосовое сообщение")
+        return None
+
+
+async def generate_speech(text: str, voice: str = "alloy") -> Optional[bytes]:
+    """Озвучивает текст в MP3 через OpenAI TTS. Режем на разумную длину —
+    длинный текст (например, полный AI-разбор месяца) озвучивать целиком
+    и дорого, и бессмысленно слушать: пользователь слушает голосом обычно
+    короткую сводку, не весь текст с деталями."""
+    client = _get_openai_client()
+    if client is None:
+        return None
+    text = (text or "").strip()[:1200]
+    if not text:
+        return None
+    try:
+        response = await client.audio.speech.create(
+            model="tts-1",
+            voice=voice,
+            input=text,
+        )
+        return response.content
+    except Exception:
+        logger.exception("Не удалось сгенерировать озвучку")
+        return None
 async def solve_task_multiagent(
     task: str,
     history: str = "",
