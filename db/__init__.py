@@ -221,6 +221,8 @@ from .streak import (
     get_streak_reengagement_state, get_recent_streak_message_keys, record_streak_message_key, has_streak_frame,
     get_bonus_window, set_bonus_window,
     get_freeze_upsell_eligibility, week_key,
+    get_users_near_personal_record,
+    get_free_restore_status, restore_streak_free,
 )
 
 from .task_praise import (
@@ -337,6 +339,8 @@ __all__ = [
     "claim_weekly_reward", "get_weekly_bonus_available", "should_show_onboarding",
     "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "release_notification", "notification_scope", "in_time_window", "get_notification_delivery_stats", "has_completed_today", "get_streak_users", "consume_completion_event",
     "get_freeze_upsell_eligibility", "week_key",
+    "get_users_near_personal_record",
+    "get_free_restore_status", "restore_streak_free",
     "get_notification_history",
     "get_streak_reengagement_state", "get_recent_streak_message_keys", "record_streak_message_key", "has_streak_frame",
     "get_bonus_window", "set_bonus_window",

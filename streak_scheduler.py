@@ -15,6 +15,7 @@ from db import (
     get_recent_streak_message_keys, record_streak_message_key,
     reminder_category_enabled, in_quiet_hours,
     get_freeze_upsell_eligibility, week_key,
+    get_users_near_personal_record,
 )
 
 logger = logging.getLogger("streak_scheduler")
@@ -408,3 +409,41 @@ async def run_weekly_streak_bonus(bot):
                 raise
         except Exception:
             logger.exception("Ошибка weekly streak bonus для %s", uid)
+
+
+async def run_personal_record_notifications(bot):
+    """Улучшение #49: пользователю, чья текущая серия ровно на 1 день короче
+    его собственного исторического рекорда, в 9:00 приходит мотивирующий
+    пуш. get_users_near_personal_record() уже отфильтровала кандидатов одним
+    SQL-запросом — здесь только фильтры настроек/тихих часов + дедуп."""
+    if not bot:
+        return
+    scope = notification_scope(bot)
+    for row in get_users_near_personal_record():
+        uid = row["user_id"]
+        try:
+            settings = get_settings(uid)
+            if not reminder_category_enabled(settings, "streak"):
+                continue
+            tz = ZoneInfo(get_timezone(uid))
+            now = datetime.now(tz)
+            if in_quiet_hours(settings, now):
+                continue
+            if not in_time_window(now, hour=9, minute=0):
+                continue
+            day = now.date().isoformat()
+            if not claim_notification(uid, day, "personal_record", scope):
+                continue
+            try:
+                await bot.send_message(
+                    uid,
+                    f"🏆 Ещё один день — и это твой личный рекорд!\n\n"
+                    f"Серия сейчас {row['streak']} дн., рекорд — {row['best_streak']} дн. "
+                    "Закрой сегодня хотя бы одну привычку и завтра сравняешься с лучшим результатом.",
+                    reply_markup=_countdown_keyboard(),
+                )
+            except Exception:
+                release_notification(uid, day, "personal_record", scope)
+                raise
+        except Exception:
+            logger.exception("Ошибка personal-record для %s", uid)

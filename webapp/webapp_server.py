@@ -39,6 +39,7 @@ from db import (
     was_premium_purchased, give_premium,
     get_daily_plan, save_daily_plan, set_daily_main_goal, delete_daily_main_goal, toggle_daily_main_goal, add_daily_task, update_daily_plan_task, delete_daily_task, toggle_daily_task,
     get_streak_status, set_timezone, buy_freeze, claim_weekly_reward, get_weekly_bonus_available, has_streak_frame,
+    restore_streak_free,
     should_show_onboarding, onboarding_message, mark_onboarding_seen, consume_completion_event,
     create_daily_tasks, get_daily_tasks, claim_daily_bonus,
     get_weekly_summary, get_statistics,
@@ -917,6 +918,15 @@ async def app_tour_seen(request):
 async def streak_buy_freeze(request):
     telegram_id, _ = await _authenticate(request)
     result = buy_freeze(telegram_id)
+    status = 200 if result.get("ok") else 400
+    return web.json_response(result, status=status)
+
+@routes.post("/api/streak/restore-free")
+async def streak_restore_free(request):
+    """Улучшение #50 — бесплатное восстановление сорванной серии, не чаще
+    раза в календарный месяц (см. db.streak.restore_streak_free)."""
+    telegram_id, _ = await _authenticate(request)
+    result = restore_streak_free(telegram_id)
     status = 200 if result.get("ok") else 400
     return web.json_response(result, status=status)
 

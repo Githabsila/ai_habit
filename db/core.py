@@ -997,6 +997,17 @@ def create_tables():
     if "language" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'ru'")
 
+    # ---------------- Улучшение #49: личный рекорд серии ----------------
+    # Бэкфилл best_streak = текущий streak на существующих пользователях —
+    # безопасное начальное значение: если бы колонка существовала с самого
+    # начала, best_streak всегда был бы >= текущего streak (обновляется через
+    # MAX() в db/streak.py::register_completion). Без бэкфилла первое
+    # завершение привычки после деплоя всё равно сразу выставило бы то же
+    # самое через MAX(0, streak) — бэкфилл просто убирает один "пустой" шаг.
+    if "best_streak" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN best_streak INTEGER DEFAULT 0")
+        cursor.execute("UPDATE users SET best_streak = streak")
+
     # ---------------- Улучшение #70: логирование клиентских JS-ошибок ----------------
     # Раньше единственный способ узнать про JS-краш у реального пользователя —
     # попросить прислать видео/скриншот консоли вручную. Теперь window.onerror

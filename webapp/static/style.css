@@ -8696,3 +8696,17 @@ body{
   cursor:pointer;
 }
 .boot-retry-banner__btn:active{ transform:scale(.97); }
+
+/* ===================== FREE STREAK RESTORE (улучшение #50) ===================== */
+.free-restore-btn{
+  appearance:none;border:1px solid rgba(255,213,79,.35);
+  background:rgba(255,213,79,.12);color:#FFE9A8;border-radius:14px;
+  padding:10px 14px;width:100%;margin-top:10px;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  font:700 13px 'Space Grotesk',sans-serif;cursor:pointer;
+  transition:transform .18s ease,background .18s ease,border-color .18s ease;
+}
+.free-restore-btn[hidden]{ display:none; }
+.free-restore-btn:hover{ background:rgba(255,213,79,.18); border-color:rgba(255,213,79,.5); }
+.free-restore-btn:active{ transform:scale(.97); }
+.free-restore-btn:disabled{ opacity:.5; cursor:not-allowed; }

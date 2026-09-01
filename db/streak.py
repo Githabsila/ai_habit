@@ -53,6 +53,17 @@ def ensure_tables():
     streak_meta_cols = {r[1] for r in c.fetchall()}
     if "bonus_window_until" not in streak_meta_cols:
         c.execute("ALTER TABLE streak_meta ADD COLUMN bonus_window_until TEXT")
+    # Улучшение #50: бесплатное восстановление сорванной серии раз в
+    # календарный месяц. last_broken_streak/last_broken_date — снимок того,
+    # что было потеряно при последнем срыве (пишется в rollover_user),
+    # free_restore_month — когда пользователь последний раз воспользовался
+    # восстановлением (не чаще раза в месяц).
+    if "last_broken_streak" not in streak_meta_cols:
+        c.execute("ALTER TABLE streak_meta ADD COLUMN last_broken_streak INTEGER DEFAULT 0")
+    if "last_broken_date" not in streak_meta_cols:
+        c.execute("ALTER TABLE streak_meta ADD COLUMN last_broken_date TEXT")
+    if "free_restore_month" not in streak_meta_cols:
+        c.execute("ALTER TABLE streak_meta ADD COLUMN free_restore_month TEXT")
     c.execute("""CREATE TABLE IF NOT EXISTS streak_days(
         user_id INTEGER NOT NULL,
         day TEXT NOT NULL,
@@ -207,8 +218,15 @@ def register_completion(user_id):
     msg = generate_praise(user_id)
     c.execute("""INSERT OR REPLACE INTO streak_days(user_id,day,status,streak_after,ai_message,event_delivered)
                  VALUES(?,?,?,?,?,0)""", (user_id, today_s, "completed", streak, msg))
-    c.execute("""UPDATE users SET streak=?, last_completed=? WHERE telegram_id=?""",
-              (streak, today_s, user_id))
+    # Улучшение #49: best_streak растёт вместе со streak через MAX() и
+    # "отстаёт", как только streak падает и начинает новый подъём — именно
+    # это отставание и делает возможным пуш "ещё один день до личного
+    # рекорда" (см. streak_scheduler.py::run_personal_record_notifications).
+    c.execute(
+        """UPDATE users SET streak=?, last_completed=?, best_streak=MAX(COALESCE(best_streak,0), ?)
+           WHERE telegram_id=?""",
+        (streak, today_s, streak, user_id),
+    )
     conn.commit()
     conn.close()
 
@@ -274,6 +292,16 @@ def rollover_user(user_id):
             c.execute("""INSERT OR REPLACE INTO streak_days(user_id,day,status,streak_after,ai_message)
                          VALUES(?,?,?,?,?)""", (user_id, previous_day, "freeze", streak, "❄️ День сохранён заморозкой."))
         else:
+            # Улучшение #50: снимок потерянной серии — до её обнуления,
+            # чтобы позже (restore_streak_free) было что восстанавливать.
+            # last_broken_date хранит именно previous_day (тот день, что
+            # реально помечен "missed"), а не today_s: restore переписывает
+            # его на "freeze", и следующий rollover должен смотреть на ТОТ
+            # же день, что действительно был пропущен.
+            c.execute(
+                "UPDATE streak_meta SET last_broken_streak=?, last_broken_date=? WHERE user_id=?",
+                (streak, previous_day, user_id),
+            )
             streak = 0
             c.execute("UPDATE users SET streak=0, last_completed=NULL WHERE telegram_id=?", (user_id,))
             c.execute("""INSERT OR REPLACE INTO streak_days(user_id,day,status,streak_after,ai_message)
@@ -428,7 +456,80 @@ def get_streak_status(user_id):
         "temp_frame": meta["temp_frame"] if meta else None,
         "temp_status": meta["temp_status"] if meta else None,
         "rewards": rewards,
+        "free_restore": get_free_restore_status(user_id),
     }
+
+FREE_RESTORE_GRACE_DAYS = 2  # можно восстановить в день срыва или на следующий день
+
+
+def get_free_restore_status(user_id):
+    """Улучшение #50: доступно ли сейчас бесплатное восстановление серии.
+    Не чаще раза в календарный месяц, и только пока снимок срыва свежий
+    (см. FREE_RESTORE_GRACE_DAYS) — иначе это превратилось бы в способ
+    восстановить любую серию когда угодно, что обесценивает платную
+    заморозку (db.streak.buy_freeze)."""
+    ensure_tables()
+    today = local_today(user_id)
+    conn = connect()
+    c = conn.cursor()
+    c.execute(
+        "SELECT last_broken_streak, last_broken_date, free_restore_month FROM streak_meta WHERE user_id=?",
+        (user_id,),
+    )
+    row = c.fetchone()
+    conn.close()
+    if not row or not row["last_broken_streak"] or not row["last_broken_date"]:
+        return {"available": False, "lost_streak": 0}
+    try:
+        broken_date = datetime.strptime(row["last_broken_date"], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return {"available": False, "lost_streak": 0}
+    if (today - broken_date).days > FREE_RESTORE_GRACE_DAYS:
+        return {"available": False, "lost_streak": 0}
+    current_month = f"{today.year}-{today.month:02d}"
+    if row["free_restore_month"] == current_month:
+        return {"available": False, "lost_streak": int(row["last_broken_streak"])}
+    return {"available": True, "lost_streak": int(row["last_broken_streak"])}
+
+
+def restore_streak_free(user_id):
+    """Улучшение #50: реально восстанавливает серию — переписывает
+    пропущенный день на "freeze" (тот же статус, что и платная заморозка,
+    чтобы следующий rollover его не тронул) и возвращает users.streak."""
+    ensure_tables()
+    status = get_free_restore_status(user_id)
+    if not status["available"]:
+        return {"ok": False, "error": "not_available"}
+
+    today = local_today(user_id)
+    month_key = f"{today.year}-{today.month:02d}"
+    conn = connect()
+    c = conn.cursor()
+    c.execute(
+        "SELECT last_broken_streak, last_broken_date FROM streak_meta WHERE user_id=?",
+        (user_id,),
+    )
+    row = c.fetchone()
+    restored = int(row["last_broken_streak"])
+    broken_day = row["last_broken_date"]
+
+    c.execute(
+        """INSERT OR REPLACE INTO streak_days(user_id,day,status,streak_after,ai_message)
+           VALUES(?,?,?,?,?)""",
+        (user_id, broken_day, "freeze", restored, "🎁 Серия восстановлена бесплатно (1 раз в месяц)."),
+    )
+    c.execute(
+        "UPDATE users SET streak=? WHERE telegram_id=?",
+        (restored, user_id),
+    )
+    c.execute(
+        "UPDATE streak_meta SET free_restore_month=?, last_broken_streak=0, last_broken_date=NULL WHERE user_id=?",
+        (month_key, user_id),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "streak": restored}
+
 
 def buy_freeze(user_id):
     ensure_tables()
@@ -615,6 +716,7 @@ NOTIFICATION_KIND_LABELS = {
     "weekly_bonus": "🎁 Недельный бонус",
     "trial_reminder": "💳 Напоминание об оплате",
     "freeze_upsell": "❄️ Предложение заморозки",
+    "personal_record": "🏆 Личный рекорд рядом",
 }
 
 
@@ -725,6 +827,22 @@ def has_completed_today(user_id):
     row = c.fetchone()
     conn.close()
     return bool(row and row["status"] == "completed")
+
+def get_users_near_personal_record():
+    """Улучшение #49: пользователи, у которых текущая серия ровно на 1 день
+    короче их же исторического рекорда (best_streak > streak, т.к. на
+    активном подъёме best_streak == streak — см. комментарий в
+    register_completion). Один SQL-запрос вместо N+1 по всем пользователям."""
+    conn = connect()
+    c = conn.cursor()
+    c.execute(
+        "SELECT telegram_id, streak, best_streak FROM users "
+        "WHERE best_streak > 0 AND streak = best_streak - 1"
+    )
+    rows = [{"user_id": r["telegram_id"], "streak": r["streak"], "best_streak": r["best_streak"]} for r in c.fetchall()]
+    conn.close()
+    return rows
+
 
 def get_freeze_upsell_eligibility(user_id):
     """Улучшение #38 ("стрик-страховка"): лёгкая выборка без побочных

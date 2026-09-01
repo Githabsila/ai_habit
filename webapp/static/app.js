@@ -683,6 +683,19 @@
     const buy = document.getElementById("freezeBuyBtn");
     if (buy) buy.disabled = (streak.freeze_balance || 0) >= 2 || (streak.freeze_purchased_count || 0) >= 2;
 
+    // Улучшение #50: бесплатное восстановление сорванной серии, раз в месяц.
+    const restoreBtn = document.getElementById("freeRestoreBtn");
+    if (restoreBtn) {
+      const restore = streak.free_restore;
+      if (restore && restore.available) {
+        restoreBtn.hidden = false;
+        const daysEl = document.getElementById("freeRestoreDays");
+        if (daysEl) daysEl.textContent = restore.lost_streak;
+      } else {
+        restoreBtn.hidden = true;
+      }
+    }
+
     const status = document.getElementById("streakStatusLabel");
     if (status) {
       status.textContent = streak.days > 0
@@ -1061,6 +1074,20 @@
       haptic("light");
     };
     document.getElementById("freezeBuyBtn")?.addEventListener("click", openFreezeSheet);
+    // Улучшение #50: бесплатное восстановление сорванной серии.
+    document.getElementById("freeRestoreBtn")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        const result = await api("/api/streak/restore-free", { method: "POST" });
+        haptic("medium");
+        showToast(`🎁 Серия восстановлена: ${result.streak} дн.`, "success");
+        await loadBootstrap();
+      } catch (err) {
+        showToast(friendlyError(err) || "Не получилось восстановить серию", "error");
+        btn.disabled = false;
+      }
+    });
     document.getElementById("freezePurchaseBack")?.addEventListener("click", closeFreezeSheet);
     document.getElementById("freezePurchaseBackdrop")?.addEventListener("click", closeFreezeSheet);
     document.getElementById("freezePurchaseConfirm")?.addEventListener("click", async () => {
@@ -2838,6 +2865,7 @@ function initPlanActions() {
         frame_not_owned: "Эта рамка ещё не открыта",
         avatar_too_large: "Фото должно быть не больше 5 МБ",
         unsupported_image: "Поддерживаются JPG, PNG и WEBP",
+        not_available: "Уже недоступно — раз в месяц, и только пока свежо",
         invalid_theme: "Такой темы не существует",
         task_limit: "Можно добавить не больше 5 задач",
         habit_limit: "Можно добавить не больше 10 привычек",
