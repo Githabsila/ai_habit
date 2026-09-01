@@ -30,13 +30,14 @@ from db import (
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
     touch_last_seen,
     has_reached_daily_limit, log_stars_purchase,
-    get_rating, get_calendar, get_achievements,
+    get_rating, get_calendar, get_achievements, ACHIEVEMENT_ICONS,
     was_premium_purchased, give_premium,
     get_daily_plan, save_daily_plan, set_daily_main_goal, delete_daily_main_goal, toggle_daily_main_goal, add_daily_task, update_daily_plan_task, delete_daily_task, toggle_daily_task,
     get_streak_status, set_timezone, buy_freeze, claim_weekly_reward, get_weekly_bonus_available, has_streak_frame,
     should_show_onboarding, onboarding_message, mark_onboarding_seen, consume_completion_event,
     create_daily_tasks, get_daily_tasks, claim_daily_bonus,
     get_weekly_summary, get_statistics,
+    get_progress_comparison, get_streak_forecast,
     get_milestones, save_milestones, toggle_milestone,
     reset_progress,
     cache_get, cache_set, log_error,
@@ -335,6 +336,7 @@ async def bootstrap_secondary(request):
                 "title": a["title"],
                 "description": a["description"],
                 "created_at": a["created_at"],
+                "icon": ACHIEVEMENT_ICONS.get(a["title"], "🏅"),
             }
             for a in achievements
         ]
@@ -723,6 +725,10 @@ async def progress_stats_route(request):
             "xp": total_xp,
             "entries": len(stats) if stats else 0,
         },
+        # Roadmap #29/#30: "я сейчас vs я месяц назад" + прогноз следующего
+        # рубежа серии по текущему темпу.
+        "comparison": get_progress_comparison(telegram_id),
+        "forecast": get_streak_forecast(telegram_id),
     })
 
 @routes.get("/api/export/habits.csv")

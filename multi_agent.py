@@ -1460,6 +1460,26 @@ async def generate_weekly_habit_feedback(breakdown_text: str, style: str = DEFAU
         return ""
 
 
+async def generate_monthly_habit_feedback(breakdown_text: str, style: str = DEFAULT_STYLE) -> str:
+    """Roadmap #24 — то же самое, что generate_weekly_habit_feedback(), но
+    за месяц: своя формулировка промпта (месяц — не неделя, там уместнее
+    смотреть на тренд, а не на один провальный день), тот же системный
+    промпт/стиль/модель, чтобы не плодить отдельную инфраструктуру ради
+    одной фразы разницы во входных данных."""
+    style_note = STYLE_NOTES.get(style, "")
+    system = HABIT_BREAKDOWN_SYSTEM
+    if style_note:
+        system = system + "\n\n" + style_note
+
+    user = f"Привычки за последний месяц (30 дней) — посмотри на общий тренд, а не на отдельные дни:\n{breakdown_text}"
+
+    try:
+        return await _ask(system, user, temperature=0.5, max_tokens=350, model=FAST_MODEL)
+    except Exception as e:
+        logger.warning(f"Не удалось сгенерировать месячный разбор по привычкам ({e})")
+        return ""
+
+
 # ============ ИНТЕГРАЦИЯ В ПРОЕКТ ============
 #
 # В этом проекте интеграция уже сделана в handlers/ai.py: там роутер

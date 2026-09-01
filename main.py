@@ -18,7 +18,7 @@ from scheduler import scheduler
 from streak_scheduler import run_streak_rollover, run_streak_risk_notifications, run_streak_reengagement_notifications, run_weekly_streak_bonus
 from coach import (
     run_weekly_report,
-    run_weekly_habit_analysis, run_task_reminder_check,
+    run_weekly_habit_analysis, run_monthly_habit_analysis, run_task_reminder_check,
     run_habit_checkpoint_10, run_habit_checkpoint_12, run_day_progress_check,
     run_week_start_ping, run_week_end_ping, run_month_start_ping, run_month_end_ping,
     run_planned_time_reminders,
@@ -115,6 +115,10 @@ async def main():
     # где timezone контейнера может отличаться от timezone пользователя.
     scheduler.add_job(run_weekly_report, "cron", day_of_week="sun", hour=19, minute=0, args=[bot])
     scheduler.add_job(run_weekly_habit_analysis, "cron", day_of_week="sun", hour=19, minute=15, args=[bot])
+    # Roadmap #24: тот же разбор, но раз в месяц (1-го числа) — сдвинут по
+    # минутам от run_month_start_ping (7:30), чтобы не бить по OpenAI и
+    # Telegram API одним и тем же пользователям одновременно.
+    scheduler.add_job(run_monthly_habit_analysis, "cron", day=1, hour=8, minute=0, args=[bot])
     # Утреннее приветствие — в 06:00, не в 12:00/08:00 (промт п.12)
     scheduler.add_job(run_morning_ping, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_goal_feedback, "cron", day_of_week="mon", hour=10, minute=0, args=[bot])

@@ -1288,7 +1288,7 @@
   function renderAchievementItem(a) {
     return `
       <li class="achievement-item">
-        <span class="achievement-item__icon">🏆</span>
+        <span class="achievement-item__icon">${escapeHtml(a.icon || "🏆")}</span>
         <div class="achievement-item__content">
           <div class="achievement-item__title">${escapeHtml(a.title)}</div>
           <div class="achievement-item__desc">${escapeHtml(a.description || "")}</div>
@@ -2266,6 +2266,32 @@ async function loadProgressStats() {
     document.getElementById("progressStatCompleted").textContent = w.completed || 0;
     document.getElementById("progressStatActiveDays").textContent = `${w.active_days || 0}/7`;
     document.getElementById("progressStatXp").textContent = w.xp || 0;
+
+    // Roadmap #29 — "я сейчас vs я месяц назад".
+    const cmp = data.comparison;
+    const cmpEl = document.getElementById("progressComparison");
+    if (cmpEl) {
+      if (cmp && cmp.trend !== "not_enough_data") {
+        const arrow = cmp.trend === "up" ? "📈" : cmp.trend === "down" ? "📉" : "➖";
+        const sign = cmp.delta > 0 ? "+" : "";
+        cmpEl.hidden = false;
+        cmpEl.textContent = `${arrow} Сейчас ${cmp.current_rate}% выполнения против ${cmp.previous_rate}% месяц назад (${sign}${cmp.delta}%)`;
+      } else {
+        cmpEl.hidden = true;
+      }
+    }
+
+    // Roadmap #30 — прогноз следующего рубежа серии по текущему темпу.
+    const forecast = data.forecast;
+    const forecastEl = document.getElementById("progressForecast");
+    if (forecastEl) {
+      if (forecast) {
+        forecastEl.hidden = false;
+        forecastEl.textContent = `🎯 На этом темпе рубеж «${forecast.next_milestone} дней» будет через ${forecast.days_left} ${pluralRu(forecast.days_left, "день", "дня", "дней")}`;
+      } else {
+        forecastEl.hidden = true;
+      }
+    }
   } catch (err) {
     console.error("loadProgressStats failed:", err);
   }

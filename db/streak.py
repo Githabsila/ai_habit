@@ -372,6 +372,28 @@ def has_streak_frame(user_id, frame_code):
     conn.close()
     return ok
 
+# Roadmap #30 — "на этом темпе доберёшься до цели через N дней": вместо
+# статистического прогноза (у серии и так линейный темп — +1 в активный
+# день) просто показываем следующий содержательный рубеж и сколько дней
+# до него, если сохранить текущий темп.
+STREAK_FORECAST_MILESTONES = (7, 14, 30, 50, 100, 200, 365)
+
+
+def get_streak_forecast(user_id):
+    user = get_user(user_id)
+    streak = int(user["streak"]) if user and user["streak"] else 0
+    if streak <= 0:
+        return None
+    next_milestone = next((m for m in STREAK_FORECAST_MILESTONES if m > streak), None)
+    if next_milestone is None:
+        return None
+    return {
+        "current_streak": streak,
+        "next_milestone": next_milestone,
+        "days_left": next_milestone - streak,
+    }
+
+
 def get_streak_status(user_id):
     ensure_tables()
     today = local_today(user_id)

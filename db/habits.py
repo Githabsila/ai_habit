@@ -285,6 +285,29 @@ def get_weekly_habit_breakdown(user_id):
     return rows
 
 
+def get_monthly_habit_breakdown(user_id):
+    """То же самое, что get_weekly_habit_breakdown(), но за последние
+    30 дней — источник для ежемесячного AI-разбора (roadmap #24,
+    coach.run_monthly_habit_analysis)."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT
+            habit_title,
+            SUM(CASE WHEN completed=1 THEN 1 ELSE 0 END) as done,
+            SUM(CASE WHEN completed=0 AND skipped=0 THEN 1 ELSE 0 END) as missed,
+            SUM(CASE WHEN skipped=1 THEN 1 ELSE 0 END) as skipped,
+            COUNT(*) as total
+        FROM habit_logs
+        WHERE user_id=? AND day >= date('now', '-30 days')
+        GROUP BY habit_title
+        ORDER BY missed DESC
+    """, (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
 # =====================================
 # СЕРИЯ (STREAK)
 # =====================================

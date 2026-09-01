@@ -24,6 +24,7 @@ from db import (
     log_error,
     get_incomplete_habits,
     get_weekly_habit_breakdown,
+    get_monthly_habit_breakdown,
     get_ai_style,
     get_plan_tasks_needing_reminder,
     mark_plan_task_reminder_sent,
@@ -35,7 +36,7 @@ from db import (
     get_habits, mark_habit_reminder_sent,
     reminder_category_enabled,
 )
-from multi_agent import generate_weekly_habit_feedback
+from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from adam_messages import (
     format_day_progress_message,
     format_habit_checkpoint_message,
@@ -532,21 +533,23 @@ def _format_breakdown_text(breakdown) -> str:
     return "\n".join(lines)
 
 
-def _fallback_habit_feedback(breakdown) -> str:
+def _fallback_habit_feedback(breakdown, period_phrase="на этой неделе", heading="AI-разбор недели по привычкам") -> str:
     """Шаблонный запасной вариант, если OpenAI недоступен — берём привычку
-    с наибольшим числом пропусков и даём общий, но конкретный совет."""
+    с наибольшим числом пропусков и даём общий, но конкретный совет.
+    period_phrase/heading параметризуют текст под неделю или месяц
+    (см. run_weekly_habit_analysis / run_monthly_habit_analysis)."""
     worst = max(breakdown, key=lambda r: r["missed"])
 
     if worst["missed"] == 0:
         return (
-            "📊 <b>AI-разбор недели по привычкам</b>\n\n"
-            "На этой неделе все привычки выполнялись без пропусков — "
+            f"📊 <b>{heading}</b>\n\n"
+            f"{period_phrase.capitalize()} все привычки выполнялись без пропусков — "
             "отличный ритм, продолжай в том же духе 🔥"
         )
 
     return (
-        "📊 <b>AI-разбор недели по привычкам</b>\n\n"
-        f"Ты пропустил {worst['missed']} дн. привычки «{worst['habit_title']}». "
+        f"📊 <b>{heading}</b>\n\n"
+        f"Ты пропустил {worst['missed']} дн. привычки «{worst['habit_title']}» {period_phrase}. "
         "Попробуй на первое время сделать её полегче или покороче — "
         "чтобы было проще вернуться в ритм, чем совсем бросить 🌱"
     )
@@ -599,3 +602,52 @@ async def run_weekly_habit_analysis(bot):
             log_error("weekly_habit_analysis", e, telegram_id)
 
     logger.info(f"AI-разбор недели по привычкам: отправлено {sent} пользователям")
+
+
+# =====================================
+# ЕЖЕМЕСЯЧНЫЙ AI-РАЗБОР ПО ПРИВЫЧКАМ (roadmap #24)
+# =====================================
+
+async def run_monthly_habit_analysis(bot):
+    """Раз в месяц (1-го числа, см. main.py) — тот же разбор, что и
+    еженедельный, но с фокусом на месячный тренд, а не на один провальный
+    день недели."""
+    users = get_all_users()
+    sent = 0
+    month_key = datetime.now().strftime("%Y-%m")
+    scope = notification_scope(bot)
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+
+        settings = get_settings(telegram_id)
+        if not reminder_category_enabled(settings, "digests"):
+            continue
+
+        breakdown = get_monthly_habit_breakdown(telegram_id)
+        if not breakdown:
+            continue
+
+        if not claim_notification(telegram_id, month_key, "monthly_habit_analysis", scope):
+            continue
+
+        breakdown_text = _format_breakdown_text(breakdown)
+        style = get_ai_style(telegram_id) or "neutral"
+
+        try:
+            ai_text = await generate_monthly_habit_feedback(breakdown_text, style)
+
+            if ai_text:
+                text = "📊 <b>AI-разбор месяца по привычкам</b>\n\n" + ai_text
+            else:
+                text = _fallback_habit_feedback(
+                    breakdown, period_phrase="за этот месяц", heading="AI-разбор месяца по привычкам"
+                )
+
+            await bot.send_message(telegram_id, text, parse_mode="HTML")
+            sent += 1
+        except Exception as e:
+            release_notification(telegram_id, month_key, "monthly_habit_analysis", scope)
+            log_error("monthly_habit_analysis", e, telegram_id)
+
+    logger.info(f"AI-разбор месяца по привычкам: отправлено {sent} пользователям")

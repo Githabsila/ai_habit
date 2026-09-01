@@ -61,6 +61,7 @@ from .habits import (
     get_incomplete_habits,
     log_daily_habits,
     get_weekly_habit_breakdown,
+    get_monthly_habit_breakdown,
     get_habits_needing_reminder,
     mark_habit_reminder_sent,
     can_add_habit, has_deleted_habit_today, MAX_HABITS,
@@ -98,11 +99,13 @@ from .daily_tasks import (
 from .achievements import (
     check_achievements,
     get_achievements,
+    ACHIEVEMENT_ICONS,
 )
 
 from .calendar import (
     update_calendar,
     get_calendar,
+    get_progress_comparison,
 )
 
 from .ai import (
@@ -159,7 +162,7 @@ from .onboarding import (
 
 from .streak import (
     ensure_tables as ensure_streak_tables,
-    get_streak_status, set_timezone, get_timezone,
+    get_streak_status, set_timezone, get_timezone, get_streak_forecast,
     register_completion, rollover_user, rollover_all_users,
     buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
     should_show_onboarding, onboarding_message, mark_onboarding_seen,
@@ -224,7 +227,7 @@ __all__ = [
     "update_ai_style", "get_ai_style",
     "add_habit", "get_habits", "get_habit", "edit_habit", "delete_habit",
     "reset_habits", "update_streak", "complete_habit", "get_progress",
-    "get_incomplete_habits", "log_daily_habits", "get_weekly_habit_breakdown",
+    "get_incomplete_habits", "log_daily_habits", "get_weekly_habit_breakdown", "get_monthly_habit_breakdown",
     "get_habits_needing_reminder", "mark_habit_reminder_sent",
     "can_add_habit", "has_deleted_habit_today", "MAX_HABITS",
     "skip_habit", "unskip_habit", "HABIT_CATEGORIES",
@@ -235,8 +238,8 @@ __all__ = [
     "get_plans_needing_goal_reminder", "mark_goal_reminder_sent",
     "add_statistics", "get_statistics", "get_weekly_summary",
     "create_daily_tasks", "get_daily_tasks", "update_daily_task",
-    "check_achievements", "get_achievements",
-    "update_calendar", "get_calendar",
+    "check_achievements", "get_achievements", "ACHIEVEMENT_ICONS",
+    "update_calendar", "get_calendar", "get_progress_comparison",
     "add_ai_message", "get_ai_history", "clear_ai_history", "save_ai_feedback", "get_ai_feedback_stats",
     "save_feedback_reason", "get_recent_negative_reasons",
     "get_user_profile", "update_user_profile", "get_proactive_topic", "bump_profile_counter",
@@ -250,7 +253,7 @@ __all__ = [
     "search_users_by_tag", "get_users_by_tags",
     "get_surveys_due_for_feedback", "mark_feedback_sent",
     "find_match_by_tags", "save_milestones", "get_milestones", "toggle_milestone",
-    "ensure_streak_tables", "get_streak_status", "set_timezone", "get_timezone",
+    "ensure_streak_tables", "get_streak_status", "set_timezone", "get_timezone", "get_streak_forecast",
     "register_completion", "rollover_user", "rollover_all_users", "buy_freeze",
     "claim_weekly_reward", "get_weekly_bonus_available", "should_show_onboarding",
     "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "release_notification", "notification_scope", "in_time_window", "get_notification_delivery_stats", "has_completed_today", "get_streak_users", "consume_completion_event",
