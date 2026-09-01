@@ -7518,6 +7518,58 @@ body{
 }
 
 /* =========================================================
+   ПОЛОСА "СЕГОДНЯ" — единый ответ на "что дальше?"
+   ========================================================= */
+/* Один явный фокус сверху экрана вместо того, чтобы самому складывать
+   в уме 0/0 из карточки привычек и 0/0 из карточки плана дня. Скрыта
+   через [hidden], пока у пользователя вообще нет ни привычек, ни задач —
+   см. renderTodayFocus() в app.js. */
+.today-focus{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  width:100%;
+  margin-bottom:16px;
+  padding:16px 18px;
+  border-radius:22px;
+  border:1px solid rgba(255,209,102,.22);
+  background:
+    radial-gradient(220px 90px at 0% 0%,rgba(255,180,84,.14),transparent 70%),
+    linear-gradient(145deg,rgba(35,28,20,.9),rgba(16,13,10,.9));
+  box-shadow:0 14px 34px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.05);
+}
+.today-focus[hidden]{display:none !important}
+.today-focus.is-done{
+  border-color:rgba(74,222,128,.28);
+  background:
+    radial-gradient(220px 90px at 0% 0%,rgba(74,222,128,.14),transparent 70%),
+    linear-gradient(145deg,rgba(20,32,22,.9),rgba(11,17,12,.9));
+}
+.today-focus__icon{
+  flex:0 0 auto;
+  width:42px;height:42px;
+  display:grid;place-items:center;
+  font-size:21px;
+  border-radius:14px;
+  background:rgba(255,209,102,.14);
+}
+.today-focus.is-done .today-focus__icon{background:rgba(74,222,128,.16)}
+.today-focus__body{min-width:0;flex:1}
+.today-focus__title{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:16px;
+  font-weight:800;
+  color:#fff;
+  line-height:1.25;
+}
+.today-focus__sub{
+  margin-top:2px;
+  font-size:12.5px;
+  color:var(--text-muted,#9D9DB3);
+  line-height:1.3;
+}
+
+/* =========================================================
    ДАННЫЕ И ПОДДЕРЖКА — экспорт CSV, недельный шаринг, фидбек
    ========================================================= */
 .data-support-card{display:flex;flex-direction:column;gap:8px}

@@ -230,6 +230,56 @@
     }
   }
 
+  // Единая полоса "Сегодня" сверху — вместо того чтобы самому сводить в
+  // уме прогресс по привычкам и по плану дня (две разные карточки, два
+  // разных счётчика 0/0), один явный ответ на вопрос "что дальше?" сразу
+  // при входе. Пусто (нет вообще ни привычек, ни задач) — полоса скрыта:
+  // нечего сводить, а пустая карточка сверху — это и есть тот самый
+  // лишний шум, которого просили избегать.
+  function renderTodayFocus() {
+    const el = document.getElementById("todayFocus");
+    if (!el) return;
+
+    const habits = state.habits || [];
+    const habitsDone = habits.filter(h => h.completed).length;
+    const habitsLeft = habits.length - habitsDone;
+
+    const plan = state.daily_plan || { tasks: [] };
+    const tasks = plan.tasks || [];
+    const planTotal = tasks.length + (plan.main_goal ? 1 : 0);
+    const planDone = tasks.filter(t => t.completed).length + (plan.main_goal && plan.main_goal_completed ? 1 : 0);
+    const planLeft = planTotal - planDone;
+
+    const totalItems = habits.length + planTotal;
+    const totalLeft = habitsLeft + planLeft;
+
+    if (totalItems === 0) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+
+    const icon = document.getElementById("todayFocusIcon");
+    const title = document.getElementById("todayFocusTitle");
+    const sub = document.getElementById("todayFocusSub");
+
+    if (totalLeft === 0) {
+      el.classList.add("is-done");
+      icon.textContent = "🎉";
+      title.textContent = "Всё готово на сегодня!";
+      sub.textContent = "Ты закрыл всё, что планировал — отличная работа.";
+      return;
+    }
+
+    el.classList.remove("is-done");
+    icon.textContent = "☀️";
+    title.textContent = `Сегодня осталось: ${totalLeft}`;
+    const parts = [];
+    if (habitsLeft > 0) parts.push(`${habitsLeft} ${pluralRu(habitsLeft, "привычка", "привычки", "привычек")}`);
+    if (planLeft > 0) parts.push(`${planLeft} ${pluralRu(planLeft, "задача", "задачи", "задач")}`);
+    sub.textContent = parts.join(" · ");
+  }
+
   function renderAll() {
     // Критический путь: сначала только то, что пользователь видит на Главной.
     // Привычки и Ударный режим больше не конкурируют за CPU с магазином,
@@ -237,6 +287,7 @@
     renderPlayerCard();
     renderHabits();
     renderPlan();
+    renderTodayFocus();
     renderStreak();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
