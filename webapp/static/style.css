@@ -7021,12 +7021,12 @@ body{
 }
 .achievement-share-kicker span{color:#FFA940;font-size:9px;opacity:.85}
 .achievement-share-title{
-  /* +2мм от прежнего положения — воздух между кольцом и заголовком. */
-  margin-top:20px;
+  margin-top:8px;
   background:linear-gradient(135deg,#FFE7B8,#FF9D3D 55%,#FF6A32);
   -webkit-background-clip:text;background-clip:text;color:transparent;
 }
 .achievement-share-days{
+  margin-top:8px;
   filter:drop-shadow(0 4px 18px rgba(255,138,32,.35));
   animation:asDaysPulse 2.6s ease-in-out infinite;
 }
@@ -7039,7 +7039,7 @@ body{
   position:relative;
   overflow:hidden;
   display:flex;align-items:center;justify-content:center;gap:9px;
-  padding:19px 20px;
+  padding:14px 20px;
   border-radius:20px;
   font-size:16px;
   font-weight:800;
@@ -7137,22 +7137,24 @@ body{
 }
 .as-scroll{
   width:100%;
-  max-height:min(640px,82vh);
-  overflow-y:auto;
-  overflow-x:hidden;
-  -webkit-overflow-scrolling:touch;
-  scrollbar-width:none;
+  /* Раньше max-height:min(640px,82vh) + overflow-y:auto — на реальных
+     телефонах (Telegram Android, WebView под собственным хедером
+     "Закрыть" съедает часть высоты) контент оказывался выше доступного
+     места, кнопку приходилось искать скроллом, а сама кнопка почти
+     упиралась в системную панель жестов. По просьбе — скролла в этом
+     окне быть не должно вообще: overflow:hidden, а высота и отступы
+     подогнаны так, чтобы всё гарантированно помещалось без скролла (см.
+     уменьшенные отступы/шрифты ниже и @media (max-width:600px) дальше
+     по файлу — там дополнительно сжаты медаль/заголовок/цифра). */
+  max-height:calc(100vh - 44px);
+  overflow:hidden;
   display:flex;
   flex-direction:column;
   align-items:center;
-  /* flex-start, НЕ center — center вместе с overflow:auto в некоторых
-     WebKit-версиях прячет "верхний" оверфлоу от скролла (тот же класс
-     бага уже правили в чате с ИИ-коучем). */
   justify-content:flex-start;
   text-align:center;
-  padding:34px 24px 28px;
+  padding:22px 24px 18px;
 }
-.as-scroll::-webkit-scrollbar{display:none}
 /* Каждый прямой ребёнок — flex-shrink:0: пусть контент лучше честно
    проскроллится, чем сломает точную геометрию медали/ленты. */
 .as-scroll>*{flex-shrink:0}
@@ -7162,7 +7164,7 @@ body{
   font:800 9.5px/1 'Space Grotesk',sans-serif;
   letter-spacing:.26em;
   color:#9A8FB0;
-  margin-bottom:20px;
+  margin-bottom:12px;
 }
 .as-brand-mark{
   width:16px;height:16px;border-radius:5px;flex:0 0 auto;
@@ -7188,7 +7190,7 @@ body{
      зазор до кикера ниже держится ТОЛЬКО на margin-bottom самой .as-medal.
      Хвосты ленты доходят почти до низа контейнера (top:56% + высота +
      наклон) — без явного запаса они наезжают на текст под медалью. */
-  margin:0 auto 34px;
+  margin:0 auto 18px;
 }
 .as-medal-tail{
   position:absolute;
@@ -7228,13 +7230,13 @@ body{
 
 .as-divider{
   width:100%;height:1px;
-  margin:18px 0 16px;
+  margin:10px 0 10px;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent);
 }
 
 .as-stat-strip{
   display:flex;align-items:center;justify-content:center;
-  margin-bottom:20px;
+  margin-bottom:10px;
 }
 .as-stat{
   display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -7246,15 +7248,41 @@ body{
 .as-stat small{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:#8f8299}
 .as-stat-sep{width:1px;height:32px;background:rgba(255,255,255,.10)}
 
-.achievement-share-note{margin-top:0}
+.achievement-share-note{margin-top:0;margin-bottom:14px;font-size:13px}
 
 @media (max-width:600px){
-  .as-medal{width:160px;height:138px}
-  .as-medal-disc.achievement-share-fire{width:112px;height:112px}
-  .as-medal-disc.achievement-share-fire img{width:54px;height:63px}
-  .as-medal-tail{width:26px;height:50px}
-  .as-medal-tail--l{transform:translateX(calc(-50% - 26px)) rotate(-15deg)}
-  .as-medal-tail--r{transform:translateX(calc(-50% + 26px)) rotate(15deg)}
+  .as-medal{width:136px;height:116px;margin-bottom:14px}
+  .as-medal-disc.achievement-share-fire{width:94px;height:94px}
+  .as-medal-disc.achievement-share-fire img{width:46px;height:53px}
+  .as-medal-tail{width:22px;height:42px}
+  .as-medal-tail--l{transform:translateX(calc(-50% - 22px)) rotate(-15deg)}
+  .as-medal-tail--r{transform:translateX(calc(-50% + 22px)) rotate(15deg)}
+  /* Мобильный экран — почти всегда и есть тот самый "короткий по высоте"
+     случай (плюс шапка Telegram/WebView сверху ест ещё часть места),
+     поэтому именно тут заголовок и цифра дополнительно уменьшены — на
+     desktop-ширине (>600px) обычно достаточно высоты и без этого. */
+  .achievement-share-title{font-size:22px}
+  .achievement-share-days{font-size:38px}
+  .achievement-share-status{margin-top:4px}
+}
+
+/* Экстремально низкие окна (альбомная ориентация телефона, разделённый
+   экран) — без этого запаса кнопка внизу могла обрезаться даже с учётом
+   сокращений выше. Прячем необязательный бренд-кикер и цитату — сама
+   суть (медаль/число/статус/статистика/кнопка) остаётся полностью
+   видимой без скролла. */
+@media (max-height:560px){
+  .as-brand{display:none}
+  .as-medal{width:96px;height:82px;margin:0 auto 8px}
+  .as-medal-disc.achievement-share-fire{width:66px;height:66px;top:2px}
+  .as-medal-disc.achievement-share-fire img{width:32px;height:37px}
+  .as-medal-tail{width:16px;height:30px}
+  .as-medal-tail--l{transform:translateX(calc(-50% - 16px)) rotate(-15deg)}
+  .as-medal-tail--r{transform:translateX(calc(-50% + 16px)) rotate(15deg)}
+  .achievement-share-title{font-size:18px;margin-top:4px}
+  .achievement-share-days{font-size:28px;margin-top:4px}
+  .as-stat-strip{margin-bottom:6px}
+  .achievement-share-note{display:none}
 }
 
 /* =========================================================
