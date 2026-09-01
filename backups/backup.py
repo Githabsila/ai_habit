@@ -1,5 +1,5 @@
 import os
-import shutil
+import sqlite3
 import sys
 import threading
 import time
@@ -9,7 +9,7 @@ from datetime import datetime
 # Даёт доступ к DATA_DIR/DB_PATH из db.py, чтобы бэкапы 100% указывали
 # на тот же файл, что и сама база, а не на случайную копию в другом месте.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from db import DATA_DIR, DB_PATH
+from db import DATA_DIR, DB_PATH, log_error
 
 
 # =====================================
@@ -28,6 +28,30 @@ MAX_BACKUPS = 10
 # СОЗДАТЬ БЭКАП
 # =====================================
 
+def _verify_backup(path):
+    """PRAGMA integrity_check на свежесозданном бэкапе. Раньше бэкап
+    считался "готовым", если файл просто скопировался без исключений —
+    о том, реально ли он восстановится, узнали бы только в момент
+    настоящего восстановления после потери данных, когда уже поздно
+    что-то исправлять. Возвращает True, только если проверка прошла
+    и явно вернула "ok"."""
+    # sqlite3.connect() на несуществующий путь молча СОЗДАЁТ новый пустой
+    # файл БД вместо ошибки — а integrity_check пустой (но валидной) базы
+    # тривиально проходит. Без этой проверки отсутствующий бэкап отчитался
+    # бы как "успешно проверен".
+    if not os.path.exists(path):
+        return False
+    try:
+        conn = sqlite3.connect(path)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA integrity_check")
+        result = cursor.fetchone()
+        conn.close()
+        return bool(result) and result[0] == "ok"
+    except Exception:
+        return False
+
+
 def create_backup():
 
     os.makedirs(BACKUP_FOLDER, exist_ok=True)
@@ -45,12 +69,39 @@ def create_backup():
     )
 
     try:
-        shutil.copy2(DATABASE, destination)
+        # sqlite3 Backup API вместо сырого shutil.copy2: база работает в
+        # WAL-режиме (db/core.py PRAGMA journal_mode=WAL) — часть уже
+        # закоммиченных данных в момент копирования может лежать ещё в
+        # сайдкар-файле -wal, а не в самом .db, так что побайтовая копия
+        # рисковала получить неполный или структурно нецелостный снапшот
+        # при неудачном стечении времени. Backup API снимает консистентный
+        # снапшот безопасно, независимо от состояния журнала.
+        src_conn = sqlite3.connect(DATABASE)
+        dst_conn = sqlite3.connect(destination)
+        with dst_conn:
+            src_conn.backup(dst_conn)
+        src_conn.close()
+        dst_conn.close()
         print(f"💾 Создан бэкап: {filename}")
 
     except Exception as e:
         print(f"❌ Ошибка создания бэкапа: {e}")
+        try:
+            log_error("backup_create", e)
+        except Exception:
+            pass
         return
+
+    # Проверка восстанавливаемости сразу после создания — если бэкап битый,
+    # хотим узнать об этом в тот же день, а не через полгода при попытке
+    # реально восстановиться. Видна в admin_digest_scheduler.py через
+    # общий error_log (🩺 Мониторинг ошибок в ежедневной сводке).
+    if not _verify_backup(destination):
+        print(f"⚠️ Бэкап {filename} не прошёл проверку целостности!")
+        try:
+            log_error("backup_integrity", f"integrity check failed: {filename}")
+        except Exception:
+            pass
 
     # Получаем только .db файлы
     backups = sorted(
