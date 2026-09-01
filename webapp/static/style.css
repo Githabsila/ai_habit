@@ -7258,24 +7258,94 @@ body{
 }
 
 /* =========================================================
-   СВОЁ ВРЕМЯ НАПОМИНАНИЯ У ПРИВЫЧКИ + ШАБЛОНЫ ДЛЯ НОВИЧКОВ
+   ФОРМА ДОБАВЛЕНИЯ ПРИВЫЧКИ (текст + своё время + кнопка)
    ========================================================= */
-.add-form__time{
-  flex:0 0 auto !important;
-  width:92px !important;
-  min-width:92px;
-  padding:0 6px !important;
-  font-size:13px !important;
+/* Раньше текст, время и "+" были втиснуты в один ряд — на узком экране
+   Mini App (реальная ширина ~340-380px) текст обрезался до "Новая пр...",
+   а время рисовалось голым нативным полем без подписи. Теперь: первым
+   рядом — заметное текстовое поле на всю ширину, вторым — время (с
+   иконкой-часами, чтобы было понятно, что это необязательное поле) и
+   кнопка "Добавить" (с иконкой и подписью вместо голого "+") — в едином
+   премиальном золотом акценте, как остальные основные CTA в приложении. */
+.habit-add-form{
+  flex-direction:column;
+  align-items:stretch;
+  gap:10px;
+}
+.habit-add-form__text{
+  width:100%;
+}
+.habit-add-form__row2{
+  display:flex;
+  align-items:stretch;
+  gap:10px;
+}
+.habit-add-form__time{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex:0 0 122px;
+  height:52px;
+  padding:0 14px;
+  border-radius:16px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.08);
+  color:var(--text-muted,#9C97AE);
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.habit-add-form__time:focus-within{
+  border-color:rgba(240,180,41,.55);
+  background:rgba(240,180,41,.06);
+  box-shadow:0 0 0 4px rgba(240,180,41,.14);
+}
+.habit-add-form__time-icon{
+  font-size:15px;
+  line-height:1;
+  flex:0 0 auto;
+  filter:grayscale(.15);
+}
+.habit-add-form__time input[type="time"]{
+  flex:1;
+  min-width:0;
+  height:100%;
+  padding:0;
+  border:none;
+  background:transparent;
+  color:var(--text);
+  font-size:14px;
+  font-weight:700;
+  font-family:'Space Grotesk', sans-serif;
   color-scheme:dark;
 }
-/* Без этого при нехватке ширины (узкий экран + новое time-поле) кнопка
-   "+" схлопывалась почти до нуля и вылезала за рамку формы — flex-shrink
-   по умолчанию не 0, а форма не переносит детей на новую строку. */
-.add-form .btn--accent{flex:0 0 74px !important}
-/* text-инпуты по умолчанию не сжимаются ниже собственной intrinsic-
-   ширины (~170-220px в большинстве браузеров) — с новым time-полем это
-   уже не помещалось на узких экранах и вся форма вылезала за рамку. */
-.add-form input[type="text"]{min-width:0 !important}
+.habit-add-form__time input[type="time"]:focus{
+  outline:none;
+}
+/* Фон/рамку/тень намеренно не задаём здесь: любая <button> внутри
+   .add-form уже принудительно красится в фирменный фиолетовый градиент
+   правилом ".btn,.add-form button,..." (см. выше по файлу) — так же, как
+   и кнопка "Добавить новую задачу" над этой формой. Задаём только то, что
+   тем правилом не перекрывается: форму, размер и золотой текст для
+   контраста на фиолетовом (тот же приём, что и у plan-add-form__btn). */
+.habit-add-form__submit{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  height:52px;
+  border-radius:16px;
+  cursor:pointer;
+  font-family:'Space Grotesk', sans-serif;
+  font-size:15px;
+  font-weight:700;
+  color:#FFD76A;
+}
+.habit-add-form__submit-icon{
+  font-size:19px;
+  line-height:1;
+  font-weight:800;
+}
 .habit-item__time{
   flex:0 0 auto;
   height:34px;

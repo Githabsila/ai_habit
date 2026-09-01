@@ -217,28 +217,33 @@ style="width:0%">
 <ul class="habit-list" id="habitList">
 </ul>
 
-<form class="add-form" id="addHabitForm">
+<form class="add-form habit-add-form" id="addHabitForm">
 
 <input
 type="text"
 id="newHabitInput"
+class="habit-add-form__text"
 placeholder="Новая привычка..."
 >
 
+<div class="habit-add-form__row2">
+
+<label class="habit-add-form__time" title="Своё время напоминания (необязательно)">
+<span class="habit-add-form__time-icon" aria-hidden="true">⏰</span>
 <input
 type="time"
 id="newHabitTime"
-class="add-form__time"
-title="Своё время напоминания (необязательно)"
 aria-label="Время напоминания">
+</label>
 
 <button
 type="submit"
-class="btn btn--accent">
-
-+
-
+class="habit-add-form__submit">
+<span class="habit-add-form__submit-icon" aria-hidden="true">+</span>
+<span>Добавить</span>
 </button>
+
+</div>
 
 </form>
 
