@@ -231,6 +231,27 @@ def give_premium_admin(user_id):
 
 
 # =====================================
+# Roadmap #39 — архетип личности (короткий тест, 1 раз или пересдать)
+# =====================================
+ARCHETYPES = {
+    "strategist": "🎯 Стратег",
+    "marathoner": "🧗 Марафонец",
+    "sprinter": "🏃 Спринтер",
+    "explorer": "🔭 Исследователь",
+}
+
+
+def set_archetype(user_id, archetype_key):
+    if archetype_key not in ARCHETYPES:
+        return False
+    conn = connect()
+    conn.execute("UPDATE users SET archetype=? WHERE telegram_id=?", (archetype_key, user_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
+# =====================================
 # Roadmap #25 — долгосрочные жизненные цели для AI-наставника
 # =====================================
 # Отдельно от разовой анкеты онбординга (user_survey.life_goal, см.

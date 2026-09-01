@@ -1052,6 +1052,9 @@
       { id: "default", title: "Без рамки", type: "default", available: true },
       { id: "neon", title: "Neon", type: "shop", available: !!state?.shop_items?.some(x => x.payload === "neon" && x.owned) },
       { id: "gold", title: "Gold", type: "shop", available: !!state?.shop_items?.some(x => x.payload === "gold" && x.owned) },
+      // Roadmap #15 — анимированные рамки.
+      { id: "rainbow", title: "Радуга", type: "shop", available: !!state?.shop_items?.some(x => x.payload === "rainbow" && x.owned) },
+      { id: "pulse_violet", title: "Пульс", type: "shop", available: !!state?.shop_items?.some(x => x.payload === "pulse_violet" && x.owned) },
       { id: "streak_14", title: "14 дней", type: "achievement", available: !!state?.streak?.rewards?.some(x => Number(x.milestone) === 14) },
       { id: "streak_30", title: "30 дней", type: "achievement", available: !!state?.streak?.rewards?.some(x => Number(x.milestone) === 30) },
       { id: "paid_double_gold", title: "Double Gold", type: "paid", available: state?.user?.frame_id === "paid_double_gold" || !!state?.user?.paid_frame_owned },
@@ -2897,6 +2900,108 @@ function initQuietHoursActions() {
   endSelect.addEventListener("change", save);
 }
 
+// Roadmap #39 — короткий тест на архетип личности. Подсчёт целиком на
+// клиенте (4 вопроса, каждый вариант тянет к одному из 4 архетипов),
+// на сервер уходит только готовый ключ-результат.
+const ARCHETYPE_QUIZ_QUESTIONS = [
+  {
+    q: "Как ты предпочитаешь идти к цели?",
+    options: [
+      ["Продуманный план наперёд", "strategist"],
+      ["Ровный темп, день за днём", "marathoner"],
+      ["Короткие мощные рывки", "sprinter"],
+      ["Пробую разное по ходу", "explorer"],
+    ],
+  },
+  {
+    q: "Что мотивирует сильнее всего?",
+    options: [
+      ["Видеть прогресс к большой цели", "strategist"],
+      ["Не прерывать серию ни на день", "marathoner"],
+      ["Азарт прямо здесь и сейчас", "sprinter"],
+      ["Новизна и разнообразие", "explorer"],
+    ],
+  },
+  {
+    q: "Пропустил день — что делаешь?",
+    options: [
+      ["Разбираю, что пошло не так", "strategist"],
+      ["Просто продолжаю с завтра", "marathoner"],
+      ["Наверстываю вдвойне", "sprinter"],
+      ["Пробую заменить на другое", "explorer"],
+    ],
+  },
+  {
+    q: "Идеальная привычка — это та, что...",
+    options: [
+      ["Ведёт к измеримому результату", "strategist"],
+      ["Стала частью рутины, без усилий", "marathoner"],
+      ["Даёт быстрый результат", "sprinter"],
+      ["Интересно пробовать", "explorer"],
+    ],
+  },
+];
+
+function initArchetypeQuizActions() {
+  const openBtn = document.getElementById("archetypeQuizBtn");
+  const overlay = document.getElementById("archetypeQuizOverlay");
+  const closeBtn = document.getElementById("archetypeQuizClose");
+  const body = document.getElementById("archetypeQuizBody");
+  if (!openBtn || !overlay || !body) return;
+
+  let answers = [];
+  let step = 0;
+
+  function renderStep() {
+    if (step >= ARCHETYPE_QUIZ_QUESTIONS.length) {
+      const tally = {};
+      answers.forEach(a => { tally[a] = (tally[a] || 0) + 1; });
+      const winner = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
+      body.innerHTML = `<div class="archetype-quiz-loading">Считаю результат…</div>`;
+      api("/api/settings/archetype", { method: "POST", body: JSON.stringify({ archetype: winner }) })
+        .then((res) => {
+          if (state.user) state.user.archetype = res.archetype;
+          if (openBtn) openBtn.textContent = res.archetype;
+          body.innerHTML = `
+            <div class="archetype-quiz-result">
+              <div class="archetype-quiz-result__label">Твой архетип</div>
+              <div class="archetype-quiz-result__value">${escapeHtml(res.archetype)}</div>
+              <button type="button" class="archetype-quiz-done">Готово</button>
+            </div>`;
+          body.querySelector(".archetype-quiz-done")?.addEventListener("click", () => {
+            overlay.hidden = true;
+          });
+          haptic("medium");
+        })
+        .catch(() => { body.innerHTML = `<div class="archetype-quiz-loading">Не получилось сохранить результат</div>`; });
+      return;
+    }
+    const question = ARCHETYPE_QUIZ_QUESTIONS[step];
+    body.innerHTML = `
+      <div class="archetype-quiz-progress">${step + 1}/${ARCHETYPE_QUIZ_QUESTIONS.length}</div>
+      <div class="archetype-quiz-question">${escapeHtml(question.q)}</div>
+      <div class="archetype-quiz-options">
+        ${question.options.map((o, i) => `<button type="button" class="archetype-quiz-option" data-idx="${i}">${escapeHtml(o[0])}</button>`).join("")}
+      </div>`;
+    body.querySelectorAll(".archetype-quiz-option").forEach(btn => {
+      btn.addEventListener("click", () => {
+        answers.push(question.options[Number(btn.dataset.idx)][1]);
+        step++;
+        haptic("light");
+        renderStep();
+      });
+    });
+  }
+
+  openBtn.addEventListener("click", () => {
+    answers = [];
+    step = 0;
+    overlay.hidden = false;
+    renderStep();
+  });
+  closeBtn?.addEventListener("click", () => { overlay.hidden = true; });
+}
+
 // Roadmap #25 — долгосрочные цели пользователя для AI-наставника.
 function initGoalsActions() {
   const input = document.getElementById("longTermGoalsInput");
@@ -3025,6 +3130,45 @@ function initDataSupportActions() {
     }
   });
 
+  // Roadmap #8 — импорт привычек из CSV: один файл, одна привычка на
+  // строку ("Название" или "Название,категория"), без каких-либо
+  // изменений на сервере — просто цикл по уже существующему POST
+  // /api/habits (тот же приём, что и у готовых "программ", roadmap #38).
+  document.getElementById("importCsvInput")?.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // разрешаем повторно выбрать тот же файл
+    if (!file) return;
+    const text = await file.text();
+    const rows = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+    if (rows.length === 0) {
+      showToast("Файл пустой", "error");
+      return;
+    }
+    let added = 0;
+    let failed = 0;
+    for (const row of rows) {
+      const cols = row.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+      const title = cols[0];
+      const category = cols[1] && HABIT_CATEGORY_META[cols[1]] ? cols[1] : undefined;
+      if (!title || title.length < 2) { failed++; continue; }
+      try {
+        await api("/api/habits", { method: "POST", body: JSON.stringify({ title, category }) });
+        added++;
+      } catch (err) {
+        failed++;
+        if (err && err.data && err.data.error === "habit_limit") break; // дальше всё равно упрётся в лимит
+      }
+    }
+    haptic("light");
+    showToast(
+      added
+        ? `Импортировано привычек: ${added}${failed ? `, пропущено: ${failed}` : ""}`
+        : "Не получилось импортировать ни одной строки",
+      added ? "success" : "error",
+    );
+    await loadBootstrap();
+  });
+
   // Roadmap #28 — экспортируемый PDF-отчёт о прогрессе (график + сводка).
   document.getElementById("pdfReportBtn")?.addEventListener("click", async (e) => {
     const btn = e.currentTarget;
@@ -3107,8 +3251,7 @@ async function boot() {
         initHabitActions();
         initDailyQuestActions();
         initRatingActions();
-        initPublicProfileActions();
-        initGoalsActions();
+        initArchetypeQuizActions();
         initPlanActions();
         initShopActions();
         initProfileAvatarActions();
@@ -3124,6 +3267,17 @@ async function boot() {
         await loadBootstrap();
         initSettingsActions();
         initDataSupportActions();
+        // Эти три читают state.settings/state.user СИНХРОННО в момент своей
+        // инициализации (не только внутри later-колбэков) — как и
+        // initSettingsActions/initDataSupportActions выше, обязаны идти
+        // ПОСЛЕ первого bootstrap, иначе boot() падает на state === null
+        // (см. комментарий над loadBootstrap() выше) и вся остальная
+        // инициализация после падения просто не происходит.
+        initPublicProfileActions();
+        initGoalsActions();
+        if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {
+          document.getElementById("archetypeQuizBtn").textContent = state.user.archetype;
+        }
         requestAnimationFrame(() => {
             document.documentElement.classList.remove("decor-settled");
             // Принудительно отдаём браузеру один чистый кадр для компоновки

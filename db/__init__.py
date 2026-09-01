@@ -34,6 +34,7 @@ from .users import (
     touch_last_ai_message,
     activate_xp_booster, is_xp_booster_active,
     set_long_term_goals, get_long_term_goals, MAX_LONG_TERM_GOALS_LENGTH,
+    set_archetype, ARCHETYPES,
 )
 
 from .coaching_insights import (
@@ -236,6 +237,7 @@ __all__ = [
     "get_last_ai_message_at", "touch_last_ai_message", "claim_ai_first_message",
     "activate_xp_booster", "is_xp_booster_active",
     "set_long_term_goals", "get_long_term_goals", "MAX_LONG_TERM_GOALS_LENGTH",
+    "set_archetype", "ARCHETYPES",
     "get_struggling_habits", "suggest_optimal_reminder_time",
     "STRUGGLE_THRESHOLD", "STRUGGLE_WINDOW_DAYS",
     "get_habit_correlations",

@@ -498,6 +498,11 @@ class="habit-add-form__submit">
   </div>
 
   <div class="settings-row">
+    <span>🧬 Архетип личности</span>
+    <button type="button" class="settings-quiet-toggle" id="archetypeQuizBtn">Пройти тест</button>
+  </div>
+
+  <div class="settings-row">
     <span>🧭 Твои долгосрочные цели</span>
   </div>
   <div class="goals-row">
@@ -539,6 +544,11 @@ class="habit-add-form__submit">
     <span class="data-support-btn__icon">📤</span>
     <span class="data-support-btn__text"><b>Скачать мои данные</b><small>Вся история привычек в CSV</small></span>
   </button>
+  <label class="data-support-btn" id="importCsvLabel">
+    <span class="data-support-btn__icon">📥</span>
+    <span class="data-support-btn__text"><b>Импортировать привычки</b><small>Из CSV — одна привычка на строку</small></span>
+    <input type="file" accept=".csv,text/csv" id="importCsvInput" hidden>
+  </label>
   <button type="button" class="data-support-btn" id="openFeedbackBtn">
     <span class="data-support-btn__icon">💬</span>
     <span class="data-support-btn__text"><b>Сообщить о проблеме</b><small>Напрямую разработчику, с контекстом</small></span>
@@ -736,6 +746,14 @@ class="habit-add-form__submit">
   </div>
 </div>
 
+<div class="archetype-quiz-overlay" id="archetypeQuizOverlay" hidden aria-hidden="true">
+  <div class="archetype-quiz-card">
+    <button type="button" class="archetype-quiz-close" id="archetypeQuizClose" aria-label="Закрыть">✕</button>
+    <div class="archetype-quiz-eyebrow">ТЕСТ НА АРХЕТИП</div>
+    <div id="archetypeQuizBody"></div>
+  </div>
+</div>
+
 <div class="streak-weekly-overlay" id="streakWeeklyOverlay" hidden aria-hidden="true">
   <div class="streak-weekly-card">
     <div class="streak-onboarding-fire">🎁</div>
@@ -785,7 +803,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260901_HEATMAP_CORRELATIONS_PDF_V1"></script>
+<script type="module" src="/static/app.js?v=20260901_CSV_FRAMES_ARCHETYPE_V1"></script>
 
 </body>
 </html>

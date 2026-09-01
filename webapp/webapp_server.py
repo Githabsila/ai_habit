@@ -58,6 +58,7 @@ from db import (
     set_long_term_goals, get_long_term_goals,
     get_struggling_habits, suggest_optimal_reminder_time,
     get_habit_correlations,
+    set_archetype, ARCHETYPES,
 )
 
 from datetime import date, datetime, timezone
@@ -266,6 +267,7 @@ async def bootstrap(request):
             "is_admin": is_admin,
             "league_tier": get_league_tier(user["total_xp"] if user else 0),
             "league_progress": get_league_progress(user["total_xp"] if user else 0),
+            "archetype": (ARCHETYPES.get(user["archetype"]) if user and "archetype" in user.keys() and user["archetype"] else None),
             "xp_boosted": is_xp_booster_active(telegram_id),
             "xp_boost_until": user["bonus_2x_xp_until"] if user and "bonus_2x_xp_until" in user.keys() else None,
         },
@@ -979,6 +981,19 @@ async def reactions_route(request):
         ],
         "available_emojis": REACTION_EMOJIS,
     })
+
+
+@routes.post("/api/settings/archetype")
+async def set_archetype_route(request):
+    """Roadmap #39 — результат короткого теста на архетип личности,
+    сам подсчёт делает фронт (4 детерминированных вопроса), сюда
+    приходит уже готовый ключ."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    key = body.get("archetype")
+    if not set_archetype(telegram_id, key):
+        return web.json_response({"error": "invalid_archetype"}, status=400)
+    return web.json_response({"ok": True, "archetype": ARCHETYPES[key]})
 
 
 @routes.post("/api/settings/goals")

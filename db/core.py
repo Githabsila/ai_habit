@@ -531,6 +531,17 @@ def create_tables():
         INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable,daily_limit_per_user)
         VALUES (24,'⚡ Бустер x2 Adam Coin — 24ч','Все привычки следующие 24 часа приносят вдвое больше Adam Coin',99,'booster_stars','24',1,0)
     """)
+    # Roadmap #15 — анимированные рамки за Adam Coin (в отличие от
+    # frame_stars id=7 — та единственная существующая анимированная рамка
+    # раньше была только премиальной, за Stars).
+    cursor.execute(
+        "INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) "
+        "VALUES (25,'🌈 Рамка: Радуга','Анимированная переливающаяся рамка аватара',450,'frame','rainbow',0)"
+    )
+    cursor.execute(
+        "INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) "
+        "VALUES (26,'💜 Рамка: Пульс','Анимированная пульсирующая рамка аватара',280,'frame','pulse_violet',0)"
+    )
 
     # ---------------- DAILY TASKS ----------------
     cursor.execute("""
