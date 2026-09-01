@@ -170,7 +170,10 @@ def create_tables():
         reminder_hour INTEGER DEFAULT 9,
         reminder_minute INTEGER DEFAULT 0,
         ai_style TEXT DEFAULT 'neutral',
-        theme TEXT DEFAULT 'violet'
+        theme TEXT DEFAULT 'violet',
+        reminders_habits INTEGER DEFAULT 1,
+        reminders_streak INTEGER DEFAULT 1,
+        reminders_digests INTEGER DEFAULT 1
     )
     """)
 
@@ -187,6 +190,20 @@ def create_tables():
     # по умолчанию 'violet' (текущий цвет приложения).
     if "theme" not in settings_columns:
         cursor.execute("ALTER TABLE settings ADD COLUMN theme TEXT DEFAULT 'violet'")
+
+    # Гранулярные напоминания: раньше был только один общий тумблер
+    # `reminders` — "всё или ничего". Эти три колонки позволяют отключить
+    # ТОЛЬКО, например, пуши про ударный режим, оставив утренние и вечерние
+    # напоминания по привычкам. `reminders=0` по-прежнему выключает всё
+    # разом (проверяется первым во всех job'ах-напоминаниях) — новые флаги
+    # сужают именно ВКЛЮЧЁННОЕ подмножество, ничего не ломая для тех, кто
+    # их ещё не трогал (DEFAULT 1 — как было).
+    if "reminders_habits" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN reminders_habits INTEGER DEFAULT 1")
+    if "reminders_streak" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN reminders_streak INTEGER DEFAULT 1")
+    if "reminders_digests" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN reminders_digests INTEGER DEFAULT 1")
 
     # ---------------- HABITS ----------------
     cursor.execute("""

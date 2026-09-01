@@ -33,6 +33,7 @@ from db import (
     get_timezone,
     claim_notification, release_notification, notification_scope, in_time_window,
     get_habits, mark_habit_reminder_sent,
+    reminder_category_enabled,
 )
 from multi_agent import generate_weekly_habit_feedback
 from adam_messages import (
@@ -118,8 +119,9 @@ async def run_weekly_report(bot):
 
         # Раньше здесь не было проверки настройки напоминаний — недельный
         # отчёт уходил даже тем, кто отключил уведомления в настройках.
+        # Категория "digests" — сводки и отчёты (см. db/settings.py).
         settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
+        if not reminder_category_enabled(settings, "digests"):
             continue
 
         summary = get_weekly_summary(telegram_id)
@@ -174,7 +176,7 @@ async def run_task_reminder_check(bot):
         telegram_id = user["telegram_id"]
 
         settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
+        if not reminder_category_enabled(settings, "habits"):
             continue
 
         # Ночью и прямо в окне утреннего приветствия не отправляем
@@ -250,7 +252,7 @@ async def run_planned_time_reminders(bot):
     for user in users:
         telegram_id = user["telegram_id"]
         settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
+        if not reminder_category_enabled(settings, "habits"):
             continue
 
         now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
@@ -313,7 +315,7 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
     for user in users:
         telegram_id = user["telegram_id"]
         settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
+        if not reminder_category_enabled(settings, "habits"):
             continue
 
         try:
@@ -384,7 +386,7 @@ async def run_day_progress_check(bot):
         telegram_id = user["telegram_id"]
 
         settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
+        if not reminder_category_enabled(settings, "habits"):
             continue
 
         try:
@@ -478,7 +480,7 @@ async def _broadcast(bot, text_fn, job_name, day_key):
         telegram_id = user["telegram_id"]
 
         settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
+        if not reminder_category_enabled(settings, "digests"):
             continue
 
         if not claim_notification(telegram_id, day_key, job_name, scope):
@@ -562,7 +564,7 @@ async def run_weekly_habit_analysis(bot):
         telegram_id = user["telegram_id"]
 
         settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
+        if not reminder_category_enabled(settings, "digests"):
             continue
 
         breakdown = get_weekly_habit_breakdown(telegram_id)

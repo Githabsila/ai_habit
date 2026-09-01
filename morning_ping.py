@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, release_notification, notification_scope, in_time_window
+from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, release_notification, notification_scope, in_time_window, reminder_category_enabled
 from multi_agent import generate_morning_message
 from alerts import notify_admins
 
@@ -30,7 +30,7 @@ async def run_morning_ping(bot):
         telegram_id = user["telegram_id"]
 
         settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
+        if not reminder_category_enabled(settings, "habits"):
             continue
 
         try:

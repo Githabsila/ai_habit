@@ -7,6 +7,8 @@ from db import (
     get_settings,
     update_reminder_time,
     toggle_reminders,
+    toggle_reminder_category,
+    REMINDER_CATEGORY_LABELS,
 )
 
 from keyboards import reminders_keyboard, back_menu_keyboard
@@ -49,14 +51,18 @@ async def reminders_menu(callback: CallbackQuery):
         f"""
 🔔 <b>Умные напоминания</b>
 
-Статус:
+Общий статус:
 {reminders}
 
 🕒 Время:
 {hour:02}:{minute:02}
+
+Ниже — тонкая настройка: можно, например, оставить напоминания по \
+привычкам, но отключить только пуши про ударный режим. Общий тумблер \
+выше выключает всё разом, независимо от того, что выбрано ниже.
 """,
         parse_mode="HTML",
-        reply_markup=reminders_keyboard()
+        reply_markup=reminders_keyboard(settings_data)
     )
 
     await callback.answer()
@@ -72,6 +78,28 @@ async def toggle(callback: CallbackQuery):
     toggle_reminders(callback.from_user.id)
 
     await callback.answer("✅ Настройки сохранены")
+
+    await reminders_menu(callback)
+
+
+# =====================================
+# ВКЛ / ВЫКЛ ОДНОЙ ИЗ КАТЕГОРИЙ НАПОМИНАНИЙ
+# =====================================
+
+@router.callback_query(F.data.startswith("toggle_reminder_category:"))
+async def toggle_category(callback: CallbackQuery):
+
+    category = callback.data.split(":", 1)[1]
+
+    try:
+        new_value = toggle_reminder_category(callback.from_user.id, category)
+    except ValueError:
+        await callback.answer("Неизвестная категория", show_alert=True)
+        return
+
+    label = REMINDER_CATEGORY_LABELS.get(category, category)
+    status = "включены" if new_value else "выключены"
+    await callback.answer(f"✅ «{label}»: {status}")
 
     await reminders_menu(callback)
 

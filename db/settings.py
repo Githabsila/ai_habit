@@ -40,6 +40,67 @@ def toggle_reminders(user_id):
     return bool(new_value)
 
 
+# =====================================
+# ГРАНУЛЯРНЫЕ НАПОМИНАНИЯ
+# =====================================
+# Раньше был только один общий тумблер `reminders` — "всё или ничего".
+# Эти три категории позволяют, например, отключить именно пуши про
+# ударный режим (23:00/23:30), оставив утренние и вечерние напоминания
+# по привычкам. Общий `reminders=0` по-прежнему выключает всё разом —
+# см. reminder_category_enabled() ниже, она проверяет оба уровня сразу.
+
+REMINDER_CATEGORIES = ("habits", "streak", "digests")
+
+REMINDER_CATEGORY_LABELS = {
+    "habits": "Привычки и план дня",
+    "streak": "Ударный режим",
+    "digests": "Сводки и отчёты",
+}
+
+
+def toggle_reminder_category(user_id, category):
+    """Переключает один из гранулярных тумблеров (reminders_habits /
+    reminders_streak / reminders_digests) и возвращает новое значение
+    (bool). category — строго одно из REMINDER_CATEGORIES: имя колонки
+    собирается из уже провалидированного значения, а не из произвольного
+    пользовательского ввода, поэтому f-string в SQL здесь безопасен."""
+    if category not in REMINDER_CATEGORIES:
+        raise ValueError(f"unknown reminder category: {category}")
+    column = f"reminders_{category}"
+
+    conn = connect()
+    cursor = conn.cursor()
+
+    current = get_settings(user_id)
+    current_value = current[column] if current is not None else 1
+    new_value = 0 if current_value else 1
+
+    cursor.execute(
+        f"UPDATE settings SET {column}=? WHERE user_id=?",
+        (new_value, user_id)
+    )
+    conn.commit()
+    conn.close()
+    return bool(new_value)
+
+
+def reminder_category_enabled(settings_row, category):
+    """True, только если И общий тумблер reminders, И конкретная категория
+    включены. Единая точка проверки для всех job'ов-напоминаний
+    (coach.py/streak_scheduler.py/morning_ping.py) — вместо того чтобы в
+    каждом job'е руками дублировать проверку обоих уровней."""
+    if not settings_row or not settings_row["reminders"]:
+        return False
+    column = f"reminders_{category}"
+    try:
+        value = settings_row[column]
+    except (IndexError, KeyError):
+        # БД ещё не мигрирована (старая строка без новых колонок) —
+        # по умолчанию категория включена, как и было до этой фичи.
+        return True
+    return bool(value) if value is not None else True
+
+
 def update_ai_style(user_id, style):
     """style: 'soft' / 'neutral' / 'strict' — стиль общения AI-наставника."""
     conn = connect()

@@ -393,15 +393,46 @@ def back_menu_keyboard():
 # Настройки). В боте из «Настроек» остаётся только то, что относится к
 # самой сути напоминаний — вкл/выкл и время.
 
-def reminders_keyboard():
+def reminders_keyboard(settings_data=None):
+    """settings_data — строка из get_settings(), нужна, чтобы подписать
+    гранулярные тумблеры текущим статусом (🟢/🔴) прямо на кнопке, а не
+    только в тексте выше. None — до первого вызова get_settings (не должно
+    происходить в реальном сценарии, но кнопки тогда просто без статуса)."""
+
+    def _mark(key):
+        if not settings_data:
+            return ""
+        try:
+            return " 🟢" if settings_data[key] else " 🔴"
+        except (IndexError, KeyError):
+            return ""
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
 
             [
                 InlineKeyboardButton(
-                    text="🔔 Вкл/выкл напоминания",
+                    text="🔔 Вкл/выкл все напоминания",
                     callback_data="toggle_reminders"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text=f"📋 Привычки и план дня{_mark('reminders_habits')}",
+                    callback_data="toggle_reminder_category:habits"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"🔥 Ударный режим{_mark('reminders_streak')}",
+                    callback_data="toggle_reminder_category:streak"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"📊 Сводки и отчёты{_mark('reminders_digests')}",
+                    callback_data="toggle_reminder_category:digests"
                 )
             ],
 

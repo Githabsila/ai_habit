@@ -13,6 +13,7 @@ from db import (
     RISK_15, RISK_23,
     get_weekly_bonus_available, get_streak_reengagement_state, get_settings,
     get_recent_streak_message_keys, record_streak_message_key,
+    reminder_category_enabled,
 )
 
 logger = logging.getLogger("streak_scheduler")
@@ -141,7 +142,7 @@ async def run_streak_risk_notifications(bot):
     for uid in get_streak_users():
         try:
             settings = get_settings(uid)
-            if not settings or settings["reminders"] == 0:
+            if not reminder_category_enabled(settings, "streak"):
                 continue
 
             tz_name = get_timezone(uid)
@@ -275,7 +276,7 @@ async def run_streak_reengagement_notifications(bot):
     for uid in get_streak_users():
         try:
             settings = get_settings(uid)
-            if not settings or settings["reminders"] == 0:
+            if not reminder_category_enabled(settings, "streak"):
                 continue
             tz = ZoneInfo(get_timezone(uid))
             now = datetime.now(tz)
@@ -331,6 +332,13 @@ async def run_weekly_streak_bonus(bot):
     scope = notification_scope(bot)
     for uid in get_streak_users():
         try:
+            # Раньше этот job вообще не смотрел на настройки напоминаний —
+            # награда за неделю без пропусков приходила даже тем, кто
+            # отключил пуши про ударный режим.
+            settings = get_settings(uid)
+            if not reminder_category_enabled(settings, "streak"):
+                continue
+
             tz = ZoneInfo(get_timezone(uid))
             now = datetime.now(tz)
             if now.weekday() != 6 or not in_time_window(now, hour=10, minute=0):
