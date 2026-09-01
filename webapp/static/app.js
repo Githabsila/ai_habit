@@ -1,6 +1,22 @@
 (() => {
   "use strict";
 
+  // Некоторые WebView (в т.ч. Telegram на Android) успевают "доставить"
+  // клик/тач, начатый ещё на предыдущей странице, уже ПОСЛЕ полной
+  // навигации на новую — с теми же экранными координатами. Кнопка
+  // "✕ Закрыть" в /admin и кнопка админки здесь (#adminPanelBtn) обе
+  // сидят в верхнем правом углу — из-за этого призрачный клик, оставшийся
+  // от нажатия на крестик, тут же попадал по кнопке админки и уносил
+  // обратно в /admin (бесконечный "не могу выйти из админки"). Глушим
+  // самый первый клик в первые полсекунды после загрузки страницы.
+  const PAGE_LOAD_AT = Date.now();
+  document.addEventListener("click", (e) => {
+    if (Date.now() - PAGE_LOAD_AT < 500) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, { capture: true });
+
   const tg = window.Telegram ? window.Telegram.WebApp : null;
   try {
     const lowPower =

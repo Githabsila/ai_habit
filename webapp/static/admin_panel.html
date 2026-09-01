@@ -238,6 +238,18 @@ textarea.field{resize:vertical;min-height:88px}
 
 <script>
 (function(){
+  // См. такой же guard в app.js — призрачный клик, доставленный WebView
+  // уже после навигации на новую страницу, в тех же координатах, может
+  // случайно попасть на "✕" здесь же и т.п. Глушим первый клик в первые
+  // полсекунды после загрузки.
+  var PAGE_LOAD_AT = Date.now();
+  document.addEventListener('click', function(e){
+    if (Date.now() - PAGE_LOAD_AT < 500) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, { capture: true });
+
   try{
     var lowPower = (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4)
       || (navigator.deviceMemory && navigator.deviceMemory <= 4)
