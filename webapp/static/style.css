@@ -7466,6 +7466,58 @@ body{
 .performance-lite .as-medal-tail,.performance-lite .as-medal-disc{transition:none !important}
 
 /* =========================================================
+   РЕДИЗАЙН 3.0 — СВОРАЧИВАЕМЫЕ ФОРМЫ ДОБАВЛЕНИЯ
+   ========================================================= */
+/* Раньше "Новая задача..." и "Новая привычка..." были видны на экране
+   ВСЕГДА, даже когда нечего добавлять — два открытых текстовых поля на
+   каждом заходе в приложение это ровно то визуальное "что тут вообще
+   нужно делать?", которого просят избегать (в духе Duolingo: ни одной
+   формы ввода не видно, пока пользователь сам не нажал "+"). Форма
+   остаётся в DOM как была (те же id, тот же JS) — просто по умолчанию
+   спрятана за компактной кнопкой-триггером. */
+.add-collapse{width:100%}
+/* .add-form/.plan-add-form/.habit-add-form сами явно задают display —
+   голого атрибута [hidden] (низкий приоритет UA-стилей) недостаточно,
+   чтобы его перебить. Спецификичность класса-родителя + form[hidden]
+   гарантирует, что скрытая форма правда не показывается. */
+.add-collapse form[hidden],
+.add-collapse__trigger[hidden]{display:none !important}
+.add-collapse__trigger{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  width:100%;
+  height:48px;
+  border-radius:16px;
+  border:1.5px dashed rgba(255,255,255,.16);
+  background:rgba(255,255,255,.02);
+  color:var(--text-muted,#9D9DB3);
+  font-family:'Space Grotesk', sans-serif;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, color .15s ease, transform .15s ease;
+}
+.add-collapse__trigger:hover{
+  border-color:rgba(139,108,255,.4);
+  background:rgba(139,108,255,.06);
+  color:#cfc6ff;
+}
+.add-collapse__trigger:active{transform:scale(.97)}
+.add-collapse__icon{
+  display:grid;place-items:center;
+  width:20px;height:20px;
+  border-radius:50%;
+  background:rgba(139,108,255,.16);
+  color:#cfc6ff;
+  font-size:14px;
+  font-weight:800;
+  line-height:1;
+  flex:0 0 auto;
+}
+
+/* =========================================================
    ДАННЫЕ И ПОДДЕРЖКА — экспорт CSV, недельный шаринг, фидбек
    ========================================================= */
 .data-support-card{display:flex;flex-direction:column;gap:8px}

@@ -1446,11 +1446,42 @@ function initTabs() {
   });
 }
 
+// ===================== СВОРАЧИВАЕМЫЕ ФОРМЫ ДОБАВЛЕНИЯ =====================
+// "Новая задача"/"Новая привычка" раньше были видны всегда — по умолчанию
+// теперь спрятаны за компактной кнопкой "+" (см. .add-collapse в index.html
+// и style.css), сама форма и её id/JS не менялись.
+function openAddCollapse(collapseId) {
+  const collapse = document.getElementById(collapseId);
+  if (!collapse) return;
+  const trigger = collapse.querySelector(".add-collapse__trigger");
+  const form = collapse.querySelector("form");
+  if (trigger) trigger.hidden = true;
+  if (form) {
+    form.hidden = false;
+    const focusable = form.querySelector('input[type="text"]');
+    if (focusable) focusable.focus();
+  }
+}
+
+function closeAddCollapse(collapseId) {
+  const collapse = document.getElementById(collapseId);
+  if (!collapse) return;
+  const trigger = collapse.querySelector(".add-collapse__trigger");
+  const form = collapse.querySelector("form");
+  if (form) form.hidden = true;
+  if (trigger) trigger.hidden = false;
+}
+
 // ===================== HABIT ACTIONS =====================
 function initHabitActions() {
   const habitList = document.getElementById("habitList");
   const addHabitForm = document.getElementById("addHabitForm");
   if (!habitList || !addHabitForm) return;
+
+  const addHabitTrigger = document.getElementById("addHabitTrigger");
+  if (addHabitTrigger) {
+    addHabitTrigger.addEventListener("click", () => openAddCollapse("addHabitCollapse"));
+  }
 
   habitList.addEventListener("click", async (e) => {
     // Чип готового шаблона привычки (только в пустом состоянии) — сразу
@@ -1689,6 +1720,11 @@ function initPlanActions() {
   const taskForm = document.getElementById("addPlanTaskForm");
   const taskInput = document.getElementById("newPlanTaskInput");
 
+  const addPlanTaskTrigger = document.getElementById("addPlanTaskTrigger");
+  if (addPlanTaskTrigger) {
+    addPlanTaskTrigger.addEventListener("click", () => openAddCollapse("addPlanTaskCollapse"));
+  }
+
   mainInput.addEventListener("input", () => {
     mainConfirm.hidden = !mainInput.value.trim();
   });
@@ -1776,6 +1812,10 @@ function initPlanActions() {
         if (actionBtn.dataset.action === "edit") {
           const task = (state.daily_plan?.tasks || []).find(t => String(t.id) === String(taskId));
           if (!task) return;
+          // Форма добавления по умолчанию свёрнута за "+" — без этого
+          // редактирование фокусировало бы скрытое поле и было бы
+          // незаметно, что вообще что-то произошло.
+          openAddCollapse("addPlanTaskCollapse");
           taskInput.value = task.text;
           taskInput.dataset.editingTaskId = task.id;
           document.getElementById("addPlanTaskBtn").textContent = "✓ Сохранить изменения";

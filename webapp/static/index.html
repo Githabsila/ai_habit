@@ -180,24 +180,33 @@ style="width:0%">
 
   <ul class="plan-list" id="planList"></ul>
 
-  <form class="add-form plan-add-form" id="addPlanTaskForm">
+  <div class="add-collapse" id="addPlanTaskCollapse">
 
-    <input
-      type="text"
-      id="newPlanTaskInput"
-      placeholder="Новая задача..."
-      autocomplete="off"
-    >
-
-    <button
-      type="submit"
-      class="btn btn--accent plan-add-form__btn"
-      id="addPlanTaskBtn"
-    >
-      Добавить новую задачу
+    <button type="button" class="add-collapse__trigger" id="addPlanTaskTrigger">
+      <span class="add-collapse__icon" aria-hidden="true">+</span>
+      <span>Добавить задачу</span>
     </button>
 
-  </form>
+    <form class="add-form plan-add-form" id="addPlanTaskForm" hidden>
+
+      <input
+        type="text"
+        id="newPlanTaskInput"
+        placeholder="Новая задача..."
+        autocomplete="off"
+      >
+
+      <button
+        type="submit"
+        class="btn btn--accent plan-add-form__btn"
+        id="addPlanTaskBtn"
+      >
+        Добавить новую задачу
+      </button>
+
+    </form>
+
+  </div>
 
 </div>
 
@@ -217,7 +226,14 @@ style="width:0%">
 <ul class="habit-list" id="habitList">
 </ul>
 
-<form class="add-form habit-add-form" id="addHabitForm">
+<div class="add-collapse" id="addHabitCollapse">
+
+<button type="button" class="add-collapse__trigger" id="addHabitTrigger">
+<span class="add-collapse__icon" aria-hidden="true">+</span>
+<span>Добавить привычку</span>
+</button>
+
+<form class="add-form habit-add-form" id="addHabitForm" hidden>
 
 <input
 type="text"
@@ -246,6 +262,8 @@ class="habit-add-form__submit">
 </div>
 
 </form>
+
+</div>
 
 </section>
 
