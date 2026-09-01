@@ -8710,3 +8710,170 @@ body{
 .free-restore-btn:hover{ background:rgba(255,213,79,.18); border-color:rgba(255,213,79,.5); }
 .free-restore-btn:active{ transform:scale(.97); }
 .free-restore-btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+/* ============================================================
+   DUOLINGO-ФОРМЫ поверх фирменной тёмной темы ADAM (волна 1)
+   ============================================================
+   Направление, выбранное пользователем: палитру (фиолет/золото на тёмном)
+   НЕ меняем — берём у Duolingo язык ФОРМ: толстые обводки, крупные
+   скругления, "продавливающиеся" 3D-кнопки (нижняя тень-"ступенька"
+   исчезает и кнопка физически сдвигается вниз при нажатии — их фирменный
+   приём, не встречался нигде в проекте раньше). Слой в САМОМ КОНЦЕ файла
+   с !important — единственный надёжный способ перебить многослойные более
+   ранние правила (см. комментарии выше по файлу про "generational CSS
+   debt"). Намеренно НЕ трогает background/backdrop-filter у .tab-bar —
+   эта конкретная правка уже один раз откатывалась пользователем в этой
+   же сессии, менять её снова без явной просьбы не буду.
+*/
+
+:root{
+  --duo-violet: #8B5CF6;
+  --duo-violet-shadow: #5B3FBD;
+  --duo-gold: #FFD54F;
+  --duo-gold-shadow: #C89A1E;
+  --duo-green: #22C55E;
+  --duo-green-shadow: #16873F;
+  --duo-radius: 18px;
+  --duo-radius-lg: 26px;
+  --duo-press: 4px;
+}
+
+/* ---------- Кнопки: продавливающиеся 3D (основное действие, фиолет) ---------- */
+.streak-continue,
+.app-tour-next,
+.achievement-share-close,
+.habit-add-form__submit,
+.plan-add-form__btn,
+.goals-save-btn,
+.public-profile-share-btn,
+.feedback-send-btn,
+.pdf-report-btn,
+.progress-ai-btn {
+  border-radius: var(--duo-radius) !important;
+  border: none !important;
+  background: var(--duo-violet) !important;
+  color: #fff !important;
+  font-family: 'Space Grotesk', sans-serif !important;
+  font-weight: 800 !important;
+  letter-spacing: .2px !important;
+  box-shadow: 0 var(--duo-press) 0 var(--duo-violet-shadow) !important;
+  transform: translateY(0) !important;
+  transition: transform .1s ease, box-shadow .1s ease !important;
+}
+.streak-continue:active,
+.app-tour-next:active,
+.achievement-share-close:active,
+.habit-add-form__submit:active,
+.plan-add-form__btn:active,
+.goals-save-btn:active,
+.public-profile-share-btn:active,
+.feedback-send-btn:active,
+.pdf-report-btn:active,
+.progress-ai-btn:active {
+  transform: translateY(var(--duo-press)) !important;
+  box-shadow: 0 0 0 transparent !important;
+}
+
+/* ---------- Кнопки: золото (монеты/награды) ---------- */
+.freeze-purchase-buy,
+.weekly-choice-grid button {
+  border-radius: var(--duo-radius) !important;
+  border: none !important;
+  background: var(--duo-gold) !important;
+  color: #2B1B00 !important;
+  font-family: 'Space Grotesk', sans-serif !important;
+  font-weight: 800 !important;
+  box-shadow: 0 var(--duo-press) 0 var(--duo-gold-shadow) !important;
+  transform: translateY(0) !important;
+  transition: transform .1s ease, box-shadow .1s ease !important;
+}
+.freeze-purchase-buy:active,
+.weekly-choice-grid button:active {
+  transform: translateY(var(--duo-press)) !important;
+  box-shadow: 0 0 0 transparent !important;
+}
+
+/* ---------- Кнопки: вторичные/отмена (контур, без заливки) ---------- */
+.freeze-purchase-back,
+.app-tour-back,
+.app-tour-skip {
+  border-radius: var(--duo-radius) !important;
+  border: 2.5px solid var(--border) !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  font-family: 'Space Grotesk', sans-serif !important;
+  font-weight: 700 !important;
+  box-shadow: 0 var(--duo-press) 0 rgba(255,255,255,.08) !important;
+  transform: translateY(0) !important;
+  transition: transform .1s ease, box-shadow .1s ease, border-color .15s ease !important;
+}
+.freeze-purchase-back:active,
+.app-tour-back:active,
+.app-tour-skip:active {
+  transform: translateY(var(--duo-press)) !important;
+  box-shadow: 0 0 0 transparent !important;
+}
+
+/* ---------- Отметка привычки: зелёная, продавливающаяся ---------- */
+.habit-item__check{
+  border-radius: 14px !important;
+  border: 2.5px solid rgba(34,197,94,.45) !important;
+  box-shadow: 0 3px 0 var(--duo-green-shadow) !important;
+  transition: transform .1s ease, box-shadow .1s ease, background .15s ease, border-color .15s ease !important;
+}
+.habit-item__check:active{
+  transform: translateY(3px) !important;
+  box-shadow: 0 0 0 transparent !important;
+}
+.habit-item.is-done .habit-item__check{
+  background: var(--duo-green) !important;
+  border-color: var(--duo-green) !important;
+  box-shadow: 0 3px 0 var(--duo-green-shadow) !important;
+}
+
+/* ---------- Карточки: толще обводка, крупнее скругление ---------- */
+.habit-item,
+.plan-card,
+.settings-card,
+.shop-item,
+.data-support-card,
+.progress-stats-card,
+.streak-profile-metrics .streak-metric {
+  border-radius: var(--duo-radius-lg) !important;
+  border: 2.5px solid rgba(139,92,246,.38) !important;
+}
+
+.streak-widget--hero{
+  border-radius: var(--duo-radius-lg) !important;
+  border: 2.5px solid rgba(255,215,79,.4) !important;
+}
+
+/* ---------- Чипы/переключатели: жирная активная "таблетка" ---------- */
+.color-mode-btn,
+.ai-style-btn,
+.rating-scope-btn,
+.habit-add-form__freq-chip {
+  border-radius: 999px !important;
+  border: 2px solid var(--border) !important;
+  font-weight: 700 !important;
+}
+.color-mode-btn.is-active,
+.ai-style-btn.is-active,
+.rating-scope-btn.is-active,
+.habit-add-form__freq-chip.is-active {
+  border-color: var(--duo-violet) !important;
+  background: var(--duo-violet) !important;
+  color: #fff !important;
+}
+
+/* ---------- Нижняя навигация: активная вкладка — плотная "таблетка" ---------- */
+/* Трогаем только форму (border-radius/padding активного пункта), НЕ
+   background/backdrop-filter самой .tab-bar — см. комментарий в начале блока. */
+.tab-bar__item.is-active{
+  background: var(--duo-violet) !important;
+  border-radius: 16px !important;
+  color: #fff !important;
+}
+.tab-bar__item.is-active .tab-bar__icon{
+  color: #fff !important;
+}

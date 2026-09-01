@@ -10,3 +10,4 @@ venv/
 .idea/
 .DS_Store
 .env.example
+webapp/static/_dev_preview.html
