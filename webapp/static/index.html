@@ -437,6 +437,17 @@ class="habit-add-form__submit">
     <button type="button" class="ai-style-btn" data-style="strict">🔥 Жёсткий тренер</button>
   </div>
 
+  <div class="settings-row">
+    <span>🌙 Тихие часы</span>
+    <button type="button" class="settings-quiet-toggle" id="quietHoursToggle" aria-pressed="false">Выкл</button>
+  </div>
+  <div class="quiet-hours-row" id="quietHoursRow" hidden>
+    <span>Не напоминать с</span>
+    <select id="quietHoursStart" class="quiet-hours-select" aria-label="Начало тихих часов"></select>
+    <span>до</span>
+    <select id="quietHoursEnd" class="quiet-hours-select" aria-label="Конец тихих часов"></select>
+  </div>
+
   <div class="settings-row settings-row--danger">
     <span>Сбросить весь прогресс (Adam Coin, уровень, серию, привычки)</span>
     <button type="button" class="settings-danger-btn" id="resetProgressBtn">🗑 Сбросить</button>

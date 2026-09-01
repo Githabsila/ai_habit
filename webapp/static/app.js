@@ -2360,6 +2360,74 @@ function initSettingsActions() {
       showToast(friendlyError(err), "error");
     }
   });
+
+  initQuietHoursActions();
+}
+
+// Roadmap #35 — "тихие часы": окно локальных часов, в которое не приходят
+// повседневные напоминания. UI сам по себе простой (тумблер + два
+// select'а), вся логика подавления — на бэкенде (db/settings.py::in_quiet_hours).
+function initQuietHoursActions() {
+  const toggle = document.getElementById("quietHoursToggle");
+  const row = document.getElementById("quietHoursRow");
+  const startSelect = document.getElementById("quietHoursStart");
+  const endSelect = document.getElementById("quietHoursEnd");
+  if (!toggle || !row || !startSelect || !endSelect) return;
+
+  if (!startSelect.options.length) {
+    for (let h = 0; h < 24; h++) {
+      const label = `${String(h).padStart(2, "0")}:00`;
+      startSelect.add(new Option(label, h));
+      endSelect.add(new Option(label, h));
+    }
+  }
+
+  const qh = state.settings && state.settings.quiet_hours;
+  const enabled = !!qh;
+  toggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+  toggle.textContent = enabled ? "Вкл" : "Выкл";
+  row.hidden = !enabled;
+  startSelect.value = qh ? qh.start : 23;
+  endSelect.value = qh ? qh.end : 7;
+
+  async function save() {
+    try {
+      await api("/api/settings/quiet-hours", {
+        method: "POST",
+        body: JSON.stringify({ start: Number(startSelect.value), end: Number(endSelect.value) }),
+      });
+      if (state.settings) state.settings.quiet_hours = { start: Number(startSelect.value), end: Number(endSelect.value) };
+      haptic("light");
+      showToast("Тихие часы сохранены", "success");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  }
+
+  toggle.addEventListener("click", async () => {
+    const nowEnabled = toggle.getAttribute("aria-pressed") === "true";
+    if (nowEnabled) {
+      try {
+        await api("/api/settings/quiet-hours", { method: "POST", body: JSON.stringify({}) });
+        if (state.settings) state.settings.quiet_hours = null;
+        toggle.setAttribute("aria-pressed", "false");
+        toggle.textContent = "Выкл";
+        row.hidden = true;
+        haptic("light");
+        showToast("Тихие часы выключены", "success");
+      } catch (err) {
+        showToast(friendlyError(err), "error");
+      }
+    } else {
+      toggle.setAttribute("aria-pressed", "true");
+      toggle.textContent = "Вкл";
+      row.hidden = false;
+      await save();
+    }
+  });
+
+  startSelect.addEventListener("change", save);
+  endSelect.addEventListener("change", save);
 }
 
 // ===================== ДАННЫЕ И ПОДДЕРЖКА =====================

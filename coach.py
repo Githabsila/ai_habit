@@ -34,7 +34,7 @@ from db import (
     get_timezone,
     claim_notification, release_notification, notification_scope, in_time_window,
     get_habits, mark_habit_reminder_sent,
-    reminder_category_enabled,
+    reminder_category_enabled, in_quiet_hours,
 )
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from adam_messages import (
@@ -186,6 +186,8 @@ async def run_task_reminder_check(bot):
         now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
         if 0 <= now_local.hour < 6 or (now_local.hour == 6 and now_local.minute < 15):
             continue
+        if in_quiet_hours(settings, now_local):
+            continue
         # Вечерняя сверка в 19:00 — единое сообщение по всему плану.
         # Не создаём рядом с ней отдельные пинги по одной задаче.
         if 18 <= now_local.hour < 20:
@@ -323,6 +325,8 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
 
         try:
             now = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+            if in_quiet_hours(settings, now):
+                continue
             # Окно допуска, не "== ровно эта минута" — от повторов защищает
             # claim_notification ниже (атомарный, один раз в день на kind),
             # а не точность попадания в тик планировщика.
@@ -394,6 +398,8 @@ async def run_day_progress_check(bot):
 
         try:
             now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+            if in_quiet_hours(settings, now_local):
+                continue
             if not in_time_window(now_local, hour=19, minute=0):
                 continue
 

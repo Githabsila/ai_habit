@@ -13,7 +13,7 @@ from db import (
     RISK_15, RISK_23,
     get_weekly_bonus_available, get_streak_reengagement_state, get_settings,
     get_recent_streak_message_keys, record_streak_message_key,
-    reminder_category_enabled,
+    reminder_category_enabled, in_quiet_hours,
 )
 
 logger = logging.getLogger("streak_scheduler")
@@ -148,6 +148,8 @@ async def run_streak_risk_notifications(bot):
             tz_name = get_timezone(uid)
             tz = ZoneInfo(tz_name)
             now = datetime.now(tz)
+            if in_quiet_hours(settings, now):
+                continue
             # Окна допуска вместо "== ровно эта минута" — от повторов
             # защищает claim_notification ниже, а не точность тика
             # планировщика. Окна не пересекаются (23:00-23:04 и 23:30-23:34),
@@ -280,6 +282,8 @@ async def run_streak_reengagement_notifications(bot):
                 continue
             tz = ZoneInfo(get_timezone(uid))
             now = datetime.now(tz)
+            if in_quiet_hours(settings, now):
+                continue
             state = get_streak_reengagement_state(uid)
             inactive = int(state["inactive_days"] or 0)
             if not state["has_history"] or inactive <= 0:
@@ -341,6 +345,8 @@ async def run_weekly_streak_bonus(bot):
 
             tz = ZoneInfo(get_timezone(uid))
             now = datetime.now(tz)
+            if in_quiet_hours(settings, now):
+                continue
             if now.weekday() != 6 or not in_time_window(now, hour=10, minute=0):
                 continue
             day = now.date().isoformat()

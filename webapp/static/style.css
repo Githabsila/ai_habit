@@ -6452,6 +6452,44 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   border-color:rgba(239,68,68,.45) !important;
 }
 
+.settings-quiet-toggle{
+  flex:0 0 auto;
+  min-height:30px;
+  padding:6px 14px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);
+  color:var(--text-muted,#9D9DB3);
+  font-size:11px;
+  font-weight:700;
+  cursor:pointer;
+}
+.settings-quiet-toggle[aria-pressed="true"]{
+  border-color:rgba(139,108,255,.45);
+  background:rgba(139,108,255,.16);
+  color:#cfc6ff;
+}
+.quiet-hours-row{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:0 2px 12px;
+  font-size:12px;
+  color:var(--text-muted,#9D9DB3);
+}
+.quiet-hours-row[hidden]{display:none !important}
+.quiet-hours-select{
+  height:32px;
+  padding:0 8px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);
+  color:var(--text,#EAE5FA);
+  font-size:12px;
+  font-weight:700;
+}
+
 /* Fix native-looking controls globally when a premium component class is used. */
 .progress-ai-btn,
 .ai-style-btn,

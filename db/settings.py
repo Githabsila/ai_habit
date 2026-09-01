@@ -101,6 +101,69 @@ def reminder_category_enabled(settings_row, category):
     return bool(value) if value is not None else True
 
 
+# =====================================
+# ТИХИЕ ЧАСЫ (roadmap #35)
+# =====================================
+# Окно локальных часов, в которое не приходят повседневные напоминания
+# (привычки, ударный режим) — недельные/месячные сводки и так приходят
+# раз в неделю/месяц в один и тот же час, "тихие часы" для них не так
+# осмысленны, поэтому проверяются только в job'ах категорий habits/streak.
+
+def set_quiet_hours(user_id, start_hour, end_hour):
+    """start_hour/end_hour — 0..23, окно [start, end) по локальному часу
+    пользователя; поддерживает ночное окно через полночь (start > end,
+    например 23 -> 7). Возвращает False, если часы вне диапазона или равны
+    (пустое окно — бессмысленно и, скорее всего, ошибка ввода)."""
+    try:
+        start_hour = int(start_hour)
+        end_hour = int(end_hour)
+    except (TypeError, ValueError):
+        return False
+    if not (0 <= start_hour <= 23 and 0 <= end_hour <= 23) or start_hour == end_hour:
+        return False
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE settings SET quiet_hours_start=?, quiet_hours_end=? WHERE user_id=?",
+        (start_hour, end_hour, user_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def clear_quiet_hours(user_id):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE settings SET quiet_hours_start=NULL, quiet_hours_end=NULL WHERE user_id=?",
+        (user_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def in_quiet_hours(settings_row, now_local):
+    """True, если now_local (datetime в локальном времени пользователя)
+    попадает в настроенное окно тихих часов. Оба поля NULL (не
+    настроено — значение по умолчанию) — всегда False."""
+    if not settings_row:
+        return False
+    try:
+        start = settings_row["quiet_hours_start"]
+        end = settings_row["quiet_hours_end"]
+    except (IndexError, KeyError):
+        return False
+    if start is None or end is None:
+        return False
+    hour = now_local.hour
+    if start == end:
+        return False
+    if start < end:
+        return start <= hour < end
+    return hour >= start or hour < end
+
+
 def update_ai_style(user_id, style):
     """style: 'soft' / 'neutral' / 'strict' — стиль общения AI-наставника."""
     conn = connect()

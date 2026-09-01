@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, release_notification, notification_scope, in_time_window, reminder_category_enabled
+from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, release_notification, notification_scope, in_time_window, reminder_category_enabled, in_quiet_hours
 from multi_agent import generate_morning_message
 from alerts import notify_admins
 
@@ -41,6 +41,8 @@ async def run_morning_ping(bot):
             # всё равно гарантирует ровно одно утреннее сообщение в день,
             # даже если окно "поймано" несколько тиков подряд.
             now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+            if in_quiet_hours(settings, now_local):
+                continue
             if not in_time_window(now_local, hour=6, minute=0):
                 continue
             day_key = now_local.date().isoformat()

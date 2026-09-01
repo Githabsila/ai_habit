@@ -173,7 +173,9 @@ def create_tables():
         theme TEXT DEFAULT 'violet',
         reminders_habits INTEGER DEFAULT 1,
         reminders_streak INTEGER DEFAULT 1,
-        reminders_digests INTEGER DEFAULT 1
+        reminders_digests INTEGER DEFAULT 1,
+        quiet_hours_start INTEGER,
+        quiet_hours_end INTEGER
     )
     """)
 
@@ -204,6 +206,15 @@ def create_tables():
         cursor.execute("ALTER TABLE settings ADD COLUMN reminders_streak INTEGER DEFAULT 1")
     if "reminders_digests" not in settings_columns:
         cursor.execute("ALTER TABLE settings ADD COLUMN reminders_digests INTEGER DEFAULT 1")
+
+    # "Тихие часы" (roadmap #35) — окно локальных часов, в которое не
+    # приходят повседневные напоминания (привычки/ударный режим). Оба
+    # NULL по умолчанию — функция выключена, ничего не меняется для тех,
+    # кто её не настраивал.
+    if "quiet_hours_start" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN quiet_hours_start INTEGER")
+    if "quiet_hours_end" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN quiet_hours_end INTEGER")
 
     # ---------------- HABITS ----------------
     cursor.execute("""

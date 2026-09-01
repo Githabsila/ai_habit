@@ -26,6 +26,7 @@ from db import (
     complete_habit, get_progress, get_settings,
     skip_habit, unskip_habit, HABIT_CATEGORIES,
     update_reminder_time, toggle_reminders, update_ai_style, get_ai_style,
+    set_quiet_hours, clear_quiet_hours,
     get_shop_items, buy_shop_item, get_user_items, get_shop_item,
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
     touch_last_seen,
@@ -282,6 +283,12 @@ async def bootstrap(request):
             "ai_style": get_ai_style(telegram_id),
             "theme_owned": has_item(telegram_id, THEME_ITEM_ID),
             "theme": get_theme(telegram_id),
+            "quiet_hours": (
+                {"start": settings_row["quiet_hours_start"], "end": settings_row["quiet_hours_end"]}
+                if settings_row and "quiet_hours_start" in settings_row.keys()
+                and settings_row["quiet_hours_start"] is not None and settings_row["quiet_hours_end"] is not None
+                else None
+            ),
         },
         "daily_plan": {
             "main_goal": daily_plan["main_goal"],
@@ -663,6 +670,25 @@ async def toggle_reminders_route(request):
     telegram_id, _ = await _authenticate(request)
     enabled = toggle_reminders(telegram_id)
     return web.json_response({"ok": True, "reminders": enabled})
+
+@routes.post("/api/settings/quiet-hours")
+async def set_quiet_hours_route(request):
+    """Roadmap #35 — "тихие часы". body: {"start": 0-23, "end": 0-23} чтобы
+    включить/изменить окно, или {} (оба поля отсутствуют/null) чтобы
+    выключить. start == end отклоняется — это пустое окно."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    start = body.get("start")
+    end = body.get("end")
+
+    if start is None and end is None:
+        clear_quiet_hours(telegram_id)
+        return web.json_response({"ok": True, "quiet_hours": None})
+
+    if not set_quiet_hours(telegram_id, start, end):
+        return web.json_response({"error": "invalid_quiet_hours"}, status=400)
+    return web.json_response({"ok": True, "quiet_hours": {"start": int(start), "end": int(end)}})
+
 
 @routes.post("/api/settings/reset-progress")
 async def reset_progress_route(request):
