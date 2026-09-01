@@ -10,7 +10,7 @@ from config import PREMIUM_PRICE_STARS
 from db import (
     give_premium_admin, set_cosmetic, get_shop_item, add_ai_bonus_answers, log_stars_purchase,
     get_subscription_price_stars, record_subscription_payment, get_subscription_status,
-    try_grant_channel_access,
+    try_grant_channel_access, activate_xp_booster, get_timezone,
 )
 from keyboards import premium_buy_keyboard, back_menu_keyboard, subscription_buy_keyboard
 
@@ -130,6 +130,37 @@ async def successful_payment(message: Message):
             f"✅ Спасибо! {item['name'] if item else 'Пакет ответов'} добавлен к твоему дневному лимиту.",
             reply_markup=back_menu_keyboard()
         )
+        return
+
+    # Roadmap #32: разовый бустер x2 Adam Coin за Telegram Stars.
+    if payload.startswith("booster:"):
+        parts = payload.split(":")
+        try:
+            item_id = int(parts[1])
+            paid_user_id = int(parts[2])
+        except (IndexError, ValueError):
+            return
+        if paid_user_id != message.from_user.id:
+            return
+        item = get_shop_item(item_id)
+        if item and item["item_type"] == "booster_stars":
+            try:
+                hours = int(item["payload"] or 24)
+            except (TypeError, ValueError):
+                hours = 24
+            until = activate_xp_booster(message.from_user.id, hours)
+            log_stars_purchase(message.from_user.id, item_id)
+            try:
+                from datetime import timezone as _tz
+                from zoneinfo import ZoneInfo
+                until_local_dt = until.replace(tzinfo=_tz.utc).astimezone(ZoneInfo(get_timezone(message.from_user.id)))
+                until_local = until_local_dt.strftime("%H:%M %d.%m")
+            except Exception:
+                until_local = until.strftime("%H:%M %d.%m") + " UTC"
+            await message.answer(
+                f"⚡ Бустер x2 Adam Coin активирован до {until_local}! Все привычки в этом окне приносят вдвое больше.",
+                reply_markup=back_menu_keyboard()
+            )
         return
 
     # Пром 13: оплата доступа к боту (триал → подписка).

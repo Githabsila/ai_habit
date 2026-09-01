@@ -524,6 +524,13 @@ def create_tables():
         INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable,daily_limit_per_user)
         VALUES (23,'💬 +100 ответов ADAM','100 дополнительных ответов ADAM — оплата Telegram Stars',280,'answer_pack_stars','100',1,1)
     """)
+    # Roadmap #32 — разовый бустер x2 Adam Coin на N часов, за Telegram
+    # Stars. payload — длительность в часах. Повторная покупка ПРОДЛЕВАЕТ
+    # окно (см. handlers/payments.py), поэтому лимит в день не нужен.
+    cursor.execute("""
+        INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable,daily_limit_per_user)
+        VALUES (24,'⚡ Бустер x2 Adam Coin — 24ч','Все привычки следующие 24 часа приносят вдвое больше Adam Coin',99,'booster_stars','24',1,0)
+    """)
 
     # ---------------- DAILY TASKS ----------------
     cursor.execute("""

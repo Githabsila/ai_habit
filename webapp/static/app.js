@@ -307,6 +307,62 @@
     sub.textContent = parts.join(" · ");
   }
 
+  // Roadmap #32 — баннер активного бустера x2 Adam Coin.
+  function renderBoosterBanner() {
+    const banner = document.getElementById("boosterBanner");
+    const untilEl = document.getElementById("boosterBannerUntil");
+    if (!banner) return;
+    banner.hidden = !state.user?.xp_boosted;
+    if (untilEl && state.user?.xp_boost_until) {
+      try {
+        const until = new Date(state.user.xp_boost_until);
+        untilEl.textContent = ` до ${until.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+      } catch (_) { untilEl.textContent = ""; }
+    }
+  }
+
+  // Roadmap #12 — квесты дня: короткий список с прогресс-баром и кнопкой
+  // "Забрать" у выполненных.
+  function renderDailyQuests() {
+    const wrap = document.getElementById("dailyQuests");
+    const list = document.getElementById("dailyQuestsList");
+    if (!wrap || !list) return;
+    const quests = Array.isArray(state.daily_quests) ? state.daily_quests : [];
+    if (quests.length === 0) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    list.innerHTML = quests.map(q => {
+      const pct = Math.min(100, Math.round(100 * q.progress / q.target));
+      const stateClass = q.claimed ? "is-claimed" : (q.completed ? "is-ready" : "");
+      return `
+      <li class="daily-quest ${stateClass}">
+        <span class="daily-quest__emoji">${q.emoji}</span>
+        <span class="daily-quest__body">
+          <span class="daily-quest__title">${escapeHtml(q.title)}</span>
+          <span class="daily-quest__bar"><span class="daily-quest__bar-fill" style="width:${pct}%"></span></span>
+        </span>
+        ${q.claimed
+          ? `<span class="daily-quest__done">✓</span>`
+          : q.completed
+            ? `<button type="button" class="daily-quest__claim" data-quest="${q.key}">+${q.reward} ${ADAM_COIN_ICON}</button>`
+            : `<span class="daily-quest__progress">${q.progress}/${q.target}</span>`
+        }
+      </li>`;
+    }).join("");
+  }
+
+  // Roadmap #13 — тир лиги + прогресс до следующего, в профиле.
+  function renderLeagueInfo() {
+    const el = document.getElementById("leagueInfo");
+    if (!el) return;
+    const tier = state.user?.league_tier;
+    if (!tier) { el.hidden = true; return; }
+    el.hidden = false;
+    const progress = state.user?.league_progress;
+    el.textContent = progress
+      ? `${tier} · до «${progress.next_tier}» ещё ${progress.xp_needed} XP`
+      : `${tier} · максимальная лига`;
+  }
+
   function renderAll() {
     // Критический путь: сначала только то, что пользователь видит на Главной.
     // Привычки и Ударный режим больше не конкурируют за CPU с магазином,
@@ -316,6 +372,9 @@
     renderPlan();
     renderTodayFocus();
     renderStreak();
+    renderBoosterBanner();
+    renderDailyQuests();
+    renderLeagueInfo();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
     maybeShowAppTour();
@@ -1256,7 +1315,7 @@
       let btnLabel = "Купить";
       let btnClass = "buy-btn";
       let disabled = "";
-      const isStars = it.item_type === "frame_stars" || it.item_type === "answer_pack_stars";
+      const isStars = it.item_type === "frame_stars" || it.item_type === "answer_pack_stars" || it.item_type === "booster_stars";
       const isFrame = it.item_type === "frame";
 
       if (isStars) {
@@ -1417,6 +1476,7 @@
           <div class="rating-podium-card__avatar frame-${escapeHtml(r.frame_id || frame)}">${String(r.avatar_id || "default").startsWith("upload:") ? `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(String(r.avatar_id).split(":")[1])}.jpg" alt="">` : escapeHtml((name[0] || "A").toUpperCase())}</div>
           <div class="rating-podium-card__rank">#${rank}</div>
           <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? "🏅" : ""}</div>
+          ${r.league_tier ? `<div class="rating-podium-card__league">${escapeHtml(r.league_tier)}</div>` : ""}
           ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
           <div class="rating-podium-card__stats"><span>🔥 ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
         </div>`;
@@ -1431,6 +1491,7 @@
         <span class="rating-avatar frame-${escapeHtml(r.frame_id || frame)}">${String(r.avatar_id || "default").startsWith("upload:") ? `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(String(r.avatar_id).split(":")[1])}.jpg" alt="" loading="lazy">` : escapeHtml((name[0] || "A").toUpperCase())}</span>
         <span class="rating-item__name">
           <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
+          ${r.league_tier ? `<small class="rating-item__league">${escapeHtml(r.league_tier)}</small>` : ""}
           ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
         </span>
         <span class="rating-item__meta"><span class="rating-stat"><span class="material-symbols-rounded stat-icon">local_fire_department</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
@@ -1661,7 +1722,8 @@ function closeAddCollapse(collapseId) {
 // /complete, и из /progress (когда счётчик как раз достиг цели), чтобы не
 // дублировать монеты/streak/идеальный-день/цепочку в двух местах.
 async function celebrateHabitCompletion(result) {
-  const coinText = `+${result.coins || 10} Adam Coin` + (result.doubled ? " ⚡️×2" : "");
+  const boostTag = result.xp_boosted ? " ⚡x2 бустер" : (result.doubled ? " ⚡️×2" : "");
+  const coinText = `+${result.coins || 10} Adam Coin` + boostTag;
   showToast(coinText, "praise");
   if (result.streak_event) {
     pendingBonusIntro = !!result.show_bonus_intro;
@@ -1768,6 +1830,27 @@ function compressImageToDataUrl(file) {
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
+  });
+}
+
+// Roadmap #12 — клик "Забрать" у выполненного квеста дня.
+function initDailyQuestActions() {
+  const list = document.getElementById("dailyQuestsList");
+  if (!list) return;
+  list.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".daily-quest__claim");
+    if (!btn) return;
+    const questKey = btn.dataset.quest;
+    btn.disabled = true;
+    try {
+      const result = await api(`/api/quests/${questKey}/claim`, { method: "POST" });
+      haptic("medium");
+      showToast(`+${result.reward} Adam Coin`, "praise");
+      await loadBootstrap();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+      btn.disabled = false;
+    }
   });
 }
 
@@ -2760,6 +2843,7 @@ async function boot() {
         initAppTour();
         initTabs();
         initHabitActions();
+        initDailyQuestActions();
         initPlanActions();
         initShopActions();
         initProfileAvatarActions();

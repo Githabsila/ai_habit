@@ -106,6 +106,8 @@ style="width:0%">
 
 </header>
 
+<div class="booster-banner" id="boosterBanner" hidden>⚡ Бустер x2 Adam Coin активен<span id="boosterBannerUntil"></span></div>
+
 <main id="content">
 
 <!-- ===================== HOME ===================== -->
@@ -117,6 +119,11 @@ style="width:0%">
     <div class="today-focus__title" id="todayFocusTitle">Сегодня осталось: 0</div>
     <div class="today-focus__sub" id="todayFocusSub"></div>
   </div>
+</div>
+
+<div class="daily-quests" id="dailyQuests" hidden>
+  <div class="daily-quests__title">🗺️ Квесты дня</div>
+  <ul class="daily-quests__list" id="dailyQuestsList"></ul>
 </div>
 
 <div class="streak-widget streak-widget--hero" id="streakWidget">
@@ -448,6 +455,7 @@ class="habit-add-form__submit">
   <div class="progress-stat"><b id="progressStatXp">0</b><small>Adam Coin за неделю</small></div>
 </div>
 
+<div class="progress-insight" id="leagueInfo" hidden></div>
 <div class="progress-insight" id="progressComparison" hidden></div>
 <div class="progress-insight" id="progressForecast" hidden></div>
 
@@ -746,7 +754,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260901_HABIT_COUNTERS_V1"></script>
+<script type="module" src="/static/app.js?v=20260901_QUESTS_LEAGUES_BOOSTER_V1"></script>
 
 </body>
 </html>

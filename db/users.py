@@ -231,6 +231,50 @@ def give_premium_admin(user_id):
 
 
 # =====================================
+# Roadmap #32 — разовый бустер x2 Adam Coin за Telegram Stars
+# =====================================
+
+def activate_xp_booster(user_id, hours):
+    """Продлевает окно x2 Adam Coin — повторная покупка ДОБАВЛЯЕТ время
+    поверх уже активного окна (а не просто переустанавливает его), а не
+    начинает 24ч заново с текущего момента, если предыдущий бустер ещё не
+    истёк — иначе покупка про запас была бы невыгодной."""
+    from datetime import datetime, timezone, timedelta
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT bonus_2x_xp_until FROM users WHERE telegram_id=?", (user_id,))
+    row = cursor.fetchone()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    current_until = None
+    if row and row["bonus_2x_xp_until"]:
+        try:
+            current_until = datetime.fromisoformat(str(row["bonus_2x_xp_until"]))
+        except ValueError:
+            current_until = None
+    base = current_until if (current_until and current_until > now) else now
+    new_until = base + timedelta(hours=hours)
+    cursor.execute(
+        "UPDATE users SET bonus_2x_xp_until=? WHERE telegram_id=?",
+        (new_until.isoformat(), user_id),
+    )
+    conn.commit()
+    conn.close()
+    return new_until
+
+
+def is_xp_booster_active(user_id):
+    from datetime import datetime, timezone
+    user = get_user(user_id)
+    if not user or "bonus_2x_xp_until" not in user.keys() or not user["bonus_2x_xp_until"]:
+        return False
+    try:
+        until = datetime.fromisoformat(str(user["bonus_2x_xp_until"]))
+    except ValueError:
+        return False
+    return until > datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# =====================================
 # Adam Coin
 # =====================================
 
@@ -396,7 +440,7 @@ def get_rating(limit=10):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT telegram_id, username, first_name, xp, level, streak, avatar_id, frame_id
+        SELECT telegram_id, username, first_name, xp, level, streak, avatar_id, frame_id, total_xp
         FROM users
         WHERE banned=0
         ORDER BY streak DESC, xp DESC

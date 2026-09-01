@@ -32,7 +32,12 @@ from .users import (
     claim_daily_bonus,
     get_last_ai_message_at,
     touch_last_ai_message,
+    activate_xp_booster, is_xp_booster_active,
 )
+
+from .quests import get_daily_quests, claim_daily_quest, QUEST_DEFINITIONS
+
+from .leagues import get_league_tier, get_league_progress, LEAGUE_TIERS
 
 from .settings import (
     get_settings,
@@ -218,6 +223,9 @@ __all__ = [
     "set_referrer", "add_referral", "get_referrals",
     "get_rating", "get_user_rank", "claim_daily_bonus",
     "get_last_ai_message_at", "touch_last_ai_message", "claim_ai_first_message",
+    "activate_xp_booster", "is_xp_booster_active",
+    "get_daily_quests", "claim_daily_quest", "QUEST_DEFINITIONS",
+    "get_league_tier", "get_league_progress", "LEAGUE_TIERS",
     "touch_last_seen", "get_dau", "get_subscription_conversion",
     "get_ai_usage_today", "get_habit_completion_rate",
     "get_survey_funnel", "get_first_ai_message_funnel",

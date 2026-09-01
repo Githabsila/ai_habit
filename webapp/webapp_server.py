@@ -50,6 +50,9 @@ from db import (
     increment_habit_progress, get_weekly_progress,
     add_habit_note, get_recent_habit_notes,
     MAX_TARGET_COUNT, MAX_FREQUENCY_PER_WEEK,
+    get_daily_quests, claim_daily_quest,
+    get_league_tier, get_league_progress,
+    is_xp_booster_active,
 )
 
 from datetime import date, datetime, timezone
@@ -256,7 +259,12 @@ async def bootstrap(request):
             "avatar_id": user["avatar_id"] if user else "default",
             "frame_id": user["frame_id"] if user else "default",
             "is_admin": is_admin,
+            "league_tier": get_league_tier(user["total_xp"] if user else 0),
+            "league_progress": get_league_progress(user["total_xp"] if user else 0),
+            "xp_boosted": is_xp_booster_active(telegram_id),
+            "xp_boost_until": user["bonus_2x_xp_until"] if user and "bonus_2x_xp_until" in user.keys() else None,
         },
+        "daily_quests": get_daily_quests(telegram_id),
         "monthly_progress": get_monthly_progress(telegram_id),
         "habits": [
             {
@@ -314,6 +322,23 @@ async def bootstrap(request):
             "until": bonus_until_dt.isoformat() if bonus_active else None,
         },
     })
+
+
+@routes.get("/api/quests")
+async def daily_quests_route(request):
+    """Roadmap #12 — ежедневные микро-квесты на сегодня."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({"quests": get_daily_quests(telegram_id)})
+
+
+@routes.post("/api/quests/{quest_key}/claim")
+async def claim_quest_route(request):
+    telegram_id, _ = await _authenticate(request)
+    quest_key = request.match_info["quest_key"]
+    reward = claim_daily_quest(telegram_id, quest_key)
+    if reward is None:
+        return web.json_response({"error": "quest_not_claimable"}, status=400)
+    return web.json_response({"ok": True, "reward": reward, "progress": get_progress(telegram_id)})
 
 
 @routes.get("/api/bootstrap-secondary")
@@ -374,6 +399,7 @@ async def bootstrap_secondary(request):
                 "avatar_id": row["avatar_id"] if "avatar_id" in row.keys() else "default",
                 "frame_id": row["frame_id"] if "frame_id" in row.keys() else "default",
                 "streak_status": get_streak_status(row["telegram_id"]),
+                "league_tier": get_league_tier(row["total_xp"] if "total_xp" in row.keys() else row["xp"]),
             }
             for row in leaderboard
         ]
@@ -622,6 +648,7 @@ async def complete_habit_route(request):
             {"message": month_reward_message, **month_reward_event} if month_reward_event else None
         ),
         "chain_suggestion": success.get("chain_suggestion"),
+        "xp_boosted": success.get("xp_boosted", False),
     })
 
 
@@ -702,6 +729,7 @@ async def habit_progress_route(request):
         "perfect_day_message": perfect_day_message,
         "monthly_progress": get_monthly_progress(telegram_id),
         "chain_suggestion": result.get("chain_suggestion"),
+        "xp_boosted": result.get("xp_boosted", False),
     })
 
 
@@ -1361,7 +1389,7 @@ async def create_stars_invoice(request):
     telegram_id, _ = await _authenticate(request)
     item_id = int(request.match_info["item_id"])
     item = get_shop_item(item_id)
-    if not item or item["item_type"] not in ("frame_stars", "answer_pack_stars"):
+    if not item or item["item_type"] not in ("frame_stars", "answer_pack_stars", "booster_stars"):
         return web.json_response({"error": "stars_item_not_found"}, status=404)
 
     if item["item_type"] == "frame_stars":
@@ -1371,6 +1399,12 @@ async def create_stars_invoice(request):
         title = "ADAM — Double Gold"
         description = "Премиальная рамка с двойной позолотой и подсветкой для аватарки."
         payload = f"avatar_frame:{item_id}:{telegram_id}"
+    elif item["item_type"] == "booster_stars":
+        # Roadmap #32 — повторная покупка продлевает окно (см.
+        # activate_xp_booster), поэтому дневной лимит здесь не нужен.
+        title = item["name"]
+        description = item["description"]
+        payload = f"booster:{item_id}:{telegram_id}"
     else:
         # Пром 9: пакеты +50/+100 ответов ADAM за Stars — не больше 1 раза
         # в день каждый, как и монетные пакеты (см. has_reached_daily_limit).

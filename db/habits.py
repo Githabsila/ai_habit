@@ -611,6 +611,15 @@ def complete_habit(habit_id):
 
     coins += priority_bonus + loyalty_bonus
 
+    # Roadmap #32 — разовый бустер x2 Adam Coin (куплен за Telegram Stars,
+    # см. db/users.py::activate_xp_booster) — умножает ИТОГОВУЮ сумму
+    # (после всех остальных бонусов), в отличие от doubled (окно
+    # удвоения за подряд идущие привычки), которое множит только базу.
+    from .users import is_xp_booster_active
+    xp_boosted = is_xp_booster_active(user_id)
+    if xp_boosted:
+        coins *= 2
+
     if total_habits > 1 and remaining_incomplete > 0:
         new_window_until = now + timedelta(minutes=BONUS_WINDOW_MINUTES)
         set_bonus_window(user_id, new_window_until)
@@ -674,6 +683,7 @@ def complete_habit(habit_id):
         "monthly_point_awarded": monthly_point_awarded,
         "perfect_day": perfect_day,
         "chain_suggestion": chain_suggestion,
+        "xp_boosted": xp_boosted,
     }
 
 
