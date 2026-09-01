@@ -31,6 +31,25 @@ HABIT_CATEGORIES = {
 LOYALTY_BONUS_PER_STREAK_DAYS = 10
 LOYALTY_BONUS_CAP = 5
 
+# Roadmap #1 — привычки-счётчики ("выпить 4 стакана воды"): предел, чтобы
+# не заводили счётчик на тысячи повторений.
+MAX_TARGET_COUNT = 20
+
+# Roadmap #2 — гибкая периодичность: сколько раз в неделю максимум можно
+# требовать (7 = по сути "каждый день", тогда проще оставить NULL).
+MAX_FREQUENCY_PER_WEEK = 6
+
+# Roadmap #3 — заметка/фото к выполненной привычке.
+MAX_NOTE_LENGTH = 300
+# ~180 КБ на строку data:URL с запасом хватает под мелкое превью (клиент
+# сжимает фото в canvas перед отправкой, см. app.js::compressImageToDataUrl).
+MAX_PHOTO_DATA_URL_LENGTH = 180_000
+
+
+# Сентинел "аргумент не передан" — отличаем от валидного None у
+# frequency_per_week (см. edit_habit).
+_UNSET = object()
+
 
 # =====================================
 # ПРИВЫЧКИ
@@ -76,19 +95,53 @@ def can_add_habit(user_id):
     return True, None
 
 
-def add_habit(user_id, title, planned_time=None, time_window_minutes=60, category=None, priority=1):
+def _clamp_target_count(target_count):
+    if target_count is None:
+        return 1
+    try:
+        target_count = int(target_count)
+    except (TypeError, ValueError):
+        return 1
+    return max(1, min(target_count, MAX_TARGET_COUNT))
+
+
+def _clamp_frequency_per_week(frequency_per_week):
+    if frequency_per_week is None:
+        return None
+    try:
+        frequency_per_week = int(frequency_per_week)
+    except (TypeError, ValueError):
+        return None
+    if frequency_per_week <= 0:
+        return None
+    return min(frequency_per_week, MAX_FREQUENCY_PER_WEEK)
+
+
+def add_habit(user_id, title, planned_time=None, time_window_minutes=60, category=None,
+               priority=1, target_count=1, frequency_per_week=None, chain_trigger_habit_id=None):
     ok, reason = can_add_habit(user_id)
     if not ok:
         raise ValueError(reason)
     if category is not None and category not in HABIT_CATEGORIES:
         category = None
     priority = 2 if int(priority or 1) >= 2 else 1
+    target_count = _clamp_target_count(target_count)
+    frequency_per_week = _clamp_frequency_per_week(frequency_per_week)
+    # Привычка-триггер должна принадлежать тому же пользователю — иначе
+    # игнорируем (защита от чужого id, которого фронт вообще не должен
+    # присылать, но лучше перестраховаться на уровне БД).
+    if chain_trigger_habit_id is not None:
+        trigger = get_habit(chain_trigger_habit_id)
+        if trigger is None or trigger["user_id"] != user_id:
+            chain_trigger_habit_id = None
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO habits(user_id, title, assigned_at, reminder_sent, planned_time, time_window_minutes, category, priority)
-        VALUES (?, ?, CURRENT_TIMESTAMP, 0, ?, ?, ?, ?)
-    """, (user_id, title, planned_time, int(time_window_minutes or 60), category, priority))
+        INSERT INTO habits(user_id, title, assigned_at, reminder_sent, planned_time, time_window_minutes,
+                            category, priority, target_count, frequency_per_week, chain_trigger_habit_id)
+        VALUES (?, ?, CURRENT_TIMESTAMP, 0, ?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, title, planned_time, int(time_window_minutes or 60), category, priority,
+          target_count, frequency_per_week, chain_trigger_habit_id))
     conn.commit()
     conn.close()
 
@@ -111,20 +164,43 @@ def get_habit(habit_id):
     return habit
 
 
-def edit_habit(habit_id, new_title, planned_time=None, time_window_minutes=None, category=None, priority=None):
+def edit_habit(habit_id, new_title, planned_time=None, time_window_minutes=None, category=None,
+                priority=None, target_count=None, frequency_per_week=_UNSET):
     if category is not None and category not in HABIT_CATEGORIES:
         category = None
     if priority is not None:
         priority = 2 if int(priority) >= 2 else 1
+    if target_count is not None:
+        target_count = _clamp_target_count(target_count)
+    # frequency_per_week допускает явный сброс на "каждый день" (None),
+    # поэтому отличаем "не передали" (_UNSET, оставить как было) от
+    # "передали None" (снять периодичность) через отдельный сентинел.
+    if frequency_per_week is _UNSET:
+        freq_clause, freq_val = "frequency_per_week", None
+        use_coalesce = True
+    else:
+        freq_clause, freq_val = "?", _clamp_frequency_per_week(frequency_per_week)
+        use_coalesce = False
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE habits SET title=?, planned_time=COALESCE(?, planned_time), "
-        "time_window_minutes=COALESCE(?, time_window_minutes), "
-        "category=COALESCE(?, category), priority=COALESCE(?, priority), "
-        "reminder_sent=0 WHERE id=?",
-        (new_title, planned_time, time_window_minutes, category, priority, habit_id),
-    )
+    if use_coalesce:
+        cursor.execute(
+            "UPDATE habits SET title=?, planned_time=COALESCE(?, planned_time), "
+            "time_window_minutes=COALESCE(?, time_window_minutes), "
+            "category=COALESCE(?, category), priority=COALESCE(?, priority), "
+            "target_count=COALESCE(?, target_count), "
+            "reminder_sent=0 WHERE id=?",
+            (new_title, planned_time, time_window_minutes, category, priority, target_count, habit_id),
+        )
+    else:
+        cursor.execute(
+            "UPDATE habits SET title=?, planned_time=COALESCE(?, planned_time), "
+            "time_window_minutes=COALESCE(?, time_window_minutes), "
+            "category=COALESCE(?, category), priority=COALESCE(?, priority), "
+            "target_count=COALESCE(?, target_count), frequency_per_week=?, "
+            "reminder_sent=0 WHERE id=?",
+            (new_title, planned_time, time_window_minutes, category, priority, target_count, freq_val, habit_id),
+        )
     conn.commit()
     conn.close()
 
@@ -180,24 +256,47 @@ def reset_habits():
     # день значит задача "выдана" заново, и 2-часовой отсчёт для
     # напоминаний (см. get_habits_needing_reminder) начинается с нуля.
     cursor.execute("""
-        UPDATE habits SET completed=0, assigned_at=CURRENT_TIMESTAMP, reminder_sent=0, skip_reason=NULL
+        UPDATE habits SET completed=0, assigned_at=CURRENT_TIMESTAMP, reminder_sent=0,
+                           skip_reason=NULL, progress_count=0
     """)
     conn.commit()
     conn.close()
 
 
+# Условие "неделя уже закрыта" для гибкой периодичности (roadmap #2) — общее
+# для get_incomplete_habits и get_habits_needing_reminder: если у привычки
+# задан frequency_per_week, а выполнений с начала недели (пн) уже хватает,
+# она не считается "невыполненной" сегодня, даже если completed=0.
+_WEEKLY_QUOTA_MET_SQL = """
+    (h.frequency_per_week IS NULL OR (
+        COALESCE((
+            SELECT COUNT(*) FROM habit_logs hl
+            WHERE hl.habit_id = h.id AND hl.completed = 1 AND hl.day >= ?
+        ), 0) < h.frequency_per_week
+    ))
+"""
+
+
+def _monday_of(local_today):
+    return str(local_today - timedelta(days=local_today.weekday()))
+
+
 def get_incomplete_habits(user_id):
     """Привычки пользователя, ещё не отмеченные выполненными сегодня — не
-    считая осознанно пропущенных (skip_reason) — используется для
-    контрольной точки в 22:00 (coach.run_hard_deadline_check). Важные
+    считая осознанно пропущенных (skip_reason) и привычек с гибкой
+    периодичностью, недельная норма которых уже выполнена — используется
+    для контрольной точки в 22:00 (coach.run_hard_deadline_check). Важные
     привычки (priority=2) идут первыми — на них и стоит обращать внимание
     в первую очередь в напоминании."""
+    from .streak import local_today
+    monday = _monday_of(local_today(user_id))
     conn = connect()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT * FROM habits WHERE user_id=? AND completed=0 AND skip_reason IS NULL "
-        "ORDER BY priority DESC, id DESC",
-        (user_id,)
+        f"SELECT h.* FROM habits h WHERE h.user_id=? AND h.completed=0 AND h.skip_reason IS NULL "
+        f"AND {_WEEKLY_QUOTA_MET_SQL} "
+        f"ORDER BY h.priority DESC, h.id DESC",
+        (user_id, monday)
     )
     habits = cursor.fetchall()
     conn.close()
@@ -210,20 +309,131 @@ def get_habits_needing_reminder(user_id, hours=2):
     при создании и обновляется каждый день в reset_habits()), и по которым
     сегодня ещё не отправляли индивидуальное напоминание — используется
     coach.run_task_reminder_check для точечных пингов по каждой задаче
-    отдельно, в отличие от общей рассылки reminders.py."""
+    отдельно, в отличие от общей рассылки reminders.py. Привычки с гибкой
+    периодичностью (roadmap #2), недельная норма которых уже выполнена, не
+    напоминаются."""
+    from .streak import local_today
+    monday = _monday_of(local_today(user_id))
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT * FROM habits
-        WHERE user_id=?
-          AND completed=0
-          AND reminder_sent=0
-          AND skip_reason IS NULL
-          AND assigned_at <= datetime('now', ?)
-    """, (user_id, f"-{hours} hours"))
+    cursor.execute(f"""
+        SELECT h.* FROM habits h
+        WHERE h.user_id=?
+          AND h.completed=0
+          AND h.reminder_sent=0
+          AND h.skip_reason IS NULL
+          AND h.assigned_at <= datetime('now', ?)
+          AND {_WEEKLY_QUOTA_MET_SQL}
+    """, (user_id, f"-{hours} hours", monday))
     habits = cursor.fetchall()
     conn.close()
     return habits
+
+
+def get_weekly_progress(habit_id, user_id):
+    """Сколько раз привычка с гибкой периодичностью (roadmap #2) уже
+    выполнена с начала текущей недели (пн, по локальному времени
+    пользователя), включая сегодня — используется и для отображения
+    "2/3 на этой неделе" на фронте, и внутри _WEEKLY_QUOTA_MET_SQL."""
+    from .streak import local_today
+    today = local_today(user_id)
+    monday = _monday_of(today)
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) as cnt FROM habit_logs WHERE habit_id=? AND completed=1 AND day>=? AND day<?",
+        (habit_id, monday, str(today)),
+    )
+    done_before_today = cursor.fetchone()["cnt"]
+    cursor.execute("SELECT completed FROM habits WHERE id=?", (habit_id,))
+    row = cursor.fetchone()
+    conn.close()
+    today_done = 1 if (row and row["completed"]) else 0
+    return done_before_today + today_done
+
+
+def increment_habit_progress(habit_id, amount=1):
+    """Roadmap #1 — прибавляет прогресс к привычке-счётчику ("выпить 4
+    стакана воды"). Как только progress_count достигает target_count,
+    сама вызывает complete_habit() (со всеми монетами/streak/ачивками) —
+    для обычных привычек (target_count=1) поведение не меняется, просто
+    сразу достигают цели с первого нажатия."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM habits WHERE id=?", (habit_id,))
+    habit = cursor.fetchone()
+    if habit is None or habit["completed"] == 1:
+        conn.close()
+        return None
+    target = habit["target_count"] if ("target_count" in habit.keys() and habit["target_count"]) else 1
+    current = habit["progress_count"] if ("progress_count" in habit.keys() and habit["progress_count"]) else 0
+    new_progress = min(current + max(1, int(amount or 1)), target)
+    cursor.execute("UPDATE habits SET progress_count=? WHERE id=?", (new_progress, habit_id))
+    conn.commit()
+    conn.close()
+    if new_progress >= target:
+        result = complete_habit(habit_id)
+        if result:
+            result["progress_count"] = new_progress
+            result["target_count"] = target
+            result["just_completed"] = True
+        return result
+    return {"just_completed": False, "progress_count": new_progress, "target_count": target}
+
+
+# =====================================
+# ЗАМЕТКА/ФОТО К ВЫПОЛНЕННОЙ ПРИВЫЧКЕ (roadmap #3)
+# =====================================
+
+def add_habit_note(user_id, habit_id, note=None, photo_data_url=None):
+    """Заметка и/или мини-фото к сегодняшней отметке привычки — 'дневник
+    прогресса'. Одна запись на привычку в день (UNIQUE(habit_id, day)),
+    повторное сохранение в тот же день просто перезаписывает. Фото —
+    сжатая на клиенте data:image/... строка (без внешнего файлового
+    хранилища), с потолком по размеру, чтобы не раздувать БД."""
+    note = (note or "").strip()[:MAX_NOTE_LENGTH] or None
+    photo_data_url = (photo_data_url or "").strip() or None
+    if photo_data_url and (
+        not photo_data_url.startswith("data:image/") or len(photo_data_url) > MAX_PHOTO_DATA_URL_LENGTH
+    ):
+        photo_data_url = None
+    if not note and not photo_data_url:
+        return False
+    day = _local_day(user_id)
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO habit_notes(user_id, habit_id, day, note, photo_data_url) VALUES (?,?,?,?,?) "
+        "ON CONFLICT(habit_id, day) DO UPDATE SET note=excluded.note, photo_data_url=excluded.photo_data_url",
+        (user_id, habit_id, day, note, photo_data_url),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_habit_note(habit_id, day):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM habit_notes WHERE habit_id=? AND day=?", (habit_id, day))
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+
+def get_recent_habit_notes(user_id, limit=30):
+    """'Дневник' — последние заметки/фото по всем привычкам пользователя,
+    новые сверху."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM habit_notes WHERE user_id=? AND (note IS NOT NULL OR photo_data_url IS NOT NULL) "
+        "ORDER BY day DESC, id DESC LIMIT ?",
+        (user_id, limit),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
 
 
 def mark_habit_reminder_sent(habit_id):
@@ -343,7 +553,23 @@ def complete_habit(habit_id):
 
     user_id = habit["user_id"]
 
-    cursor.execute("UPDATE habits SET completed=1 WHERE id=?", (habit_id,))
+    # Если привычку отметили напрямую (не через increment_habit_progress),
+    # а у неё был счётчик (target_count>1) — дотягиваем progress_count до
+    # цели, чтобы на фронте не осталась "2/4" у уже выполненной привычки.
+    cursor.execute(
+        "UPDATE habits SET completed=1, "
+        "progress_count=CASE WHEN target_count>1 THEN target_count ELSE progress_count END "
+        "WHERE id=?",
+        (habit_id,),
+    )
+
+    # Roadmap #23/#36 — журнал МОМЕНТОВ выполнения (час/минута), на котором
+    # позже считается "обычно ты выполняешь это в районе 8 утра" (см.
+    # db/insights.py::suggest_optimal_reminder_time).
+    cursor.execute(
+        "INSERT INTO habit_completion_events(user_id, habit_id) VALUES (?, ?)",
+        (user_id, habit_id),
+    )
 
     cursor.execute("""
         UPDATE users SET total_completed = total_completed + 1
@@ -417,6 +643,24 @@ def complete_habit(habit_id):
     monthly_point_awarded = completed_today == MULTI_HABIT_THRESHOLD
     perfect_day = remaining_incomplete == 0 and completed_today >= MULTI_HABIT_THRESHOLD
 
+    # Roadmap #7 — цепочки привычек: "сделал А → предложи Б". Если на эту
+    # привычку как на триггер настроена другая (chain_trigger_habit_id) и
+    # она сегодня ещё не выполнена/не пропущена — подсказываем её фронту
+    # мягким тостом-предложением (не автовыполнение, выбор остаётся за
+    # пользователем).
+    chain_suggestion = None
+    conn2 = connect()
+    cursor2 = conn2.cursor()
+    cursor2.execute(
+        "SELECT id, title FROM habits WHERE chain_trigger_habit_id=? AND user_id=? "
+        "AND completed=0 AND skip_reason IS NULL LIMIT 1",
+        (habit_id, user_id),
+    )
+    chained = cursor2.fetchone()
+    conn2.close()
+    if chained:
+        chain_suggestion = {"habit_id": chained["id"], "title": chained["title"]}
+
     return {
         "coins": coins,
         "doubled": doubled,
@@ -429,6 +673,7 @@ def complete_habit(habit_id):
         "bonus_until": new_window_until.isoformat() if new_window_until else None,
         "monthly_point_awarded": monthly_point_awarded,
         "perfect_day": perfect_day,
+        "chain_suggestion": chain_suggestion,
     }
 
 

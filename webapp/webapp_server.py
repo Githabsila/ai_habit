@@ -47,6 +47,9 @@ from db import (
     get_monthly_progress, consume_month_end_reward_event,
     get_subscription_status, try_grant_channel_access, bot_access_allowed,
     should_show_app_tour, mark_app_tour_seen,
+    increment_habit_progress, get_weekly_progress,
+    add_habit_note, get_recent_habit_notes,
+    MAX_TARGET_COUNT, MAX_FREQUENCY_PER_WEEK,
 )
 
 from datetime import date, datetime, timezone
@@ -265,6 +268,14 @@ async def bootstrap(request):
                 "category": h["category"] if "category" in h.keys() else None,
                 "priority": h["priority"] if "priority" in h.keys() and h["priority"] else 1,
                 "skip_reason": h["skip_reason"] if "skip_reason" in h.keys() else None,
+                "target_count": h["target_count"] if "target_count" in h.keys() and h["target_count"] else 1,
+                "progress_count": h["progress_count"] if "progress_count" in h.keys() and h["progress_count"] else 0,
+                "frequency_per_week": h["frequency_per_week"] if "frequency_per_week" in h.keys() else None,
+                "weekly_progress": (
+                    get_weekly_progress(h["id"], telegram_id)
+                    if "frequency_per_week" in h.keys() and h["frequency_per_week"] else None
+                ),
+                "chain_trigger_habit_id": h["chain_trigger_habit_id"] if "chain_trigger_habit_id" in h.keys() else None,
             }
             for h in habits
         ],
@@ -410,9 +421,30 @@ async def create_habit(request):
     if category not in HABIT_CATEGORIES:
         category = None
     priority = 2 if body.get("priority") == 2 else 1
+    try:
+        target_count = int(body.get("target_count") or 1)
+    except (TypeError, ValueError):
+        target_count = 1
+    target_count = max(1, min(target_count, MAX_TARGET_COUNT))
+    frequency_per_week = body.get("frequency_per_week")
+    try:
+        frequency_per_week = int(frequency_per_week) if frequency_per_week else None
+    except (TypeError, ValueError):
+        frequency_per_week = None
+    if frequency_per_week is not None:
+        frequency_per_week = max(1, min(frequency_per_week, MAX_FREQUENCY_PER_WEEK))
+    chain_trigger_habit_id = body.get("chain_trigger_habit_id")
+    try:
+        chain_trigger_habit_id = int(chain_trigger_habit_id) if chain_trigger_habit_id else None
+    except (TypeError, ValueError):
+        chain_trigger_habit_id = None
     had_habits = bool(get_habits(telegram_id))
     try:
-        add_habit(telegram_id, title, planned_time=planned_time, category=category, priority=priority)
+        add_habit(
+            telegram_id, title, planned_time=planned_time, category=category, priority=priority,
+            target_count=target_count, frequency_per_week=frequency_per_week,
+            chain_trigger_habit_id=chain_trigger_habit_id,
+        )
     except ValueError as exc:
         # habit_limit — уже максимум 7 привычек; habit_add_locked — сегодня
         # уже была отметка + удаление привычки, добавление заблокировано до
@@ -434,6 +466,10 @@ async def create_habit(request):
             "planned_time": created["planned_time"] if created and "planned_time" in created.keys() else None,
             "category": created["category"] if created and "category" in created.keys() else None,
             "priority": created["priority"] if created and "priority" in created.keys() and created["priority"] else 1,
+            "target_count": created["target_count"] if created and "target_count" in created.keys() and created["target_count"] else 1,
+            "progress_count": 0,
+            "frequency_per_week": created["frequency_per_week"] if created and "frequency_per_week" in created.keys() else None,
+            "chain_trigger_habit_id": created["chain_trigger_habit_id"] if created and "chain_trigger_habit_id" in created.keys() else None,
         } if created else None,
         "onboarding_message": onboarding_message(telegram_id) if first_habit else None,
     })
@@ -455,11 +491,17 @@ async def rename_habit(request):
     if category is not None and category not in HABIT_CATEGORIES:
         category = None
     priority = body.get("priority") if "priority" in body else None
+    target_count = body.get("target_count") if "target_count" in body else None
+    edit_kwargs = {}
+    if "frequency_per_week" in body:
+        # None явно означает "снять периодичность, вернуть к ежедневной" —
+        # отличаем от "поле вообще не прислали" (см. edit_habit's _UNSET).
+        edit_kwargs["frequency_per_week"] = body.get("frequency_per_week")
     # edit_habit(planned_time=...) через COALESCE обновил бы NULL как
     # "не менять" — а нам как раз нужно уметь ОЧИЩАТЬ время (пользователь
     # снял галочку "напоминать"), поэтому колонку планового времени
     # обновляем отдельным явным запросом, а не через edit_habit().
-    edit_habit(habit_id, new_title, category=category, priority=priority)
+    edit_habit(habit_id, new_title, category=category, priority=priority, target_count=target_count, **edit_kwargs)
     if "planned_time" in body:
         from db.core import connect
         conn = connect()
@@ -579,7 +621,127 @@ async def complete_habit_route(request):
         "month_end_reward": (
             {"message": month_reward_message, **month_reward_event} if month_reward_event else None
         ),
+        "chain_suggestion": success.get("chain_suggestion"),
     })
+
+
+@routes.post("/api/habits/{habit_id}/progress")
+async def habit_progress_route(request):
+    """Roadmap #1 — привычка-счётчик ("выпить 4 стакана"): +1 (или body.amount)
+    к прогрессу. Как только прогресс достигает target_count, поведение
+    полностью совпадает с complete_habit_route (те же монеты/streak/
+    ачивки/цепочки) — просто достигается через несколько нажатий вместо
+    одного."""
+    telegram_id, _ = await _authenticate(request)
+    habit_id = int(request.match_info["habit_id"])
+    _owned_habit_or_404(habit_id, telegram_id)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        body = {}
+    try:
+        amount = int(body.get("amount") or 1)
+    except (TypeError, ValueError):
+        amount = 1
+    amount = max(1, min(amount, MAX_TARGET_COUNT))
+
+    result = increment_habit_progress(habit_id, amount=amount)
+    if result is None:
+        return web.json_response({"error": "already_completed"}, status=409)
+
+    if not result.get("just_completed"):
+        return web.json_response({
+            "ok": True,
+            "just_completed": False,
+            "progress_count": result["progress_count"],
+            "target_count": result["target_count"],
+        })
+
+    # Цель достигнута этим нажатием — привычка только что выполнена целиком,
+    # дальше то же самое, что и в complete_habit_route (streak-событие,
+    # доступ в канал, окно удвоения, идеальный день).
+    event = consume_completion_event(telegram_id)
+    streak = get_streak_status(telegram_id)
+    if event:
+        try:
+            await _push(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{event['message']}")
+        except Exception:
+            logger.exception("Не удалось отправить streak-сообщение")
+
+    bot = request.app.get("bot")
+    if bot is not None:
+        try:
+            invite = await try_grant_channel_access(bot, telegram_id)
+            if invite:
+                await _push(
+                    request.app, telegram_id,
+                    f"🔑 Ты выполнил нужную серию ударного режима подряд — вот ссылка в закрытый канал: {invite}",
+                )
+        except Exception:
+            logger.exception("Не удалось выдать доступ в закрытый канал")
+
+    show_bonus_intro = bool(event) and bool(result["bonus_active"])
+    perfect_day_message = (
+        format_perfect_habit_streak_message(result["total_habits"])
+        if result.get("perfect_day") else None
+    )
+
+    return web.json_response({
+        "ok": True,
+        "just_completed": True,
+        "progress_count": result["progress_count"],
+        "target_count": result["target_count"],
+        "progress": get_progress(telegram_id),
+        "streak": streak,
+        "streak_event": event,
+        "coins": result["coins"],
+        "doubled": result["doubled"],
+        "bonus_active": result["bonus_active"],
+        "bonus_until": result["bonus_until"],
+        "show_bonus_intro": show_bonus_intro,
+        "perfect_day_message": perfect_day_message,
+        "monthly_progress": get_monthly_progress(telegram_id),
+        "chain_suggestion": result.get("chain_suggestion"),
+    })
+
+
+@routes.post("/api/habits/{habit_id}/note")
+async def habit_note_route(request):
+    """Roadmap #3 — заметка и/или мини-фото к сегодняшней отметке привычки."""
+    telegram_id, _ = await _authenticate(request)
+    habit_id = int(request.match_info["habit_id"])
+    _owned_habit_or_404(habit_id, telegram_id)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    ok = add_habit_note(
+        telegram_id, habit_id,
+        note=body.get("note"), photo_data_url=body.get("photo_data_url"),
+    )
+    if not ok:
+        return web.json_response({"error": "empty_note"}, status=400)
+    return web.json_response({"ok": True})
+
+
+@routes.get("/api/habits/notes")
+async def habit_notes_route(request):
+    """Roadmap #3 — 'дневник прогресса': последние заметки/фото по всем
+    привычкам, новые сверху."""
+    telegram_id, _ = await _authenticate(request)
+    notes = get_recent_habit_notes(telegram_id, limit=40)
+    return web.json_response({
+        "notes": [
+            {
+                "habit_id": n["habit_id"],
+                "day": n["day"],
+                "note": n["note"],
+                "photo_data_url": n["photo_data_url"],
+            }
+            for n in notes
+        ]
+    })
+
 
 @routes.delete("/api/habits/{habit_id}")
 async def delete_habit_route(request):

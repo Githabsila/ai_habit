@@ -1087,6 +1087,17 @@
     // есть категория. Пустой ряд чипов, когда фильтровать нечего, — тот
     // самый лишний шум, который эта фаза редизайна убирает.
     const filterRow = document.getElementById("habitFilterRow");
+    // Roadmap #7 — список для "После какой привычки предложить" в форме
+    // добавления обновляем при каждом рендере, чтобы новая привычка сразу
+    // была доступна как возможный триггер для следующей.
+    const chainSelect = document.getElementById("newHabitChainTrigger");
+    if (chainSelect) {
+      const currentValue = chainSelect.value;
+      chainSelect.innerHTML = `<option value="">Не связывать</option>` +
+        habits.map(h => `<option value="${h.id}">${escapeHtml(h.title)}</option>`).join("");
+      if (habits.some(h => String(h.id) === currentValue)) chainSelect.value = currentValue;
+    }
+
     if (filterRow) {
       const usedCategories = [...new Set(habits.map(h => h.category).filter(Boolean))];
       if (usedCategories.length === 0) {
@@ -1140,9 +1151,14 @@
 
     list.innerHTML = visibleHabits.map(h => {
       const catMeta = h.category ? HABIT_CATEGORY_META[h.category] : null;
+      const isCounter = (h.target_count || 1) > 1;
       const badges =
         (h.priority === 2 ? `<span class="habit-item__badge" title="Важная привычка">⭐</span>` : "") +
-        (catMeta ? `<span class="habit-item__badge" title="${escapeHtml(catMeta.label)}">${catMeta.emoji}</span>` : "");
+        (catMeta ? `<span class="habit-item__badge" title="${escapeHtml(catMeta.label)}">${catMeta.emoji}</span>` : "") +
+        (h.frequency_per_week ? `<span class="habit-item__badge habit-item__badge--freq" title="Гибкая периодичность">${h.weekly_progress ?? 0}/${h.frequency_per_week} нед.</span>` : "");
+      const noteBtn = h.completed
+        ? `<button class="habit-item__note" data-action="note" aria-label="Заметка/фото">📝</button>`
+        : "";
 
       if (h.skip_reason) {
         return `
@@ -1167,11 +1183,17 @@
       </li>`;
       }
 
+      const checkLabel = h.completed
+        ? "✓"
+        : (isCounter ? `${h.progress_count || 0}/${h.target_count}` : "");
+      const checkClass = isCounter && !h.completed ? "habit-item__check habit-item__check--counter" : "habit-item__check";
+
       return `
       <li class="habit-item ${h.completed ? "is-done" : ""}" data-id="${h.id}">
-        <button class="habit-item__check" data-action="complete" ${h.completed ? "disabled" : ""}>${h.completed ? "✓" : ""}</button>
+        <button class="${checkClass}" data-action="${isCounter && !h.completed ? "progress" : "complete"}" ${h.completed ? "disabled" : ""}>${checkLabel}</button>
         ${badges}<span class="habit-item__title">${escapeHtml(h.title)}</span>
         <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
+        ${noteBtn}
         ${h.completed ? "" : `<button class="habit-item__skip" data-action="skip" aria-label="Пропустить сегодня">⏭</button>`}
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
       </li>`;
@@ -1635,6 +1657,120 @@ function closeAddCollapse(collapseId) {
 }
 
 // ===================== HABIT ACTIONS =====================
+// Общая "победная" реакция после выполнения привычки — вызывается и из
+// /complete, и из /progress (когда счётчик как раз достиг цели), чтобы не
+// дублировать монеты/streak/идеальный-день/цепочку в двух местах.
+async function celebrateHabitCompletion(result) {
+  const coinText = `+${result.coins || 10} Adam Coin` + (result.doubled ? " ⚡️×2" : "");
+  showToast(coinText, "praise");
+  if (result.streak_event) {
+    pendingBonusIntro = !!result.show_bonus_intro;
+    openStreakCelebration(result.streak_event);
+  }
+  // Пром 8 (доп.): "идеальный день" и, раз в месяц, награда за идеальный
+  // месяц — показываем следом за тостом монет, со сдвигом, чтобы не
+  // перекрывать друг друга в одном #toast элементе.
+  if (result.perfect_day_message) {
+    setTimeout(() => showToast(result.perfect_day_message, "praise", 4200), 2400);
+  }
+  if (result.month_end_reward?.message) {
+    setTimeout(() => showToast(result.month_end_reward.message, "praise", 5500),
+      result.perfect_day_message ? 6800 : 2400);
+  }
+  // Roadmap #7 — цепочки привычек: мягкая подсказка "сделал А → предложи Б".
+  if (result.chain_suggestion) {
+    setTimeout(() => {
+      showToast(`👉 Может, теперь «${result.chain_suggestion.title}»?`, "success", 4000);
+    }, result.perfect_day_message ? 6800 : 2400);
+  }
+}
+
+// Roadmap #3 — заметка/фото к выполненной привычке: маленькая встроенная
+// форма прямо под карточкой привычки (без модалки), фото сжимается на
+// клиенте в canvas перед отправкой, чтобы не раздувать запрос/БД.
+function openHabitNotePrompt(habitId) {
+  const li = document.querySelector(`.habit-item[data-id="${habitId}"]`);
+  if (!li) return;
+  if (li.querySelector(".habit-note-form")) return; // уже открыта
+
+  const form = document.createElement("div");
+  form.className = "habit-note-form";
+  form.innerHTML = `
+    <textarea class="habit-note-form__text" maxlength="300" placeholder="Как прошло? (необязательно)"></textarea>
+    <div class="habit-note-form__row">
+      <label class="habit-note-form__photo-btn">
+        📷 Фото
+        <input type="file" accept="image/*" class="habit-note-form__file" hidden>
+      </label>
+      <span class="habit-note-form__filename"></span>
+      <button type="button" class="habit-note-form__cancel">Отмена</button>
+      <button type="button" class="habit-note-form__save">Сохранить</button>
+    </div>
+  `;
+  li.appendChild(form);
+  form.querySelector(".habit-note-form__text").focus();
+
+  let photoDataUrl = null;
+  const fileInput = form.querySelector(".habit-note-form__file");
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    try {
+      photoDataUrl = await compressImageToDataUrl(file);
+      form.querySelector(".habit-note-form__filename").textContent = "✓ " + file.name;
+    } catch (err) {
+      showToast("Не получилось обработать фото", "error");
+    }
+  });
+
+  form.querySelector(".habit-note-form__cancel").addEventListener("click", () => form.remove());
+  form.querySelector(".habit-note-form__save").addEventListener("click", async () => {
+    const note = form.querySelector(".habit-note-form__text").value.trim();
+    if (!note && !photoDataUrl) {
+      showToast("Добавь текст или фото", "error");
+      return;
+    }
+    try {
+      await api(`/api/habits/${habitId}/note`, {
+        method: "POST",
+        body: JSON.stringify({ note: note || undefined, photo_data_url: photoDataUrl || undefined }),
+      });
+      haptic("light");
+      showToast("Сохранено в дневник", "success");
+      form.remove();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
+// Сжимает фото в браузере до небольшого превью (макс. сторона 640px, JPEG
+// качество 0.6) перед тем как превращать в data:URL — без этого исходное
+// фото с телефона (несколько МБ) не пролезло бы ни в лимит API, ни в БД.
+function compressImageToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("bad_image"));
+      img.onload = () => {
+        const maxSide = 640;
+        let { width, height } = img;
+        if (width > height && width > maxSide) { height = Math.round(height * maxSide / width); width = maxSide; }
+        else if (height > maxSide) { width = Math.round(width * maxSide / height); height = maxSide; }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.6));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function initHabitActions() {
   const habitList = document.getElementById("habitList");
   const addHabitForm = document.getElementById("addHabitForm");
@@ -1655,6 +1791,34 @@ function initHabitActions() {
       // сигнал состояния независимо от фона — закрашенная/контурная звезда.
       const icon = document.getElementById("newHabitPriorityIcon");
       if (icon) icon.textContent = pressed ? "☆" : "⭐";
+    });
+  }
+
+  // Roadmap #1/#2/#7 — свёрнутая по умолчанию секция "Ещё настройки" в
+  // форме добавления привычки: держим быстрое добавление быстрым, а
+  // счётчик/периодичность/цепочку показываем только по явному запросу.
+  const advToggle = document.getElementById("newHabitAdvancedToggle");
+  const advPanel = document.getElementById("newHabitAdvanced");
+  if (advToggle && advPanel) {
+    advToggle.addEventListener("click", () => { advPanel.hidden = !advPanel.hidden; });
+  }
+  const targetStepper = document.getElementById("newHabitTargetStepper");
+  const targetValueEl = document.getElementById("newHabitTargetValue");
+  if (targetStepper && targetValueEl) {
+    targetStepper.addEventListener("click", (e) => {
+      const stepBtn = e.target.closest("[data-step]");
+      if (!stepBtn) return;
+      const next = Math.max(1, Math.min(20, Number(targetValueEl.textContent) + Number(stepBtn.dataset.step)));
+      targetValueEl.textContent = String(next);
+    });
+  }
+  const freqChips = document.getElementById("newHabitFreqChips");
+  if (freqChips) {
+    freqChips.addEventListener("click", (e) => {
+      const chip = e.target.closest(".habit-add-form__freq-chip");
+      if (!chip) return;
+      freqChips.querySelectorAll(".habit-add-form__freq-chip").forEach(c => c.classList.remove("is-active"));
+      chip.classList.add("is-active");
     });
   }
 
@@ -1785,22 +1949,22 @@ function initHabitActions() {
         const result = await api(`/api/habits/${habitId}/complete`, { method: "POST" });
         haptic("medium");
         await loadBootstrap();
-        const coinText = `+${result.coins || 10} Adam Coin` + (result.doubled ? " ⚡️×2" : "");
-        showToast(coinText, "praise");
-        if (result.streak_event) {
-          pendingBonusIntro = !!result.show_bonus_intro;
-          openStreakCelebration(result.streak_event);
+        await celebrateHabitCompletion(result);
+      } else if (action === "progress") {
+        btn.disabled = true;
+        // Roadmap #1 — счётчик: +1 к прогрессу. Если это нажатие как раз
+        // закрыло цель, ответ содержит те же поля, что и /complete (монеты,
+        // streak и т.д.) — празднуем точно так же.
+        const result = await api(`/api/habits/${habitId}/progress`, { method: "POST" });
+        haptic(result.just_completed ? "medium" : "light");
+        await loadBootstrap();
+        if (result.just_completed) {
+          await celebrateHabitCompletion(result);
+        } else {
+          showToast(`${result.progress_count}/${result.target_count}`, "success");
         }
-        // Пром 8 (доп.): "идеальный день" и, раз в месяц, награда за
-        // идеальный месяц — показываем следом за тостом монет, со сдвигом,
-        // чтобы не перекрывать друг друга в одном #toast элементе.
-        if (result.perfect_day_message) {
-          setTimeout(() => showToast(result.perfect_day_message, "praise", 4200), 2400);
-        }
-        if (result.month_end_reward?.message) {
-          setTimeout(() => showToast(result.month_end_reward.message, "praise", 5500),
-            result.perfect_day_message ? 6800 : 2400);
-        }
+      } else if (action === "note") {
+        openHabitNotePrompt(habitId);
       } else if (action === "unskip") {
         await api(`/api/habits/${habitId}/unskip`, { method: "POST" });
         haptic("light");
@@ -1832,6 +1996,12 @@ function initHabitActions() {
     const priorityBtn = document.getElementById("newHabitPriorityBtn");
     const category = categorySelect ? categorySelect.value : "";
     const priority = priorityBtn && priorityBtn.getAttribute("aria-pressed") === "true" ? 2 : 1;
+    const targetValueEl = document.getElementById("newHabitTargetValue");
+    const targetCount = targetValueEl ? Number(targetValueEl.textContent) || 1 : 1;
+    const activeFreqChip = document.querySelector(".habit-add-form__freq-chip.is-active");
+    const frequencyPerWeek = activeFreqChip ? Number(activeFreqChip.dataset.freq) || 0 : 0;
+    const chainSelect = document.getElementById("newHabitChainTrigger");
+    const chainTriggerHabitId = chainSelect && chainSelect.value ? Number(chainSelect.value) : undefined;
 
     if (submitBtn) submitBtn.disabled = true;
     try {
@@ -1842,6 +2012,9 @@ function initHabitActions() {
           planned_time: plannedTime || undefined,
           category: category || undefined,
           priority,
+          target_count: targetCount > 1 ? targetCount : undefined,
+          frequency_per_week: frequencyPerWeek > 0 ? frequencyPerWeek : undefined,
+          chain_trigger_habit_id: chainTriggerHabitId,
         })
       });
 
@@ -1860,6 +2033,12 @@ function initHabitActions() {
         const icon = document.getElementById("newHabitPriorityIcon");
         if (icon) icon.textContent = "☆";
       }
+      if (targetValueEl) targetValueEl.textContent = "1";
+      document.querySelectorAll(".habit-add-form__freq-chip").forEach(c => c.classList.remove("is-active"));
+      document.querySelector('.habit-add-form__freq-chip[data-freq="0"]')?.classList.add("is-active");
+      if (chainSelect) chainSelect.value = "";
+      const advPanelAfterSubmit = document.getElementById("newHabitAdvanced");
+      if (advPanelAfterSubmit) advPanelAfterSubmit.hidden = true;
       haptic("light");
       showToast("Привычка добавлена", "success");
 

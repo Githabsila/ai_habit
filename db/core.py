@@ -161,6 +161,23 @@ def create_tables():
     if "last_seen" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP")
 
+    # Roadmap #39 — архетип личности, определяется один раз коротким тестом
+    # при онбординге/из профиля (см. db/personality.py).
+    if "archetype" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN archetype TEXT")
+    # Roadmap #17 — публичный шаринг-профиль: по умолчанию выключен, только
+    # сам пользователь может включить в настройках (см. db/public_profile.py).
+    if "public_profile_enabled" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN public_profile_enabled INTEGER DEFAULT 0")
+    # Roadmap #32 — разовый бустер x2 XP за Stars: до какого момента активен.
+    if "bonus_2x_xp_until" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN bonus_2x_xp_until TIMESTAMP")
+    # Roadmap #25 — долгосрочные жизненные цели, которые AI-наставник должен
+    # держать в контексте (в отличие от auto-summary памяти — этот текст
+    # редактирует сам пользователь явно, см. db/goals.py).
+    if "long_term_goals" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN long_term_goals TEXT")
+
     # ---------------- SETTINGS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS settings(
@@ -259,6 +276,20 @@ def create_tables():
         cursor.execute("ALTER TABLE habits ADD COLUMN priority INTEGER DEFAULT 1")
     if "skip_reason" not in habits_columns:
         cursor.execute("ALTER TABLE habits ADD COLUMN skip_reason TEXT")
+
+    # Roadmap #1 (счётчик, «выпить 4 стакана») — target_count/progress_count.
+    # Roadmap #2 (гибкая периодичность, «3 раза в неделю») — frequency_per_week
+    # (NULL = как раньше, каждый день). Roadmap #7 (цепочки привычек) —
+    # chain_trigger_habit_id: если задано, эта привычка "предлагается"
+    # сразу после выполнения привычки-триггера (см. db/habits.py).
+    if "target_count" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN target_count INTEGER DEFAULT 1")
+    if "progress_count" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN progress_count INTEGER DEFAULT 0")
+    if "frequency_per_week" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN frequency_per_week INTEGER")
+    if "chain_trigger_habit_id" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN chain_trigger_habit_id INTEGER")
 
     # ---------------- МЕСЯЧНАЯ СЕРИЯ 2+ ПРИВЫЧЕК (доп. к пром 8) ----------------
     # multi_habit_days — локальный день, в который пользователь закрыл 2+
@@ -771,5 +802,76 @@ def create_tables():
         INSERT OR IGNORE INTO streak_meta(user_id, onboarding_seen)
         SELECT telegram_id, 1 FROM users
     """)
+
+    # ---------------- Roadmap #3: заметка/фото к выполненной привычке ----------------
+    # Одна запись на привычку в день (UNIQUE) — повторное сохранение в тот
+    # же день просто перезаписывает (INSERT ... ON CONFLICT DO UPDATE, см.
+    # db/habits.py::add_habit_note). photo_data_url — сжатая на клиенте
+    # картинка как data: URL прямо в БД (без внешнего файлового хранилища).
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS habit_notes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        habit_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        note TEXT,
+        photo_data_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(habit_id, day)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_habit_notes_user_day ON habit_notes(user_id, day)"
+    )
+
+    # ---------------- Roadmap #23/#36: AI сам подбирает время напоминания ----------------
+    # Отдельный журнал МОМЕНТОВ выполнения (в отличие от habit_logs — там
+    # только "выполнено да/нет за день", без времени суток) — на нём считаем
+    # типичный час выполнения конкретной привычки, см. db/insights.py.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS habit_completion_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        habit_id INTEGER NOT NULL,
+        completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_habit_completion_events_habit ON habit_completion_events(habit_id)"
+    )
+
+    # ---------------- Roadmap #12: ежедневные микро-квесты ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS daily_quests(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        quest_key TEXT NOT NULL,
+        title TEXT NOT NULL,
+        target INTEGER DEFAULT 1,
+        progress INTEGER DEFAULT 0,
+        reward_coins INTEGER DEFAULT 5,
+        claimed INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, day, quest_key)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_daily_quests_user_day ON daily_quests(user_id, day)"
+    )
+
+    # ---------------- Roadmap #19: реакции/стикеры поддержки другу ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS friend_reactions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        from_user_id INTEGER NOT NULL,
+        to_user_id INTEGER NOT NULL,
+        emoji TEXT NOT NULL,
+        day TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(from_user_id, to_user_id, day)
+    )
+    """)
+
     conn.commit()
     conn.close()

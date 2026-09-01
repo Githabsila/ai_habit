@@ -265,6 +265,38 @@ placeholder="Новая привычка..."
 </button>
 </div>
 
+<button type="button" class="habit-add-form__advanced-toggle" id="newHabitAdvancedToggle">⚙️ Ещё настройки (счётчик, периодичность, цепочка)</button>
+
+<div class="habit-add-form__advanced" id="newHabitAdvanced" hidden>
+
+<div class="habit-add-form__advanced-row">
+<span class="habit-add-form__advanced-label">Сколько раз в день</span>
+<div class="habit-add-form__stepper" id="newHabitTargetStepper">
+<button type="button" class="habit-add-form__stepper-btn" data-step="-1" aria-label="Меньше">−</button>
+<span class="habit-add-form__stepper-value" id="newHabitTargetValue">1</span>
+<button type="button" class="habit-add-form__stepper-btn" data-step="1" aria-label="Больше">+</button>
+</div>
+</div>
+
+<div class="habit-add-form__advanced-row">
+<span class="habit-add-form__advanced-label">Периодичность</span>
+<div class="habit-add-form__freq-chips" id="newHabitFreqChips">
+<button type="button" class="habit-add-form__freq-chip is-active" data-freq="0">Каждый день</button>
+<button type="button" class="habit-add-form__freq-chip" data-freq="2">2×/нед</button>
+<button type="button" class="habit-add-form__freq-chip" data-freq="3">3×/нед</button>
+<button type="button" class="habit-add-form__freq-chip" data-freq="5">5×/нед</button>
+</div>
+</div>
+
+<div class="habit-add-form__advanced-row">
+<span class="habit-add-form__advanced-label">После какой привычки предложить</span>
+<select id="newHabitChainTrigger" class="habit-add-form__chain-select" aria-label="Привычка-триггер">
+<option value="">Не связывать</option>
+</select>
+</div>
+
+</div>
+
 <div class="habit-add-form__row2">
 
 <label class="habit-add-form__time" title="Своё время напоминания (необязательно)">

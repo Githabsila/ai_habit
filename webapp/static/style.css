@@ -7523,6 +7523,217 @@ body{
   box-shadow:none !important;
 }
 
+/* =========================================================
+   ROADMAP #1/#2/#7 — "ЕЩЁ НАСТРОЙКИ" (счётчик/периодичность/цепочка)
+   Свёрнуто по умолчанию, чтобы быстрое добавление оставалось быстрым.
+   Кнопки внутри переопределяем через составную специфичность
+   (.habit-add-form .класс) — иначе их перекрашивает глобальное правило
+   ".btn,.add-form button{background:violet!important}" (см. выше).
+   ========================================================= */
+.habit-add-form .habit-add-form__advanced-toggle{
+  align-self:flex-start;
+  margin:0 0 2px;
+  padding:4px 0;
+  background:none !important;
+  border:none !important;
+  box-shadow:none !important;
+  color:var(--text-muted,#9D9DB3);
+  font-size:11.5px;
+  font-weight:600;
+  text-decoration:underline;
+  text-decoration-style:dotted;
+  text-underline-offset:3px;
+  cursor:pointer;
+}
+.habit-add-form__advanced{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  width:100%;
+  padding:12px;
+  margin-bottom:2px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.02);
+}
+.habit-add-form__advanced[hidden]{display:none !important}
+.habit-add-form__advanced-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.habit-add-form__advanced-label{
+  font-size:12px;
+  font-weight:600;
+  color:var(--text-muted,#9D9DB3);
+}
+.habit-add-form__stepper{
+  display:flex;align-items:center;gap:10px;
+}
+.habit-add-form .habit-add-form__stepper-btn{
+  width:28px;height:28px;
+  display:grid;place-items:center;
+  border-radius:9px;
+  background:rgba(255,255,255,.05) !important;
+  border:1px solid rgba(255,255,255,.10) !important;
+  box-shadow:none !important;
+  color:var(--text,#EAE5FA);
+  font-size:15px;
+  font-weight:700;
+  line-height:1;
+  cursor:pointer;
+}
+.habit-add-form__stepper-value{
+  min-width:22px;
+  text-align:center;
+  font:800 15px 'Space Grotesk',sans-serif;
+  color:var(--text,#EAE5FA);
+}
+.habit-add-form__freq-chips{
+  display:flex;gap:6px;flex-wrap:wrap;
+}
+.habit-add-form .habit-add-form__freq-chip{
+  padding:6px 11px;
+  border-radius:999px;
+  background:rgba(255,255,255,.03) !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  box-shadow:none !important;
+  color:var(--text-muted,#9D9DB3);
+  font-size:11.5px;
+  font-weight:700;
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, color .15s ease;
+}
+.habit-add-form .habit-add-form__freq-chip.is-active{
+  border-color:rgba(139,108,255,.5) !important;
+  background:rgba(139,108,255,.16) !important;
+  color:#cfc6ff;
+}
+.habit-add-form__chain-select{
+  width:100%;
+  height:40px;
+  padding:0 10px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+  color:var(--text,#EAE5FA);
+  font-family:'Space Grotesk', sans-serif;
+  font-size:12.5px;
+  font-weight:600;
+}
+
+/* Счётчик привычки ("2/4") в самой карточке — вместо пустой галочки
+   показываем прогресс текстом, пока цель не достигнута. */
+.habit-item__check--counter{
+  width:auto;
+  min-width:42px;
+  padding:0 8px;
+  color:var(--text,#EAE5FA);
+  font-size:12.5px;
+  font-weight:800;
+  font-family:'Space Grotesk',sans-serif;
+}
+.habit-item__badge--freq{
+  padding:2px 7px;
+  border-radius:999px;
+  background:rgba(139,108,255,.14);
+  border:1px solid rgba(139,108,255,.3);
+  color:#cfc6ff;
+  font-size:10.5px;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+/* Кнопка "📝" — открыть заметку/фото к уже выполненной привычке. */
+.habit-item__note{
+  flex:0 0 auto;
+  width:34px;height:34px;
+  display:grid;place-items:center;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  color:var(--text-muted,#9C97AE);
+  font-size:14px;
+  cursor:pointer;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .2s ease,border-color .2s ease;
+}
+.habit-item__note:active{transform:scale(.9)}
+
+/* Встроенная мини-форма заметки/фото — раскрывается прямо под карточкой
+   привычки на всю ширину списка (li — flex-wrap, см. .habit-item). */
+.habit-note-form{
+  flex:0 0 100%;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-top:10px;
+  padding:10px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.02);
+}
+.habit-note-form__text{
+  width:100%;
+  min-height:52px;
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+  color:var(--text,#EAE5FA);
+  font-family:inherit;
+  font-size:12.5px;
+  resize:vertical;
+}
+.habit-note-form__row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.habit-note-form .habit-note-form__photo-btn{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:6px 10px;
+  border-radius:10px;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.10);
+  color:var(--text,#EAE5FA);
+  font-size:11.5px;
+  font-weight:700;
+  cursor:pointer;
+}
+.habit-note-form__filename{
+  font-size:11px;
+  color:var(--text-muted,#9D9DB3);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  max-width:110px;
+}
+.habit-note-form__row > button{
+  margin-left:auto;
+}
+.habit-note-form .habit-note-form__cancel{
+  background:rgba(255,255,255,.03) !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  box-shadow:none !important;
+  color:var(--text-muted,#9D9DB3);
+  padding:6px 12px;
+  border-radius:10px;
+  font-size:11.5px;
+  font-weight:700;
+  cursor:pointer;
+}
+.habit-note-form__cancel + .habit-note-form__save{margin-left:6px}
+.habit-note-form .habit-note-form__save{
+  padding:6px 12px;
+  border-radius:10px;
+  font-size:11.5px;
+  font-weight:700;
+  cursor:pointer;
+}
+
 /* Фильтр по категориям над списком привычек — только когда есть что
    фильтровать (см. renderHabits(): скрыт, если ни у одной привычки нет
    категории — пустой ряд чипов сам по себе такой же шум, какой эта
