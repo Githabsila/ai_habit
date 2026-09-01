@@ -717,6 +717,7 @@ NOTIFICATION_KIND_LABELS = {
     "trial_reminder": "💳 Напоминание об оплате",
     "freeze_upsell": "❄️ Предложение заморозки",
     "personal_record": "🏆 Личный рекорд рядом",
+    "rank_overtaken": "📉 Тебя обогнали в рейтинге",
 }
 
 

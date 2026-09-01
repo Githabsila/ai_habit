@@ -16,6 +16,7 @@ from db import (
     reminder_category_enabled, in_quiet_hours,
     get_freeze_upsell_eligibility, week_key,
     get_users_near_personal_record,
+    get_rank_overtakes_and_update_snapshot,
 )
 
 logger = logging.getLogger("streak_scheduler")
@@ -447,3 +448,63 @@ async def run_personal_record_notifications(bot):
                 raise
         except Exception:
             logger.exception("Ошибка personal-record для %s", uid)
+
+
+# Улучшение #40: в отличие от остальных job'ов этого файла (проверяют КАЖДОГО
+# пользователя в его локальном времени), сравнение рейтинга — ГЛОБАЛЬНАЯ
+# операция (один снимок на всех через get_rank_overtakes_and_update_snapshot).
+# Гонять её на каждом минутном тике планировщика means "обогнал" фиксировался
+# бы почти в реальном времени между соседними тиками — бессмысленно и
+# избыточно. Однократный в памяти процесса гейт на календарный день (по UTC,
+# единственный Railway-инстанс — см. комментарий про RATE_LIMIT выше)
+# ограничивает сравнение одним разом в сутки.
+_last_rank_check_day = None
+
+
+async def run_rank_overtaken_notifications(bot):
+    """Улучшение #40: раз в сутки (8:00 UTC) сравнивает сезонный рейтинг со
+    вчерашним снимком и уведомляет тех, кого обогнали в пределах топ-100."""
+    global _last_rank_check_day
+    if not bot:
+        return
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    if not in_time_window(now_utc, hour=8, minute=0):
+        return
+    today_key = now_utc.date().isoformat()
+    if _last_rank_check_day == today_key:
+        return
+    _last_rank_check_day = today_key
+
+    try:
+        overtaken = get_rank_overtakes_and_update_snapshot()
+    except Exception:
+        logger.exception("Ошибка получения rank overtakes")
+        return
+
+    scope = notification_scope(bot)
+    for item in overtaken:
+        uid = item["user_id"]
+        try:
+            settings = get_settings(uid)
+            if not reminder_category_enabled(settings, "streak"):
+                continue
+            tz = ZoneInfo(get_timezone(uid))
+            now_local = datetime.now(tz)
+            if in_quiet_hours(settings, now_local):
+                continue
+            day = now_local.date().isoformat()
+            if not claim_notification(uid, day, "rank_overtaken", scope):
+                continue
+            name = item["overtaker_name"] or "Кто-то"
+            try:
+                await bot.send_message(
+                    uid,
+                    f"📉 {name} обогнал тебя в сезонном рейтинге!\n\n"
+                    f"Было место #{item['old_rank']}, теперь #{item['new_rank']}. "
+                    "Заработай Adam Coin сегодня — и верни своё место.",
+                )
+            except Exception:
+                release_notification(uid, day, "rank_overtaken", scope)
+                raise
+        except Exception:
+            logger.exception("Ошибка rank-overtaken пуша для %s", uid)

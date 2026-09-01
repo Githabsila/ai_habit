@@ -1008,6 +1008,19 @@ def create_tables():
         cursor.execute("ALTER TABLE users ADD COLUMN best_streak INTEGER DEFAULT 0")
         cursor.execute("UPDATE users SET best_streak = streak")
 
+    # ---------------- Улучшение #40: "тебя обогнали в рейтинге" ----------------
+    # Снимок последнего известного места в сезонном рейтинге на пользователя —
+    # без него не с чем сравнивать текущее место, чтобы понять, ухудшилось ли
+    # оно с прошлой проверки (см. streak_scheduler.run_rank_overtaken_notifications).
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS season_rank_snapshot(
+        user_id INTEGER PRIMARY KEY,
+        season_key TEXT NOT NULL,
+        rank INTEGER NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     # ---------------- Улучшение #70: логирование клиентских JS-ошибок ----------------
     # Раньше единственный способ узнать про JS-краш у реального пользователя —
     # попросить прислать видео/скриншот консоли вручную. Теперь window.onerror

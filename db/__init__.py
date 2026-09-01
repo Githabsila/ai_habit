@@ -50,6 +50,7 @@ from .feature_flags import (
 
 from .seasons import (
     current_season_key, get_season_leaderboard, get_season_rank, award_season_rewards,
+    get_rank_overtakes_and_update_snapshot,
     clear_season_leaderboard_cache,
 )
 
@@ -277,6 +278,7 @@ __all__ = [
     "get_habit_correlations",
     "is_feature_enabled", "get_all_flags", "set_feature_flag", "delete_feature_flag",
     "current_season_key", "get_season_leaderboard", "get_season_rank", "award_season_rewards",
+    "get_rank_overtakes_and_update_snapshot",
     "clear_season_leaderboard_cache",
     "get_pet", "feed_pet", "PET_STAGES",
     "create_team", "join_team", "leave_team", "get_my_team",

@@ -11,11 +11,11 @@ from aiogram.enums import ParseMode
 from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 
 from config import BOT_TOKEN, WEBAPP_URL, PORT, ADMIN_IDS
-from db import create_tables, get_user, give_premium_admin
+from db import create_tables, get_user, give_premium_admin, award_season_rewards
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
 from scheduler import scheduler
-from streak_scheduler import run_streak_rollover, run_streak_risk_notifications, run_streak_reengagement_notifications, run_weekly_streak_bonus, run_personal_record_notifications
+from streak_scheduler import run_streak_rollover, run_streak_risk_notifications, run_streak_reengagement_notifications, run_weekly_streak_bonus, run_personal_record_notifications, run_rank_overtaken_notifications
 from coach import (
     run_weekly_report,
     run_weekly_habit_analysis, run_monthly_habit_analysis, run_task_reminder_check,
@@ -137,6 +137,12 @@ async def main():
     # Улучшение #49: в 9:00 по локальному времени — мотивирующий пуш тем, кто
     # на 1 день короче своего же исторического рекорда серии.
     scheduler.add_job(run_personal_record_notifications, "interval", minutes=1, args=[bot])
+    # Улучшение #40: раз в сутки (8:00 UTC) — кого обогнали в сезонном рейтинге.
+    scheduler.add_job(run_rank_overtaken_notifications, "interval", minutes=1, args=[bot])
+    # Раздача наград топ-3 сезона 1-го числа (см. db/seasons.py::award_season_rewards)
+    # была определена, но нигде не вызывалась — реальный пробел, найденный
+    # попутно при работе над #40, чинится тем же коммитом.
+    scheduler.add_job(award_season_rewards, "cron", day=1, hour=6, minute=0)
 
     # --- Умные напоминания ---
     # 10:00 — единая контрольная точка по привычкам (локальное время каждого пользователя).

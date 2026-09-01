@@ -90,6 +90,58 @@ def get_season_rank(user_id):
     return None
 
 
+# Улучшение #40: "обогнали в рейтинге" имеет смысл только в реально
+# соревновательной зоне — за пределами топ-100 обычные шумовые перестановки
+# каждый день превратили бы пуш в спам без всякой мотивационной ценности.
+RANK_OVERTAKE_NOTIFY_LIMIT = 100
+
+
+def get_rank_overtakes_and_update_snapshot():
+    """Сравнивает текущий сезонный рейтинг с последним сохранённым снимком
+    на пользователя. Возвращает список тех, чьё место ухудшилось с прошлой
+    проверки (в пределах RANK_OVERTAKE_NOTIFY_LIMIT), с именем того, кто
+    теперь стоит на их прежнем месте. Одним проходом же обновляет снимок
+    ВСЕХ участников сезона до актуального состояния — вызывать раз в день,
+    не чаще (иначе "обогнал" будет фиксироваться на каждое мелкое колебание)."""
+    leaderboard = get_season_leaderboard(limit=100000)
+    season_key = current_season_key()
+
+    conn = connect()
+    c = conn.cursor()
+    c.execute("SELECT user_id, season_key, rank FROM season_rank_snapshot")
+    previous = {r["user_id"]: {"season_key": r["season_key"], "rank": r["rank"]} for r in c.fetchall()}
+
+    overtaken = []
+    for i, row in enumerate(leaderboard):
+        rank = i + 1
+        uid = row["telegram_id"]
+        prev = previous.get(uid)
+        if (
+            prev
+            and prev["season_key"] == season_key
+            and rank > prev["rank"]
+            and rank <= RANK_OVERTAKE_NOTIFY_LIMIT
+        ):
+            # Кто теперь стоит на прежнем месте пользователя (индекс rank-1
+            # 0-based == позиция prev["rank"] в 1-based нумерации).
+            overtaker_idx = prev["rank"] - 1
+            overtaker_name = leaderboard[overtaker_idx]["first_name"] if 0 <= overtaker_idx < len(leaderboard) else None
+            overtaken.append({
+                "user_id": uid,
+                "old_rank": prev["rank"],
+                "new_rank": rank,
+                "overtaker_name": overtaker_name,
+            })
+        c.execute(
+            "INSERT INTO season_rank_snapshot(user_id, season_key, rank, updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP) "
+            "ON CONFLICT(user_id) DO UPDATE SET season_key=excluded.season_key, rank=excluded.rank, updated_at=excluded.updated_at",
+            (uid, season_key, rank),
+        )
+    conn.commit()
+    conn.close()
+    return overtaken
+
+
 def award_season_rewards():
     """Вызывается раз в месяц (1-го числа, до сброса) — раздаёт монеты/
     алмазы топ-3 ПРЕДЫДУЩЕГО сезона. Идемпотентно (UNIQUE(user_id,
