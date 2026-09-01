@@ -83,3 +83,57 @@ def suggest_optimal_reminder_time(habit_id, user_id):
     if count < len(hours) / 3:
         return None
     return f"{most_common_hour:02d}:00"
+
+
+# Roadmap #27 — статистические корреляции между привычками.
+CORRELATION_WINDOW_DAYS = 30
+CORRELATION_MIN_SAMPLES = 5  # минимум дней, когда A была выполнена, чтобы вообще судить
+CORRELATION_MIN_RATE = 60  # "когда A сделана, B тоже сделана" минимум в % случаев
+CORRELATION_MIN_LIFT = 20  # и это должно быть заметно выше базовой частоты B
+
+
+def get_habit_correlations(user_id, limit=3):
+    """Топ пар привычек вида «когда выполняешь A, обычно выполняешь и B» —
+    считается по co-occurrence за последние CORRELATION_WINDOW_DAYS дней
+    из habit_logs (группировка по habit_title, а не habit_id — так пары
+    остаются осмысленными даже если привычку удалили и создали заново)."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT day, habit_title, completed FROM habit_logs
+        WHERE user_id=? AND day >= date('now', ?)
+    """, (user_id, f"-{CORRELATION_WINDOW_DAYS} days"))
+    rows = cursor.fetchall()
+    conn.close()
+
+    by_day = {}
+    for r in rows:
+        by_day.setdefault(r["day"], {})[r["habit_title"]] = bool(r["completed"])
+
+    titles = sorted({t for day in by_day.values() for t in day})
+    days = list(by_day.values())
+
+    results = []
+    for i, a in enumerate(titles):
+        a_done_days = [d for d in days if d.get(a)]
+        if len(a_done_days) < CORRELATION_MIN_SAMPLES:
+            continue
+        for b in titles:
+            if b == a:
+                continue
+            b_done_days = [d for d in days if b in d and d[b]]
+            b_total_days = [d for d in days if b in d]
+            if not b_total_days:
+                continue
+            baseline = 100 * len(b_done_days) / len(b_total_days)
+            b_when_a = sum(1 for d in a_done_days if d.get(b))
+            rate = round(100 * b_when_a / len(a_done_days))
+            lift = rate - baseline
+            if rate >= CORRELATION_MIN_RATE and lift >= CORRELATION_MIN_LIFT:
+                results.append({
+                    "a": a, "b": b, "rate": rate,
+                    "baseline": round(baseline), "samples": len(a_done_days),
+                })
+
+    results.sort(key=lambda r: (r["rate"] - r["baseline"]), reverse=True)
+    return results[:limit]

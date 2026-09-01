@@ -6322,6 +6322,62 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   line-height:1.4;
 }
 .progress-insight[hidden]{display:none !important}
+.progress-insight--correlation{
+  border-color:rgba(139,108,255,.22);
+  background:rgba(139,108,255,.06);
+  color:#cfc6ff;
+}
+
+/* Roadmap #26 — тепловая карта года (GitHub-style). */
+.year-heatmap{
+  margin:4px 0 16px;
+  padding:14px 16px;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,.07);
+  background:linear-gradient(145deg,rgba(35,31,48,.7),rgba(17,15,24,.7));
+}
+.year-heatmap[hidden]{display:none !important}
+.year-heatmap__title{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:13px;
+  font-weight:800;
+  color:#fff;
+  margin-bottom:10px;
+}
+.year-heatmap__grid{
+  display:grid;
+  grid-template-rows:repeat(7, 11px);
+  grid-auto-flow:column;
+  grid-auto-columns:11px;
+  gap:3px;
+  overflow-x:auto;
+  padding-bottom:4px;
+  scrollbar-width:thin;
+}
+.year-heatmap__cell{
+  width:11px;height:11px;
+  border-radius:3px;
+  background:rgba(255,255,255,.05);
+}
+.year-heatmap__cell.is-empty{background:transparent}
+.year-heatmap__cell[data-level="1"]{background:rgba(139,108,255,.28)}
+.year-heatmap__cell[data-level="2"]{background:rgba(139,108,255,.5)}
+.year-heatmap__cell[data-level="3"]{background:rgba(139,108,255,.75)}
+.year-heatmap__cell[data-level="4"]{background:#8e70ff}
+
+/* Roadmap #28 — кнопка экспорта PDF-отчёта. */
+.pdf-report-btn{
+  width:100%;
+  padding:12px;
+  margin-bottom:16px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+  color:var(--text,#EAE5FA);
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
 
 .progress-ai-btn{
   position:relative;

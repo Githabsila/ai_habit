@@ -57,6 +57,7 @@ from db import (
     send_reaction, get_recent_reactions_received, has_reacted_today, REACTION_EMOJIS,
     set_long_term_goals, get_long_term_goals,
     get_struggling_habits, suggest_optimal_reminder_time,
+    get_habit_correlations,
 )
 
 from datetime import date, datetime, timezone
@@ -1055,6 +1056,8 @@ async def progress_stats_route(request):
         # рубежа серии по текущему темпу.
         "comparison": get_progress_comparison(telegram_id),
         "forecast": get_streak_forecast(telegram_id),
+        # Roadmap #27 — статистические корреляции между привычками.
+        "correlations": get_habit_correlations(telegram_id),
     })
 
 @routes.get("/api/export/habits.csv")
@@ -1537,6 +1540,22 @@ async def create_stars_invoice(request):
         prices=[LabeledPrice(label=title, amount=int(item["price"]))],
     )
     return web.json_response({"ok": True, "invoice_url": link})
+
+@routes.get("/api/progress/pdf-report")
+async def pdf_report_route(request):
+    """Roadmap #28 — экспортируемый PDF-отчёт о прогрессе."""
+    telegram_id, _ = await _authenticate(request)
+    from webapp.services.pdf_report import generate_progress_pdf
+    pdf_bytes = generate_progress_pdf(telegram_id)
+    if pdf_bytes is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    filename = f"adam_report_{datetime.now().strftime('%Y-%m-%d')}.pdf"
+    return web.Response(
+        body=pdf_bytes,
+        content_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 @routes.get("/health")
 async def health(request):

@@ -39,6 +39,7 @@ from .users import (
 from .coaching_insights import (
     get_struggling_habits, suggest_optimal_reminder_time,
     STRUGGLE_THRESHOLD, STRUGGLE_WINDOW_DAYS,
+    get_habit_correlations,
 )
 
 from .quests import get_daily_quests, claim_daily_quest, QUEST_DEFINITIONS
@@ -237,6 +238,7 @@ __all__ = [
     "set_long_term_goals", "get_long_term_goals", "MAX_LONG_TERM_GOALS_LENGTH",
     "get_struggling_habits", "suggest_optimal_reminder_time",
     "STRUGGLE_THRESHOLD", "STRUGGLE_WINDOW_DAYS",
+    "get_habit_correlations",
     "get_daily_quests", "claim_daily_quest", "QUEST_DEFINITIONS",
     "get_league_tier", "get_league_progress", "LEAGUE_TIERS",
     "set_public_profile_enabled", "get_public_profile",

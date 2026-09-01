@@ -477,12 +477,18 @@
               renderProfileAvatarControls();
               renderThemePicker();
               renderAchievements();
+              // Roadmap #26 — тепловая карта года живёт в Профиле, но
+              // данные общие с вкладкой "Календарь" — подгружаем их же,
+              // не дублируя на сервере (loadBootstrapSecondary дедуплицирует
+              // повторные вызовы сама, см. secondaryLoaded выше).
+              loadBootstrapSecondary("calendar");
             } else if (key === "rating") {
               state.leaderboard = data.leaderboard || [];
               renderRating();
             } else if (key === "calendar") {
               state.calendar_events = data.calendar_events || [];
               renderCalendar();
+              renderYearHeatmap();
             }
             secondaryLoaded.add(key);
             setTabLoading(key, false);
@@ -1539,6 +1545,44 @@
 
   // Должен совпадать с db/reactions.py::REACTION_EMOJIS.
   const REACTION_EMOJIS = ["🔥", "💪", "👏", "❤️", "🎉", "⭐"];
+
+  // Roadmap #26 — GitHub-style тепловая карта года. Данные — те же
+  // calendar_events, что и у вкладки "Календарь" (день → {completed,
+  // total}), просто разложенные в сетку 7×N вместо помесячного вида.
+  function renderYearHeatmap() {
+    const wrap = document.getElementById("yearHeatmap");
+    const grid = document.getElementById("yearHeatmapGrid");
+    if (!wrap || !grid) return;
+    const events = Array.isArray(state.calendar_events) ? state.calendar_events : [];
+    if (events.length === 0) { wrap.hidden = true; return; }
+
+    const byDay = new Map(events.map(e => [e.day, e]));
+    const today = new Date();
+    const days = [];
+    for (let i = 364; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      days.push({ key, event: byDay.get(key) || null });
+    }
+    // Досыпаем пустыми ячейками в начало, чтобы первая колонка начиналась
+    // с понедельника — иначе сетка 7×N "съезжает" вбок нерегулярно.
+    const firstWeekday = (new Date(days[0].key).getDay() + 6) % 7; // 0=Пн
+    for (let i = 0; i < firstWeekday; i++) days.unshift({ key: null, event: null });
+
+    wrap.hidden = false;
+    grid.innerHTML = days.map(d => {
+      if (!d.key) return `<span class="year-heatmap__cell is-empty"></span>`;
+      const ev = d.event;
+      let level = 0;
+      if (ev && ev.total > 0) {
+        const rate = ev.completed / ev.total;
+        level = rate >= 1 ? 4 : rate >= 0.66 ? 3 : rate >= 0.33 ? 2 : 1;
+      }
+      const title = ev ? `${d.key}: ${ev.completed}/${ev.total}` : d.key;
+      return `<span class="year-heatmap__cell" data-level="${level}" title="${escapeHtml(title)}"></span>`;
+    }).join("");
+  }
 
   // ===================== RENDER: CALENDAR =====================
   function renderCalendar() {
@@ -2670,6 +2714,19 @@ async function loadProgressStats() {
         forecastEl.hidden = true;
       }
     }
+
+    // Roadmap #27 — статистические корреляции между привычками.
+    const correlations = data.correlations || [];
+    const corrEl = document.getElementById("progressCorrelations");
+    if (corrEl) {
+      const top = correlations[0];
+      if (top) {
+        corrEl.hidden = false;
+        corrEl.textContent = `🔗 Когда ты делаешь «${top.a}», ты также делаешь «${top.b}» в ${top.rate}% случаев (в среднем — ${top.baseline}%)`;
+      } else {
+        corrEl.hidden = true;
+      }
+    }
   } catch (err) {
     console.error("loadProgressStats failed:", err);
   }
@@ -2965,6 +3022,36 @@ function initDataSupportActions() {
       showToast("Не получилось скачать данные", "error");
     } finally {
       btn.disabled = false;
+    }
+  });
+
+  // Roadmap #28 — экспортируемый PDF-отчёт о прогрессе (график + сводка).
+  document.getElementById("pdfReportBtn")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = "📄 Готовлю отчёт...";
+    try {
+      const res = await fetch("/api/progress/pdf-report", {
+        headers: { "Authorization": "tma " + initData() },
+      });
+      if (!res.ok) throw new Error("pdf_export_failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "adam_report.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      haptic("light");
+      showToast("PDF готов", "success");
+    } catch (err) {
+      showToast("Не получилось сформировать отчёт", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
     }
   });
 
