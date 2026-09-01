@@ -27,6 +27,7 @@ from db import (
     get_ai_tokens_by_provider_today,
     get_retention_summary,
     get_survey_funnel_by_variant,
+    get_notification_delivery_stats,
 )
 
 logger = logging.getLogger("admin_digest_scheduler")
@@ -95,6 +96,17 @@ def build_stats_report():
     survey = get_survey_funnel()
     first_ai = get_first_ai_message_funnel()
 
+    # Единственная видимость по факту ДОСТАВКИ напоминаний по видам —
+    # раньше о сбое всей системы напоминаний (как в этой сессии) можно
+    # было узнать только по жалобам пользователей. Пустой список за 24ч —
+    # тревожный сигнал сам по себе: значит ни один из job'ов-напоминаний
+    # вообще не сработал.
+    notif_stats = get_notification_delivery_stats(hours=24)
+    if notif_stats:
+        notif_line = " · ".join(f"{row['kind']}: {row['cnt']}" for row in notif_stats[:8])
+    else:
+        notif_line = "за 24ч ни одного напоминания не зафиксировано ⚠️"
+
     return f"""
 📊 <b>Статистика бота</b>
 
@@ -121,6 +133,8 @@ def build_stats_report():
 🔥 Реальный расход токенов LLM сегодня (чат + все AI-напоминания): <b>{tokens_line}</b>
 
 🤖 Расход AI-квоты чата сегодня: <b>{ai_ceiling_line}</b> · оценки ответов: {fb_line}
+
+📬 Напоминания за 24ч: {notif_line}
 
 🩺 Мониторинг ошибок: <b>{err_line}</b>
 """.strip()

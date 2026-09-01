@@ -12,7 +12,7 @@ run_weekly_habit_analysis) вообще не защищались claim_notifica
 from datetime import datetime
 
 from db import (
-    add_user, set_daily_main_goal,
+    add_user, set_daily_main_goal, claim_notification, get_notification_delivery_stats,
 )
 
 from tests.conftest import sign_init_data  # noqa: F401 (импортируется для побочного эффекта настройки sys.path в некоторых средах)
@@ -312,6 +312,34 @@ async def test_goal_feedback_does_not_mark_sent_when_ai_returns_nothing(monkeypa
     # терял разбор на 7 дней, хотя фактически ничего не отправили.
     assert marked == []
     assert bot.sent == []
+
+
+# =====================================
+# db.streak.get_notification_delivery_stats — админ-видимость по доставке
+# =====================================
+
+def test_notification_delivery_stats_groups_by_kind_across_scopes(uid):
+    # get_notification_delivery_stats — глобальная сводка по ВСЕЙ таблице
+    # (для этого и задумана — общая admin-видимость), поэтому используем
+    # уникальные для этого теста имена kind вместо реальных
+    # "day_progress_19"/"habit_checkpoint_10" — иначе счётчик ловил бы ещё
+    # и claim'ы из других тестов, гоняющих реальные coach.* job'ы на общей
+    # тестовой БД сессии, и число "сколько именно" стало бы недетерминированным.
+    kind_a = f"test_kind_a_{uid}"
+    kind_b = f"test_kind_b_{uid}"
+    day = "2026-01-01"
+
+    # Разные scope (несколько ботов на одной БД) для одного и того же kind
+    # должны схлопнуться в одну строку сводки.
+    claim_notification(uid, day, kind_a, scope="bot_a")
+    claim_notification(uid * 10, day, kind_a, scope="bot_b")
+    claim_notification(uid, day, kind_b, scope="bot_a")
+
+    stats = get_notification_delivery_stats(hours=24)
+    by_kind = {row["kind"]: row["cnt"] for row in stats}
+
+    assert by_kind.get(kind_a) == 2
+    assert by_kind.get(kind_b) == 1
 
 
 async def test_goal_feedback_marks_sent_when_feedback_actually_delivered(monkeypatch, uid):

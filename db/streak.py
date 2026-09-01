@@ -559,6 +559,44 @@ def release_notification(user_id, day, kind, scope="default"):
     conn.close()
 
 
+def get_notification_delivery_stats(hours=24):
+    """Сколько уведомлений каждого вида реально закрепилось за последние
+    `hours` часов — единственная админ-видимость по доставке напоминаний,
+    которой раньше не было вообще (только общий get_error_stats без
+    разбивки по job'ам). Не 100% то же самое, что "доставлено Telegram" —
+    claim_notification резервирует место ДО отправки, но при неудаче
+    release_notification удаляет резерв (см. выше), так что оставшиеся
+    строки в подавляющем большинстве случаев соответствуют успешным
+    отправкам, за вычетом крайне редкого краша процесса прямо между
+    claim и release.
+
+    Возвращает [{"kind": "habit_checkpoint_10", "cnt": 42}, ...],
+    отсортировано по убыванию, kind — без ":scope" суффикса."""
+    conn = connect()
+    c = conn.cursor()
+    rows = c.execute(
+        """SELECT kind, COUNT(*) AS cnt FROM streak_notifications
+           WHERE sent_at >= datetime('now', ?)
+           GROUP BY kind ORDER BY cnt DESC""",
+        (f"-{hours} hours",),
+    ).fetchall()
+    conn.close()
+
+    # kind хранится как "имя:scope" (см. claim_notification) — схлопываем
+    # одинаковые имена из разных scope (несколько ботов на одной БД) в одну
+    # строку сводки.
+    totals = {}
+    for row in rows:
+        name = str(row["kind"]).split(":", 1)[0]
+        totals[name] = totals.get(name, 0) + int(row["cnt"])
+
+    return sorted(
+        ({"kind": name, "cnt": cnt} for name, cnt in totals.items()),
+        key=lambda r: r["cnt"],
+        reverse=True,
+    )
+
+
 # =====================================
 # ОКНО УДВОЕНИЯ Adam Coin ЗА ПООЧЕРЁДНОЕ ВЫПОЛНЕНИЕ ПРИВЫЧЕК
 # =====================================
