@@ -31,7 +31,7 @@ from db import (
     mark_goal_reminder_sent,
     get_daily_plan,
     get_timezone,
-    claim_notification, release_notification, notification_scope,
+    claim_notification, release_notification, notification_scope, in_time_window,
     get_habits, mark_habit_reminder_sent,
 )
 from multi_agent import generate_weekly_habit_feedback
@@ -290,9 +290,10 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
 
         try:
             now = datetime.now(ZoneInfo(get_timezone(telegram_id)))
-            # Интервальный job работает каждую минуту. Отправляем строго в
-            # нужную минуту, чтобы не было повторов при нескольких тиках.
-            if now.hour != target_hour or now.minute != 0:
+            # Окно допуска, не "== ровно эта минута" — от повторов защищает
+            # claim_notification ниже (атомарный, один раз в день на kind),
+            # а не точность попадания в тик планировщика.
+            if not in_time_window(now, hour=target_hour, minute=0):
                 continue
 
             incomplete = get_incomplete_habits(telegram_id)
@@ -360,7 +361,7 @@ async def run_day_progress_check(bot):
 
         try:
             now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
-            if now_local.hour != 19 or now_local.minute != 0:
+            if not in_time_window(now_local, hour=19, minute=0):
                 continue
 
             plan = get_daily_plan(telegram_id)

@@ -496,6 +496,23 @@ def get_weekly_bonus_available(user_id):
     return not claimed and completed == 7
 
 
+def in_time_window(now, hour, minute=0, tolerance_minutes=4):
+    """True, если `now` попадает в окно [hour:minute, hour:minute+tolerance).
+
+    Раньше почти все job'ы-напоминания проверяли "== эту самую минуту" —
+    хрупко: если тик планировщика на секунду задержался (нагрузка,
+    передеплой на Railway) или процесс был недоступен именно в эту
+    минуту, окно закрывалось и уведомление молча пропадало на весь день
+    (следующая проверка — только завтра в то же время). Расширение окна
+    безопасно ТОЛЬКО потому, что каждый вызывающий код обязан защищать
+    сам send() через claim_notification() ниже — если тик "поймает" окно
+    несколько раз подряд, отправит только первый успешный claim, дальше
+    все остальные попытки в это же окно получат ok=False и просто выйдут."""
+    start = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    end = start + timedelta(minutes=tolerance_minutes)
+    return start <= now < end
+
+
 def notification_scope(bot=None):
     """Уникальный стабильный идентификатор конкретного Telegram-бота.
     Нужен, когда несколько ботов работают с одной БД: одноразовые уведомления

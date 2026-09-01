@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, notification_scope
+from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, release_notification, notification_scope, in_time_window
 from multi_agent import generate_morning_message
 from alerts import notify_admins
 
@@ -35,22 +35,34 @@ async def run_morning_ping(bot):
 
         try:
             # Утренняя рассылка привязана к локальному времени пользователя.
-            # claim_notification гарантирует ровно одно утреннее сообщение
-            # даже после перезапуска/повторного запуска планировщика.
+            # in_time_window (не "== ровно эта минута") даёт запас на случай,
+            # если тик планировщика задержался или процесс был недоступен
+            # ровно в 06:00 (Railway передеплой и т.п.) — claim_notification
+            # всё равно гарантирует ровно одно утреннее сообщение в день,
+            # даже если окно "поймано" несколько тиков подряд.
             now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
-            if now_local.hour != 6 or now_local.minute != 0:
+            if not in_time_window(now_local, hour=6, minute=0):
                 continue
-            if not claim_notification(telegram_id, now_local.date().isoformat(), "morning_6", notification_scope(bot)):
+            day_key = now_local.date().isoformat()
+            scope = notification_scope(bot)
+            if not claim_notification(telegram_id, day_key, "morning_6", scope):
                 continue
 
-            style = get_ai_style(telegram_id) or "neutral"
-            # Утренний проактивный пинг не читает долгую память чата.
-            # Старые темы не должны всплывать сами по себе.
-            text = await generate_morning_message(style, "", user["streak"])
-            if not text:
-                text = FALLBACK_TEXT
+            try:
+                style = get_ai_style(telegram_id) or "neutral"
+                # Утренний проактивный пинг не читает долгую память чата.
+                # Старые темы не должны всплывать сами по себе.
+                text = await generate_morning_message(style, "", user["streak"])
+                if not text:
+                    text = FALLBACK_TEXT
 
-            await bot.send_message(chat_id=telegram_id, text=text)
+                await bot.send_message(chat_id=telegram_id, text=text)
+            except Exception:
+                # Резерв освобождаем, только если реально не отправили —
+                # иначе временный сбой (AI/сеть) молча "съедал" всё утреннее
+                # сообщение на весь день без единой попытки повтора.
+                release_notification(telegram_id, day_key, "morning_6", scope)
+                raise
             sent += 1
 
         except Exception as e:

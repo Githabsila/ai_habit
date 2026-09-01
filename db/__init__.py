@@ -5,6 +5,7 @@ from .core import DB_NAME, DATA_DIR, DB_PATH, connect, create_tables
 from .users import (
     add_user,
     survey_variant,
+    get_referred_users,
     get_user,
     get_users_count,
     get_all_users,
@@ -131,6 +132,7 @@ from .shop import (
 from .onboarding import (
     get_access_status,
     set_access_status,
+    reject_user,
     get_pending_users,
     get_users_pending_since,
     get_access_status_counts,
@@ -156,7 +158,7 @@ from .streak import (
     register_completion, rollover_user, rollover_all_users,
     buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
     should_show_onboarding, onboarding_message, mark_onboarding_seen,
-    RISK_15, RISK_23, claim_notification, release_notification, notification_scope, has_completed_today, get_streak_users, consume_completion_event,
+    RISK_15, RISK_23, claim_notification, release_notification, notification_scope, in_time_window, has_completed_today, get_streak_users, consume_completion_event,
     get_streak_reengagement_state, get_recent_streak_message_keys, record_streak_message_key, has_streak_frame,
     get_bonus_window, set_bonus_window,
 )
@@ -243,7 +245,7 @@ __all__ = [
     "ensure_streak_tables", "get_streak_status", "set_timezone", "get_timezone",
     "register_completion", "rollover_user", "rollover_all_users", "buy_freeze",
     "claim_weekly_reward", "get_weekly_bonus_available", "should_show_onboarding",
-    "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "release_notification", "notification_scope", "has_completed_today", "get_streak_users", "consume_completion_event",
+    "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "release_notification", "notification_scope", "in_time_window", "has_completed_today", "get_streak_users", "consume_completion_event",
     "get_streak_reengagement_state", "get_recent_streak_message_keys", "record_streak_message_key", "has_streak_frame",
     "get_bonus_window", "set_bonus_window",
     "get_secondary_task_praise_state", "record_secondary_task_praise",
