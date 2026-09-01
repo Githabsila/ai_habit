@@ -216,3 +216,28 @@ def update_theme(user_id, theme):
     conn.commit()
     conn.close()
     return True
+
+
+# Roadmap #48 — светлая тема. Отдельная ось от VALID_THEMES выше (тот
+# акцентный цвет — фиолетовый/синий/зелёный/розовый, всегда на тёмном
+# фоне) — color_mode переключает светлый/тёмный ФОН целиком, бесплатно,
+# без покупки (в отличие от акцентных тем, которые требуют THEME_ITEM_ID).
+VALID_COLOR_MODES = ("dark", "light")
+
+
+def get_color_mode(user_id):
+    settings = get_settings(user_id)
+    if settings is None or "color_mode" not in settings.keys():
+        return "dark"
+    return settings["color_mode"] or "dark"
+
+
+def update_color_mode(user_id, mode):
+    if mode not in VALID_COLOR_MODES:
+        return False
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE settings SET color_mode=? WHERE user_id=?", (mode, user_id))
+    conn.commit()
+    conn.close()
+    return True

@@ -364,6 +364,19 @@
       : `${tier} · максимальная лига`;
   }
 
+  // Roadmap #48 — светлая/тёмная тема. Ставим на <html> (не <body>,
+  // чтобы точно попасть под каждый ":root[data-mode=...]" в style.css),
+  // применяем при каждом renderAll() — так же, как акцентная тема
+  // (data-theme) применяется в renderThemePicker(), только это app-wide
+  // и не требует покупки.
+  function applyColorMode() {
+    const mode = state?.settings?.color_mode === "light" ? "light" : "dark";
+    document.documentElement.setAttribute("data-mode", mode);
+    document.querySelectorAll(".color-mode-btn").forEach(btn => {
+      btn.classList.toggle("is-active", btn.dataset.mode === mode);
+    });
+  }
+
   function renderAll() {
     // Критический путь: сначала только то, что пользователь видит на Главной.
     // Привычки и Ударный режим больше не конкурируют за CPU с магазином,
@@ -376,6 +389,7 @@
     renderBoosterBanner();
     renderDailyQuests();
     renderLeagueInfo();
+    applyColorMode();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
     maybeShowAppTour();
@@ -3002,6 +3016,28 @@ function initArchetypeQuizActions() {
   closeBtn?.addEventListener("click", () => { overlay.hidden = true; });
 }
 
+// Roadmap #48 — переключатель светлой/тёмной темы.
+function initColorModeActions() {
+  const picker = document.getElementById("colorModePicker");
+  if (!picker) return;
+  picker.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".color-mode-btn");
+    if (!btn) return;
+    const mode = btn.dataset.mode;
+    if (state.settings.color_mode === mode) return;
+    document.documentElement.setAttribute("data-mode", mode); // мгновенно, не ждём ответ сервера
+    picker.querySelectorAll(".color-mode-btn").forEach(b => b.classList.toggle("is-active", b === btn));
+    try {
+      await api("/api/settings/color-mode", { method: "POST", body: JSON.stringify({ mode }) });
+      state.settings.color_mode = mode;
+      haptic("light");
+    } catch (err) {
+      applyColorMode(); // откатываем визуально, если сервер отказал
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
 // Roadmap #25 — долгосрочные цели пользователя для AI-наставника.
 function initGoalsActions() {
   const input = document.getElementById("longTermGoalsInput");
@@ -3275,6 +3311,7 @@ async function boot() {
         // инициализация после падения просто не происходит.
         initPublicProfileActions();
         initGoalsActions();
+        initColorModeActions();
         if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {
           document.getElementById("archetypeQuizBtn").textContent = state.user.archetype;
         }

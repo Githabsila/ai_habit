@@ -8475,3 +8475,100 @@ body{
   box-shadow:0 8px 20px rgba(104,71,220,.3);
 }
 .feedback-send-btn:disabled{opacity:.5}
+
+/* =========================================================
+   ROADMAP #48 — СВЕТЛАЯ ТЕМА
+   =========================================================
+   Честный масштаб: приложение построено на "премиальных стеклянных"
+   карточках (.player-card/.card/.shop-item/.habit-item/.tab-bar и т.д.)
+   с сотнями точечных hardcoded !important-фонов, накопленных за много
+   отдельных правок этого файла (8000+ строк, три РАЗНЫХ поколения
+   токенов: :root в начале файла, --adam-* ближе к концу, и финальный
+   "слой полировки" с !important поверх всего). Полная построчная замена
+   каждого тёмного цвета была бы огромным и рискованным диффом с высоким
+   шансом пропустить что-то и получить нечитаемый текст в случайном месте.
+
+   Вместо этого светлая тема здесь — это смена ВНЕШНЕГО холста (фон
+   страницы/таб-бара/большие заголовки-разделители, которые лежат прямо
+   на фоне, не внутри карточки) на светлый, при этом сами "стеклянные"
+   карточки остаются тёмными — рабочий и распространённый паттерн
+   (светлый холст + тёмные карточки поверх), не "наполовину сломанная"
+   попытка перекрасить абсолютно всё. Переопределяем через
+   :root[data-mode="light"] в самом конце каскада — !important и высокая
+   специфичность гарантированно побеждают все более ранние !important-слои,
+   независимо от того, в каком поколении токенов они были написаны.
+   ========================================================= */
+:root[data-mode="light"]{
+  --bg:#F4F2FA;
+  --bg-secondary:#EAE6F5;
+  --surface:#FFFFFF;
+  --surface-light:#FFFFFF;
+  --border:rgba(20,15,40,.08);
+  --text:#1A1626;
+  --text-muted:#6B6478;
+  --adam-bg:#F4F2FA;
+  --adam-surface:rgba(255,255,255,.85);
+  --adam-surface-2:rgba(245,243,250,.9);
+  --adam-line:rgba(20,15,40,.08);
+  --adam-line-strong:rgba(20,15,40,.14);
+}
+
+:root[data-mode="light"] html{background:#F4F2FA !important}
+:root[data-mode="light"] body{
+  color:var(--text) !important;
+  background-image:
+    radial-gradient(900px 520px at 50% -12%,rgba(139,108,255,.14),transparent 62%),
+    radial-gradient(650px 520px at 105% 30%,rgba(255,191,71,.10),transparent 65%),
+    linear-gradient(180deg,#F7F5FC,#EDE9F7) !important;
+  background-blend-mode:normal !important;
+}
+
+/* Заголовки-разделители между карточками ("Тема оформления", "Данные и
+   поддержка" и т.п.) лежат прямо на фоне страницы, не внутри карточки —
+   без явного цвета они наследуют белый текст с тёмного фона по умолчанию. */
+:root[data-mode="light"] .section-heading h2,
+:root[data-mode="light"] h1,
+:root[data-mode="light"] h2,
+:root[data-mode="light"] h3{color:var(--text) !important}
+:root[data-mode="light"] .section-heading__sub,
+:root[data-mode="light"] .habits-section-count{color:var(--text-muted) !important}
+
+/* Таб-бар — тоже "плавает" над фоном страницы своим полупрозрачным тёмным
+   фоном; в светлой теме делаем его светлым стеклом, а не тёмным пятном. */
+:root[data-mode="light"] .tab-bar{
+  background:rgba(255,255,255,.82) !important;
+  border-color:rgba(20,15,40,.10) !important;
+  box-shadow:0 25px 70px rgba(120,100,160,.18),inset 0 1px rgba(255,255,255,.6) !important;
+}
+:root[data-mode="light"] .tab-bar__item{color:#8A8396 !important}
+:root[data-mode="light"] .tab-bar__item.is-active{color:#6847DC !important}
+
+/* Переключатель темы в настройках. */
+.color-mode-picker{display:flex;gap:8px;margin:2px 0 16px}
+.color-mode-btn{
+  flex:1;
+  padding:10px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+  color:var(--text-muted,#9D9DB3);
+  font-size:12.5px;
+  font-weight:700;
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, color .15s ease;
+}
+.color-mode-btn.is-active{
+  border-color:rgba(139,108,255,.45);
+  background:rgba(139,108,255,.16);
+  color:#cfc6ff;
+}
+:root[data-mode="light"] .color-mode-btn{
+  border-color:rgba(20,15,40,.10) !important;
+  background:rgba(255,255,255,.6) !important;
+  color:var(--text-muted) !important;
+}
+:root[data-mode="light"] .color-mode-btn.is-active{
+  border-color:rgba(104,71,220,.35) !important;
+  background:rgba(104,71,220,.12) !important;
+  color:#6847DC !important;
+}

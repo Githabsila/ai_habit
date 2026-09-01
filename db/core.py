@@ -210,6 +210,11 @@ def create_tables():
     if "theme" not in settings_columns:
         cursor.execute("ALTER TABLE settings ADD COLUMN theme TEXT DEFAULT 'violet'")
 
+    # Roadmap #48 — светлая тема: 'dark'/'light', бесплатно (в отличие от
+    # акцентного theme выше, который требует покупки в магазине).
+    if "color_mode" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN color_mode TEXT DEFAULT 'dark'")
+
     # Гранулярные напоминания: раньше был только один общий тумблер
     # `reminders` — "всё или ничего". Эти три колонки позволяют отключить
     # ТОЛЬКО, например, пуши про ударный режим, оставив утренние и вечерние

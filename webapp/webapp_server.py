@@ -29,6 +29,7 @@ from db import (
     set_quiet_hours, clear_quiet_hours,
     get_shop_items, buy_shop_item, get_user_items, get_shop_item,
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
+    get_color_mode, update_color_mode,
     touch_last_seen,
     has_reached_daily_limit, log_stars_purchase,
     get_rating, get_calendar, get_achievements, ACHIEVEMENT_ICONS,
@@ -318,6 +319,7 @@ async def bootstrap(request):
             "ai_style": get_ai_style(telegram_id),
             "theme_owned": has_item(telegram_id, THEME_ITEM_ID),
             "theme": get_theme(telegram_id),
+            "color_mode": get_color_mode(telegram_id),
             "quiet_hours": (
                 {"start": settings_row["quiet_hours_start"], "end": settings_row["quiet_hours_end"]}
                 if settings_row and "quiet_hours_start" in settings_row.keys()
@@ -876,6 +878,17 @@ async def set_theme(request):
         return web.json_response({"error": "invalid_theme"}, status=400)
 
     return web.json_response({"ok": True})
+
+@routes.post("/api/settings/color-mode")
+async def set_color_mode_route(request):
+    """Roadmap #48 — светлая/тёмная тема, бесплатно (в отличие от
+    акцентного /api/settings/theme выше, который требует покупки)."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    mode = body.get("mode")
+    if not update_color_mode(telegram_id, mode):
+        return web.json_response({"error": "invalid_color_mode"}, status=400)
+    return web.json_response({"ok": True, "mode": mode})
 
 @routes.post("/api/settings/reminders/toggle")
 async def toggle_reminders_route(request):

@@ -70,6 +70,7 @@ from .settings import (
     get_ai_style,
     update_theme,
     get_theme,
+    get_color_mode, update_color_mode, VALID_COLOR_MODES,
 )
 
 from .habits import (
@@ -290,6 +291,7 @@ __all__ = [
     "cache_get", "cache_set", "log_error", "get_error_stats",
     "get_shop_items", "buy_shop_item", "get_user_items",
     "has_item", "get_item_owner_ids", "update_theme", "get_theme",
+    "get_color_mode", "update_color_mode", "VALID_COLOR_MODES",
     "count_purchases_today", "has_reached_daily_limit", "log_stars_purchase",
     "get_access_status", "set_access_status", "reject_user", "get_pending_users",
     "get_users_pending_since", "get_access_status_counts",
