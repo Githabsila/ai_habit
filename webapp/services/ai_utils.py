@@ -10,6 +10,7 @@ from db import (
     get_timezone,
     get_proactive_topic,
     get_long_term_goals,
+    get_language,
 )
 
 
@@ -59,7 +60,14 @@ def build_user_context(user_id: int, max_chars: int = 2800) -> str:
         now_text = local_now.strftime('%H:%M')
     except Exception:
         now_text = datetime.now().strftime('%H:%M')
-    lines = [
+    lines = []
+    # Roadmap #46 — язык интерфейса пользователя (units.language, по
+    # умолчанию 'ru'). Инструкция первой строкой — самый заметный для
+    # модели способ переключить язык ВСЕГО пайплайна одним местом, не
+    # трогая промпты каждой отдельной стадии в multi_agent.py.
+    if get_language(user_id) == "en":
+        lines.append("IMPORTANT: The user's interface language is English — respond in English, not Russian.")
+    lines += [
         f"Текущее локальное время пользователя: {now_text}",
         f"Уровень: {progress['level']}",
         f"Adam Coin: {progress['xp']}",
@@ -154,6 +162,8 @@ def build_proactive_context(user_id: int) -> str:
     if not progress:
         return ""
     lines = []
+    if get_language(user_id) == "en":
+        lines.append("IMPORTANT: The user's interface language is English — respond in English, not Russian.")
     from datetime import datetime
     from zoneinfo import ZoneInfo
     try:

@@ -30,6 +30,7 @@ from db import (
     get_shop_items, buy_shop_item, get_user_items, get_shop_item,
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
     get_color_mode, update_color_mode,
+    get_language, set_language,
     touch_last_seen,
     has_reached_daily_limit, log_stars_purchase,
     get_rating, get_calendar, get_achievements, ACHIEVEMENT_ICONS,
@@ -326,6 +327,7 @@ async def bootstrap(request):
             "theme_owned": has_item(telegram_id, THEME_ITEM_ID),
             "theme": get_theme(telegram_id),
             "color_mode": get_color_mode(telegram_id),
+            "language": get_language(telegram_id),
             "quiet_hours": (
                 {"start": settings_row["quiet_hours_start"], "end": settings_row["quiet_hours_end"]}
                 if settings_row and "quiet_hours_start" in settings_row.keys()
@@ -966,6 +968,18 @@ async def set_color_mode_route(request):
     if not update_color_mode(telegram_id, mode):
         return web.json_response({"error": "invalid_color_mode"}, status=400)
     return web.json_response({"ok": True, "mode": mode})
+
+@routes.post("/api/settings/language")
+async def set_language_route(request):
+    """Roadmap #46 — язык интерфейса. Переключает и статичный текст Mini
+    App (см. app.js::I18N), и язык AI-ответов (см.
+    webapp/services/ai_utils.py — инструкция подмешивается в контекст
+    каждого запроса к AI)."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    if not set_language(telegram_id, body.get("language")):
+        return web.json_response({"error": "invalid_language"}, status=400)
+    return web.json_response({"ok": True})
 
 @routes.post("/api/settings/reminders/toggle")
 async def toggle_reminders_route(request):

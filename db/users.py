@@ -252,6 +252,29 @@ def set_archetype(user_id, archetype_key):
 
 
 # =====================================
+# Roadmap #46 — язык интерфейса
+# =====================================
+VALID_LANGUAGES = ("ru", "en")
+
+
+def get_language(user_id):
+    user = get_user(user_id)
+    if not user or "language" not in user.keys() or not user["language"]:
+        return "ru"
+    return user["language"] if user["language"] in VALID_LANGUAGES else "ru"
+
+
+def set_language(user_id, language):
+    if language not in VALID_LANGUAGES:
+        return False
+    conn = connect()
+    conn.execute("UPDATE users SET language=? WHERE telegram_id=?", (language, user_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
+# =====================================
 # Roadmap #25 — долгосрочные жизненные цели для AI-наставника
 # =====================================
 # Отдельно от разовой анкеты онбординга (user_survey.life_goal, см.

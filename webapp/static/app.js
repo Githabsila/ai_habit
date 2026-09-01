@@ -86,6 +86,7 @@
   let knownLevel = null; // для детекта левел-апа между загрузками
   let activeHabitFilter = ""; // выбранная категория в фильтре привычек ("" — все)
   let skipPromptHabitId = null; // id привычки, для которой сейчас открыт выбор причины пропуска
+  let currentLanguage = "ru"; // roadmap #46 — язык интерфейса, обновляется из state.settings.language
   let reactPickerForId = null; // roadmap #19 — telegram_id, для которого сейчас открыт выбор эмодзи-реакции в рейтинге
 
   const HABIT_CATEGORY_META = {
@@ -393,6 +394,41 @@
   // применяем при каждом renderAll() — так же, как акцентная тема
   // (data-theme) применяется в renderThemePicker(), только это app-wide
   // и не требует покупки.
+  // Roadmap #46 — словарь для [data-i18n]-элементов. Покрывает вкладки,
+  // главные заголовки разделов и переключатель языка — самые заметные,
+  // всегда видимые места, а не построчный перевод вообще всего текста
+  // приложения (сотни строк — нереалистично за один заход, см. отчёт
+  // пользователю). Динамические AI-ответы переводятся отдельно, через
+  // инструкцию языка в build_user_context (webapp/services/ai_utils.py).
+  const I18N = {
+    ru: {
+      tab_home: "Главная", tab_calendar: "Календарь", tab_ai: "ИИ", tab_rating: "Рейтинг", tab_profile: "Профиль",
+      plan_title: "План дня", calendar_title: "Календарь", rating_title: "Рейтинг",
+      shop_title: "Магазин ADAM", theme_title: "Тема оформления", achievements_title: "Достижения",
+      progress_title: "📊 Прогресс", settings_title: "⚙️ Настройки", data_support_title: "Данные и поддержка",
+      language_title: "Язык",
+    },
+    en: {
+      tab_home: "Home", tab_calendar: "Calendar", tab_ai: "AI", tab_rating: "Rating", tab_profile: "Profile",
+      plan_title: "Today's Plan", calendar_title: "Calendar", rating_title: "Rating",
+      shop_title: "ADAM Shop", theme_title: "Theme", achievements_title: "Achievements",
+      progress_title: "📊 Progress", settings_title: "⚙️ Settings", data_support_title: "Data & Support",
+      language_title: "Language",
+    },
+  };
+
+  function applyLanguage() {
+    currentLanguage = state?.settings?.language === "en" ? "en" : "ru";
+    const dict = I18N[currentLanguage];
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const key = el.dataset.i18n;
+      if (dict[key]) el.textContent = dict[key];
+    });
+    document.querySelectorAll(".language-picker-btn, #languagePicker .color-mode-btn").forEach(btn => {
+      btn.classList.toggle("is-active", btn.dataset.lang === currentLanguage);
+    });
+  }
+
   function applyColorMode() {
     const mode = state?.settings?.color_mode === "light" ? "light" : "dark";
     document.documentElement.setAttribute("data-mode", mode);
@@ -414,6 +450,7 @@
     renderDailyQuests();
     renderLeagueInfo();
     applyColorMode();
+    applyLanguage();
     renderPetWidget();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
@@ -2645,6 +2682,36 @@ function initPlanActions() {
     });
   }
 
+  // Roadmap #46 — англ. локализация статичных ошибок, параллельно RU-карте
+  // выше. Не тронуто: сообщения, которые генерирует сам AI (те уже
+  // подстраиваются под язык через инструкцию в build_user_context, см.
+  // webapp/services/ai_utils.py) и длинный хвост редко видимых строк —
+  // честно, это не 100%-ный перевод всего приложения, а покрытие самых
+  // частых экранов + системных сообщений об ошибках.
+  const ERROR_MAP_EN = {
+    title_too_short: "Title is too short",
+    already_completed: "Already completed",
+    not_enough_xp_or_not_found: "Not enough Adam Coin",
+    not_found: "Not found",
+    banned: "Access restricted",
+    theme_not_owned: "Buy «Theme» in the shop first",
+    use_stars_checkout: "This frame can only be bought with Telegram Stars",
+    telegram_payment_unavailable: "Open the app inside Telegram to pay with Stars",
+    frame_not_owned: "This frame isn't unlocked yet",
+    avatar_too_large: "Photo must be under 5 MB",
+    unsupported_image: "JPG, PNG and WEBP are supported",
+    invalid_theme: "That theme doesn't exist",
+    task_limit: "You can add up to 5 tasks",
+    habit_limit: "You can add up to 7 habits",
+    daily_limit_reached: "Already bought today — available again tomorrow",
+    habit_add_locked: "You already logged and deleted a habit today — adding new ones reopens at midnight",
+    invalid_init_data: "Telegram didn't pass auth data. Close the Mini App and reopen it.",
+    request_failed: "Couldn't reach the server. Check your connection and try again.",
+    not_admin: "Admins only",
+    bot_unavailable: "The bot is temporarily unavailable, try again later",
+    rate_limited: "Too many requests — wait a couple seconds and try again",
+  };
+
   function friendlyError(err) {
     const code = err && err.data && err.data.error;
 
@@ -2672,7 +2739,9 @@ function initPlanActions() {
         rate_limited: "Слишком много запросов подряд — подожди пару секунд и попробуй ещё раз"
     };
 
-    return map[code] || (err && err.message) || "Неизвестная ошибка";
+    const activeMap = currentLanguage === "en" ? ERROR_MAP_EN : map;
+    const fallback = currentLanguage === "en" ? "Unknown error" : "Неизвестная ошибка";
+    return activeMap[code] || (err && err.message) || fallback;
 }
 
   // ===================== LEVEL UP =====================
@@ -3175,6 +3244,26 @@ function initArchetypeQuizActions() {
   closeBtn?.addEventListener("click", () => { overlay.hidden = true; });
 }
 
+// Roadmap #46 — переключатель языка интерфейса.
+function initLanguageActions() {
+  const picker = document.getElementById("languagePicker");
+  if (!picker) return;
+  picker.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".color-mode-btn");
+    if (!btn) return;
+    const lang = btn.dataset.lang;
+    if (state.settings.language === lang) return;
+    try {
+      await api("/api/settings/language", { method: "POST", body: JSON.stringify({ language: lang }) });
+      state.settings.language = lang;
+      applyLanguage();
+      haptic("light");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
 // Roadmap #48 — переключатель светлой/тёмной темы.
 function initColorModeActions() {
   const picker = document.getElementById("colorModePicker");
@@ -3494,6 +3583,7 @@ async function boot() {
         initPublicProfileActions();
         initGoalsActions();
         initColorModeActions();
+        initLanguageActions();
         if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {
           document.getElementById("archetypeQuizBtn").textContent = state.user.archetype;
         }

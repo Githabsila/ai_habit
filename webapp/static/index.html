@@ -179,7 +179,7 @@ style="width:0%">
 
   <div class="section-heading">
 
-    <h2>План дня</h2>
+    <h2 data-i18n="plan_title">План дня</h2>
 
     <span class="section-heading__sub" id="planProgressLabel">
 
@@ -344,7 +344,7 @@ class="habit-add-form__submit">
 
 <div class="section-heading">
 
-<h2>Календарь</h2>
+<h2 data-i18n="calendar_title">Календарь</h2>
 
 </div>
 
@@ -360,7 +360,7 @@ class="habit-add-form__submit">
   <div class="rating-hero__glow rating-hero__glow--one"></div>
   <div class="rating-hero__glow rating-hero__glow--two"></div>
   <div class="rating-hero__eyebrow"><span class="rating-live-dot"></span> ADAM LEAGUE · LIVE</div>
-  <h2>Рейтинг</h2>
+  <h2 data-i18n="rating_title">Рейтинг</h2>
   <p>Кто держит темп — тот поднимается выше.</p>
   <div class="rating-hero__stats">
     <span><b id="ratingPlayerCount">0</b> <span id="ratingPlayerCountLabel">игроков</span></span>
@@ -421,7 +421,7 @@ class="habit-add-form__submit">
 <div class="shop-head">
   <div>
     <div class="shop-eyebrow">ADAM STORE</div>
-    <h2>Магазин ADAM</h2>
+    <h2 data-i18n="shop_title">Магазин ADAM</h2>
     <p>Прокачай своего ADAM — ответы, стиль и возможности.</p>
   </div>
   <div class="shop-balance" id="shopBalance"><span class="shop-balance__coin">A</span><span id="shopBalanceValue">0</span></div>
@@ -432,7 +432,7 @@ class="habit-add-form__submit">
 
 <div class="section-heading">
 
-<h2>Тема оформления</h2>
+<h2 data-i18n="theme_title">Тема оформления</h2>
 
 </div>
 
@@ -444,10 +444,18 @@ class="habit-add-form__submit">
 <button type="button" class="color-mode-btn" data-mode="light">☀️ Светлая</button>
 </div>
 
+<div class="section-heading">
+<h2 data-i18n="language_title">Язык</h2>
+</div>
+<div class="color-mode-picker" id="languagePicker">
+<button type="button" class="color-mode-btn" data-lang="ru">🇷🇺 Русский</button>
+<button type="button" class="color-mode-btn" data-lang="en">🇬🇧 English</button>
+</div>
+
 <div class="section-heading achievements-heading">
 
   <div>
-    <h2>Достижения</h2>
+    <h2 data-i18n="achievements_title">Достижения</h2>
     <p class="achievements-heading__hint">Последние награды — сразу перед глазами</p>
   </div>
 
@@ -470,7 +478,7 @@ class="habit-add-form__submit">
 </div>
 
 <div class="section-heading">
-  <h2>📊 Прогресс</h2>
+  <h2><span data-i18n="progress_title">📊 Прогресс</span></h2>
 </div>
 
 <div class="progress-stats-card" id="progressStatsCard">
@@ -495,7 +503,7 @@ class="habit-add-form__submit">
 <div class="progress-ai-result" id="progressAiResult" hidden></div>
 
 <div class="section-heading">
-  <h2>⚙️ Настройки</h2>
+  <h2><span data-i18n="settings_title">⚙️ Настройки</span></h2>
 </div>
 
 <div class="settings-card">
@@ -560,7 +568,7 @@ class="habit-add-form__submit">
 </div>
 
 <div class="section-heading">
-  <h2>Данные и поддержка</h2>
+  <h2 data-i18n="data_support_title">Данные и поддержка</h2>
 </div>
 
 <div class="settings-card data-support-card">
@@ -597,27 +605,27 @@ class="habit-add-form__submit">
 
     <button class="tab-bar__item is-active" data-tab="home">
         <span class="tab-bar__icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 11.5 12 4l8 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10v8.5a1 1 0 0 0 1 1h3.2v-5.2h3.6V19.5h3.2a1 1 0 0 0 1-1V10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span>Главная</span>
+        <span data-i18n="tab_home">Главная</span>
     </button>
 
     <button class="tab-bar__item" data-tab="calendar">
         <span class="tab-bar__icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="5.5" width="16" height="15" rx="3.2" stroke="currentColor" stroke-width="2"/><path d="M4 10h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 3.5v3.5M16 3.5v3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8.3" cy="14.2" r="1.15" fill="currentColor"/><circle cx="12" cy="14.2" r="1.15" fill="currentColor"/><circle cx="15.7" cy="14.2" r="1.15" fill="currentColor"/></svg></span>
-        <span>Календарь</span>
+        <span data-i18n="tab_calendar">Календарь</span>
     </button>
 
     <button class="tab-bar__item" id="aiCoachBtn">
     <span class="tab-bar__icon"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.3c.45 3.55 1.35 5.95 2.95 7.55 1.6 1.6 4 2.5 7.55 2.95-3.55.45-5.95 1.35-7.55 2.95-1.6 1.6-2.5 4-2.95 7.55-.45-3.55-1.35-5.95-2.95-7.55C7.45 14.15 5.05 13.25 1.5 12.8c3.55-.45 5.95-1.35 7.55-2.95C10.65 8.25 11.55 5.85 12 2.3Z" fill="currentColor"/></svg></span>
-    <span>ИИ</span>
+    <span data-i18n="tab_ai">ИИ</span>
 </button>
 
     <button class="tab-bar__item" data-tab="rating">
         <span class="tab-bar__icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 4h10v4.2c0 3.4-2.2 6.1-5 6.1s-5-2.7-5-6.1V4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M7 5.2H4.6a1 1 0 0 0-1 1.2c.4 2.1 1.8 3.6 3.6 3.9M17 5.2h2.4a1 1 0 0 1 1 1.2c-.4 2.1-1.8 3.6-3.6 3.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 14.3V17M9 20.5h6M9.6 20.5c0-1.9.9-3 2.4-3s2.4 1.1 2.4 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span>Рейтинг</span>
+        <span data-i18n="tab_rating">Рейтинг</span>
     </button>
 
     <button class="tab-bar__item" data-tab="profile">
         <span class="tab-bar__icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="3.4" stroke="currentColor" stroke-width="2"/><path d="M5 19.5c.7-3.6 3.3-5.6 7-5.6s6.3 2 7 5.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span>Профиль</span>
+        <span data-i18n="tab_profile">Профиль</span>
     </button>
 
 </nav>
@@ -836,7 +844,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260901_NOTIF_HISTORY_PERF_V1"></script>
+<script type="module" src="/static/app.js?v=20260901_I18N_V1"></script>
 
 </body>
 </html>
