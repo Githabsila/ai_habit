@@ -3660,41 +3660,55 @@ function initDataSupportActions() {
   });
 }
 
+// Улучшение #60: кнопка "Повторить" в bootRetryBanner вызывает boot() ещё
+// раз при неудачной первой попытке. Без этих флагов повторный вызов заново
+// регистрировал бы все обработчики кликов ниже (они уже были навешаны в
+// первой попытке, до провала на loadBootstrap()) — каждый клик после этого
+// срабатывал бы дважды (двойные API-запросы, двойные тосты и т.д.).
+let preBootstrapInitDone = false;
+let postBootstrapInitDone = false;
+
 async function boot() {
     try {
-        initTelegram();
-        initAppTour();
-        initTabs();
-        initHabitActions();
-        initDailyQuestActions();
-        initRatingActions();
-        initRatingScopeSwitch();
-        initArchetypeQuizActions();
-        initPlanActions();
-        initShopActions();
-        initProfileAvatarActions();
-        initThemeActions();
-        initStreakUI();
-        initStreakPopupClick();
-        initProgressActions();
+        if (!preBootstrapInitDone) {
+            initTelegram();
+            initAppTour();
+            initTabs();
+            initHabitActions();
+            initDailyQuestActions();
+            initRatingActions();
+            initRatingScopeSwitch();
+            initArchetypeQuizActions();
+            initPlanActions();
+            initShopActions();
+            initProfileAvatarActions();
+            initThemeActions();
+            initStreakUI();
+            initStreakPopupClick();
+            initProgressActions();
+            preBootstrapInitDone = true;
+        }
         // ВАЖНО: настройки используют state.settings, поэтому их нельзя
         // инициализировать до первого bootstrap. Иначе boot() падал на
         // state === null, а навигация и вторичные вкладки не запускались.
         // Критический экран готов сразу после bootstrap. Часовой пояс не должен
         // удерживать loading-overlay и мешать первому paint (особенно в Telegram WebView).
         await loadBootstrap();
-        initSettingsActions();
-        initDataSupportActions();
-        // Эти три читают state.settings/state.user СИНХРОННО в момент своей
-        // инициализации (не только внутри later-колбэков) — как и
-        // initSettingsActions/initDataSupportActions выше, обязаны идти
-        // ПОСЛЕ первого bootstrap, иначе boot() падает на state === null
-        // (см. комментарий над loadBootstrap() выше) и вся остальная
-        // инициализация после падения просто не происходит.
-        initPublicProfileActions();
-        initGoalsActions();
-        initColorModeActions();
-        initLanguageActions();
+        if (!postBootstrapInitDone) {
+            initSettingsActions();
+            initDataSupportActions();
+            // Эти три читают state.settings/state.user СИНХРОННО в момент своей
+            // инициализации (не только внутри later-колбэков) — как и
+            // initSettingsActions/initDataSupportActions выше, обязаны идти
+            // ПОСЛЕ первого bootstrap, иначе boot() падает на state === null
+            // (см. комментарий над loadBootstrap() выше) и вся остальная
+            // инициализация после падения просто не происходит.
+            initPublicProfileActions();
+            initGoalsActions();
+            initColorModeActions();
+            initLanguageActions();
+            postBootstrapInitDone = true;
+        }
         if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {
           document.getElementById("archetypeQuizBtn").textContent = state.user.archetype;
         }
@@ -3708,12 +3722,34 @@ async function boot() {
         setTimeout(() => syncTimezone(), 0);
     } catch (err) {
         console.error("boot() failed:", err);
-        showToast(friendlyError(err) || "Не удалось загрузить данные", "error");
+        // Улучшение #60: если ПЕРВЫЙ bootstrap так и не смог загрузиться
+        // (state всё ещё пуст — значит рендерить вообще нечего), обычный
+        // toast — тупик: он исчезнет через пару секунд, а пользователь
+        // останется на пустом экране без способа повторить попытку, кроме
+        // полного перезапуска Mini App. Показываем полноэкранный баннер с
+        // кнопкой "Повторить" вместо этого. Если же bootstrap когда-то уже
+        // прошёл успешно (упала только более поздняя, некритичная часть
+        // инициализации) — интерфейс уже отрисован, toast достаточно.
+        if (!state) {
+            const banner = document.getElementById("bootRetryBanner");
+            if (banner) banner.hidden = false;
+        } else {
+            showToast(friendlyError(err) || "Не удалось загрузить данные", "error");
+        }
     } finally {
         const overlay = document.getElementById("loadingOverlay");
         if (overlay) overlay.hidden = true;
     }
 }
+
+document.getElementById("bootRetryBtn")?.addEventListener("click", () => {
+    const banner = document.getElementById("bootRetryBanner");
+    const overlay = document.getElementById("loadingOverlay");
+    if (banner) banner.hidden = true;
+    if (overlay) overlay.hidden = false;
+    haptic("light");
+    boot();
+});
 
 document.addEventListener("DOMContentLoaded", boot);
 
