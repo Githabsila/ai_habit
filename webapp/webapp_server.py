@@ -64,6 +64,7 @@ from db import (
     get_season_leaderboard, get_season_rank,
     create_team, join_team, leave_team, get_my_team,
     get_friend_activity_feed,
+    get_notification_history,
 )
 
 from datetime import date, datetime, timezone
@@ -424,6 +425,15 @@ async def activity_feed_route(request):
     """Roadmap #18 — лента активности друзей (команда + кому реагировали)."""
     telegram_id, _ = await _authenticate(request)
     return web.json_response({"events": get_friend_activity_feed(telegram_id)})
+
+
+@routes.get("/api/notifications/history")
+async def notification_history_route(request):
+    """"Уведомления — прозрачно": история реально отправленных плановых
+    push-ов (см. db/streak.py::claim_notification — единая точка почти
+    для всех), а не чёрный ящик."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({"history": get_notification_history(telegram_id)})
 
 
 @routes.get("/api/bootstrap-secondary")

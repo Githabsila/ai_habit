@@ -550,6 +550,17 @@ def notification_scope(bot=None):
 def claim_notification(user_id, day, kind, scope="default"):
     """Атомарно резервирует уведомление.
     scope разделяет одноразовые уведомления разных Telegram-ботов.
+
+    Заодно пишет в notification_log (см. db/core.py) — единая точка,
+    через которую проходят ПРАКТИЧЕСКИ ВСЕ плановые уведомления во всём
+    проекте (coach.py/streak_scheduler.py/morning_ping.py/...), поэтому
+    это самое дешёвое место получить полную историю "что и когда
+    отправлено" для экрана пользователя (roadmap "уведомления в 100 раз
+    лучше" — прозрачность вместо чёрного ящика), не трогая каждый
+    отдельный вызов bot.send_message по всему проекту. release_notification
+    ниже удаляет соответствующую запись, если отправка не удалась —
+    так в логе остаются только реально доставленные (либо не более чем
+    формально зарезервированные, но откаченные при явной ошибке) события.
     """
     conn = connect()
     c = conn.cursor()
@@ -558,6 +569,10 @@ def claim_notification(user_id, day, kind, scope="default"):
         c.execute(
             "INSERT INTO streak_notifications(user_id,day,kind) VALUES(?,?,?)",
             (user_id, day, scoped_kind),
+        )
+        c.execute(
+            "INSERT INTO notification_log(user_id, category, title) VALUES (?,?,?)",
+            (user_id, kind, kind),
         )
         conn.commit()
         ok = True
@@ -577,8 +592,54 @@ def release_notification(user_id, day, kind, scope="default"):
         "DELETE FROM streak_notifications WHERE user_id=? AND day=? AND kind=?",
         (user_id, day, scoped_kind),
     )
+    # Откатываем и запись в истории — раз отправка не удалась, это не
+    # должно выглядеть как "уведомление доставлено" в глазах пользователя.
+    c.execute("""
+        DELETE FROM notification_log WHERE id = (
+            SELECT id FROM notification_log
+            WHERE user_id=? AND category=? ORDER BY id DESC LIMIT 1
+        )
+    """, (user_id, kind))
     conn.commit()
     conn.close()
+
+
+NOTIFICATION_KIND_LABELS = {
+    "weekly_report": "📊 Итог недели",
+    "day_progress_19": "🌙 Вечерний прогресс",
+    "morning_6": "☀️ Утреннее приветствие",
+    "weekly_habit_analysis": "🧠 AI-разбор недели",
+    "monthly_habit_analysis": "🧠 AI-разбор месяца",
+    "risk23": "🔥 Риск потерять серию",
+    "risk2330": "🔥 Риск потерять серию",
+    "weekly_bonus": "🎁 Недельный бонус",
+    "trial_reminder": "💳 Напоминание об оплате",
+}
+
+
+def _friendly_notification_label(kind):
+    if kind in NOTIFICATION_KIND_LABELS:
+        return NOTIFICATION_KIND_LABELS[kind]
+    if kind.startswith("streak_reengage"):
+        return "👋 Возвращение в ударный режим"
+    if kind.startswith("habit_checkpoint"):
+        return "✅ Контрольная точка по привычкам"
+    return "🔔 " + kind.replace("_", " ").strip()
+
+
+def get_notification_history(user_id, limit=30):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT category, title, sent_at FROM notification_log WHERE user_id=? ORDER BY id DESC LIMIT ?",
+        (user_id, limit),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [
+        {"category": r["category"], "label": _friendly_notification_label(r["category"]), "sent_at": str(r["sent_at"])}
+        for r in rows
+    ]
 
 
 def get_notification_delivery_stats(hours=24):

@@ -5,7 +5,7 @@ Roadmap #41 (feature flags), #9 (сезонные ивенты), #11 (вирту
 from db import (
     add_user, add_habit, get_habits, complete_habit, add_xp,
     is_feature_enabled, set_feature_flag, get_all_flags, delete_feature_flag,
-    get_season_leaderboard, get_season_rank, current_season_key,
+    get_season_leaderboard, get_season_rank, current_season_key, clear_season_leaderboard_cache,
     get_pet, feed_pet,
     create_team, join_team, leave_team, get_my_team,
     log_activity_event, get_friend_activity_feed,
@@ -69,6 +69,10 @@ def test_season_leaderboard_reflects_this_month_xp(uid):
     )
     conn.commit()
     conn.close()
+    # Лидерборд кэшируется на 30с на весь процесс (см. db/seasons.py) —
+    # без сброса кэша этот тест мог бы увидеть устаревшие данные,
+    # закэшированные КАКИМ-ТО другим тестом ранее в этом же прогоне.
+    clear_season_leaderboard_cache()
     leaderboard = get_season_leaderboard(limit=100)
     entry = next((r for r in leaderboard if r["telegram_id"] == uid), None)
     assert entry is not None

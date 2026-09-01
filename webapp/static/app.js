@@ -3325,6 +3325,28 @@ function initDataSupportActions() {
     }
   });
 
+  // Уведомления "в 100 раз лучше": не чёрный ящик — история реально
+  // отправленных плановых сообщений, а не только "включено/выключено".
+  document.getElementById("notificationHistoryBtn")?.addEventListener("click", async (e) => {
+    const box = document.getElementById("notificationHistoryBox");
+    if (!box.hidden) { box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = `<div class="empty-hint">Загружаю…</div>`;
+    try {
+      const data = await api("/api/notifications/history");
+      const items = data.history || [];
+      box.innerHTML = items.length === 0
+        ? `<div class="empty-hint">Пока ничего не отправляли</div>`
+        : items.map(h => {
+            const dt = new Date(h.sent_at.replace(" ", "T") + "Z");
+            const when = isNaN(dt) ? h.sent_at : dt.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+            return `<div class="notification-history__row"><span>${h.label}</span><small>${when}</small></div>`;
+          }).join("");
+    } catch (err) {
+      box.innerHTML = `<div class="empty-hint">Не получилось загрузить</div>`;
+    }
+  });
+
   // Roadmap #8 — импорт привычек из CSV: один файл, одна привычка на
   // строку ("Название" или "Название,категория"), без каких-либо
   // изменений на сервере — просто цикл по уже существующему POST

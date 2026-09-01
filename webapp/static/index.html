@@ -577,6 +577,11 @@ class="habit-add-form__submit">
     <span class="data-support-btn__text"><b>Импортировать привычки</b><small>Из CSV — одна привычка на строку</small></span>
     <input type="file" accept=".csv,text/csv" id="importCsvInput" hidden>
   </label>
+  <button type="button" class="data-support-btn" id="notificationHistoryBtn">
+    <span class="data-support-btn__icon">🔔</span>
+    <span class="data-support-btn__text"><b>История уведомлений</b><small>Что и когда бот тебе отправлял</small></span>
+  </button>
+  <div class="notification-history" id="notificationHistoryBox" hidden></div>
   <button type="button" class="data-support-btn" id="openFeedbackBtn">
     <span class="data-support-btn__icon">💬</span>
     <span class="data-support-btn__text"><b>Сообщить о проблеме</b><small>Напрямую разработчику, с контекстом</small></span>
@@ -831,7 +836,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260901_PET_TEAMS_SEASONS_V1"></script>
+<script type="module" src="/static/app.js?v=20260901_NOTIF_HISTORY_PERF_V1"></script>
 
 </body>
 </html>

@@ -8,21 +8,27 @@ db/monthly_streak.py) — не отдельный, рассинхронизир�
 каждом месте начисления XP. В конце месяца (day=1 следующего) топ-3
 получают разовую награду — см. season_scheduler.py.
 """
+import time
 from datetime import date
 
 from .core import connect
 
 SEASON_TOP_REWARDS = {1: (300, 3), 2: (200, 2), 3: (100, 1)}  # rank: (coins, diamonds)
 
+# Производительность: сезонный лидерборд — это агрегатный запрос по ВСЕМ
+# пользователям (JOIN + GROUP BY), пересчитывать его на каждый запрос
+# вкладки "Рейтинг" от каждого пользователя расточительно, а секундная
+# точность тут никому не нужна — 30 секунд кэша сглаживают пики нагрузки,
+# не делая данные заметно "устаревшими".
+_LEADERBOARD_CACHE = {"at": 0, "data": None}
+_LEADERBOARD_TTL_SECONDS = 30
+
 
 def current_season_key():
     return date.today().strftime("%Y-%m")
 
 
-def get_season_leaderboard(limit=10):
-    """Топ пользователей по Adam Coin, заработанным ЗА ТЕКУЩИЙ сезон
-    (месяц) — отдельно от общего рейтинга (db/users.py::get_rating,
-    который считает по streak/общему xp за всё время)."""
+def _fetch_full_season_leaderboard():
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("""
@@ -33,8 +39,7 @@ def get_season_leaderboard(limit=10):
         WHERE s.stat_date >= date('now', 'start of month') AND u.banned=0
         GROUP BY s.user_id
         ORDER BY season_xp DESC
-        LIMIT ?
-    """, (limit,))
+    """)
     rows = cursor.fetchall()
     conn.close()
     return [
@@ -48,6 +53,31 @@ def get_season_leaderboard(limit=10):
         }
         for r in rows
     ]
+
+
+def clear_season_leaderboard_cache():
+    """Сбрасывает кэш вручную — нужно только тестам (иначе кэш одного
+    теста мог бы отдать устаревшие данные следующему в том же процессе,
+    т.к. кэш модульный/на весь процесс, а не per-request)."""
+    _LEADERBOARD_CACHE["data"] = None
+    _LEADERBOARD_CACHE["at"] = 0
+
+
+def _get_cached_full_leaderboard():
+    now = time.monotonic()
+    if _LEADERBOARD_CACHE["data"] is None or now - _LEADERBOARD_CACHE["at"] > _LEADERBOARD_TTL_SECONDS:
+        _LEADERBOARD_CACHE["data"] = _fetch_full_season_leaderboard()
+        _LEADERBOARD_CACHE["at"] = now
+    return _LEADERBOARD_CACHE["data"]
+
+
+def get_season_leaderboard(limit=10):
+    """Топ пользователей по Adam Coin, заработанным ЗА ТЕКУЩИЙ сезон
+    (месяц) — отдельно от общего рейтинга (db/users.py::get_rating,
+    который считает по streak/общему xp за всё время). Кэшируется на
+    _LEADERBOARD_TTL_SECONDS — это агрегат по всем пользователям, не
+    имеет смысла пересчитывать при каждом открытии вкладки."""
+    return _get_cached_full_leaderboard()[:limit]
 
 
 def get_season_rank(user_id):

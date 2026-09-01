@@ -49,6 +49,7 @@ from .feature_flags import (
 
 from .seasons import (
     current_season_key, get_season_leaderboard, get_season_rank, award_season_rewards,
+    clear_season_leaderboard_cache,
 )
 
 from .pets import get_pet, feed_pet, PET_STAGES
@@ -212,6 +213,7 @@ from .streak import (
     buy_freeze, claim_weekly_reward, get_weekly_bonus_available,
     should_show_onboarding, onboarding_message, mark_onboarding_seen,
     RISK_15, RISK_23, claim_notification, release_notification, notification_scope, in_time_window, get_notification_delivery_stats, has_completed_today, get_streak_users, consume_completion_event,
+    get_notification_history,
     get_streak_reengagement_state, get_recent_streak_message_keys, record_streak_message_key, has_streak_frame,
     get_bonus_window, set_bonus_window,
 )
@@ -267,6 +269,7 @@ __all__ = [
     "get_habit_correlations",
     "is_feature_enabled", "get_all_flags", "set_feature_flag", "delete_feature_flag",
     "current_season_key", "get_season_leaderboard", "get_season_rank", "award_season_rewards",
+    "clear_season_leaderboard_cache",
     "get_pet", "feed_pet", "PET_STAGES",
     "create_team", "join_team", "leave_team", "get_my_team",
     "MAX_TEAM_MEMBERS", "MAX_TEAM_NAME_LENGTH",
@@ -326,6 +329,7 @@ __all__ = [
     "register_completion", "rollover_user", "rollover_all_users", "buy_freeze",
     "claim_weekly_reward", "get_weekly_bonus_available", "should_show_onboarding",
     "onboarding_message", "mark_onboarding_seen", "RISK_15", "RISK_23", "claim_notification", "release_notification", "notification_scope", "in_time_window", "get_notification_delivery_stats", "has_completed_today", "get_streak_users", "consume_completion_event",
+    "get_notification_history",
     "get_streak_reengagement_state", "get_recent_streak_message_keys", "record_streak_message_key", "has_streak_frame",
     "get_bonus_window", "set_bonus_window",
     "get_secondary_task_praise_state", "record_secondary_task_praise",
