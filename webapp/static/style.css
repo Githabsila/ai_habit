@@ -444,6 +444,8 @@ font-size:15px;
 
     align-items:center;
 
+    flex-wrap:wrap;
+
     gap:16px;
 
     padding:18px;
@@ -547,6 +549,12 @@ font-size:15px;
 
     line-height:1.4;
 
+}
+
+.habit-item__badge{
+    flex:0 0 auto;
+    font-size:15px;
+    line-height:1;
 }
 
 .habit-item.is-done .habit-item__title{
@@ -7410,6 +7418,148 @@ body{
   line-height:1;
   font-weight:800;
 }
+
+/* =========================================================
+   КАТЕГОРИЯ / ПРИОРИТЕТ ПРИ ДОБАВЛЕНИИ, ФИЛЬТР, ПРОПУСК ПРИВЫЧКИ
+   ========================================================= */
+.habit-add-form__row1b{
+  display:flex;
+  gap:10px;
+  width:100%;
+}
+.habit-add-form__category{
+  flex:1;
+  min-width:0;
+  height:44px;
+  padding:0 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+  color:var(--text,#EAE5FA);
+  font-family:'Space Grotesk', sans-serif;
+  font-size:13px;
+  font-weight:600;
+}
+.habit-add-form__priority{
+  flex:0 0 auto;
+  display:flex;align-items:center;gap:6px;
+  height:44px;
+  padding:0 14px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+  color:var(--text-muted,#9D9DB3);
+  font-family:'Space Grotesk', sans-serif;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, color .15s ease;
+}
+.habit-add-form__priority[aria-pressed="true"]{
+  border-color:rgba(255,209,102,.5);
+  background:rgba(255,209,102,.12);
+  color:#FFD76A;
+}
+/* Любая <button> внутри .add-form принудительно красится в фирменный
+   фиолетовый градиент правилом ".btn,.add-form button,..." (см. выше по
+   файлу, !important) — для CTA это то, что нужно, но у ПЕРЕКЛЮЧАТЕЛЯ это
+   означало, что кнопка выглядит "нажатой" ВСЕГДА, независимо от реального
+   состояния. ID-селектор специфичнее ".add-form button" и с тем же
+   !important побеждает его — возвращает нейтральный вид именно
+   невключённому состоянию, оставляя явный акцент только на aria-pressed=true. */
+#newHabitPriorityBtn[aria-pressed="false"]{
+  background:rgba(255,255,255,.03) !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  box-shadow:none !important;
+}
+
+/* Фильтр по категориям над списком привычек — только когда есть что
+   фильтровать (см. renderHabits(): скрыт, если ни у одной привычки нет
+   категории — пустой ряд чипов сам по себе такой же шум, какой эта
+   фаза редизайна убирает). */
+.habit-filter-row{
+  display:flex;
+  gap:8px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  padding:2px 2px 10px;
+}
+.habit-filter-row::-webkit-scrollbar{display:none}
+.habit-filter-row[hidden]{display:none !important}
+.habit-filter-chip{
+  flex:0 0 auto;
+  padding:8px 14px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+  color:var(--text-muted,#9D9DB3);
+  font-size:12.5px;
+  font-weight:700;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, color .15s ease;
+}
+.habit-filter-chip.is-active{
+  border-color:rgba(139,108,255,.45);
+  background:rgba(139,108,255,.14);
+  color:#cfc6ff;
+}
+
+.habit-item__skip{
+  flex:0 0 auto;
+  width:34px;height:34px;
+  display:grid;place-items:center;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  color:var(--text-muted,#9C97AE);
+  font-size:14px;
+  cursor:pointer;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .2s ease,border-color .2s ease;
+}
+.habit-item__skip:active{transform:scale(.92)}
+.habit-item.is-skipped{opacity:.6}
+.habit-item__skip-note{
+  flex:1 1 100%;
+  order:5;
+  font-size:12px;
+  color:var(--text-muted,#9C97AE);
+  display:flex;align-items:center;gap:6px;
+}
+.habit-item__skip-note button{
+  border:none;background:none;color:#cfc6ff;font-size:12px;font-weight:700;cursor:pointer;padding:0;
+}
+.habit-skip-reasons{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  flex:1 1 100%;
+  order:5;
+  margin-top:8px;
+}
+.habit-skip-reason-chip{
+  flex:0 0 auto;
+  padding:7px 12px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  color:var(--text,#EAE5FA);
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+}
+.habit-skip-reason-chip:active{transform:scale(.95)}
+.habit-skip-reason-cancel{
+  flex:0 0 auto;
+  padding:7px 10px;
+  border-radius:999px;
+  border:none;
+  background:none;
+  color:var(--text-muted,#9C97AE);
+  font-size:12px;
+  cursor:pointer;
+}
+
 .habit-item__time{
   flex:0 0 auto;
   height:34px;

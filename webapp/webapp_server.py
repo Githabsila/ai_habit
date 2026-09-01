@@ -24,6 +24,7 @@ from db import (
     get_user, add_user, is_banned, get_access_status, set_access_status,
     get_habits, get_habit, add_habit, edit_habit, delete_habit,
     complete_habit, get_progress, get_settings,
+    skip_habit, unskip_habit, HABIT_CATEGORIES,
     update_reminder_time, toggle_reminders, update_ai_style, get_ai_style,
     get_shop_items, buy_shop_item, get_user_items, get_shop_item,
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
@@ -259,9 +260,13 @@ async def bootstrap(request):
                 "completed": bool(h["completed"]),
                 "planned_time": h["planned_time"] if "planned_time" in h.keys() else None,
                 "time_window_minutes": h["time_window_minutes"] if "time_window_minutes" in h.keys() else 60,
+                "category": h["category"] if "category" in h.keys() else None,
+                "priority": h["priority"] if "priority" in h.keys() and h["priority"] else 1,
+                "skip_reason": h["skip_reason"] if "skip_reason" in h.keys() else None,
             }
             for h in habits
         ],
+        "habit_categories": HABIT_CATEGORIES,
         "progress": progress,
         "streak": streak,
         "streak_onboarding": {
@@ -392,9 +397,13 @@ async def create_habit(request):
         planned_time = _parse_planned_time(body.get("planned_time"))
     except ValueError:
         return web.json_response({"error": "invalid_time"}, status=400)
+    category = body.get("category")
+    if category not in HABIT_CATEGORIES:
+        category = None
+    priority = 2 if body.get("priority") == 2 else 1
     had_habits = bool(get_habits(telegram_id))
     try:
-        add_habit(telegram_id, title, planned_time=planned_time)
+        add_habit(telegram_id, title, planned_time=planned_time, category=category, priority=priority)
     except ValueError as exc:
         # habit_limit — уже максимум 7 привычек; habit_add_locked — сегодня
         # уже была отметка + удаление привычки, добавление заблокировано до
@@ -414,6 +423,8 @@ async def create_habit(request):
             "title": created["title"],
             "completed": bool(created["completed"]),
             "planned_time": created["planned_time"] if created and "planned_time" in created.keys() else None,
+            "category": created["category"] if created and "category" in created.keys() else None,
+            "priority": created["priority"] if created and "priority" in created.keys() and created["priority"] else 1,
         } if created else None,
         "onboarding_message": onboarding_message(telegram_id) if first_habit else None,
     })
@@ -431,17 +442,52 @@ async def rename_habit(request):
         planned_time = _parse_planned_time(body.get("planned_time"))
     except ValueError:
         return web.json_response({"error": "invalid_time"}, status=400)
+    category = body.get("category") if "category" in body else None
+    if category is not None and category not in HABIT_CATEGORIES:
+        category = None
+    priority = body.get("priority") if "priority" in body else None
     # edit_habit(planned_time=...) через COALESCE обновил бы NULL как
     # "не менять" — а нам как раз нужно уметь ОЧИЩАТЬ время (пользователь
     # снял галочку "напоминать"), поэтому колонку планового времени
     # обновляем отдельным явным запросом, а не через edit_habit().
-    edit_habit(habit_id, new_title)
+    edit_habit(habit_id, new_title, category=category, priority=priority)
     if "planned_time" in body:
         from db.core import connect
         conn = connect()
         conn.execute("UPDATE habits SET planned_time=? WHERE id=?", (planned_time, habit_id))
         conn.commit()
         conn.close()
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/habits/{habit_id}/skip")
+async def skip_habit_route(request):
+    """Осознанный пропуск привычки на сегодня с причиной (#6 из roadmap) —
+    в отличие от простого игнорирования, не считается "провалом" в
+    еженедельном AI-разборе и перестаёт слать напоминания на сегодня."""
+    telegram_id, _ = await _authenticate(request)
+    habit_id = int(request.match_info["habit_id"])
+    _owned_habit_or_404(habit_id, telegram_id)
+    body = await request.json()
+    reason = (body.get("reason") or "").strip()
+    if not reason:
+        return web.json_response({"error": "reason_required"}, status=400)
+    if len(reason) > 60:
+        return web.json_response({"error": "reason_too_long"}, status=400)
+    ok = skip_habit(habit_id, reason)
+    if not ok:
+        return web.json_response({"error": "already_completed"}, status=409)
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/habits/{habit_id}/unskip")
+async def unskip_habit_route(request):
+    """Отменяет пропуск — пользователь передумал и хочет вернуть привычку
+    в обычный список на сегодня."""
+    telegram_id, _ = await _authenticate(request)
+    habit_id = int(request.match_info["habit_id"])
+    _owned_habit_or_404(habit_id, telegram_id)
+    unskip_habit(habit_id)
     return web.json_response({"ok": True})
 
 @routes.post("/api/habits/{habit_id}/complete")

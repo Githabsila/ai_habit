@@ -231,6 +231,7 @@ style="width:0%">
   <span>x2 коины ещё <span id="doubleBonusTimer">30:00</span></span>
 </div>
 <div class="habits-section-divider" aria-hidden="true"></div>
+<div class="habit-filter-row" id="habitFilterRow" hidden></div>
 <ul class="habit-list" id="habitList">
 </ul>
 
@@ -249,6 +250,20 @@ id="newHabitInput"
 class="habit-add-form__text"
 placeholder="Новая привычка..."
 >
+
+<div class="habit-add-form__row1b">
+<select id="newHabitCategory" class="habit-add-form__category" aria-label="Категория привычки">
+<option value="">Без категории</option>
+<option value="health">🩺 Здоровье</option>
+<option value="work">💼 Работа</option>
+<option value="study">📚 Учёба</option>
+<option value="mind">🧘 Разум</option>
+<option value="other">✨ Другое</option>
+</select>
+<button type="button" class="habit-add-form__priority" id="newHabitPriorityBtn" aria-pressed="false" title="Отметить как важную — приносит больше Adam Coin">
+<span aria-hidden="true" id="newHabitPriorityIcon">☆</span> Важная
+</button>
+</div>
 
 <div class="habit-add-form__row2">
 

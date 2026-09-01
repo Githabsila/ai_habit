@@ -260,6 +260,8 @@ async def run_planned_time_reminders(bot):
         for habit in get_habits(telegram_id):
             if habit["completed"] or habit["reminder_sent"]:
                 continue
+            if "skip_reason" in habit.keys() and habit["skip_reason"]:
+                continue
             planned_time = habit["planned_time"]
             if not planned_time:
                 continue

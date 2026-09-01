@@ -64,6 +64,7 @@ from .habits import (
     get_habits_needing_reminder,
     mark_habit_reminder_sent,
     can_add_habit, has_deleted_habit_today, MAX_HABITS,
+    skip_habit, unskip_habit, HABIT_CATEGORIES,
 )
 
 from .daily_plan import (
@@ -226,6 +227,7 @@ __all__ = [
     "get_incomplete_habits", "log_daily_habits", "get_weekly_habit_breakdown",
     "get_habits_needing_reminder", "mark_habit_reminder_sent",
     "can_add_habit", "has_deleted_habit_today", "MAX_HABITS",
+    "skip_habit", "unskip_habit", "HABIT_CATEGORIES",
     "get_daily_plan", "save_daily_plan", "set_daily_main_goal", "delete_daily_main_goal",
     "toggle_daily_main_goal", "add_daily_task", "update_daily_plan_task", "delete_daily_task",
     "toggle_daily_task",

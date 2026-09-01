@@ -212,7 +212,10 @@ def create_tables():
         user_id INTEGER,
         title TEXT,
         completed INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        category TEXT,
+        priority INTEGER DEFAULT 1,
+        skip_reason TEXT
     )
     """)
 
@@ -233,6 +236,18 @@ def create_tables():
         cursor.execute("ALTER TABLE habits ADD COLUMN planned_time TEXT")
     if "time_window_minutes" not in habits_columns:
         cursor.execute("ALTER TABLE habits ADD COLUMN time_window_minutes INTEGER DEFAULT 60")
+
+    # Категория (health/work/study/other — см. db/habits.py HABIT_CATEGORIES),
+    # приоритет (1 обычная, 2 важная — влияет на награду и на то, что
+    # подсвечивается в напоминаниях) и причина пропуска на сегодня
+    # (skip_reason — заполняется через skip_habit(), сбрасывается каждую
+    # ночь вместе с completed в reset_habits(), см. ниже).
+    if "category" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN category TEXT")
+    if "priority" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN priority INTEGER DEFAULT 1")
+    if "skip_reason" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN skip_reason TEXT")
 
     # ---------------- МЕСЯЧНАЯ СЕРИЯ 2+ ПРИВЫЧЕК (доп. к пром 8) ----------------
     # multi_habit_days — локальный день, в который пользователь закрыл 2+
@@ -663,13 +678,21 @@ def create_tables():
         habit_id INTEGER,
         habit_title TEXT,
         day TEXT,
-        completed INTEGER DEFAULT 0
+        completed INTEGER DEFAULT 0,
+        skipped INTEGER DEFAULT 0
     )
     """)
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_habit_logs_user_day "
         "ON habit_logs(user_id, day)"
     )
+    cursor.execute("PRAGMA table_info(habit_logs)")
+    habit_logs_columns = {row[1] for row in cursor.fetchall()}
+    if "skipped" not in habit_logs_columns:
+        # Осознанный пропуск (skip_habit, см. db/habits.py) не должен
+        # засчитываться как "провал" в еженедельном AI-разборе — без этой
+        # колонки не отличить "забыл" от "пропустил по уважительной причине".
+        cursor.execute("ALTER TABLE habit_logs ADD COLUMN skipped INTEGER DEFAULT 0")
 
     # ---------------- УДАРНЫЙ РЕЖИМ / STREAK ----------------
     cursor.execute("""

@@ -14,6 +14,23 @@ BONUS_WINDOW_MINUTES = 30
 # Пром 10.2: максимум привычек в обычной версии + анти-абузная защита.
 MAX_HABITS = 7
 
+# Категории привычек — просто список известных ключей для фронтенда
+# (badge/фильтр), сама колонка habits.category — свободный TEXT, так что
+# невалидный/пустой ключ просто не попадёт ни в один известный фильтр.
+HABIT_CATEGORIES = {
+    "health": "🩺 Здоровье",
+    "work": "💼 Работа",
+    "study": "📚 Учёба",
+    "mind": "🧘 Разум",
+    "other": "✨ Другое",
+}
+
+# За долгую активную серию каждая отметка привычки приносит чуть больше
+# монет — "проценты за верность" (см. roadmap). +1 монета за каждые 10 дней
+# текущей серии, потолок +5, чтобы не разгонять экономику бесконтрольно.
+LOYALTY_BONUS_PER_STREAK_DAYS = 10
+LOYALTY_BONUS_CAP = 5
+
 
 # =====================================
 # ПРИВЫЧКИ
@@ -59,16 +76,19 @@ def can_add_habit(user_id):
     return True, None
 
 
-def add_habit(user_id, title, planned_time=None, time_window_minutes=60):
+def add_habit(user_id, title, planned_time=None, time_window_minutes=60, category=None, priority=1):
     ok, reason = can_add_habit(user_id)
     if not ok:
         raise ValueError(reason)
+    if category is not None and category not in HABIT_CATEGORIES:
+        category = None
+    priority = 2 if int(priority or 1) >= 2 else 1
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO habits(user_id, title, assigned_at, reminder_sent, planned_time, time_window_minutes)
-        VALUES (?, ?, CURRENT_TIMESTAMP, 0, ?, ?)
-    """, (user_id, title, planned_time, int(time_window_minutes or 60)))
+        INSERT INTO habits(user_id, title, assigned_at, reminder_sent, planned_time, time_window_minutes, category, priority)
+        VALUES (?, ?, CURRENT_TIMESTAMP, 0, ?, ?, ?, ?)
+    """, (user_id, title, planned_time, int(time_window_minutes or 60), category, priority))
     conn.commit()
     conn.close()
 
@@ -91,10 +111,52 @@ def get_habit(habit_id):
     return habit
 
 
-def edit_habit(habit_id, new_title, planned_time=None, time_window_minutes=None):
+def edit_habit(habit_id, new_title, planned_time=None, time_window_minutes=None, category=None, priority=None):
+    if category is not None and category not in HABIT_CATEGORIES:
+        category = None
+    if priority is not None:
+        priority = 2 if int(priority) >= 2 else 1
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute("UPDATE habits SET title=?, planned_time=COALESCE(?, planned_time), time_window_minutes=COALESCE(?, time_window_minutes), reminder_sent=0 WHERE id=?", (new_title, planned_time, time_window_minutes, habit_id))
+    cursor.execute(
+        "UPDATE habits SET title=?, planned_time=COALESCE(?, planned_time), "
+        "time_window_minutes=COALESCE(?, time_window_minutes), "
+        "category=COALESCE(?, category), priority=COALESCE(?, priority), "
+        "reminder_sent=0 WHERE id=?",
+        (new_title, planned_time, time_window_minutes, category, priority, habit_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def skip_habit(habit_id, reason):
+    """Отмечает привычку как осознанно пропущенную сегодня (не "выполнено",
+    но и не забытая) — не даёт XP/монет, но перестаёт напоминать и не
+    учитывается как "пропуск" в еженедельном AI-разборе (см.
+    get_weekly_habit_breakdown/log_daily_habits — там skip_reason тоже
+    проверяется). reason — короткий текст причины ("Болею" и т.п.),
+    выбирается пользователем из готовых вариантов на фронтенде."""
+    reason = (reason or "").strip()[:60]
+    if not reason:
+        return False
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE habits SET skip_reason=? WHERE id=? AND completed=0",
+        (reason, habit_id),
+    )
+    changed = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return changed
+
+
+def unskip_habit(habit_id):
+    """Отменяет пропуск (например, пользователь передумал и решил всё же
+    выполнить привычку сегодня — интерфейс скипа обратимый)."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE habits SET skip_reason=NULL WHERE id=?", (habit_id,))
     conn.commit()
     conn.close()
 
@@ -118,19 +180,23 @@ def reset_habits():
     # день значит задача "выдана" заново, и 2-часовой отсчёт для
     # напоминаний (см. get_habits_needing_reminder) начинается с нуля.
     cursor.execute("""
-        UPDATE habits SET completed=0, assigned_at=CURRENT_TIMESTAMP, reminder_sent=0
+        UPDATE habits SET completed=0, assigned_at=CURRENT_TIMESTAMP, reminder_sent=0, skip_reason=NULL
     """)
     conn.commit()
     conn.close()
 
 
 def get_incomplete_habits(user_id):
-    """Привычки пользователя, ещё не отмеченные выполненными сегодня —
-    используется для контрольной точки в 22:00 (coach.run_hard_deadline_check)."""
+    """Привычки пользователя, ещё не отмеченные выполненными сегодня — не
+    считая осознанно пропущенных (skip_reason) — используется для
+    контрольной точки в 22:00 (coach.run_hard_deadline_check). Важные
+    привычки (priority=2) идут первыми — на них и стоит обращать внимание
+    в первую очередь в напоминании."""
     conn = connect()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT * FROM habits WHERE user_id=? AND completed=0",
+        "SELECT * FROM habits WHERE user_id=? AND completed=0 AND skip_reason IS NULL "
+        "ORDER BY priority DESC, id DESC",
         (user_id,)
     )
     habits = cursor.fetchall()
@@ -152,6 +218,7 @@ def get_habits_needing_reminder(user_id, hours=2):
         WHERE user_id=?
           AND completed=0
           AND reminder_sent=0
+          AND skip_reason IS NULL
           AND assigned_at <= datetime('now', ?)
     """, (user_id, f"-{hours} hours"))
     habits = cursor.fetchall()
@@ -182,14 +249,14 @@ def log_daily_habits():
 
     yesterday = str(date.today() - timedelta(days=1))
 
-    cursor.execute("SELECT id, user_id, title, completed FROM habits")
+    cursor.execute("SELECT id, user_id, title, completed, skip_reason FROM habits")
     habits = cursor.fetchall()
 
     for h in habits:
         cursor.execute("""
-            INSERT INTO habit_logs(user_id, habit_id, habit_title, day, completed)
-            VALUES (?, ?, ?, ?, ?)
-        """, (h["user_id"], h["id"], h["title"], yesterday, h["completed"]))
+            INSERT INTO habit_logs(user_id, habit_id, habit_title, day, completed, skipped)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (h["user_id"], h["id"], h["title"], yesterday, h["completed"], 1 if h["skip_reason"] else 0))
 
     conn.commit()
     conn.close()
@@ -205,7 +272,8 @@ def get_weekly_habit_breakdown(user_id):
         SELECT
             habit_title,
             SUM(CASE WHEN completed=1 THEN 1 ELSE 0 END) as done,
-            SUM(CASE WHEN completed=0 THEN 1 ELSE 0 END) as missed,
+            SUM(CASE WHEN completed=0 AND skipped=0 THEN 1 ELSE 0 END) as missed,
+            SUM(CASE WHEN skipped=1 THEN 1 ELSE 0 END) as skipped,
             COUNT(*) as total
         FROM habit_logs
         WHERE user_id=? AND day >= date('now', '-7 days')
@@ -279,6 +347,21 @@ def complete_habit(habit_id):
     doubled = bool(window_until and now < window_until)
     coins = BASE_HABIT_COINS * (2 if doubled else 1)
 
+    # Важная привычка (priority=2, звёздочка в интерфейсе) — плоская
+    # надбавка сверху, не умножается вместе с x2-окном (иначе экономика
+    # разгонялась бы слишком быстро при удачном стечении обоих бонусов).
+    priority = habit["priority"] if "priority" in habit.keys() and habit["priority"] else 1
+    priority_bonus = 5 if priority == 2 else 0
+
+    # "Проценты за верность" — чем длиннее УЖЕ идущая серия на момент этой
+    # отметки, тем чуть весомее каждая привычка. +1 монета за каждые
+    # LOYALTY_BONUS_PER_STREAK_DAYS дней серии, потолок LOYALTY_BONUS_CAP.
+    user_row = get_user(user_id)
+    current_streak = int(user_row["streak"]) if user_row and "streak" in user_row.keys() and user_row["streak"] else 0
+    loyalty_bonus = min(current_streak // LOYALTY_BONUS_PER_STREAK_DAYS, LOYALTY_BONUS_CAP)
+
+    coins += priority_bonus + loyalty_bonus
+
     if total_habits > 1 and remaining_incomplete > 0:
         new_window_until = now + timedelta(minutes=BONUS_WINDOW_MINUTES)
         set_bonus_window(user_id, new_window_until)
@@ -314,6 +397,8 @@ def complete_habit(habit_id):
     return {
         "coins": coins,
         "doubled": doubled,
+        "priority_bonus": priority_bonus,
+        "loyalty_bonus": loyalty_bonus,
         "total_habits": total_habits,
         "remaining_incomplete": remaining_incomplete,
         "completed_today": completed_today,
