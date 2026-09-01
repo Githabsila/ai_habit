@@ -5,7 +5,7 @@
 from db import (
     add_user, add_habit, get_habits, get_habit, edit_habit, skip_habit, unskip_habit,
     get_incomplete_habits, get_habits_needing_reminder, reset_habits, complete_habit,
-    get_weekly_habit_breakdown, log_daily_habits,
+    get_weekly_habit_breakdown, log_daily_habits, can_add_habit, MAX_HABITS,
 )
 from db.core import connect
 
@@ -34,6 +34,22 @@ def test_add_habit_rejects_unknown_category(uid):
     add_habit(uid, "Пить воду", category="not_a_real_category")
     habit = get_habits(uid)[0]
     assert habit["category"] is None
+
+
+def test_max_habits_limit_is_ten():
+    # По просьбе пользователя лимит подняли с 7 до 10 — этот тест фиксирует
+    # актуальное значение, чтобы случайный откат константы не прошёл незамеченным.
+    assert MAX_HABITS == 10
+
+
+def test_can_add_up_to_ten_habits_then_blocked(uid):
+    add_user(uid, "u", "Test")
+    for i in range(MAX_HABITS):
+        add_habit(uid, f"Привычка {i}")
+    assert len(get_habits(uid)) == MAX_HABITS
+    ok, reason = can_add_habit(uid)
+    assert ok is False
+    assert reason == "habit_limit"
 
 
 def test_add_habit_defaults_priority_to_one(uid):

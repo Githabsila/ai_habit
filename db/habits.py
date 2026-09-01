@@ -12,7 +12,7 @@ BASE_HABIT_COINS = 10
 BONUS_WINDOW_MINUTES = 30
 
 # Пром 10.2: максимум привычек в обычной версии + анти-абузная защита.
-MAX_HABITS = 7
+MAX_HABITS = 10
 
 # Категории привычек — просто список известных ключей для фронтенда
 # (badge/фильтр), сама колонка habits.category — свободный TEXT, так что
@@ -83,7 +83,7 @@ def has_deleted_habit_today(user_id):
 
 
 def can_add_habit(user_id):
-    """Пром 10.2: (ok, reason). reason — 'habit_limit' (уже максимум 7
+    """Пром 10.2: (ok, reason). reason — 'habit_limit' (уже максимум 10
     привычек) либо 'habit_add_locked' (сегодня уже была отметка + удаление —
     похоже на попытку накрутить Adam Coin, блокируем добавление до 00:00)."""
     from .streak import has_completed_today

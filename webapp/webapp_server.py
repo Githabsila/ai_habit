@@ -573,7 +573,7 @@ async def create_habit(request):
             chain_trigger_habit_id=chain_trigger_habit_id,
         )
     except ValueError as exc:
-        # habit_limit — уже максимум 7 привычек; habit_add_locked — сегодня
+        # habit_limit — уже максимум 10 привычек; habit_add_locked — сегодня
         # уже была отметка + удаление привычки, добавление заблокировано до
         # 00:00 (пром 10.2, защита от накрутки Adam Coin).
         if str(exc) in ("habit_limit", "habit_add_locked"):

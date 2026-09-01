@@ -2123,7 +2123,7 @@ function initHabitActions() {
 
     // Готовая программа (roadmap #38) — несколько привычек одним тапом.
     // Шлём по одной последовательно (тот же /api/habits, что и обычное
-    // добавление) — если где-то в процессе упрёмся в лимит 7 привычек,
+    // добавление) — если где-то в процессе упрёмся в лимит 10 привычек,
     // молча останавливаемся на том, что успело добавиться.
     const programCard = e.target.closest("[data-program]");
     if (programCard) {
@@ -2702,7 +2702,7 @@ function initPlanActions() {
     unsupported_image: "JPG, PNG and WEBP are supported",
     invalid_theme: "That theme doesn't exist",
     task_limit: "You can add up to 5 tasks",
-    habit_limit: "You can add up to 7 habits",
+    habit_limit: "You can add up to 10 habits",
     daily_limit_reached: "Already bought today — available again tomorrow",
     habit_add_locked: "You already logged and deleted a habit today — adding new ones reopens at midnight",
     invalid_init_data: "Telegram didn't pass auth data. Close the Mini App and reopen it.",
@@ -2729,7 +2729,7 @@ function initPlanActions() {
         unsupported_image: "Поддерживаются JPG, PNG и WEBP",
         invalid_theme: "Такой темы не существует",
         task_limit: "Можно добавить не больше 5 задач",
-        habit_limit: "Можно добавить не больше 7 привычек",
+        habit_limit: "Можно добавить не больше 10 привычек",
         daily_limit_reached: "Этот пакет уже куплен сегодня — доступен снова завтра",
         habit_add_locked: "Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00",
         invalid_init_data: "Telegram не передал данные авторизации. Закройте Mini App и откройте его снова.",

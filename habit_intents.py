@@ -196,7 +196,7 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
             add_habit(user_id, title, planned_time=planned_time)
         except ValueError as exc:
             if str(exc) == "habit_limit":
-                return "⚠️ Можно добавить не больше 7 привычек."
+                return "⚠️ Можно добавить не больше 10 привычек."
             if str(exc) == "habit_add_locked":
                 return "⚠️ Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00."
             raise
@@ -451,7 +451,7 @@ async def try_handle_habit_intent_ai(user_id: int, text: str) -> str | None:
             add_habit(user_id, title)
         except ValueError as exc:
             if str(exc) == "habit_limit":
-                return "⚠️ Можно добавить не больше 7 привычек."
+                return "⚠️ Можно добавить не больше 10 привычек."
             if str(exc) == "habit_add_locked":
                 return "⚠️ Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00."
             raise
