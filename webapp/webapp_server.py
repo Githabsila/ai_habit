@@ -2,6 +2,8 @@ import gzip
 import json
 import logging
 import os
+import time
+from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
@@ -44,7 +46,7 @@ from db import (
     should_show_app_tour, mark_app_tour_seen,
 )
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from multi_agent import generate_progress_analysis
 from webapp.services.ai_utils import build_user_context
 
@@ -65,6 +67,35 @@ def _extract_init_data(request):
         return header[4:]
     return request.headers.get("X-Telegram-Init-Data", "")
 
+# ====================== RATE LIMITING ======================
+#
+# Раньше у API Mini App'а не было вообще никакой защиты от частоты
+# запросов: например /api/feedback можно было дёргать без ограничений и
+# заспамить админов сообщениями, а /api/progress/ai-analysis (платный
+# вызов OpenAI) — хоть и кэшируется на день, но до первого удачного ответа
+# каждый повторный запрос в том же дне снова пытался дозвониться до AI.
+# In-memory sliding-window на telegram_id — этого достаточно для одного
+# Railway-процесса (см. комментарий про единственный инстанс в
+# scheduler.py) и не требует Redis ради одной защиты от спама. Данные не
+# переживают рестарт процесса — это ок, при рестарте лимит просто обнуляется.
+RATE_LIMIT_WINDOW_SECONDS = 10
+RATE_LIMIT_MAX_REQUESTS = 40  # с запасом на нормальную работу Mini App (bootstrap + вкладки)
+_rate_limit_buckets = defaultdict(deque)
+
+
+def _check_rate_limit(telegram_id):
+    """True, если запрос разрешён; попутно чистит устаревшие метки времени,
+    чтобы _rate_limit_buckets не рос бесконечно для активных пользователей."""
+    now = time.monotonic()
+    bucket = _rate_limit_buckets[telegram_id]
+    while bucket and now - bucket[0] > RATE_LIMIT_WINDOW_SECONDS:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_MAX_REQUESTS:
+        return False
+    bucket.append(now)
+    return True
+
+
 async def _authenticate(request):
     init_data = _extract_init_data(request)
     tg_user = validate_init_data(init_data, BOT_TOKEN)
@@ -80,6 +111,12 @@ async def _authenticate(request):
 
     telegram_id = tg_user["id"]
     is_admin = telegram_id in ADMIN_IDS
+
+    if not _check_rate_limit(telegram_id):
+        raise web.HTTPTooManyRequests(
+            text=json.dumps({"error": "rate_limited"}),
+            content_type="application/json",
+        )
 
     if get_user(telegram_id) is None:
         add_user(
@@ -197,7 +234,7 @@ async def bootstrap(request):
     # пропасть до следующей отметки привычки.
     bonus_until_dt = get_bonus_window(telegram_id)
     has_incomplete_habits = any(not h["completed"] for h in habits)
-    bonus_active = bool(bonus_until_dt and bonus_until_dt > datetime.utcnow() and has_incomplete_habits)
+    bonus_active = bool(bonus_until_dt and bonus_until_dt > datetime.now(timezone.utc).replace(tzinfo=None) and has_incomplete_habits)
 
     return web.json_response({
         "user": {
@@ -835,7 +872,7 @@ async def toggle_plan_task_route(request):
         created_at = user["created_at"] if user and "created_at" in user.keys() else None
         if created_at:
             try:
-                account_age_days = (datetime.utcnow() - datetime.fromisoformat(str(created_at))).days
+                account_age_days = (datetime.now(timezone.utc).replace(tzinfo=None) - datetime.fromisoformat(str(created_at))).days
             except ValueError:
                 account_age_days = 0
         strict_mode = (
