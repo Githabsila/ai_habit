@@ -126,6 +126,15 @@ style="width:0%">
   <ul class="daily-quests__list" id="dailyQuestsList"></ul>
 </div>
 
+<div class="pet-widget" id="petWidget" hidden>
+  <div class="pet-widget__emoji" id="petWidgetEmoji">🥚</div>
+  <div class="pet-widget__body">
+    <div class="pet-widget__name" id="petWidgetName">Яйцо</div>
+    <div class="pet-widget__bar"><div class="pet-widget__bar-fill" id="petWidgetBarFill"></div></div>
+    <div class="pet-widget__hint" id="petWidgetHint"></div>
+  </div>
+</div>
+
 <div class="streak-widget streak-widget--hero" id="streakWidget">
   <div class="streak-widget__glow streak-widget__glow--orange"></div>
   <div class="streak-widget__glow streak-widget__glow--purple"></div>
@@ -359,9 +368,18 @@ class="habit-add-form__submit">
   </div>
 </div>
 
+<div class="team-card" id="teamCard" hidden></div>
+
+<div class="rating-scope-switch" id="ratingScopeSwitch">
+  <button type="button" class="rating-scope-btn is-active" data-scope="alltime">Всё время</button>
+  <button type="button" class="rating-scope-btn" data-scope="season">🗓️ Сезон</button>
+</div>
+
 <div class="rating-podium" id="ratingPodium"></div>
 <div class="rating-rest-head"><span>Лидерборд</span><span>Серия · XP</span></div>
 <ul class="rating-list" id="ratingList"></ul>
+
+<ul class="rating-list" id="seasonRatingList" hidden></ul>
 
 </section>
 
@@ -528,6 +546,11 @@ class="habit-add-form__submit">
     <span>💌 Поддержка от друзей</span>
   </div>
   <div class="reactions-feed" id="reactionsFeed"></div>
+
+  <div class="settings-row">
+    <span>📰 Лента друзей</span>
+  </div>
+  <div class="activity-feed" id="activityFeed"></div>
 
   <div class="settings-row settings-row--danger">
     <span>Сбросить весь прогресс (Adam Coin, уровень, серию, привычки)</span>
@@ -808,7 +831,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260901_LIGHT_THEME_V1"></script>
+<script type="module" src="/static/app.js?v=20260901_PET_TEAMS_SEASONS_V1"></script>
 
 </body>
 </html>

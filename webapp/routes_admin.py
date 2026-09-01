@@ -31,6 +31,7 @@ from db import (
     get_users_by_segment, SEGMENT_LABELS,
     get_user_support_card,
     get_churn_risk_report,
+    get_all_flags, set_feature_flag, delete_feature_flag,
 )
 from db.core import DB_PATH
 from admin_digest_scheduler import build_stats_report
@@ -136,6 +137,33 @@ async def admin_user_card_route(request):
     if card is None:
         return web.json_response({"error": "not_found"}, status=404)
     return web.json_response(card)
+
+
+@routes.get("/api/admin/flags")
+async def admin_flags_list_route(request):
+    """Roadmap #41 — feature flags."""
+    await _authenticate_admin(request)
+    return web.json_response({"flags": get_all_flags()})
+
+
+@routes.post("/api/admin/flags")
+async def admin_flags_set_route(request):
+    await _authenticate_admin(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    key = (body.get("key") or "").strip()
+    if not set_feature_flag(key, bool(body.get("enabled")), body.get("rollout_pct", 100), body.get("description")):
+        return web.json_response({"error": "invalid_flag"}, status=400)
+    return web.json_response({"ok": True})
+
+
+@routes.delete("/api/admin/flags/{key}")
+async def admin_flags_delete_route(request):
+    await _authenticate_admin(request)
+    delete_feature_flag(request.match_info["key"])
+    return web.json_response({"ok": True})
 
 
 @routes.get("/api/admin/churn-risk")

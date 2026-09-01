@@ -60,6 +60,10 @@ from db import (
     get_struggling_habits, suggest_optimal_reminder_time,
     get_habit_correlations,
     set_archetype, ARCHETYPES,
+    get_pet,
+    get_season_leaderboard, get_season_rank,
+    create_team, join_team, leave_team, get_my_team,
+    get_friend_activity_feed,
 )
 
 from datetime import date, datetime, timezone
@@ -273,6 +277,7 @@ async def bootstrap(request):
             "xp_boost_until": user["bonus_2x_xp_until"] if user and "bonus_2x_xp_until" in user.keys() else None,
         },
         "daily_quests": get_daily_quests(telegram_id),
+        "pet": get_pet(telegram_id),
         "monthly_progress": get_monthly_progress(telegram_id),
         "habits": [
             {
@@ -359,6 +364,66 @@ async def claim_quest_route(request):
     if reward is None:
         return web.json_response({"error": "quest_not_claimable"}, status=400)
     return web.json_response({"ok": True, "reward": reward, "progress": get_progress(telegram_id)})
+
+
+@routes.get("/api/pet")
+async def pet_route(request):
+    """Roadmap #11 — виртуальный питомец."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response(get_pet(telegram_id))
+
+
+@routes.get("/api/season")
+async def season_route(request):
+    """Roadmap #9 — сезонный (месячный) рейтинг."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({
+        "leaderboard": get_season_leaderboard(limit=10),
+        "my_rank": get_season_rank(telegram_id),
+    })
+
+
+@routes.get("/api/team")
+async def team_route(request):
+    """Roadmap #16 — моя команда (или null, если ни в одной не состою)."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({"team": get_my_team(telegram_id)})
+
+
+@routes.post("/api/team/create")
+async def team_create_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    team = create_team(telegram_id, body.get("name"))
+    if team is None:
+        return web.json_response({"error": "invalid_name"}, status=400)
+    return web.json_response({"ok": True, "team": team})
+
+
+@routes.post("/api/team/join")
+async def team_join_route(request):
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    result = join_team(telegram_id, body.get("invite_code"))
+    if result is None:
+        return web.json_response({"error": "invalid_code"}, status=404)
+    if isinstance(result, dict) and result.get("error"):
+        return web.json_response(result, status=400)
+    return web.json_response({"ok": True, "team": result})
+
+
+@routes.post("/api/team/leave")
+async def team_leave_route(request):
+    telegram_id, _ = await _authenticate(request)
+    leave_team(telegram_id)
+    return web.json_response({"ok": True})
+
+
+@routes.get("/api/activity-feed")
+async def activity_feed_route(request):
+    """Roadmap #18 — лента активности друзей (команда + кому реагировали)."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({"events": get_friend_activity_feed(telegram_id)})
 
 
 @routes.get("/api/bootstrap-secondary")
@@ -673,6 +738,7 @@ async def complete_habit_route(request):
         ),
         "chain_suggestion": success.get("chain_suggestion"),
         "xp_boosted": success.get("xp_boosted", False),
+        "pet": success.get("pet"),
     })
 
 
@@ -754,6 +820,7 @@ async def habit_progress_route(request):
         "monthly_progress": get_monthly_progress(telegram_id),
         "chain_suggestion": result.get("chain_suggestion"),
         "xp_boosted": result.get("xp_boosted", False),
+        "pet": result.get("pet"),
     })
 
 

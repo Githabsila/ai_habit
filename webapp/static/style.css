@@ -6639,6 +6639,81 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   cursor:pointer;
 }
 
+/* Roadmap #11 — виджет виртуального питомца. */
+.pet-widget{
+  display:flex;align-items:center;gap:14px;
+  margin-bottom:16px;
+  padding:14px 16px;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,.07);
+  background:linear-gradient(145deg,rgba(35,31,48,.88),rgba(17,15,24,.88));
+  box-shadow:0 12px 32px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.05);
+}
+.pet-widget[hidden]{display:none !important}
+.pet-widget__emoji{flex:0 0 auto;font-size:36px;animation:petBreathe 3s ease-in-out infinite}
+@keyframes petBreathe{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.08) translateY(-3px)}}
+.performance-lite .pet-widget__emoji{animation:none}
+.pet-widget__body{flex:1;min-width:0}
+.pet-widget__name{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:#fff;margin-bottom:6px}
+.pet-widget__bar{height:6px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;margin-bottom:5px}
+.pet-widget__bar-fill{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#8e70ff,#6847dc);transition:width .3s ease}
+.pet-widget__hint{font-size:11px;color:var(--text-muted,#9D9DB3)}
+
+/* Roadmap #16 — карточка команды на вкладке Рейтинг. */
+.team-card{
+  margin-bottom:14px;
+  padding:16px;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,.07);
+  background:linear-gradient(145deg,rgba(35,31,48,.88),rgba(17,15,24,.88));
+}
+.team-card[hidden]{display:none !important}
+.team-card__title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:#fff;margin-bottom:10px}
+.team-card__sub{font-size:11.5px;color:var(--text-muted,#9D9DB3);margin-bottom:12px}
+.team-card__row{display:flex;gap:8px;margin-bottom:8px}
+.team-card__input{
+  flex:1;height:40px;padding:0 12px;border-radius:12px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
+  color:var(--text,#EAE5FA);font-size:12.5px;
+}
+.team-card .team-card__btn{
+  flex:0 0 auto;padding:0 16px;border-radius:12px;
+  background:linear-gradient(135deg,#8e70ff,#6847dc) !important;
+  border:none !important;box-shadow:none !important;
+  color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;
+}
+.team-card__members{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.team-card__member{display:flex;justify-content:space-between;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.03)}
+.team-card__member-name{font-size:12.5px;font-weight:600;color:var(--text,#EAE5FA)}
+.team-card__member-count{font-size:12.5px;font-weight:800;color:#cfc6ff}
+.team-card__leave{
+  width:100%;padding:9px;border-radius:12px;
+  background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.24);
+  color:#FF8B8B;font-size:12px;font-weight:700;cursor:pointer;
+}
+
+/* Roadmap #9 — переключатель "всё время / сезон" над рейтингом. */
+.rating-scope-switch{display:flex;gap:8px;margin-bottom:14px}
+.rating-scope-btn{
+  flex:1;padding:9px;border-radius:12px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
+  color:var(--text-muted,#9D9DB3);font-size:12px;font-weight:700;cursor:pointer;
+}
+.rating-scope-btn.is-active{
+  border-color:rgba(139,108,255,.45);background:rgba(139,108,255,.16);color:#cfc6ff;
+}
+
+/* Roadmap #18 — лента активности друзей. */
+.activity-feed{display:flex;flex-direction:column;gap:6px;padding:0 2px 14px}
+.activity-feed__row{
+  display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;
+  padding:8px 10px;border-radius:12px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+  font-size:12px;
+}
+.activity-feed__name{font-weight:700;color:var(--text,#EAE5FA)}
+.activity-feed__label{color:var(--text-muted,#9D9DB3)}
+
 /* Roadmap #17 — публичный профиль: строка "скопировать ссылку". */
 .public-profile-row{
   display:flex;

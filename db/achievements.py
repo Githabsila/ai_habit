@@ -67,15 +67,23 @@ def check_achievements(user_id):
         ("Жаворонок", "Отметьте привычку рано утром (5:00-6:00)", early_bird),
     ]
 
+    newly_unlocked = []
     for title, description, condition in checks:
         if condition and not _has_achievement(cursor, user_id, title):
             cursor.execute("""
                 INSERT INTO achievements(user_id, title, description)
                 VALUES (?, ?, ?)
             """, (user_id, title, description))
+            newly_unlocked.append(title)
 
     conn.commit()
     conn.close()
+
+    # Roadmap #18 — новое достижение попадает в ленту активности друзей.
+    if newly_unlocked:
+        from .activity_feed import log_activity_event
+        for title in newly_unlocked:
+            log_activity_event(user_id, "achievement", {"detail": title})
 
 
 def get_achievements(user_id):

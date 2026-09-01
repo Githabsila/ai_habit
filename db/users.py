@@ -341,13 +341,14 @@ def add_xp(user_id, amount):
     conn = connect()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT total_xp FROM users WHERE telegram_id=?", (user_id,))
+    cursor.execute("SELECT total_xp, level FROM users WHERE telegram_id=?", (user_id,))
     user = cursor.fetchone()
 
     if not user:
         conn.close()
         return
 
+    old_level = user["level"] or 1
     total_xp = (user["total_xp"] or 0) + amount
     level = total_xp // 100 + 1
 
@@ -357,6 +358,11 @@ def add_xp(user_id, amount):
 
     conn.commit()
     conn.close()
+
+    # Roadmap #18 — рост уровня попадает в ленту активности друзей.
+    if level > old_level:
+        from .activity_feed import log_activity_event
+        log_activity_event(user_id, "level_up", {"detail": str(level)})
 
 
 def give_xp_admin(user_id, xp):

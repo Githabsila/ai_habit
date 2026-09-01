@@ -351,6 +351,30 @@
     }).join("");
   }
 
+  // Roadmap #11 — виртуальный питомец.
+  function renderPetWidget() {
+    const wrap = document.getElementById("petWidget");
+    if (!wrap) return;
+    const pet = state.pet;
+    if (!pet) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    document.getElementById("petWidgetEmoji").textContent = pet.emoji;
+    document.getElementById("petWidgetName").textContent = pet.stage_name;
+    const bar = document.getElementById("petWidgetBarFill");
+    const hint = document.getElementById("petWidgetHint");
+    if (pet.is_max_stage) {
+      bar.style.width = "100%";
+      hint.textContent = "Максимальная стадия — легенда!";
+    } else {
+      const prevThreshold = PET_STAGE_THRESHOLDS.filter(t => t <= pet.care_points).slice(-1)[0] || 0;
+      const span = pet.next_stage_points - prevThreshold;
+      const into = pet.care_points - prevThreshold;
+      bar.style.width = `${Math.min(100, Math.round(100 * into / span))}%`;
+      hint.textContent = `Ещё ${pet.next_stage_points - pet.care_points} привычек до ${pet.next_stage_emoji}`;
+    }
+  }
+  const PET_STAGE_THRESHOLDS = [0, 10, 30, 70, 150];
+
   // Roadmap #13 — тир лиги + прогресс до следующего, в профиле.
   function renderLeagueInfo() {
     const el = document.getElementById("leagueInfo");
@@ -390,6 +414,7 @@
     renderDailyQuests();
     renderLeagueInfo();
     applyColorMode();
+    renderPetWidget();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
     maybeShowAppTour();
@@ -491,6 +516,7 @@
               renderProfileAvatarControls();
               renderThemePicker();
               renderAchievements();
+              loadActivityFeed();
               // Roadmap #26 — тепловая карта года живёт в Профиле, но
               // данные общие с вкладкой "Календарь" — подгружаем их же,
               // не дублируя на сервере (loadBootstrapSecondary дедуплицирует
@@ -499,6 +525,7 @@
             } else if (key === "rating") {
               state.leaderboard = data.leaderboard || [];
               renderRating();
+              loadTeamAndSeason();
             } else if (key === "calendar") {
               state.calendar_events = data.calendar_events || [];
               renderCalendar();
@@ -1841,6 +1868,12 @@ async function celebrateHabitCompletion(result) {
     setTimeout(() => showToast(result.month_end_reward.message, "praise", 5500),
       result.perfect_day_message ? 6800 : 2400);
   }
+  // Roadmap #11 — питомец эволюционировал.
+  if (result.pet && result.pet.evolved) {
+    setTimeout(() => {
+      showToast(`${result.pet.emoji} Питомец вырос: ${result.pet.stage_name}!`, "praise", 4000);
+    }, 1200);
+  }
   // Roadmap #7 — цепочки привычек: мягкая подсказка "сделал А → предложи Б".
   if (result.chain_suggestion) {
     setTimeout(() => {
@@ -2749,6 +2782,132 @@ async function loadProgressStats() {
   }
 }
 
+// Roadmap #16/#9 — команда + сезонный рейтинг, оба живут на вкладке Рейтинг.
+async function loadTeamAndSeason() {
+  try {
+    const [teamData, seasonData] = await Promise.all([
+      api("/api/team"),
+      api("/api/season"),
+    ]);
+    state.team = teamData.team;
+    state.season = seasonData;
+    renderTeamCard();
+    renderSeasonList();
+  } catch (err) {
+    console.error("loadTeamAndSeason failed:", err);
+  }
+}
+
+function renderTeamCard() {
+  const box = document.getElementById("teamCard");
+  if (!box) return;
+  box.hidden = false;
+  const team = state.team;
+
+  if (!team) {
+    box.innerHTML = `
+      <div class="team-card__title">🤝 Групповой челлендж</div>
+      <div class="team-card__row">
+        <input type="text" id="teamNameInput" class="team-card__input" placeholder="Название команды" maxlength="40">
+        <button type="button" class="team-card__btn" id="teamCreateBtn">Создать</button>
+      </div>
+      <div class="team-card__row">
+        <input type="text" id="teamJoinInput" class="team-card__input" placeholder="...или код приглашения" maxlength="6">
+        <button type="button" class="team-card__btn" id="teamJoinBtn">Войти</button>
+      </div>`;
+    document.getElementById("teamCreateBtn").addEventListener("click", async () => {
+      const input = document.getElementById("teamNameInput");
+      try {
+        await api("/api/team/create", { method: "POST", body: JSON.stringify({ name: input.value }) });
+        haptic("medium");
+        await loadTeamAndSeason();
+      } catch (err) { showToast(friendlyError(err), "error"); }
+    });
+    document.getElementById("teamJoinBtn").addEventListener("click", async () => {
+      const input = document.getElementById("teamJoinInput");
+      try {
+        await api("/api/team/join", { method: "POST", body: JSON.stringify({ invite_code: input.value }) });
+        haptic("medium");
+        showToast("Добро пожаловать в команду!", "success");
+        await loadTeamAndSeason();
+      } catch (err) { showToast(friendlyError(err), "error"); }
+    });
+    return;
+  }
+
+  const membersHtml = team.members.map(m => `
+    <div class="team-card__member">
+      <span class="team-card__member-name">${escapeHtml(m.first_name || "Игрок")}</span>
+      <span class="team-card__member-count">${m.week_completions}</span>
+    </div>`).join("");
+
+  box.innerHTML = `
+    <div class="team-card__title">🤝 ${escapeHtml(team.name)}</div>
+    <div class="team-card__sub">Код приглашения: <b>${escapeHtml(team.invite_code)}</b> · за неделю: ${team.team_week_total}</div>
+    <div class="team-card__members">${membersHtml}</div>
+    <button type="button" class="team-card__leave" id="teamLeaveBtn">Покинуть команду</button>`;
+  document.getElementById("teamLeaveBtn").addEventListener("click", async () => {
+    if (!confirm("Покинуть команду?")) return;
+    try {
+      await api("/api/team/leave", { method: "POST" });
+      haptic("light");
+      await loadTeamAndSeason();
+    } catch (err) { showToast(friendlyError(err), "error"); }
+  });
+}
+
+function renderSeasonList() {
+  const list = document.getElementById("seasonRatingList");
+  if (!list || !state.season) return;
+  const rows = state.season.leaderboard || [];
+  if (rows.length === 0) {
+    list.innerHTML = `<li class="empty-hint">В этом сезоне пока пусто</li>`;
+    return;
+  }
+  const myId = state.user.telegram_id;
+  list.innerHTML = rows.map((r, i) => `
+    <li class="rating-item ${r.telegram_id === myId ? "is-me" : ""}">
+      <span class="rating-item__rank">${i + 1}</span>
+      <span class="rating-avatar">${escapeHtml((r.first_name || "A")[0].toUpperCase())}</span>
+      <span class="rating-item__name"><span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(r.first_name || r.username || "Игрок")}</span></span></span>
+      <span class="rating-item__meta"><span class="rating-stat">${ADAM_COIN_ICON}${r.season_xp}</span></span>
+    </li>`).join("");
+}
+
+function initRatingScopeSwitch() {
+  const switcher = document.getElementById("ratingScopeSwitch");
+  if (!switcher) return;
+  switcher.addEventListener("click", (e) => {
+    const btn = e.target.closest(".rating-scope-btn");
+    if (!btn) return;
+    switcher.querySelectorAll(".rating-scope-btn").forEach(b => b.classList.toggle("is-active", b === btn));
+    const isSeason = btn.dataset.scope === "season";
+    document.getElementById("ratingPodium").hidden = isSeason;
+    document.getElementById("ratingList").hidden = isSeason;
+    document.querySelector(".rating-rest-head").hidden = isSeason;
+    document.getElementById("seasonRatingList").hidden = !isSeason;
+  });
+}
+
+// Roadmap #18 — лента активности друзей, в Профиле.
+async function loadActivityFeed() {
+  const box = document.getElementById("activityFeed");
+  if (!box) return;
+  try {
+    const data = await api("/api/activity-feed");
+    const events = data.events || [];
+    box.innerHTML = events.length === 0
+      ? `<div class="empty-hint">Пока тихо — добавь друга в команду или обменяйтесь поддержкой 💌</div>`
+      : events.map(e => `
+          <div class="activity-feed__row">
+            <span class="activity-feed__name">${escapeHtml(e.first_name || "Игрок")}</span>
+            <span class="activity-feed__label">${e.label}${e.detail ? " «" + escapeHtml(e.detail) + "»" : ""}</span>
+          </div>`).join("");
+  } catch (err) {
+    box.innerHTML = "";
+  }
+}
+
 // Roadmap #19 — реакции/стикеры поддержки другу прямо из рейтинга.
 function initRatingActions() {
   const list = document.getElementById("ratingList");
@@ -3287,6 +3446,7 @@ async function boot() {
         initHabitActions();
         initDailyQuestActions();
         initRatingActions();
+        initRatingScopeSwitch();
         initArchetypeQuizActions();
         initPlanActions();
         initShopActions();

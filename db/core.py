@@ -895,6 +895,107 @@ def create_tables():
         UNIQUE(from_user_id, to_user_id, day)
     )
     """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_friend_reactions_to ON friend_reactions(to_user_id)"
+    )
+
+    # ---------------- Roadmap #41: feature flags ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS feature_flags(
+        key TEXT PRIMARY KEY,
+        enabled INTEGER DEFAULT 0,
+        rollout_pct INTEGER DEFAULT 100,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # ---------------- Roadmap #9: сезонные награды лиги ----------------
+    # Сезон = календарный месяц (тот же ритм, что уже используют месячные
+    # награды за серию, см. db/monthly_streak.py) — рейтинг сезона считается
+    # "на лету" суммой gained_xp из statistics за текущий месяц, отдельного
+    # счётчика заводить не нужно; здесь только факт "награда за сезон уже
+    # выдана" — чтобы не выдать повторно.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS season_rewards(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        season_key TEXT NOT NULL,
+        rank INTEGER NOT NULL,
+        coins INTEGER DEFAULT 0,
+        diamonds INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, season_key)
+    )
+    """)
+
+    # ---------------- Roadmap #11: виртуальный питомец ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS virtual_pets(
+        user_id INTEGER PRIMARY KEY,
+        care_points INTEGER DEFAULT 0,
+        last_fed_day TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # ---------------- Roadmap #16: групповые челленджи (команды) ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS teams(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        invite_code TEXT UNIQUE NOT NULL,
+        created_by INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS team_members(
+        team_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(team_id, user_id)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id)"
+    )
+
+    # ---------------- Roadmap #18: лента активности друзей ----------------
+    # "Друзья" здесь — участники твоей команды (#16) + все, с кем ты хоть
+    # раз обменялся реакцией (#19) — без отдельной системы заявок в друзья,
+    # которая была бы совсем новой, никем не просимой веткой поверх и так
+    # большого пакета.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS activity_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        payload TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_activity_events_user_created ON activity_events(user_id, created_at)"
+    )
+
+    # ---------------- Журнал отправленных уведомлений (для истории у пользователя) ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS notification_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        category TEXT,
+        title TEXT,
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_notification_log_user_sent ON notification_log(user_id, sent_at)"
+    )
+
+    # ---------------- Roadmap #46: язык интерфейса ----------------
+    if "language" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'ru'")
 
     conn.commit()
     conn.close()

@@ -386,6 +386,15 @@ textarea.field{resize:vertical;min-height:88px}
         '<div id="churnRiskBox"><div class="empty-note">Загружаю…</div></div>' +
       '</div>' +
 
+      '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--violet">🚩</span>Feature flags</div>' +
+        '<div id="flagsBox"><div class="empty-note">Загружаю…</div></div>' +
+        '<div class="btn-row" style="margin-top:10px">' +
+          '<input class="field" id="newFlagKey" type="text" placeholder="ключ_флага" style="flex:1">' +
+          '<button class="btn btn-accent" id="addFlagBtn">+ Добавить</button>' +
+        '</div>' +
+      '</div>' +
+
       '<div class="section-label">Управление</div>' +
 
       '<div class="card">' +
@@ -427,6 +436,61 @@ textarea.field{resize:vertical;min-height:88px}
     loadPending();
     loadChurnRisk();
     loadBroadcastSegments();
+    loadFlags();
+
+    document.getElementById('addFlagBtn').addEventListener('click', addFlag);
+  }
+
+  async function loadFlags(){
+    var box = document.getElementById('flagsBox');
+    try{
+      var data = await api('/api/admin/flags');
+      if (!data.flags.length){
+        box.innerHTML = '<div class="empty-note">Флагов пока нет</div>';
+        return;
+      }
+      box.innerHTML = data.flags.map(function(f){
+        return '<div class="list-row">' +
+          '<div class="list-row-name"><b>' + escapeHtml(f.key) + '</b><small>' + f.rollout_pct + '% аудитории</small></div>' +
+          '<button class="btn ' + (f.enabled ? 'btn-accent' : '') + '" data-flag-toggle="' + escapeHtml(f.key) + '" data-enabled="' + (f.enabled ? '1' : '0') + '">' + (f.enabled ? '✅ Вкл' : '⭘ Выкл') + '</button>' +
+          '<button class="btn btn-danger" data-flag-delete="' + escapeHtml(f.key) + '">✕</button>' +
+        '</div>';
+      }).join('');
+      box.querySelectorAll('[data-flag-toggle]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          try{
+            await api('/api/admin/flags', { method: 'POST', body: JSON.stringify({
+              key: btn.dataset.flagToggle, enabled: btn.dataset.enabled !== '1', rollout_pct: 100,
+            })});
+            haptic('light');
+            loadFlags();
+          }catch(e){ showToast('Ошибка'); }
+        });
+      });
+      box.querySelectorAll('[data-flag-delete]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          try{
+            await api('/api/admin/flags/' + encodeURIComponent(btn.dataset.flagDelete), { method: 'DELETE' });
+            haptic('light');
+            loadFlags();
+          }catch(e){ showToast('Ошибка'); }
+        });
+      });
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  async function addFlag(){
+    var input = document.getElementById('newFlagKey');
+    var key = (input.value || '').trim();
+    if (!key){ showToast('Введи ключ флага'); return; }
+    try{
+      await api('/api/admin/flags', { method: 'POST', body: JSON.stringify({ key: key, enabled: false, rollout_pct: 100 }) });
+      input.value = '';
+      haptic('light');
+      loadFlags();
+    }catch(e){ showToast('Ошибка'); }
   }
 
   async function loadBroadcastSegments(){

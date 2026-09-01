@@ -639,6 +639,18 @@ def complete_habit(habit_id):
     update_daily_task(user_id, "Получить 20 Adam Coin", coins)
     check_achievements(user_id)
 
+    # Roadmap #11 — виртуальный питомец кормится каждой отметкой привычки.
+    from .pets import feed_pet
+    pet_result = feed_pet(user_id, day_key(local_today(user_id)))
+
+    # Roadmap #18 — рубеж серии попадает в ленту активности друзей.
+    from .streak import STREAK_FORECAST_MILESTONES
+    user_after = get_user(user_id)
+    streak_after = int(user_after["streak"]) if user_after and user_after["streak"] else 0
+    if streak_after in STREAK_FORECAST_MILESTONES:
+        from .activity_feed import log_activity_event
+        log_activity_event(user_id, "streak_milestone", {"detail": f"{streak_after} дней подряд"})
+
     # Пром 8 (доп.): 1 балл к месячному счётчику за каждый локальный день,
     # в который закрыто 2+ привычки (см. db/monthly_streak.py). А если
     # сегодня закрыты ВСЕ привычки и их было 2+ — короткое поздравление
@@ -684,6 +696,7 @@ def complete_habit(habit_id):
         "perfect_day": perfect_day,
         "chain_suggestion": chain_suggestion,
         "xp_boosted": xp_boosted,
+        "pet": pet_result,
     }
 
 

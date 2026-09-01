@@ -43,6 +43,23 @@ from .coaching_insights import (
     get_habit_correlations,
 )
 
+from .feature_flags import (
+    is_feature_enabled, get_all_flags, set_feature_flag, delete_feature_flag,
+)
+
+from .seasons import (
+    current_season_key, get_season_leaderboard, get_season_rank, award_season_rewards,
+)
+
+from .pets import get_pet, feed_pet, PET_STAGES
+
+from .teams import (
+    create_team, join_team, leave_team, get_my_team,
+    MAX_TEAM_MEMBERS, MAX_TEAM_NAME_LENGTH,
+)
+
+from .activity_feed import log_activity_event, get_friend_activity_feed, EVENT_LABELS
+
 from .admin_support import (
     get_churn_risk_report, CHURN_RISK_LABELS,
     get_users_by_segment, SEGMENT_LABELS,
@@ -248,6 +265,12 @@ __all__ = [
     "get_struggling_habits", "suggest_optimal_reminder_time",
     "STRUGGLE_THRESHOLD", "STRUGGLE_WINDOW_DAYS",
     "get_habit_correlations",
+    "is_feature_enabled", "get_all_flags", "set_feature_flag", "delete_feature_flag",
+    "current_season_key", "get_season_leaderboard", "get_season_rank", "award_season_rewards",
+    "get_pet", "feed_pet", "PET_STAGES",
+    "create_team", "join_team", "leave_team", "get_my_team",
+    "MAX_TEAM_MEMBERS", "MAX_TEAM_NAME_LENGTH",
+    "log_activity_event", "get_friend_activity_feed", "EVENT_LABELS",
     "get_churn_risk_report", "CHURN_RISK_LABELS",
     "get_users_by_segment", "SEGMENT_LABELS",
     "get_user_support_card",
