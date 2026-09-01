@@ -9,7 +9,8 @@ from config import WEBAPP_URL
 
 from db import (
     rollover_all_users, get_streak_users, get_timezone, create_daily_tasks,
-    has_completed_today, claim_notification, release_notification, notification_scope, RISK_15, RISK_23,
+    has_completed_today, claim_notification, release_notification, notification_scope, in_time_window,
+    RISK_15, RISK_23,
     get_weekly_bonus_available, get_streak_reengagement_state, get_settings,
     get_recent_streak_message_keys, record_streak_message_key,
 )
@@ -135,12 +136,24 @@ async def run_streak_risk_notifications(bot):
     if not bot:
         return
 
+    scope = notification_scope(bot)
+
     for uid in get_streak_users():
         try:
+            settings = get_settings(uid)
+            if not settings or settings["reminders"] == 0:
+                continue
+
             tz_name = get_timezone(uid)
             tz = ZoneInfo(tz_name)
             now = datetime.now(tz)
-            if now.minute not in (0, 30) or now.hour != 23:
+            # Окна допуска вместо "== ровно эта минута" — от повторов
+            # защищает claim_notification ниже, а не точность тика
+            # планировщика. Окна не пересекаются (23:00-23:04 и 23:30-23:34),
+            # так что перепутать 23:00 и 23:30 они не могут.
+            in_2300 = in_time_window(now, hour=23, minute=0)
+            in_2330 = in_time_window(now, hour=23, minute=30)
+            if not (in_2300 or in_2330):
                 continue
             if has_completed_today(uid):
                 # Если человек уже спас серию, никакого финишного спама.
@@ -148,27 +161,35 @@ async def run_streak_risk_notifications(bot):
 
             day = now.date().isoformat()
 
-            if now.minute == 0:
-                if not claim_notification(uid, day, "risk23", notification_scope(bot)):
+            if in_2300:
+                if not claim_notification(uid, day, "risk23", scope):
                     continue
-                await bot.send_message(
-                    uid,
-                    random.choice(RISK_23_FIRST),
-                    parse_mode="HTML",
-                    reply_markup=_countdown_keyboard(),
-                )
+                try:
+                    await bot.send_message(
+                        uid,
+                        random.choice(RISK_23_FIRST),
+                        parse_mode="HTML",
+                        reply_markup=_countdown_keyboard(),
+                    )
+                except Exception:
+                    release_notification(uid, day, "risk23", scope)
+                    raise
                 continue
 
             # 23:30 — главное сообщение. После него одно сообщение редактируется
             # в реальном времени до полуночи.
-            if not claim_notification(uid, day, "risk2330", notification_scope(bot)):
+            if not claim_notification(uid, day, "risk2330", scope):
                 continue
-            sent = await bot.send_message(
-                uid,
-                random.choice(RISK_23_30),
-                parse_mode="HTML",
-                reply_markup=_countdown_keyboard(),
-            )
+            try:
+                sent = await bot.send_message(
+                    uid,
+                    random.choice(RISK_23_30),
+                    parse_mode="HTML",
+                    reply_markup=_countdown_keyboard(),
+                )
+            except Exception:
+                release_notification(uid, day, "risk2330", scope)
+                raise
             task = asyncio.create_task(
                 _run_countdown(bot, uid, sent.message_id, tz_name, now.date())
             )
@@ -266,20 +287,24 @@ async def run_streak_reengagement_notifications(bot):
                 continue
 
             # Для первого дня после срыва — три разных точки, как задумано.
+            # in_time_window вместо "== ровно эта минута": окна по 4 минуты
+            # внутри одного часа не пересекаются между собой, поэтому slot
+            # определяется однозначно, а повтор в пределах окна всё равно
+            # блокируется claim_notification ниже.
             if inactive <= 3:
-                slot = str(now.hour)
-                if now.minute != 0 or slot not in ("10", "16", "21"):
+                slot = next((h for h in ("10", "16", "21") if in_time_window(now, hour=int(h))), None)
+                if slot is None:
                     continue
             elif inactive <= 7:
-                slot = str(now.hour)
-                if now.minute != 0 or slot not in ("12", "20"):
+                slot = next((h for h in ("12", "20") if in_time_window(now, hour=int(h))), None)
+                if slot is None:
                     continue
             elif inactive <= 30:
-                if now.hour != 18 or now.minute != 0 or inactive % 2 != 0:
+                if not in_time_window(now, hour=18) or inactive % 2 != 0:
                     continue
                 slot = "long"
             else:
-                if now.hour != 18 or now.minute != 0 or inactive % 3 != 0:
+                if not in_time_window(now, hour=18) or inactive % 3 != 0:
                     continue
                 slot = "long"
 
@@ -303,21 +328,26 @@ async def run_streak_reengagement_notifications(bot):
 async def run_weekly_streak_bonus(bot):
     if not bot:
         return
+    scope = notification_scope(bot)
     for uid in get_streak_users():
         try:
             tz = ZoneInfo(get_timezone(uid))
             now = datetime.now(tz)
-            if now.weekday() != 6 or now.hour != 10 or now.minute != 0:
+            if now.weekday() != 6 or not in_time_window(now, hour=10, minute=0):
                 continue
             day = now.date().isoformat()
             if not get_weekly_bonus_available(uid):
                 continue
-            if not claim_notification(uid, day, "weekly_bonus", notification_scope(bot)):
+            if not claim_notification(uid, day, "weekly_bonus", scope):
                 continue
-            await bot.send_message(
-                uid,
-                "🎁 Неделя в огне!\n\nТы прошёл предыдущие 7 дней без пропусков. "
-                "Открой ADAM и выбери награду: 200 Adam Coin или временную рамку на 7 дней."
-            )
+            try:
+                await bot.send_message(
+                    uid,
+                    "🎁 Неделя в огне!\n\nТы прошёл предыдущие 7 дней без пропусков. "
+                    "Открой ADAM и выбери награду: 200 Adam Coin или временную рамку на 7 дней."
+                )
+            except Exception:
+                release_notification(uid, day, "weekly_bonus", scope)
+                raise
         except Exception:
             logger.exception("Ошибка weekly streak bonus для %s", uid)

@@ -107,14 +107,30 @@ async def run_weekly_report(bot):
     на токенах."""
     users = get_all_users()
     sent = 0
+    # Глобальный cron (один момент времени для всех, не по локальному часу
+    # пользователя), поэтому ключ дедупликации — просто текущая неделя, а
+    # не локальная дата пользователя.
+    week_key = datetime.now().strftime("%G-W%V")
+    scope = notification_scope(bot)
 
     for user in users:
         telegram_id = user["telegram_id"]
+
+        # Раньше здесь не было проверки настройки напоминаний — недельный
+        # отчёт уходил даже тем, кто отключил уведомления в настройках.
+        settings = get_settings(telegram_id)
+        if not settings or settings["reminders"] == 0:
+            continue
 
         summary = get_weekly_summary(telegram_id)
         if summary["active_days"] == 0:
             # Неактивным за неделю не шлём — не будем добавлять спам
             # тем, кто и так, похоже, отошёл от бота.
+            continue
+
+        # Дедуп на случай повторного/двойного срабатывания cron-job'а —
+        # раньше отчёт мог уйти дважды без единой защиты от дубля.
+        if not claim_notification(telegram_id, week_key, "weekly_report", scope):
             continue
 
         try:
@@ -125,6 +141,7 @@ async def run_weekly_report(bot):
             )
             sent += 1
         except Exception as e:
+            release_notification(telegram_id, week_key, "weekly_report", scope)
             log_error("weekly_report", e, telegram_id)
 
     logger.info(f"Недельные отчёты отправлены {sent} пользователям")
@@ -237,12 +254,23 @@ async def run_planned_time_reminders(bot):
             continue
 
         now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
-        current_hhmm = now_local.strftime("%H:%M")
 
         for habit in get_habits(telegram_id):
             if habit["completed"] or habit["reminder_sent"]:
                 continue
-            if habit["planned_time"] != current_hhmm:
+            planned_time = habit["planned_time"]
+            if not planned_time:
+                continue
+            try:
+                planned_hour, planned_minute = (int(x) for x in planned_time.split(":"))
+            except (ValueError, AttributeError):
+                continue
+            # in_time_window вместо "== ровно эта минута": раньше пропущенный
+            # ровно на этой минуте тик (нагрузка, передеплой) означал, что
+            # planned_time уже "проехал" и напоминание по этой привычке
+            # молчало весь день. От повторов внутри окна защищает флаг
+            # reminder_sent (ставится сразу после первой попытки ниже).
+            if not in_time_window(now_local, hour=planned_hour, minute=planned_minute):
                 continue
             try:
                 await bot.send_message(
@@ -393,9 +421,8 @@ async def run_day_progress_check(bot):
                 continue
 
             day = now_local.date().isoformat()
-            if not claim_notification(
-                telegram_id, day, "day_progress_19", notification_scope(bot)
-            ):
+            scope = notification_scope(bot)
+            if not claim_notification(telegram_id, day, "day_progress_19", scope):
                 continue
 
             open_items = [
@@ -403,15 +430,22 @@ async def run_day_progress_check(bot):
                 for item in items if not item["completed"]
             ]
 
-            await bot.send_message(
-                telegram_id,
-                format_day_progress_message(
-                    done,
-                    total,
-                    open_items,
-                ),
-                parse_mode="HTML",
-            )
+            try:
+                await bot.send_message(
+                    telegram_id,
+                    format_day_progress_message(
+                        done,
+                        total,
+                        open_items,
+                    ),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                # Резерв освобождаем, только если реально не отправили — иначе
+                # временный сбой Telegram/сети "сжигал" вечернюю сверку на весь
+                # день без единой попытки повтора.
+                release_notification(telegram_id, day, "day_progress_19", scope)
+                raise
             sent += 1
 
         except Exception as e:
@@ -430,9 +464,15 @@ async def run_day_progress_check(bot):
 # (начало/конец недели, начало/конец месяца) — промт п.8
 # =====================================
 
-async def _broadcast(bot, text_fn, job_name):
+async def _broadcast(bot, text_fn, job_name, day_key):
+    """day_key — ключ дедупликации claim_notification (неделя или месяц,
+    в зависимости от job'а). Раньше здесь не было вообще никакой защиты от
+    дубля: любое повторное/наложившееся срабатывание cron-job'а (напр. на
+    границе misfire_grace_time) рассылало это сообщение ВСЕМ пользователям
+    ещё раз."""
     users = get_all_users()
     sent = 0
+    scope = notification_scope(bot)
 
     for user in users:
         telegram_id = user["telegram_id"]
@@ -441,29 +481,37 @@ async def _broadcast(bot, text_fn, job_name):
         if not settings or settings["reminders"] == 0:
             continue
 
+        if not claim_notification(telegram_id, day_key, job_name, scope):
+            continue
+
         try:
             await bot.send_message(telegram_id, text_fn(), parse_mode="HTML")
             sent += 1
         except Exception as e:
+            release_notification(telegram_id, day_key, job_name, scope)
             log_error(job_name, e, telegram_id)
 
     logger.info(f"{job_name}: отправлено {sent} сообщений")
 
 
 async def run_week_start_ping(bot):
-    await _broadcast(bot, format_week_start_message, "week_start_ping")
+    week_key = datetime.now().strftime("%G-W%V")
+    await _broadcast(bot, format_week_start_message, "week_start_ping", week_key)
 
 
 async def run_week_end_ping(bot):
-    await _broadcast(bot, format_week_end_message, "week_end_ping")
+    week_key = datetime.now().strftime("%G-W%V")
+    await _broadcast(bot, format_week_end_message, "week_end_ping", week_key)
 
 
 async def run_month_start_ping(bot):
-    await _broadcast(bot, format_month_start_message, "month_start_ping")
+    month_key = datetime.now().strftime("%Y-%m")
+    await _broadcast(bot, format_month_start_message, "month_start_ping", month_key)
 
 
 async def run_month_end_ping(bot):
-    await _broadcast(bot, format_month_end_message, "month_end_ping")
+    month_key = datetime.now().strftime("%Y-%m")
+    await _broadcast(bot, format_month_end_message, "month_end_ping", month_key)
 
 
 # =====================================
@@ -507,6 +555,8 @@ async def run_weekly_habit_analysis(bot):
     например предложить сократить время, чтобы вернуться в ритм."""
     users = get_all_users()
     sent = 0
+    week_key = datetime.now().strftime("%G-W%V")
+    scope = notification_scope(bot)
 
     for user in users:
         telegram_id = user["telegram_id"]
@@ -521,20 +571,27 @@ async def run_weekly_habit_analysis(bot):
             # или бот только что запущен) — разбирать нечего.
             continue
 
+        # Резервируем ДО платного вызова AI — раньше здесь не было защиты
+        # от дубля вообще: повторное срабатывание job'а не только слало
+        # разбор дважды, но и оплачивало вызов OpenAI дважды на пустом месте.
+        if not claim_notification(telegram_id, week_key, "weekly_habit_analysis", scope):
+            continue
+
         breakdown_text = _format_breakdown_text(breakdown)
         style = get_ai_style(telegram_id) or "neutral"
 
-        ai_text = await generate_weekly_habit_feedback(breakdown_text, style)
-
-        if ai_text:
-            text = "📊 <b>AI-разбор недели по привычкам</b>\n\n" + ai_text
-        else:
-            text = _fallback_habit_feedback(breakdown)
-
         try:
+            ai_text = await generate_weekly_habit_feedback(breakdown_text, style)
+
+            if ai_text:
+                text = "📊 <b>AI-разбор недели по привычкам</b>\n\n" + ai_text
+            else:
+                text = _fallback_habit_feedback(breakdown)
+
             await bot.send_message(telegram_id, text, parse_mode="HTML")
             sent += 1
         except Exception as e:
+            release_notification(telegram_id, week_key, "weekly_habit_analysis", scope)
             log_error("weekly_habit_analysis", e, telegram_id)
 
     logger.info(f"AI-разбор недели по привычкам: отправлено {sent} пользователям")

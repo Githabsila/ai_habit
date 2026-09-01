@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 from db import (
     get_all_users, get_timezone, get_settings,
-    claim_notification, notification_scope,
+    claim_notification, release_notification, notification_scope, in_time_window,
     get_trial_day, is_in_trial, has_active_subscription, get_subscription_status,
 )
 from adam_messages import (
@@ -47,7 +47,9 @@ async def run_trial_reminders(bot):
             now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
         except Exception:
             continue
-        if now_local.hour != TRIAL_REMINDER_HOUR or now_local.minute != 0:
+        # Окно допуска, не "== ровно эта минута" — от повторов защищает
+        # claim_notification ниже, а не точность попадания в тик планировщика.
+        if not in_time_window(now_local, hour=TRIAL_REMINDER_HOUR, minute=0):
             continue
 
         try:
@@ -80,10 +82,15 @@ async def run_trial_reminders(bot):
                 continue
 
             day_key = now_local.date().isoformat()
-            if not claim_notification(telegram_id, day_key, "trial_reminder", notification_scope(bot)):
+            scope = notification_scope(bot)
+            if not claim_notification(telegram_id, day_key, "trial_reminder", scope):
                 continue
 
-            await bot.send_message(telegram_id, text, reply_markup=keyboard)
+            try:
+                await bot.send_message(telegram_id, text, reply_markup=keyboard)
+            except Exception:
+                release_notification(telegram_id, day_key, "trial_reminder", scope)
+                raise
             sent += 1
         except Exception:
             logger.exception("Ошибка триал-напоминания для %s", telegram_id)
