@@ -7270,22 +7270,47 @@ body{
 .habit-add-form{
   flex-direction:column;
   align-items:stretch;
-  gap:10px;
+  gap:12px;
+  /* Тот же премиальный градиент, что и у .plan-card/.calendar-card и т.п.
+     (см. "UNIVERSAL CARDS" выше) — раньше здесь был плоский тёмный фон
+     с крошечным padding:8px, заметно бедней остальных карточек экрана. */
+  padding:16px !important;
+  border-radius:26px !important;
+  background:
+    radial-gradient(360px 140px at 100% 0,rgba(139,108,255,.08),transparent 70%),
+    linear-gradient(145deg,rgba(28,25,39,.92),rgba(13,12,20,.92)) !important;
+  box-shadow:0 15px 40px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.05) !important;
 }
 .habit-add-form__text{
   width:100%;
+  /* .add-form input{flex:1;height:56px} (выше по файлу, для старой
+     однострочной раскладки) специфичнее одного класса — с flex-direction:
+     column у родителя flex:1 (flex-basis:0%) перетягивал высоту поля на
+     себя ПОВЕРХ height:56px, и поле схлопывалось до ~19px (высоты текста).
+     !important здесь — не украшательство, а обязательный фикс этого бага. */
+  flex:0 0 auto !important;
+  height:58px !important;
+  padding:0 20px !important;
+  border-radius:18px !important;
+  font-size:16px !important;
 }
 .habit-add-form__row2{
   display:flex;
   align-items:stretch;
   gap:10px;
+  /* flex-wrap:wrap — предохранитель для очень узких окон (Telegram Desktop
+     можно сузить произвольно, это не только про ширину телефона): кнопка
+     не имеет права сжиматься меньше текста "+ Добавить" (min-width:auto по
+     умолчанию у flex-элементов), и на экране уже ~340px по ширине формы
+     раньше вылезала за рамку карточки вместо переноса на новую строку. */
+  flex-wrap:wrap;
 }
 .habit-add-form__time{
   display:flex;
   align-items:center;
   gap:7px;
-  flex:0 0 122px;
-  height:52px;
+  flex:0 0 124px;
+  height:54px;
   padding:0 14px;
   border-radius:16px;
   background:rgba(255,255,255,.03);
@@ -7329,11 +7354,12 @@ body{
    контраста на фиолетовом (тот же приём, что и у plan-add-form__btn). */
 .habit-add-form__submit{
   flex:1;
+  min-width:120px;
   display:flex;
   align-items:center;
   justify-content:center;
   gap:8px;
-  height:52px;
+  height:54px;
   border-radius:16px;
   cursor:pointer;
   font-family:'Space Grotesk', sans-serif;
