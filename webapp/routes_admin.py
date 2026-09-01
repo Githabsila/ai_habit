@@ -28,6 +28,9 @@ from db import (
     give_premium_admin, give_xp_admin,
     get_pending_users, set_access_status,
     get_users_by_tags, get_all_users,
+    get_users_by_segment, SEGMENT_LABELS,
+    get_user_support_card,
+    get_churn_risk_report,
 )
 from db.core import DB_PATH
 from admin_digest_scheduler import build_stats_report
@@ -56,24 +59,6 @@ async def _authenticate_admin(request):
     if telegram_id not in ADMIN_IDS:
         raise web.HTTPForbidden(text=json.dumps({"error": "not_admin"}), content_type="application/json")
     return telegram_id
-
-
-def _user_card(row):
-    if row is None:
-        return None
-    keys = row.keys()
-    return {
-        "telegram_id": row["telegram_id"],
-        "username": row["username"],
-        "first_name": row["first_name"],
-        "premium": bool(row["premium"]),
-        "banned": bool(row["banned"]),
-        "xp": row["xp"],
-        "level": row["level"],
-        "streak": row["streak"],
-        "access_status": row["access_status"] if "access_status" in keys else None,
-        "created_at": str(row["created_at"]) if "created_at" in keys else None,
-    }
 
 
 @routes.get("/api/admin/stats")
@@ -142,12 +127,23 @@ async def admin_approve_route(request):
 
 @routes.get("/api/admin/user/{telegram_id}")
 async def admin_user_card_route(request):
+    """Roadmap #44 — консолидированная карточка пользователя для
+    поддержки: привычки, последние логи, подписка, дни без захода —
+    вместо того чтобы вручную смотреть в 4 разные таблицы."""
     await _authenticate_admin(request)
     telegram_id = int(request.match_info["telegram_id"])
-    user = _user_card(get_user(telegram_id))
-    if user is None:
+    card = get_user_support_card(telegram_id)
+    if card is None:
         return web.json_response({"error": "not_found"}, status=404)
-    return web.json_response(user)
+    return web.json_response(card)
+
+
+@routes.get("/api/admin/churn-risk")
+async def admin_churn_risk_route(request):
+    """Roadmap #45 — сводка риска оттока: сколько пользователей в каждом
+    тире + список самых 'горящих'."""
+    await _authenticate_admin(request)
+    return web.json_response(get_churn_risk_report())
 
 
 @routes.post("/api/admin/user/{telegram_id}/ban")
@@ -192,10 +188,19 @@ async def admin_xp_route(request):
     return web.json_response({"ok": True})
 
 
+@routes.get("/api/admin/broadcast/segments")
+async def admin_broadcast_segments_route(request):
+    """Roadmap #43 — список сегментов для селектора в UI."""
+    await _authenticate_admin(request)
+    return web.json_response({"segments": [{"key": k, "label": v} for k, v in SEGMENT_LABELS.items()]})
+
+
 @routes.post("/api/admin/broadcast")
 async def admin_broadcast_route(request):
-    """Рассылка всем или по тегу — то же самое, что делает бот в
-    handlers/admin.py::send_broadcast, только вызывается из Mini App."""
+    """Рассылка всем / по тегу / по сегменту (roadmap #43 — например,
+    "только неактивным 7+ дней") — то же самое, что делает бот в
+    handlers/admin.py::send_broadcast, только вызывается из Mini App.
+    segment имеет приоритет над tag, если оба почему-то присланы."""
     await _authenticate_admin(request)
     bot = request.app.get("bot")
     if bot is None:
@@ -208,12 +213,20 @@ async def admin_broadcast_route(request):
 
     text = (body.get("text") or "").strip()
     tag = (body.get("tag") or "").strip() or None
+    segment = (body.get("segment") or "").strip() or None
     if not text:
         return web.json_response({"error": "empty_text"}, status=400)
     if len(text) > 4000:
         return web.json_response({"error": "text_too_long"}, status=400)
 
-    telegram_ids = get_users_by_tags([tag]) if tag else [u["telegram_id"] for u in get_all_users()]
+    if segment:
+        telegram_ids = get_users_by_segment(segment)
+        if telegram_ids is None:
+            return web.json_response({"error": "unknown_segment"}, status=400)
+    elif tag:
+        telegram_ids = get_users_by_tags([tag])
+    else:
+        telegram_ids = [u["telegram_id"] for u in get_all_users()]
 
     success = 0
     failed = 0

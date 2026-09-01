@@ -43,6 +43,12 @@ from .coaching_insights import (
     get_habit_correlations,
 )
 
+from .admin_support import (
+    get_churn_risk_report, CHURN_RISK_LABELS,
+    get_users_by_segment, SEGMENT_LABELS,
+    get_user_support_card,
+)
+
 from .quests import get_daily_quests, claim_daily_quest, QUEST_DEFINITIONS
 
 from .leagues import get_league_tier, get_league_progress, LEAGUE_TIERS
@@ -241,6 +247,9 @@ __all__ = [
     "get_struggling_habits", "suggest_optimal_reminder_time",
     "STRUGGLE_THRESHOLD", "STRUGGLE_WINDOW_DAYS",
     "get_habit_correlations",
+    "get_churn_risk_report", "CHURN_RISK_LABELS",
+    "get_users_by_segment", "SEGMENT_LABELS",
+    "get_user_support_card",
     "get_daily_quests", "claim_daily_quest", "QUEST_DEFINITIONS",
     "get_league_tier", "get_league_progress", "LEAGUE_TIERS",
     "set_public_profile_enabled", "get_public_profile",

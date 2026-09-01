@@ -381,6 +381,11 @@ textarea.field{resize:vertical;min-height:88px}
         '<div id="pendingList"><div class="empty-note">Загружаю…</div></div>' +
       '</div>' +
 
+      '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--red">📉</span>Риск оттока</div>' +
+        '<div id="churnRiskBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
       '<div class="section-label">Управление</div>' +
 
       '<div class="card">' +
@@ -395,7 +400,8 @@ textarea.field{resize:vertical;min-height:88px}
       '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--red">📢</span>Рассылка</div>' +
         '<textarea class="field" id="broadcastText" placeholder="Текст сообщения… (можно HTML-теги Telegram: &lt;b&gt;, &lt;i&gt;)"></textarea>' +
-        '<input class="field" id="broadcastTag" type="text" placeholder="Тег (необязательно) — пусто = всем" style="margin-top:8px">' +
+        '<select class="field" id="broadcastSegment" style="margin-top:8px"><option value="">Все пользователи</option></select>' +
+        '<input class="field" id="broadcastTag" type="text" placeholder="...или тег (игнорируется, если выбран сегмент выше)" style="margin-top:8px">' +
         '<div class="btn-row" style="margin-top:10px">' +
           '<button class="btn btn-gold btn-block" id="broadcastBtn">📢 Отправить</button>' +
         '</div>' +
@@ -419,6 +425,46 @@ textarea.field{resize:vertical;min-height:88px}
     document.getElementById('exportDbBtn').addEventListener('click', exportDb);
 
     loadPending();
+    loadChurnRisk();
+    loadBroadcastSegments();
+  }
+
+  async function loadBroadcastSegments(){
+    var select = document.getElementById('broadcastSegment');
+    try{
+      var data = await api('/api/admin/broadcast/segments');
+      data.segments.forEach(function(s){
+        if (s.key === 'all') return; // уже есть как значение по умолчанию
+        var opt = document.createElement('option');
+        opt.value = s.key;
+        opt.textContent = s.label;
+        select.appendChild(opt);
+      });
+    }catch(e){ /* сегменты необязательны — тег/"всем" всё ещё работают */ }
+  }
+
+  async function loadChurnRisk(){
+    var box = document.getElementById('churnRiskBox');
+    try{
+      var data = await api('/api/admin/churn-risk');
+      var tierOrder = ['watch', 'at_risk', 'churned', 'lost'];
+      var chips = tierOrder.map(function(key){
+        var t = data.tiers[key];
+        return '<span class="stat-chip">' + t.label + ': ' + t.count + '</span>';
+      }).join('');
+      var list = data.at_risk.slice(0, 8).map(function(u){
+        var name = escapeHtml(u.first_name || ('ID ' + u.telegram_id));
+        return '<div class="list-row">' +
+          '<span class="card-icon card-icon--red" style="width:28px;height:28px;font-size:12px">' + u.tier_label.charAt(0) + '</span>' +
+          '<div class="list-row-name"><b>' + name + '</b><small>' + u.inactive_days + ' дн. без захода · серия была ' + u.streak_before + '</small></div>' +
+        '</div>';
+      }).join('');
+      box.innerHTML =
+        '<div class="btn-row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">' + chips + '</div>' +
+        (list || '<div class="empty-note">Все пользователи активны ✅</div>');
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
   }
 
   async function exportDb(){
@@ -510,8 +556,17 @@ textarea.field{resize:vertical;min-height:88px}
   }
 
   function renderUserCard(u){
+    // Roadmap #44 — консолидированная карточка: помимо базовых полей,
+    // теперь ещё привычки/недавние отметки/подписка/дни без захода —
+    // то, что раньше приходилось смотреть в нескольких разных местах.
     var box = document.getElementById('userCardBox');
     var name = u.username ? ('@' + escapeHtml(u.username)) : escapeHtml(u.first_name || '—');
+    var sub = u.subscription || {};
+    var habitsDone = (u.habits || []).filter(function(h){ return h.completed; }).length;
+    var recentLogsHtml = (u.recent_logs || []).slice(0, 6).map(function(l){
+      return '<span class="stat-chip">' + (l.completed ? '✅' : '❌') + ' ' + escapeHtml(l.title) + '</span>';
+    }).join('') || '<span class="empty-note" style="padding:0">Пока пусто</span>';
+
     box.innerHTML =
       '<div class="user-card">' +
         '<div class="user-card-head">' +
@@ -524,8 +579,12 @@ textarea.field{resize:vertical;min-height:88px}
           '<div class="user-tile"><div class="user-tile-label">Adam Coin</div><div class="user-tile-value">' + u.xp + '</div></div>' +
           '<div class="user-tile"><div class="user-tile-label">Уровень</div><div class="user-tile-value">' + u.level + '</div></div>' +
           '<div class="user-tile"><div class="user-tile-label">Серия</div><div class="user-tile-value">🔥 ' + u.streak + '</div></div>' +
-          '<div class="user-tile"><div class="user-tile-label">Доступ</div><div class="user-tile-value">' + escapeHtml(u.access_status || '—') + '</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Без захода</div><div class="user-tile-value">' + (u.inactive_days || 0) + ' дн.</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Подписка</div><div class="user-tile-value">' + (sub.has_paid ? '✅ активна' : (sub.in_trial ? 'триал д.' + sub.trial_day : 'нет')) + '</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Покупок Stars</div><div class="user-tile-value">' + (u.purchases_count || 0) + '</div></div>' +
         '</div>' +
+        '<div class="empty-note" style="padding:10px 0 4px">Привычки сейчас: ' + habitsDone + '/' + (u.habits || []).length + ' · последние отметки:</div>' +
+        '<div class="btn-row" style="flex-wrap:wrap;gap:6px">' + recentLogsHtml + '</div>' +
         '<div class="btn-row" style="margin-top:12px">' +
           (u.banned
             ? '<button class="btn btn-accent" id="unbanBtn">✅ Разбанить</button>'
@@ -575,12 +634,18 @@ textarea.field{resize:vertical;min-height:88px}
   async function sendBroadcast(){
     var textEl = document.getElementById('broadcastText');
     var tagEl = document.getElementById('broadcastTag');
+    var segmentEl = document.getElementById('broadcastSegment');
     var btn = document.getElementById('broadcastBtn');
     var text = (textEl.value || '').trim();
     if (!text){ showToast('Пустой текст'); return; }
 
+    var segment = segmentEl.value || '';
     var tag = (tagEl.value || '').trim();
-    var target = tag ? ('по тегу «' + tag + '»') : 'всем пользователям';
+    // Roadmap #43 — сегмент приоритетнее тега, если оба заданы (тег
+    // тогда просто игнорируется бэкендом же).
+    var target = segment
+      ? ('сегменту «' + segmentEl.options[segmentEl.selectedIndex].textContent + '»')
+      : (tag ? ('по тегу «' + tag + '»') : 'всем пользователям');
     var ok = window.confirm('Отправить это сообщение ' + target + '? Отменить рассылку после отправки нельзя.');
     if (!ok) return;
 
@@ -589,12 +654,13 @@ textarea.field{resize:vertical;min-height:88px}
     try{
       var data = await api('/api/admin/broadcast', {
         method: 'POST',
-        body: JSON.stringify({ text: text, tag: tag || null }),
+        body: JSON.stringify({ text: text, tag: tag || null, segment: segment || null }),
       });
       haptic('medium');
       showToast('✅ Отправлено: ' + data.success + ', ошибок: ' + data.failed);
       textEl.value = '';
       tagEl.value = '';
+      segmentEl.value = '';
     }catch(e){
       showToast('Не получилось отправить');
     }finally{
