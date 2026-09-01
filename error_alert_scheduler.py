@@ -9,7 +9,7 @@ scheduler.py, 8:00 UTC) — поломка в середине дня остав
 затянувшейся поломке.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from config import ERROR_SPIKE_THRESHOLD
 from db import get_error_stats
@@ -34,7 +34,7 @@ async def run_error_spike_check(bot):
     if stats["total"] < ERROR_SPIKE_THRESHOLD:
         return
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if _last_alert_at and now - _last_alert_at < ALERT_COOLDOWN:
         return
 

@@ -4,7 +4,7 @@
 без побочных эффектов на бизнес-логику — безопасно вызывать откуда угодно
 (админ-команда, ежедневный дайджест, ручной запрос).
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from .core import connect
 
@@ -16,7 +16,7 @@ def touch_last_seen(user_id):
     conn = connect()
     conn.execute(
         "UPDATE users SET last_seen=? WHERE telegram_id=?",
-        (datetime.utcnow().isoformat(), user_id),
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), user_id),
     )
     conn.commit()
     conn.close()
@@ -26,7 +26,7 @@ def get_dau(days=1):
     """Уникальных пользователей с активностью за последние `days` дней."""
     conn = connect()
     cursor = conn.cursor()
-    since = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    since = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)).isoformat()
     cursor.execute(
         "SELECT COUNT(*) AS n FROM users WHERE last_seen IS NOT NULL AND last_seen >= ?",
         (since,),
@@ -167,7 +167,7 @@ def get_retention(days_ago):
     if not cohort_size:
         conn.close()
         return {"cohort_size": 0, "returned": 0, "rate_percent": 0.0}
-    since = (datetime.utcnow() - timedelta(hours=48)).isoformat()
+    since = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=48)).isoformat()
     cursor.execute(
         "SELECT COUNT(*) AS n FROM users WHERE date(created_at)=? AND last_seen IS NOT NULL AND last_seen >= ?",
         (cohort_date, since),

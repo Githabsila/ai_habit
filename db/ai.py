@@ -148,7 +148,7 @@ def get_proactive_topic(user_id):
     import datetime as _dt
     try:
         expires = _dt.datetime.fromisoformat(str(row["proactive_until"]).replace("Z", ""))
-        if expires <= _dt.datetime.utcnow():
+        if expires <= _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None):
             return ""
     except Exception:
         conn.close()

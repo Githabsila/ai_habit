@@ -1,4 +1,4 @@
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, timezone
 
 from .core import connect
 from .users import get_user, add_xp
@@ -274,7 +274,7 @@ def complete_habit(habit_id):
     # заново открывается на 30 минут вперёд, но только если у пользователя
     # больше одной привычки и после этой отметки ещё остались незакрытые —
     # иначе продлевать нечего, и функцию не показываем вовсе.
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     window_until = get_bonus_window(user_id)
     doubled = bool(window_until and now < window_until)
     coins = BASE_HABIT_COINS * (2 if doubled else 1)

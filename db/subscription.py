@@ -11,7 +11,7 @@ Premium остаётся отдельным косметическим тари�
 заблокировать задним числом уже существующих пользователей — см.
 gate_applies_to().
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from .core import connect
 from .users import get_user
@@ -35,7 +35,7 @@ def get_trial_day(user_id):
     created = _parse_dt(user["created_at"] if "created_at" in user.keys() else None)
     if not created:
         return 1
-    return max(1, (datetime.utcnow().date() - created.date()).days + 1)
+    return max(1, (datetime.now(timezone.utc).date() - created.date()).days + 1)
 
 
 def is_in_trial(user_id):
@@ -49,7 +49,7 @@ def has_active_subscription(user_id):
     if not user or "subscription_paid_until" not in user.keys():
         return False
     until = _parse_dt(user["subscription_paid_until"])
-    return bool(until and until > datetime.utcnow())
+    return bool(until and until > datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 def has_ever_paid(user_id):
@@ -70,7 +70,7 @@ def record_subscription_payment(user_id, months=1):
     ещё не истёк) или от сегодня (если истёк/не было). Возвращает новую
     дату окончания."""
     user = get_user(user_id)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     current_until = _parse_dt(user["subscription_paid_until"]) if user else None
     base = current_until if (current_until and current_until > now) else now
     new_until = base + timedelta(days=30 * months)

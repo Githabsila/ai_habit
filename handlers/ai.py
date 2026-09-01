@@ -3,7 +3,7 @@ import time
 import hashlib
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 # ✅ Импортируем общие утилиты из ai_utils (не из ai_service)
 from webapp.services.ai_utils import (
@@ -99,7 +99,7 @@ def _is_throttled(user_id: int) -> float | None:
     if last_str:
         try:
             last_dt = datetime.strptime(last_str, "%Y-%m-%d %H:%M:%S")
-            elapsed = (datetime.utcnow() - last_dt).total_seconds()
+            elapsed = (datetime.now(timezone.utc).replace(tzinfo=None) - last_dt).total_seconds()
             if elapsed < MIN_INTERVAL_SECONDS:
                 return round(MIN_INTERVAL_SECONDS - elapsed, 1)
         except ValueError:
@@ -121,7 +121,7 @@ _suggested_habits: dict[int, str] = {}
 
 async def _update_memory(user_id: int):
     try:
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         profile = get_user_profile(user_id)
         existing_summary = profile["summary"] if profile else ""
@@ -147,7 +147,7 @@ async def _update_memory(user_id: int):
 
         # followup — только одна тема и максимум на следующие 24 часа.
         proactive_until = (
-            (datetime.utcnow() + timedelta(hours=24)).isoformat()
+            (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=24)).isoformat()
             if followup else None
         )
         update_user_profile(

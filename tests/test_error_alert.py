@@ -42,7 +42,7 @@ async def test_alert_fires_once_above_threshold(monkeypatch):
 
 async def test_cooldown_prevents_repeat_alert_right_after(monkeypatch):
     import datetime
-    monkeypatch.setattr(mod, "_last_alert_at", datetime.datetime.utcnow())
+    monkeypatch.setattr(mod, "_last_alert_at", datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None))
     monkeypatch.setattr(
         mod, "get_error_stats",
         lambda hours=1: {"total": 999, "by_scope": [], "hours": 1},

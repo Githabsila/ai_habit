@@ -17,8 +17,8 @@ def _backdate(telegram_id, days_ago, seen_days_ago=None):
     created = (date.today() - timedelta(days=days_ago)).isoformat()
     conn.execute("UPDATE users SET created_at=? WHERE telegram_id=?", (created, telegram_id))
     if seen_days_ago is not None:
-        from datetime import datetime
-        seen = (datetime.utcnow() - timedelta(days=seen_days_ago)).isoformat()
+        from datetime import datetime, timezone
+        seen = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=seen_days_ago)).isoformat()
         conn.execute("UPDATE users SET last_seen=? WHERE telegram_id=?", (seen, telegram_id))
     conn.commit()
     conn.close()
