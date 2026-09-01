@@ -14,6 +14,7 @@ from db import (
     get_weekly_bonus_available, get_streak_reengagement_state, get_settings,
     get_recent_streak_message_keys, record_streak_message_key,
     reminder_category_enabled, in_quiet_hours,
+    get_freeze_upsell_eligibility, week_key,
 )
 
 logger = logging.getLogger("streak_scheduler")
@@ -130,6 +131,47 @@ async def _run_countdown(bot, uid, message_id, tz_name, deadline):
         _active_countdowns.pop(key, None)
 
 
+# Порог, с которого предлагаем заморозку: короткие серии люди обычно не
+# жалко потерять, а вот длинную (неделя+) — самое время предложить страховку
+# ДО того, как она сгорит, а не постфактум.
+FREEZE_UPSELL_MIN_STREAK = 7
+FREEZE_UPSELL_COST_XP = 200
+
+
+async def _maybe_send_freeze_upsell(bot, uid, now, scope):
+    """Улучшение #38 ("стрик-страховка"): в момент 23:00, когда серия реально
+    под угрозой (0 привычек за день), а у пользователя нет ни одной заморозки
+    в запасе — мягко напоминаем, что её можно купить, вместо того чтобы просто
+    молча дать серии сгореть. Не чаще раза в неделю на человека, чтобы не
+    превратиться в рекламный спам."""
+    try:
+        info = get_freeze_upsell_eligibility(uid)
+    except Exception:
+        logger.exception("Не удалось получить данные для freeze-upsell для %s", uid)
+        return
+    if info["streak"] < FREEZE_UPSELL_MIN_STREAK:
+        return
+    if info["freeze_balance"] > 0:
+        return
+    if info["xp"] < FREEZE_UPSELL_COST_XP:
+        return
+
+    wk = week_key(now.date())
+    if not claim_notification(uid, wk, "freeze_upsell", scope):
+        return
+    try:
+        await bot.send_message(
+            uid,
+            f"❄️ У тебя серия в {info['streak']} дн. — и ноль заморозок в запасе.\n\n"
+            "Заморозка спасает день, если не успеешь закрыть привычки: серия не "
+            f"обнулится. Стоит {FREEZE_UPSELL_COST_XP} Adam Coin, купить можно в разделе «Ударный режим».",
+            reply_markup=_countdown_keyboard(),
+        )
+    except Exception:
+        release_notification(uid, wk, "freeze_upsell", scope)
+        raise
+
+
 async def run_streak_risk_notifications(bot):
     """23:00 — короткий факт о риске; 23:30 — главный срочный пинг + живой таймер.
     Оба события отправляются только если за день ещё не выполнена ни одна
@@ -177,6 +219,7 @@ async def run_streak_risk_notifications(bot):
                 except Exception:
                     release_notification(uid, day, "risk23", scope)
                     raise
+                await _maybe_send_freeze_upsell(bot, uid, now, scope)
                 continue
 
             # 23:30 — главное сообщение. После него одно сообщение редактируется

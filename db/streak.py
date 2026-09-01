@@ -614,6 +614,7 @@ NOTIFICATION_KIND_LABELS = {
     "risk2330": "🔥 Риск потерять серию",
     "weekly_bonus": "🎁 Недельный бонус",
     "trial_reminder": "💳 Напоминание об оплате",
+    "freeze_upsell": "❄️ Предложение заморозки",
 }
 
 
@@ -724,6 +725,26 @@ def has_completed_today(user_id):
     row = c.fetchone()
     conn.close()
     return bool(row and row["status"] == "completed")
+
+def get_freeze_upsell_eligibility(user_id):
+    """Улучшение #38 ("стрик-страховка"): лёгкая выборка без побочных
+    эффектов get_streak_status (та ещё и вставляет streak_rewards) — нужна
+    только чтобы решить, стоит ли раз в неделю напомнить про заморозку
+    в момент, когда серия реально под угрозой (23:00, 0 привычек за день)."""
+    conn = connect()
+    c = conn.cursor()
+    c.execute(
+        "SELECT u.streak, u.xp, COALESCE(sm.freeze_balance, 0) AS freeze_balance "
+        "FROM users u LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id "
+        "WHERE u.telegram_id=?",
+        (user_id,),
+    )
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return {"streak": 0, "xp": 0, "freeze_balance": 0}
+    return {"streak": int(row["streak"] or 0), "xp": int(row["xp"] or 0), "freeze_balance": int(row["freeze_balance"] or 0)}
+
 
 def get_streak_users():
     conn = connect()

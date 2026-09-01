@@ -1082,12 +1082,52 @@
 
   // ===================== TOAST =====================
   let toastTimer = null;
-  function showToast(message, kind, duration) {
+  // Улучшение #71/#66: если toast с действием ("Отменить") подряд перекрывается
+  // следующим тостом до истечения таймера, действие теряется молча — раньше
+  // showToast просто затирал предыдущий div без разбора. Держим маленькую
+  // очередь: пока активный action-тост не истёк или не нажат, следующие обычные
+  // тосты ждут своей очереди вместо того, чтобы обрезать чужую кнопку "Отменить".
+  let toastQueue = [];
+  let toastActive = false;
+
+  function showToast(message, kind, duration, action) {
+    toastQueue.push({ message, kind, duration, action });
+    if (!toastActive) _drainToastQueue();
+  }
+
+  function _drainToastQueue() {
+    const next = toastQueue.shift();
+    if (!next) { toastActive = false; return; }
+    toastActive = true;
+    const { message, kind, duration, action } = next;
     const el = document.getElementById("toast");
-    el.textContent = message;
     el.className = "toast is-visible" + (kind ? " is-" + kind : "");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.classList.remove("is-visible"); }, duration || 2200);
+    if (action && action.label) {
+      el.innerHTML = "";
+      const span = document.createElement("span");
+      span.textContent = message;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = action.label;
+      btn.style.cssText = "margin-left:10px;background:none;border:none;color:inherit;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer;padding:0;";
+      btn.addEventListener("click", () => {
+        clearTimeout(toastTimer);
+        el.classList.remove("is-visible");
+        toastActive = false;
+        try { action.onClick && action.onClick(); } finally { _drainToastQueue(); }
+      });
+      el.appendChild(span);
+      el.appendChild(btn);
+    } else {
+      el.textContent = message;
+    }
+    const ms = duration || 2200;
+    toastTimer = setTimeout(() => {
+      el.classList.remove("is-visible");
+      toastActive = false;
+      _drainToastQueue();
+    }, ms);
     // Промт 7.1: короткие микро-победы (похвала за задачу, монеты за
     // привычку) сопровождаются вибрацией и мягким звуком — обычные тосты
     // (сохранено, ошибка и т.п.) молчат, чтобы не звенеть по любому поводу.
@@ -1218,9 +1258,46 @@
   }
 
   // ===================== RENDER: HABITS =====================
+  // Улучшение #66: удаление привычки — не жёсткий confirm(), а optimistic
+  // скрытие + 4с окно на "Отменить" в тосте. pendingDeleteHabitIds — чисто
+  // UI-состояние (не persisted), поэтому если пользователь перезагрузит
+  // страницу до истечения таймера, ничего не потеряется: DELETE ещё не
+  // отправлен на сервер, привычка просто снова появится при следующей загрузке.
+  const pendingDeleteHabitIds = new Set();
+  const pendingDeleteTimers = new Map();
+
+  function deleteHabitWithUndo(habitId) {
+    pendingDeleteHabitIds.add(habitId);
+    renderHabits();
+    haptic("light");
+    const timer = setTimeout(async () => {
+      pendingDeleteTimers.delete(habitId);
+      if (!pendingDeleteHabitIds.has(habitId)) return; // отменили
+      try {
+        await api(`/api/habits/${habitId}`, { method: "DELETE" });
+      } catch (err) {
+        showToast(friendlyError(err), "error");
+      } finally {
+        pendingDeleteHabitIds.delete(habitId);
+        await loadBootstrap();
+      }
+    }, 4000);
+    pendingDeleteTimers.set(habitId, timer);
+    showToast("Привычка удалена", null, 4000, {
+      label: "Отменить",
+      onClick: () => {
+        const t = pendingDeleteTimers.get(habitId);
+        if (t) { clearTimeout(t); pendingDeleteTimers.delete(habitId); }
+        pendingDeleteHabitIds.delete(habitId);
+        renderHabits();
+        haptic("light");
+      },
+    });
+  }
+
   function renderHabits() {
     const list = document.getElementById("habitList");
-    const habits = state.habits;
+    const habits = (state.habits || []).filter(h => !pendingDeleteHabitIds.has(h.id));
     const done = habits.filter(h => h.completed).length;
     const progressLabel = document.getElementById("habitsProgressLabel");
     if (progressLabel) {
@@ -2241,9 +2318,7 @@ function initHabitActions() {
         haptic("light");
         await loadBootstrap();
       } else if (action === "delete") {
-        if (!confirm("Удалить эту привычку?")) return;
-        await api(`/api/habits/${habitId}`, { method: "DELETE" });
-        await loadBootstrap();
+        deleteHabitWithUndo(habitId);
       }
     } catch (err) {
       showToast(friendlyError(err), "error");
