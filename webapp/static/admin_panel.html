@@ -387,6 +387,14 @@ textarea.field{resize:vertical;min-height:88px}
         '<div class="btn-row" style="margin-top:10px">' +
           '<button class="btn btn-gold btn-block" id="broadcastBtn">📢 Отправить</button>' +
         '</div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--teal">💾</span>Экспорт БД</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Полный дамп базы одной кнопкой — снимок делается безопасно (sqlite Backup API), не сырой файл.</div>' +
+        '<div class="btn-row">' +
+          '<button class="btn btn-block" id="exportDbBtn">💾 Скачать дамп .db</button>' +
+        '</div>' +
       '</div>';
 
     document.getElementById('backBtn').addEventListener('click', function(){
@@ -396,8 +404,39 @@ textarea.field{resize:vertical;min-height:88px}
     document.getElementById('refreshStatsBtn').addEventListener('click', refreshStats);
     document.getElementById('lookupBtn').addEventListener('click', lookupUser);
     document.getElementById('broadcastBtn').addEventListener('click', sendBroadcast);
+    document.getElementById('exportDbBtn').addEventListener('click', exportDb);
 
     loadPending();
+  }
+
+  async function exportDb(){
+    var btn = document.getElementById('exportDbBtn');
+    btn.disabled = true;
+    var original = btn.textContent;
+    btn.textContent = '💾 Готовлю…';
+    try{
+      // Не через api() — тот всегда парсит JSON, а тут нужен бинарный файл.
+      var res = await fetch('/api/admin/export-db', { headers: { 'Authorization': 'tma ' + initData() } });
+      if (!res.ok) throw new Error('export_failed');
+      var blob = await res.blob();
+      var disposition = res.headers.get('Content-Disposition') || '';
+      var match = disposition.match(/filename="([^"]+)"/);
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = match ? match[1] : 'adam_db_export.db';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      haptic('light');
+      showToast('Дамп готов');
+    }catch(e){
+      showToast('Не получилось скачать дамп');
+    }finally{
+      btn.disabled = false;
+      btn.textContent = original;
+    }
   }
 
   async function refreshStats(){

@@ -1099,6 +1099,16 @@
         HABIT_TEMPLATES.map(t =>
           `<button type="button" class="habit-template-chip" data-template="${escapeHtml(t.title)}">${t.emoji} ${escapeHtml(t.title)}</button>`
         ).join("") +
+        `</li>` +
+        `<li class="habit-programs-label">Или начни с готовой программы:</li>` +
+        `<li class="habit-programs">` +
+        HABIT_PROGRAMS.map((p, i) =>
+          `<button type="button" class="habit-program-card" data-program="${i}">` +
+          `<span class="habit-program-card__emoji">${p.emoji}</span>` +
+          `<span class="habit-program-card__title">${escapeHtml(p.title)}</span>` +
+          `<span class="habit-program-card__count">${p.habits.length} привычки</span>` +
+          `</button>`
+        ).join("") +
         `</li>`;
       return;
     }
@@ -1159,6 +1169,15 @@
     { emoji: "📖", title: "Читать 20 минут" },
     { emoji: "🧘", title: "Медитация" },
     { emoji: "😴", title: "Лечь спать вовремя" },
+  ];
+
+  // Roadmap #38 — готовые "программы": набор из нескольких привычек одним
+  // тапом, а не по одной. В отличие от HABIT_TEMPLATES (одна привычка за
+  // клик) — это целый стартовый набор под конкретную цель.
+  const HABIT_PROGRAMS = [
+    { emoji: "🌅", title: "Утренняя рутина", habits: ["Выпить стакан воды", "Медитация 5 минут", "Зарядка"] },
+    { emoji: "🌙", title: "Вечерний ритуал", habits: ["Отложить телефон за час до сна", "5 минут дневника", "Лечь спать вовремя"] },
+    { emoji: "💪", title: "Здоровое тело", habits: ["10 000 шагов", "Пить воду", "Растяжка"] },
   ];
 
   // ===================== RENDER: SHOP =====================
@@ -1664,6 +1683,30 @@ function initHabitActions() {
       const input = document.getElementById("newHabitInput");
       if (input) input.value = templateChip.dataset.template;
       addHabitForm.requestSubmit ? addHabitForm.requestSubmit() : addHabitForm.dispatchEvent(new Event("submit", { cancelable: true }));
+      return;
+    }
+
+    // Готовая программа (roadmap #38) — несколько привычек одним тапом.
+    // Шлём по одной последовательно (тот же /api/habits, что и обычное
+    // добавление) — если где-то в процессе упрёмся в лимит 7 привычек,
+    // молча останавливаемся на том, что успело добавиться.
+    const programCard = e.target.closest("[data-program]");
+    if (programCard) {
+      const program = HABIT_PROGRAMS[Number(programCard.dataset.program)];
+      if (!program) return;
+      programCard.disabled = true;
+      let added = 0;
+      for (const title of program.habits) {
+        try {
+          await api("/api/habits", { method: "POST", body: JSON.stringify({ title }) });
+          added++;
+        } catch (err) {
+          break;
+        }
+      }
+      haptic("light");
+      showToast(added ? `Добавлено привычек: ${added}` : "Не получилось добавить программу", added ? "success" : "error");
+      await loadBootstrap();
       return;
     }
 

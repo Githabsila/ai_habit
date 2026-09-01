@@ -13,6 +13,10 @@ _authenticate_admin) — скрытая на фронте кнопка это т
 """
 import json
 import logging
+import os
+import sqlite3
+import tempfile
+from datetime import datetime
 
 from aiohttp import web
 
@@ -25,6 +29,7 @@ from db import (
     get_pending_users, set_access_status,
     get_users_by_tags, get_all_users,
 )
+from db.core import DB_PATH
 from admin_digest_scheduler import build_stats_report
 
 logger = logging.getLogger("webapp.routes_admin")
@@ -78,6 +83,41 @@ async def admin_stats_route(request):
         "total_users": get_users_count(),
         "report_html": build_stats_report(),
     })
+
+
+@routes.get("/api/admin/export-db")
+async def admin_export_db_route(request):
+    """Roadmap #42 — полный дамп БД одной кнопкой из админ-панели.
+    Снимок берём тем же безопасным способом, что и в backups/backup.py
+    (sqlite3 Backup API), а не сырым чтением файла — на WAL-режиме
+    (см. db/core.py) сырая копия рискует оказаться неполной/нецелостной,
+    если снимать её ровно в момент записи."""
+    await _authenticate_admin(request)
+
+    fd, tmp_path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        src_conn = sqlite3.connect(DB_PATH)
+        dst_conn = sqlite3.connect(tmp_path)
+        with dst_conn:
+            src_conn.backup(dst_conn)
+        src_conn.close()
+        dst_conn.close()
+
+        with open(tmp_path, "rb") as f:
+            data = f.read()
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    filename = f"adam_db_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.db"
+    return web.Response(
+        body=data,
+        content_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @routes.get("/api/admin/pending")

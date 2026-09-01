@@ -40,6 +40,33 @@ async def test_admin_gets_200_on_admin_stats(client, uid, monkeypatch):
     assert "total_users" in data
 
 
+async def test_regular_user_gets_403_on_export_db(client, uid):
+    add_user(uid, "tester", "Test")
+    headers = await _admin_headers(client, uid)
+
+    r = await client.get("/api/admin/export-db", headers=headers)
+
+    assert r.status == 403
+
+
+async def test_admin_export_db_returns_valid_sqlite_file(client, uid, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "ADMIN_IDS", [uid])
+    monkeypatch.setattr("webapp.routes_admin.ADMIN_IDS", [uid])
+    add_user(uid, "tester", "Test")
+    headers = await _admin_headers(client, uid)
+
+    r = await client.get("/api/admin/export-db", headers=headers)
+
+    assert r.status == 200
+    assert r.headers["Content-Type"] == "application/octet-stream"
+    assert "attachment" in r.headers["Content-Disposition"]
+    body = await r.read()
+    # Магическая строка заголовка файла SQLite — подтверждает, что это
+    # действительно рабочая база, а не что попало.
+    assert body[:16] == b"SQLite format 3\x00"
+
+
 async def test_admin_can_ban_and_unban_another_user(client, uid, monkeypatch):
     import config
     monkeypatch.setattr(config, "ADMIN_IDS", [uid])
