@@ -39,6 +39,10 @@ from .quests import get_daily_quests, claim_daily_quest, QUEST_DEFINITIONS
 
 from .leagues import get_league_tier, get_league_progress, LEAGUE_TIERS
 
+from .public_profile import set_public_profile_enabled, get_public_profile
+
+from .reactions import send_reaction, get_recent_reactions_received, has_reacted_today, REACTION_EMOJIS
+
 from .settings import (
     get_settings,
     update_reminder_time,
@@ -226,6 +230,8 @@ __all__ = [
     "activate_xp_booster", "is_xp_booster_active",
     "get_daily_quests", "claim_daily_quest", "QUEST_DEFINITIONS",
     "get_league_tier", "get_league_progress", "LEAGUE_TIERS",
+    "set_public_profile_enabled", "get_public_profile",
+    "send_reaction", "get_recent_reactions_received", "has_reacted_today", "REACTION_EMOJIS",
     "touch_last_seen", "get_dau", "get_subscription_conversion",
     "get_ai_usage_today", "get_habit_completion_rate",
     "get_survey_funnel", "get_first_ai_message_funnel",

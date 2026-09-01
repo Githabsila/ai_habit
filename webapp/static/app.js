@@ -86,6 +86,7 @@
   let knownLevel = null; // для детекта левел-апа между загрузками
   let activeHabitFilter = ""; // выбранная категория в фильтре привычек ("" — все)
   let skipPromptHabitId = null; // id привычки, для которой сейчас открыт выбор причины пропуска
+  let reactPickerForId = null; // roadmap #19 — telegram_id, для которого сейчас открыт выбор эмодзи-реакции в рейтинге
 
   const HABIT_CATEGORY_META = {
     health: { emoji: "🩺", label: "Здоровье" },
@@ -1495,9 +1496,17 @@
           ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
         </span>
         <span class="rating-item__meta"><span class="rating-stat"><span class="material-symbols-rounded stat-icon">local_fire_department</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
+        ${r.can_react ? `<button type="button" class="rating-item__react-btn" data-react-target="${r.telegram_id}" aria-label="Поддержать">💌</button>` : ""}
+        ${reactPickerForId === r.telegram_id ? `
+        <div class="rating-react-picker">
+          ${REACTION_EMOJIS.map(e => `<button type="button" class="rating-react-chip" data-emoji="${e}">${e}</button>`).join("")}
+        </div>` : ""}
       </li>`;
     }).join("");
   }
+
+  // Должен совпадать с db/reactions.py::REACTION_EMOJIS.
+  const REACTION_EMOJIS = ["🔥", "💪", "👏", "❤️", "🎉", "⭐"];
 
   // ===================== RENDER: CALENDAR =====================
   function renderCalendar() {
@@ -2618,6 +2627,38 @@ async function loadProgressStats() {
   }
 }
 
+// Roadmap #19 — реакции/стикеры поддержки другу прямо из рейтинга.
+function initRatingActions() {
+  const list = document.getElementById("ratingList");
+  if (!list) return;
+  list.addEventListener("click", async (e) => {
+    const emojiChip = e.target.closest(".rating-react-chip");
+    if (emojiChip) {
+      const targetId = reactPickerForId;
+      reactPickerForId = null;
+      renderRating();
+      try {
+        await api(`/api/friends/${targetId}/react`, {
+          method: "POST",
+          body: JSON.stringify({ emoji: emojiChip.dataset.emoji }),
+        });
+        haptic("light");
+        showToast("Поддержка отправлена " + emojiChip.dataset.emoji, "success");
+        await loadBootstrapSecondary("rating");
+      } catch (err) {
+        showToast(friendlyError(err), "error");
+      }
+      return;
+    }
+    const reactBtn = e.target.closest("[data-react-target]");
+    if (reactBtn) {
+      const targetId = Number(reactBtn.dataset.reactTarget);
+      reactPickerForId = reactPickerForId === targetId ? null : targetId;
+      renderRating();
+    }
+  });
+}
+
 function initProgressActions() {
   const btn = document.getElementById("progressAiBtn");
   const resultBox = document.getElementById("progressAiResult");
@@ -2751,6 +2792,71 @@ function initQuietHoursActions() {
   endSelect.addEventListener("change", save);
 }
 
+// Roadmap #17 — публичный шаринг-профиль: тумблер + кнопка "скопировать
+// ссылку" в настройках, плюс лента полученных реакций (roadmap #19) там же.
+function initPublicProfileActions() {
+  const toggle = document.getElementById("publicProfileToggle");
+  const row = document.getElementById("publicProfileRow");
+  const shareBtn = document.getElementById("publicProfileShareBtn");
+  if (!toggle || !row) return;
+
+  const enabled = !!(state.settings && state.settings.public_profile_enabled);
+  toggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+  toggle.textContent = enabled ? "Вкл" : "Выкл";
+  row.hidden = !enabled;
+
+  toggle.addEventListener("click", async () => {
+    const nowEnabled = toggle.getAttribute("aria-pressed") === "true";
+    const next = !nowEnabled;
+    try {
+      await api("/api/settings/public-profile", { method: "POST", body: JSON.stringify({ enabled: next }) });
+      if (state.settings) state.settings.public_profile_enabled = next;
+      toggle.setAttribute("aria-pressed", next ? "true" : "false");
+      toggle.textContent = next ? "Вкл" : "Выкл";
+      row.hidden = !next;
+      haptic("light");
+      showToast(next ? "Публичный профиль включён" : "Публичный профиль выключен", "success");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+
+  if (shareBtn) {
+    shareBtn.addEventListener("click", async () => {
+      const url = `${window.location.origin}/u/${state.user.telegram_id}`;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          throw new Error("no_clipboard");
+        }
+        haptic("light");
+        showToast("Ссылка скопирована", "success");
+      } catch (_) {
+        showToast(url, "success", 6000);
+      }
+    });
+  }
+
+  renderReactionsFeed();
+}
+
+async function renderReactionsFeed() {
+  const box = document.getElementById("reactionsFeed");
+  if (!box) return;
+  try {
+    const data = await api("/api/reactions");
+    const reactions = data.reactions || [];
+    box.innerHTML = reactions.length === 0
+      ? `<div class="empty-hint">Пока никто не отправлял поддержку — но всё впереди 💌</div>`
+      : reactions.map(r =>
+          `<div class="reaction-row"><span class="reaction-row__emoji">${r.emoji}</span><span class="reaction-row__name">${escapeHtml(r.from_name)}</span></div>`
+        ).join("");
+  } catch (_) {
+    box.innerHTML = "";
+  }
+}
+
 // ===================== ДАННЫЕ И ПОДДЕРЖКА =====================
 // Экспорт CSV, шаринг недельного итога, форма бага/фидбека прямо из
 // Mini App — раньше единственным каналом было написать разработчику
@@ -2844,6 +2950,8 @@ async function boot() {
         initTabs();
         initHabitActions();
         initDailyQuestActions();
+        initRatingActions();
+        initPublicProfileActions();
         initPlanActions();
         initShopActions();
         initProfileAvatarActions();

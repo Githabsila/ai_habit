@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Профиль — Project ADAM</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07060b;
+  --glass:rgba(20,17,29,.72);
+  --border:rgba(255,255,255,.09);
+  --text:#F2EFFB;
+  --muted:#938DA6;
+  --violet:#8f72ff;
+  --violet-deep:#6542dc;
+  --gold:#F0B429;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;min-height:100%}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  color:var(--text);
+  background:
+    radial-gradient(700px 430px at 50% -8%,rgba(126,92,246,.22),transparent 62%),
+    var(--bg);
+  min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  padding:24px 16px;
+}
+.card{
+  width:100%;max-width:380px;
+  padding:28px 24px;
+  border-radius:26px;
+  border:1px solid var(--border);
+  background:linear-gradient(145deg,rgba(35,31,48,.9),rgba(17,15,24,.92));
+  box-shadow:0 24px 60px rgba(0,0,0,.4);
+  text-align:center;
+}
+.avatar{
+  width:76px;height:76px;margin:0 auto 14px;
+  border-radius:50%;
+  display:grid;place-items:center;
+  font:800 30px 'Space Grotesk',sans-serif;
+  background:linear-gradient(135deg,var(--violet),var(--violet-deep));
+  border:3px solid rgba(255,255,255,.12);
+}
+.name{font:800 22px 'Space Grotesk',sans-serif;margin-bottom:2px}
+.name .badge{font-size:16px;margin-left:4px}
+.league{color:#cfc6ff;font-size:12.5px;font-weight:700;margin-bottom:18px}
+.stats{display:flex;gap:10px;margin-bottom:16px}
+.stat{
+  flex:1;padding:12px 8px;
+  border-radius:16px;
+  background:rgba(255,255,255,.04);
+  border:1px solid var(--border);
+}
+.stat-value{font:800 20px 'Space Grotesk',sans-serif}
+.stat-label{font-size:10.5px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.footer{font-size:11px;color:var(--muted)}
+.footer b{color:var(--text)}
+.state{font-size:14px;color:var(--muted);padding:20px 0}
+.spinner{
+  width:32px;height:32px;margin:0 auto 12px;
+  border-radius:50%;
+  border:3px solid rgba(255,255,255,.12);
+  border-top-color:var(--violet);
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="state"><div class="spinner"></div>Загружаю профиль…</div>
+</div>
+<script>
+(function(){
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  var parts = window.location.pathname.split('/').filter(Boolean);
+  var telegramId = parts[parts.length - 1];
+  var card = document.getElementById('card');
+
+  fetch('/api/public/profile/' + encodeURIComponent(telegramId))
+    .then(function(res){
+      if (!res.ok) throw new Error('not_found');
+      return res.json();
+    })
+    .then(function(p){
+      var initial = (p.first_name || 'A').trim().charAt(0).toUpperCase();
+      card.innerHTML =
+        '<div class="avatar">' + escapeHtml(initial) + '</div>' +
+        '<div class="name">' + escapeHtml(p.first_name) + (p.badge ? '<span class="badge">🏅</span>' : '') + '</div>' +
+        '<div class="league">' + escapeHtml(p.league_tier) + '</div>' +
+        '<div class="stats">' +
+          '<div class="stat"><div class="stat-value">' + Number(p.level || 1) + '</div><div class="stat-label">Уровень</div></div>' +
+          '<div class="stat"><div class="stat-value">🔥 ' + Number(p.streak || 0) + '</div><div class="stat-label">Серия</div></div>' +
+          '<div class="stat"><div class="stat-value">' + Number(p.achievements_count || 0) + '</div><div class="stat-label">Наград</div></div>' +
+        '</div>' +
+        '<div class="footer">Профиль в <b>Project ADAM</b> — трекере привычек</div>';
+    })
+    .catch(function(){
+      card.innerHTML = '<div class="state">🔒 Этот профиль не найден или скрыт</div>';
+    });
+})();
+</script>
+</body>
+</html>

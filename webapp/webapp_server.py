@@ -53,6 +53,8 @@ from db import (
     get_daily_quests, claim_daily_quest,
     get_league_tier, get_league_progress,
     is_xp_booster_active,
+    set_public_profile_enabled, get_public_profile,
+    send_reaction, get_recent_reactions_received, has_reacted_today, REACTION_EMOJIS,
 )
 
 from datetime import date, datetime, timezone
@@ -308,6 +310,7 @@ async def bootstrap(request):
                 and settings_row["quiet_hours_start"] is not None and settings_row["quiet_hours_end"] is not None
                 else None
             ),
+            "public_profile_enabled": bool(user["public_profile_enabled"]) if user and "public_profile_enabled" in user.keys() else False,
         },
         "daily_plan": {
             "main_goal": daily_plan["main_goal"],
@@ -400,6 +403,10 @@ async def bootstrap_secondary(request):
                 "frame_id": row["frame_id"] if "frame_id" in row.keys() else "default",
                 "streak_status": get_streak_status(row["telegram_id"]),
                 "league_tier": get_league_tier(row["total_xp"] if "total_xp" in row.keys() else row["xp"]),
+                "can_react": (
+                    row["telegram_id"] != telegram_id
+                    and not has_reacted_today(telegram_id, row["telegram_id"])
+                ),
             }
             for row in leaderboard
         ]
@@ -878,6 +885,87 @@ async def set_quiet_hours_route(request):
     if not set_quiet_hours(telegram_id, start, end):
         return web.json_response({"error": "invalid_quiet_hours"}, status=400)
     return web.json_response({"ok": True, "quiet_hours": {"start": int(start), "end": int(end)}})
+
+
+@routes.post("/api/settings/public-profile")
+async def set_public_profile_route(request):
+    """Roadmap #17 — включает/выключает публичную витрину-профиль на
+    /u/{telegram_id} (без авторизации, обычная HTTPS-ссылка)."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    enabled = bool(body.get("enabled"))
+    set_public_profile_enabled(telegram_id, enabled)
+    return web.json_response({"ok": True, "enabled": enabled})
+
+
+@routes.get("/api/public/profile/{telegram_id}")
+async def public_profile_route(request):
+    """Публичный (без авторизации) JSON для страницы /u/{id} — намеренно
+    узкий набор данных, см. db/public_profile.py::get_public_profile."""
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return web.json_response({"error": "not_found"}, status=404)
+    profile = get_public_profile(telegram_id)
+    if profile is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response(profile)
+
+
+@routes.get("/u/{telegram_id}")
+async def public_profile_page(request):
+    response = web.FileResponse(BASE_DIR / "static" / "public_profile.html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
+@routes.post("/api/friends/{telegram_id}/react")
+async def send_reaction_route(request):
+    """Roadmap #19 — реакция/стикер поддержки другому пользователю
+    (обычно с рейтинга). Раз в день на пару отправитель→получатель."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        target_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    if get_user(target_id) is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    emoji = body.get("emoji")
+    if not send_reaction(telegram_id, target_id, emoji):
+        reason = "already_reacted_today" if has_reacted_today(telegram_id, target_id) else "invalid_reaction"
+        return web.json_response({"error": reason}, status=400)
+
+    bot = request.app.get("bot")
+    if bot is not None:
+        sender = get_user(telegram_id)
+        sender_name = (sender["first_name"] if sender else None) or "Кто-то"
+        try:
+            await _push(request.app, target_id, f"{emoji} {sender_name} поддержал(а) тебя!")
+        except Exception:
+            logger.exception("Не удалось отправить уведомление о реакции")
+    return web.json_response({"ok": True})
+
+
+@routes.get("/api/reactions")
+async def reactions_route(request):
+    """Roadmap #19 — лента полученных реакций для профиля."""
+    telegram_id, _ = await _authenticate(request)
+    reactions = get_recent_reactions_received(telegram_id, limit=20)
+    return web.json_response({
+        "reactions": [
+            {
+                "emoji": r["emoji"],
+                "day": r["day"],
+                "from_name": r["first_name"] or r["username"] or "Игрок",
+            }
+            for r in reactions
+        ],
+        "available_emojis": REACTION_EMOJIS,
+    })
 
 
 @routes.post("/api/settings/reset-progress")

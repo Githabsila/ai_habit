@@ -6490,6 +6490,79 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   font-weight:700;
 }
 
+/* Roadmap #17 — публичный профиль: строка "скопировать ссылку". */
+.public-profile-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:0 2px 12px;
+  font-size:12px;
+  color:var(--text-muted,#9D9DB3);
+}
+.public-profile-row[hidden]{display:none !important}
+.public-profile-share-btn{
+  padding:6px 12px;
+  border-radius:10px;
+  font-size:11.5px;
+  font-weight:700;
+  white-space:nowrap;
+  cursor:pointer;
+}
+
+/* Roadmap #19 — лента реакций-поддержки, полученных от друзей. */
+.reactions-feed{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:0 2px 14px;
+}
+.reaction-row{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;
+  border-radius:12px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.06);
+}
+.reaction-row__emoji{font-size:16px}
+.reaction-row__name{font-size:12.5px;font-weight:600;color:var(--text,#EAE5FA)}
+
+/* Roadmap #19 — кнопка/пикер реакции в строке рейтинга. .rating-item
+   выше объявлен без flex-wrap (обычно всё в один ряд) — добавляем его
+   здесь же, чтобы .rating-react-picker{flex:0 0 100%} мог уйти на новую
+   строку, не сжимая остальные элементы строки рейтинга. */
+.rating-item{flex-wrap:wrap}
+.rating-item__react-btn{
+  flex:0 0 auto;
+  width:30px;height:30px;
+  display:grid;place-items:center;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  font-size:14px;
+  cursor:pointer;
+}
+.rating-react-picker{
+  flex:0 0 100%;
+  display:flex;
+  gap:6px;
+  margin-top:8px;
+  padding-top:8px;
+  border-top:1px dashed rgba(255,255,255,.08);
+}
+.rating-react-chip{
+  width:32px;height:32px;
+  display:grid;place-items:center;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  font-size:16px;
+  cursor:pointer;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1);
+}
+.rating-react-chip:active{transform:scale(.88)}
+
 /* Fix native-looking controls globally when a premium component class is used. */
 .progress-ai-btn,
 .ai-style-btn,
