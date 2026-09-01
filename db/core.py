@@ -997,5 +997,24 @@ def create_tables():
     if "language" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'ru'")
 
+    # ---------------- Улучшение #70: логирование клиентских JS-ошибок ----------------
+    # Раньше единственный способ узнать про JS-краш у реального пользователя —
+    # попросить прислать видео/скриншот консоли вручную. Теперь window.onerror
+    # / unhandledrejection на фронте шлют сюда, админ видит в /api/admin/client-errors.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS client_errors(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        message TEXT,
+        stack TEXT,
+        url TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_client_errors_created ON client_errors(created_at)"
+    )
+
     conn.commit()
     conn.close()

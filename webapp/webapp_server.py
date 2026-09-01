@@ -8,6 +8,8 @@ from pathlib import Path
 
 from aiohttp import web
 from aiohttp.web import Application
+from io import BytesIO
+from PIL import Image, UnidentifiedImageError
 
 from config import BOT_TOKEN, ADMIN_IDS
 from webapp.telegram_auth import validate_init_data
@@ -66,6 +68,7 @@ from db import (
     create_team, join_team, leave_team, get_my_team,
     get_friend_activity_feed,
     get_notification_history,
+    log_client_error,
 )
 
 from datetime import date, datetime, timezone
@@ -1259,6 +1262,38 @@ async def feedback_route(request):
     return web.json_response({"ok": True})
 
 
+@routes.post("/api/client-error")
+async def client_error_route(request):
+    """Улучшение #70: window.onerror/unhandledrejection на фронте шлют сюда
+    best-effort. Отправка ошибки НЕ должна сама уметь ронять что-то ещё —
+    поэтому любая проблема здесь тихо превращается в 204, а не 500."""
+    try:
+        telegram_id, _ = await _authenticate(request)
+    except web.HTTPException:
+        return web.Response(status=204)
+
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.Response(status=204)
+
+    message = (body.get("message") or "").strip()
+    if not message:
+        return web.Response(status=204)
+
+    try:
+        log_client_error(
+            telegram_id,
+            message,
+            stack=body.get("stack"),
+            url=body.get("url"),
+            user_agent=request.headers.get("User-Agent"),
+        )
+    except Exception:
+        logger.warning("Не удалось сохранить client_error для %s", telegram_id)
+    return web.Response(status=204)
+
+
 @routes.post("/api/progress/ai-analysis")
 async def progress_ai_analysis_route(request):
     telegram_id, _ = await _authenticate(request)
@@ -1575,6 +1610,9 @@ async def equip_cosmetic(request):
     user = get_user(telegram_id)
     return web.json_response({"ok": True, "avatar_id": user["avatar_id"], "frame_id": user["frame_id"]})
 
+AVATAR_MAX_DIMENSION = 512  # сторона в пикселях — аватарка в интерфейсе нигде не показывается крупнее
+
+
 @routes.post("/api/profile/avatar")
 async def upload_avatar(request):
     telegram_id, _ = await _authenticate(request)
@@ -1586,22 +1624,41 @@ async def upload_avatar(request):
     if content_type not in ("image/jpeg", "image/png", "image/webp"):
         return web.json_response({"error": "unsupported_image"}, status=400)
 
+    raw = bytearray()
+    while True:
+        chunk = await field.read_chunk(64 * 1024)
+        if not chunk:
+            break
+        raw.extend(chunk)
+        if len(raw) > 5 * 1024 * 1024:
+            return web.json_response({"error": "avatar_too_large"}, status=413)
+
+    # Улучшение #74: раньше сырые байты (какими бы они ни были — PNG, WEBP,
+    # да хоть не картинка вовсе, лишь бы Content-Type заголовок совпал)
+    # записывались напрямую в файл с расширением .jpg. Из-за этого
+    # /media/avatars/*.jpg мог реально содержать PNG/WEBP — большинство
+    # клиентов такое прощают через сниффинг байтов, но это и лишний вес
+    # (без сжатия), и небезопасно (Content-Type с клиента не проверяет,
+    # что внутри действительно валидное изображение). Декодируем через
+    # Pillow, ужимаем до разумного размера и всегда сохраняем настоящий JPEG.
+    try:
+        img = Image.open(BytesIO(bytes(raw)))
+        img.verify()
+        img = Image.open(BytesIO(bytes(raw)))  # verify() портит объект — открываем заново
+        img = img.convert("RGB") if img.mode != "RGB" else img
+    except (UnidentifiedImageError, OSError, ValueError):
+        return web.json_response({"error": "unsupported_image"}, status=400)
+
+    if img.width > AVATAR_MAX_DIMENSION or img.height > AVATAR_MAX_DIMENSION:
+        img.thumbnail((AVATAR_MAX_DIMENSION, AVATAR_MAX_DIMENSION), Image.LANCZOS)
+
     avatars_dir = Path(DATA_DIR) / "avatars"
     avatars_dir.mkdir(parents=True, exist_ok=True)
     target = avatars_dir / f"{telegram_id}.jpg"
     tmp = avatars_dir / f".{telegram_id}.upload"
-    total = 0
-    with tmp.open("wb") as f:
-        while True:
-            chunk = await field.read_chunk(64 * 1024)
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > 5 * 1024 * 1024:
-                tmp.unlink(missing_ok=True)
-                return web.json_response({"error": "avatar_too_large"}, status=413)
-            f.write(chunk)
+    img.save(tmp, format="JPEG", quality=82, optimize=True)
     tmp.replace(target)
+
     set_cosmetic(telegram_id, "avatar", f"upload:{telegram_id}")
     user = get_user(telegram_id)
     return web.json_response({"ok": True, "avatar_url": f"/media/avatars/{telegram_id}.jpg?v={int(target.stat().st_mtime)}", "avatar_id": user["avatar_id"]})

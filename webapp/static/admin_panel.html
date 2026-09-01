@@ -387,6 +387,11 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--red">🐞</span>JS-ошибки на устройствах</div>' +
+        '<div id="clientErrorsBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--violet">🚩</span>Feature flags</div>' +
         '<div id="flagsBox"><div class="empty-note">Загружаю…</div></div>' +
         '<div class="btn-row" style="margin-top:10px">' +
@@ -435,6 +440,7 @@ textarea.field{resize:vertical;min-height:88px}
 
     loadPending();
     loadChurnRisk();
+    loadClientErrors();
     loadBroadcastSegments();
     loadFlags();
 
@@ -526,6 +532,29 @@ textarea.field{resize:vertical;min-height:88px}
       box.innerHTML =
         '<div class="btn-row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">' + chips + '</div>' +
         (list || '<div class="empty-note">Все пользователи активны ✅</div>');
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  async function loadClientErrors(){
+    var box = document.getElementById('clientErrorsBox');
+    try{
+      var data = await api('/api/admin/client-errors');
+      var errors = data.errors || [];
+      if (!errors.length){
+        box.innerHTML = '<div class="empty-note">Ошибок не зафиксировано ✅</div>';
+        return;
+      }
+      box.innerHTML = errors.slice(0, 20).map(function(e){
+        var when = (e.created_at || '').replace('T', ' ').slice(0, 16);
+        return '<div class="list-row" style="align-items:flex-start">' +
+          '<div class="list-row-name" style="width:100%">' +
+            '<b>' + escapeHtml(e.message || '') + '</b>' +
+            '<small>ID ' + e.user_id + ' · ' + when + (e.url ? ' · ' + escapeHtml(e.url) : '') + '</small>' +
+          '</div>' +
+        '</div>';
+      }).join('');
     }catch(e){
       box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }

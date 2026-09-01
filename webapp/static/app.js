@@ -17,6 +17,42 @@
     }
   }, { capture: true });
 
+  // Улучшение #70: раньше единственный способ узнать про JS-краш у реального
+  // пользователя — попросить прислать видео/скриншот открытой консоли (именно
+  // так был найден и починен баг с backdrop-filter в .tab-bar в этой же
+  // сессии). Теперь любая непойманная ошибка/отклонённый Promise тихо летит
+  // на сервер. Best-effort: если сама отправка упадёт — просто игнорируем,
+  // никогда не бросаем дальше и никогда не мешаем работе приложения. Лимит
+  // на сессию — чтобы цикл ошибок (например, в setInterval) не заспамил себя.
+  let _clientErrorsSent = 0;
+  function reportClientError(message, stack) {
+    if (_clientErrorsSent >= 5) return;
+    _clientErrorsSent += 1;
+    try {
+      const initDataRaw = (tg && tg.initData) || (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || "";
+      fetch("/api/client-error", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "tma " + initDataRaw },
+        body: JSON.stringify({
+          message: String(message || "").slice(0, 500),
+          stack: stack ? String(stack).slice(0, 4000) : null,
+          url: location.href,
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch (_) {}
+  }
+  window.addEventListener("error", (e) => {
+    reportClientError(e.message, e.error && e.error.stack);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = e.reason;
+    reportClientError(
+      reason && reason.message ? reason.message : String(reason),
+      reason && reason.stack
+    );
+  });
+
   const tg = window.Telegram ? window.Telegram.WebApp : null;
   try {
     const lowPower =

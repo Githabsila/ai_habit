@@ -112,3 +112,28 @@ async def test_broadcast_no_bot_returns_503(client, uid, monkeypatch):
     add_user(uid, "admin", "Admin")
     r = await client.post("/api/admin/broadcast", headers=headers, json={"text": "hi", "segment": "premium"})
     assert r.status == 503  # test app has no bot attached
+
+
+# =====================================
+# Улучшение #70 — лента клиентских JS-ошибок
+# =====================================
+
+async def test_regular_user_gets_403_on_client_errors(client, uid):
+    add_user(uid, "u", "Test")
+    init_data = sign_init_data(uid)
+    r = await client.get("/api/admin/client-errors", headers={"Authorization": f"tma {init_data}"})
+    assert r.status == 403
+
+
+async def test_admin_sees_client_errors(client, uid, monkeypatch):
+    from db import log_client_error
+
+    headers = await _admin_headers(client, uid, monkeypatch)
+    add_user(uid, "admin", "Admin")
+    victim = uid + 50_000_000
+    log_client_error(victim, "TypeError: state is null", stack="at boot (app.js:10)")
+
+    r = await client.get("/api/admin/client-errors", headers=headers)
+    assert r.status == 200
+    body = await r.json()
+    assert any(e["user_id"] == victim and e["message"] == "TypeError: state is null" for e in body["errors"])

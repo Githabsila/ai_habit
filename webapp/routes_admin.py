@@ -32,6 +32,7 @@ from db import (
     get_user_support_card,
     get_churn_risk_report,
     get_all_flags, set_feature_flag, delete_feature_flag,
+    get_recent_client_errors,
 )
 from db.core import DB_PATH
 from admin_digest_scheduler import build_stats_report
@@ -172,6 +173,14 @@ async def admin_churn_risk_route(request):
     тире + список самых 'горящих'."""
     await _authenticate_admin(request)
     return web.json_response(get_churn_risk_report())
+
+
+@routes.get("/api/admin/client-errors")
+async def admin_client_errors_route(request):
+    """Улучшение #70 — лента последних JS-ошибок с реальных устройств
+    пользователей, вместо ручных отчётов "странички лагают" со скриншотами."""
+    await _authenticate_admin(request)
+    return web.json_response({"errors": get_recent_client_errors(limit=100)})
 
 
 @routes.post("/api/admin/user/{telegram_id}/ban")
