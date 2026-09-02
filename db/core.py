@@ -1040,5 +1040,16 @@ def create_tables():
         "CREATE INDEX IF NOT EXISTS idx_client_errors_created ON client_errors(created_at)"
     )
 
+    # ---------------- Улучшение #4 (фидбек): пол для согласования обращения ----------------
+    # 'm'/'f'/NULL (не определён/не задан явно). NULL — не то же самое, что
+    # "неизвестно навсегда": db.users.get_gender() при NULL пробует угадать
+    # по имени (guess_gender_from_name), но это именно ДОГАДКА для текста
+    # уведомлений — explicit_gender ниже отличает "пользователь сам выбрал"
+    # от "мы угадали", чтобы явный выбор в настройках никогда не перезаписался.
+    if "gender" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT")
+    if "gender_explicit" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN gender_explicit INTEGER DEFAULT 0")
+
     conn.commit()
     conn.close()

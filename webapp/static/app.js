@@ -473,6 +473,17 @@
     });
   }
 
+  // Фидбек #4: подсвечиваем кнопку пола, только если он реально известен
+  // (явно выбран или угадан по имени сервером) — если gender === null,
+  // ни одна кнопка не подсвечена, а не "Он" по умолчанию (это выглядело
+  // бы как уже принятое за пользователя решение).
+  function applyGender() {
+    const gender = state?.settings?.gender || null;
+    document.querySelectorAll("#genderPicker .color-mode-btn").forEach(btn => {
+      btn.classList.toggle("is-active", gender && btn.dataset.gender === gender);
+    });
+  }
+
   function renderAll() {
     // Критический путь: сначала только то, что пользователь видит на Главной.
     // Привычки и Ударный режим больше не конкурируют за CPU с магазином,
@@ -487,6 +498,7 @@
     renderLeagueInfo();
     applyColorMode();
     applyLanguage();
+    applyGender();
     renderPetWidget();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
@@ -3459,6 +3471,27 @@ function initLanguageActions() {
   });
 }
 
+// Фидбек #4 — пол, чтобы Адам согласовывал "Ты" в напоминаниях правильно.
+function initGenderActions() {
+  const picker = document.getElementById("genderPicker");
+  if (!picker) return;
+  picker.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".color-mode-btn");
+    if (!btn) return;
+    const gender = btn.dataset.gender;
+    if (state.settings.gender === gender) return;
+    try {
+      await api("/api/settings/gender", { method: "POST", body: JSON.stringify({ gender }) });
+      state.settings.gender = gender;
+      applyGender();
+      haptic("light");
+      showToast("Сохранено", "success");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
 // Roadmap #48 — переключатель светлой/тёмной темы.
 function initColorModeActions() {
   const picker = document.getElementById("colorModePicker");
@@ -3791,6 +3824,7 @@ async function boot() {
             initGoalsActions();
             initColorModeActions();
             initLanguageActions();
+            initGenderActions();
             postBootstrapInitDone = true;
         }
         if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {

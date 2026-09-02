@@ -36,6 +36,7 @@ from .users import (
     set_long_term_goals, get_long_term_goals, MAX_LONG_TERM_GOALS_LENGTH,
     set_archetype, ARCHETYPES,
     get_language, set_language, VALID_LANGUAGES,
+    get_gender, set_gender, by_gender, guess_gender_from_name, VALID_GENDERS, gender_forms,
 )
 
 from .coaching_insights import (
@@ -272,6 +273,7 @@ __all__ = [
     "activate_xp_booster", "is_xp_booster_active",
     "set_long_term_goals", "get_long_term_goals", "MAX_LONG_TERM_GOALS_LENGTH",
     "get_language", "set_language", "VALID_LANGUAGES",
+    "get_gender", "set_gender", "by_gender", "guess_gender_from_name", "VALID_GENDERS", "gender_forms",
     "set_archetype", "ARCHETYPES",
     "get_struggling_habits", "suggest_optimal_reminder_time",
     "STRUGGLE_THRESHOLD", "STRUGGLE_WINDOW_DAYS",

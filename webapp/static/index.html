@@ -9,7 +9,7 @@
 <title>Project ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260901_FEEDBACK_BATCH_V1">
+<link rel="stylesheet" href="/static/style.css?v=20260901_LIGHT_MODE_FIX_V1">
 </head>
 <body>
 
@@ -453,6 +453,15 @@ class="habit-add-form__submit">
      get_language, тесты в tests/test_language.py) не тронут — язык всех
      пользователей просто остаётся на дефолте 'ru', саму фичу можно будет
      вернуть в интерфейс, когда перевод будет доделан полностью. -->
+
+<div class="section-heading">
+<h2>Как к тебе обращаться</h2>
+</div>
+<p class="theme-picker__hint" id="genderHint">Нужно, чтобы Адам правильно согласовывал "Ты" в напоминаниях — "сделал" или "сделала".</p>
+<div class="color-mode-picker" id="genderPicker">
+<button type="button" class="color-mode-btn" data-gender="m">Он</button>
+<button type="button" class="color-mode-btn" data-gender="f">Она</button>
+</div>
 
 <div class="section-heading achievements-heading">
 

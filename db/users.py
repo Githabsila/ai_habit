@@ -275,6 +275,98 @@ def set_language(user_id, language):
 
 
 # =====================================
+# Улучшение (фидбек): пол — для согласования обращения "на Ты" в
+# уведомлениях ("сделал/сделала", "готов/готова"). NULL = не задан явно;
+# get_gender() в этом случае угадывает по имени, но такая догадка никогда
+# не считается "явным выбором" (gender_explicit) и не блокирует пользователя
+# от исправления в настройках, если угадали неправильно.
+# =====================================
+VALID_GENDERS = ("m", "f")
+
+# Русские мужские имена, которые по формальному окончанию на "а"/"я"
+# выглядели бы женскими — без этого списка угадывание массово ошибалось бы
+# именно на них (не редкость среди пользователей).
+_MALE_NAME_EXCEPTIONS = {
+    "никита", "илья", "данила", "данило", "кузьма", "фома", "лука",
+    "савва", "гоша", "матвей", "миша", "юра", "дима", "женя", "вова",
+    "толя", "коля", "серёжа", "сережа", "петя", "ваня", "костя", "боря",
+}
+
+
+def guess_gender_from_name(first_name):
+    """Грубая эвристика по русскому имени: оканчивается на "а"/"я" — обычно
+    женское, кроме известных исключений (Никита, Илья и т.п.). На
+    нерусских/неоднозначных именах намеренно возвращает None — лучше
+    нейтральная формулировка в сообщении, чем уверенно неверный род."""
+    if not first_name:
+        return None
+    name = first_name.strip().lower()
+    if not name or not all("а" <= ch <= "я" or ch == "ё" for ch in name):
+        return None  # не кириллица / смешанная строка — не рискуем угадывать
+    if name in _MALE_NAME_EXCEPTIONS:
+        return "m"
+    if name.endswith("а") or name.endswith("я"):
+        return "f"
+    return "m"
+
+
+def get_gender(user_id):
+    """'m' / 'f' / None (не удалось ни угадать, ни узнать явно)."""
+    user = get_user(user_id)
+    if not user:
+        return None
+    explicit = "gender" in user.keys() and user["gender"] in VALID_GENDERS
+    if explicit:
+        return user["gender"]
+    return guess_gender_from_name(user["first_name"] if "first_name" in user.keys() else None)
+
+
+def set_gender(user_id, gender):
+    """Явный выбор пользователя — помечается gender_explicit=1, чтобы
+    никакая последующая логика не подменила его "более умной" догадкой."""
+    if gender not in VALID_GENDERS:
+        return False
+    conn = connect()
+    conn.execute("UPDATE users SET gender=?, gender_explicit=1 WHERE telegram_id=?", (gender, user_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def by_gender(gender, male, female, neutral=None):
+    """Выбирает согласованную по роду форму фразы. Если gender неизвестен —
+    возвращает neutral (если дан) иначе male form (более частый дефолт в
+    русском для обращений, когда пол реально неизвестен)."""
+    if gender == "f":
+        return female
+    if gender == "m":
+        return male
+    return neutral if neutral is not None else male
+
+
+# Общий набор форм под str.format() в текстах умных напоминаний по всему
+# проекту (db/streak.py::PRAISE_A, streak_scheduler.py::REENGAGE_MESSAGES/
+# RISK_23_30 и т.д.) — единая точка, чтобы не заводить одинаковый словарь
+# в каждом файле заново и не разойтись в написании слов.
+GENDER_FORM_WORDS = {
+    "gotov": ("Готов", "Готова"),
+    "gotov_lower": ("готов", "готова"),
+    "hotel": ("хотел", "хотела"),
+    "vyshel": ("вышел", "вышла"),
+    "vybral": ("выбрал", "выбрала"),
+    "propustil": ("пропустил", "пропустила"),
+    "byl": ("был", "была"),
+    "nastroen": ("настроен", "настроена"),
+    "uderzhal": ("удержал", "удержала"),
+}
+
+
+def gender_forms(gender):
+    """Готовый словарь для text.format(**gender_forms(get_gender(uid)))."""
+    return {key: by_gender(gender, male, female) for key, (male, female) in GENDER_FORM_WORDS.items()}
+
+
+# =====================================
 # Roadmap #25 — долгосрочные жизненные цели для AI-наставника
 # =====================================
 # Отдельно от разовой анкеты онбординга (user_survey.life_goal, см.

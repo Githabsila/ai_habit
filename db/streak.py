@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from .core import connect
-from .users import get_user, add_xp
+from .users import get_user, add_xp, get_gender, gender_forms
 
 MILESTONES = {
     14: ("Две недели в огне", "Неоновый импульс", "streak_14"),
@@ -24,12 +24,12 @@ PRAISE_A = [
     # экране. Здесь эмодзи оставлены разными, но без повторного огня.
     "Так держать, {name}. Я думал, ты сдашься ⚡️",
     "Ты меня удивляешь, {name}. Продолжай в том же духе",
-    "Ого, {name}, а ты серьёзно настроен. Это круто 🚀",
+    "Ого, {name}, а ты серьёзно {nastroen}. Это круто 🚀",
     "Ещё один день закрыт. Не расслабляйся, {name} — серия растёт",
-    "Вот это характер. Сегодня ты снова выбрал себя, {name} ⚡️",
+    "Вот это характер. Сегодня ты снова {vybral} себя, {name} ⚡️",
     "Я вижу прогресс. {name}, продолжай давить вперёд",
     "Хорошо. День твой. Теперь не дай завтрашнему дню всё испортить 😈",
-    "Серия не держится сама. Ты только что удержал её ещё на один день",
+    "Серия не держится сама. Ты только что {uderzhal} её ещё на один день",
 ]
 
 RISK_15 = "Внимание! До конца дня ещё есть время, но если не отметишь хотя бы одну привычку — потеряешь ударный режим. Ты же не хочешь начинать с нуля?"
@@ -173,7 +173,8 @@ def _ensure_week(c, user_id, wk):
 def generate_praise(user_id):
     user = get_user(user_id)
     name = (user["first_name"] if user else "Игрок").strip() or "Игрок"
-    return random.choice(PRAISE_A).format(name=name)
+    forms = gender_forms(get_gender(user_id))
+    return random.choice(PRAISE_A).format(name=name, **forms)
 
 def onboarding_message(user_id):
     user = get_user(user_id)

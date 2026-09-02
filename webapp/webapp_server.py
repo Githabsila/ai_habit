@@ -33,6 +33,7 @@ from db import (
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
     get_color_mode, update_color_mode,
     get_language, set_language,
+    get_gender, set_gender,
     touch_last_seen,
     has_reached_daily_limit, log_stars_purchase,
     get_rating, get_calendar, get_achievements, ACHIEVEMENT_ICONS,
@@ -332,6 +333,7 @@ async def bootstrap(request):
             "theme": get_theme(telegram_id),
             "color_mode": get_color_mode(telegram_id),
             "language": get_language(telegram_id),
+            "gender": get_gender(telegram_id),
             "quiet_hours": (
                 {"start": settings_row["quiet_hours_start"], "end": settings_row["quiet_hours_end"]}
                 if settings_row and "quiet_hours_start" in settings_row.keys()
@@ -992,6 +994,16 @@ async def set_language_route(request):
     body = await request.json()
     if not set_language(telegram_id, body.get("language")):
         return web.json_response({"error": "invalid_language"}, status=400)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/settings/gender")
+async def set_gender_route(request):
+    """Фидбек: пол — чтобы умные напоминания правильно согласовывали "Ты"
+    (сделал/сделала). См. db.users.set_gender/by_gender."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    if not set_gender(telegram_id, body.get("gender")):
+        return web.json_response({"error": "invalid_gender"}, status=400)
     return web.json_response({"ok": True})
 
 @routes.post("/api/settings/reminders/toggle")
