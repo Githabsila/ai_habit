@@ -9094,3 +9094,54 @@ body{
 :root[data-mode="light"] .tab-bar.is-scrolling{
   background: rgba(255,255,255,.95) !important;
 }
+
+/* ============================================================
+   СВЕТЛАЯ ТЕМА — корневая причина оставшихся "выцветших" карточек
+   ============================================================
+   Найдено по свежим скринам: --text/--text-muted — ОБЩИЕ токены. Дизайн
+   темы (см. первый :root[data-mode="light"] блок выше) переопределяет их
+   в ТЁМНЫЙ цвет — правильно для текста, который лежит прямо на светлом
+   холсте (заголовки и т.п.), но большинство "карточек" в файле остаются
+   тёмными НАВСЕГДА (background прописан хардкодом с !important, не через
+   токен — сознательный паттерн "тёмные карточки на светлом холсте", он и
+   не должен зависеть от темы) — а их внутренний текст в разметке написан
+   через var(--text)/var(--text-muted), в расчёте что это ВСЕГДА
+   светлый-на-тёмном. В светлой теме получается тёмный текст на тёмной
+   карточке — то самое "выцветшее" ("Данные и поддержка" и т.п. на
+   скринах). Чинится не поиском каждого текстового правила по отдельности
+   (их десятки), а локальным переопределением самих токенов ВНУТРИ каждой
+   заведомо-тёмной карточки — любой потомок с var(--text) внутри снова
+   получает корректный светлый цвет, ничего в самих цветовых правилах
+   трогать не нужно.
+*/
+:root[data-mode="light"] .habit-item,
+:root[data-mode="light"] .plan-card,
+:root[data-mode="light"] .settings-card,
+:root[data-mode="light"] .shop-item,
+:root[data-mode="light"] .data-support-card,
+:root[data-mode="light"] .progress-stats-card,
+:root[data-mode="light"] .streak-widget--hero,
+:root[data-mode="light"] .achievement-share-card,
+:root[data-mode="light"] .streak-celebration,
+:root[data-mode="light"] .streak-onboarding-card,
+:root[data-mode="light"] .double-bonus-card,
+:root[data-mode="light"] .levelup-card,
+:root[data-mode="light"] .streak-weekly-card,
+:root[data-mode="light"] .app-tour-card,
+:root[data-mode="light"] .archetype-quiz-card,
+:root[data-mode="light"] .feedback-card,
+:root[data-mode="light"] .freeze-purchase-card,
+:root[data-mode="light"] .calendar-card,
+:root[data-mode="light"] .rating-podium-card,
+:root[data-mode="light"] .rating-item,
+:root[data-mode="light"] .team-card,
+:root[data-mode="light"] .rating-hero,
+:root[data-mode="light"] .streak-profile-card--premium,
+:root[data-mode="light"] .pet-widget,
+:root[data-mode="light"] .today-focus,
+:root[data-mode="light"] .daily-quests,
+:root[data-mode="light"] .year-heatmap,
+:root[data-mode="light"] .progress-insight{
+  --text: #FFFFFF;
+  --text-muted: #9D9DB3;
+}

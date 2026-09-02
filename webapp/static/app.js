@@ -2020,6 +2020,16 @@ function initTabs() {
     if (!btn) return;
     const tab = btn.dataset.tab;
     if (!tab) return;
+    // Фидбек: чернение экрана на скролле было частично починено (см.
+    // initScrollPerfGuard), но не исчезло — видео и повтор жалобы после
+    // фикса показывают, что чёрные кадры ловятся и на ПЕРЕКЛЮЧЕНИИ ВКЛАДОК:
+    // скрытие/показ целой .tab-panel + её собственная CSS-анимация
+    // (adamPanelIn .38s) — это такой же большой перерасчёт области под
+    // размытым .tab-bar, как и скролл, просто триггер другой. Гасим blur
+    // на время этого всплеска тем же классом .is-scrolling.
+    tabBar.classList.add("is-scrolling");
+    clearTimeout(tabBar._perfGuardTimer);
+    tabBar._perfGuardTimer = setTimeout(() => tabBar.classList.remove("is-scrolling"), 450);
     document.querySelectorAll(".tab-bar__item").forEach(b => b.classList.toggle("is-active", b === btn));
     document.querySelectorAll(".tab-panel").forEach(panel => {
       const active = panel.dataset.tab === tab;
