@@ -5081,9 +5081,23 @@ section[data-tab="home"] .streak-widget__hero-row{
 
 .player-card__name{
   min-width:0;
+  display:flex;
+  align-items:center;
+}
+/* Фидбек: ник и купленная медаль раньше делили одну общую nowrap+ellipsis
+   область на весь .player-card__name — длинный ник (например "Crystal
+   Floyd") обрезался многоточием и утаскивал медаль за собой (она просто не
+   помещалась и не рендерилась). Теперь усечение — только на самом нике,
+   медаль (#playerBadge) не сжимается и всегда видна следом за ним. */
+#playerName{
+  min-width:0;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
+  flex:0 1 auto;
+}
+.player-badge{
+  flex:0 0 auto;
 }
 
 @media (max-width:430px){
@@ -9041,33 +9055,37 @@ body{
   background: rgba(20,15,40,.045) !important;
   color: var(--text) !important;
 }
+/* Фидбек: .streak-metric/.frame-choice/.shop-head раньше превращались в
+   светлые карточки (см. коммит 000cf97) — пользователь попросил вернуть
+   их тёмными, как остальные "плитки". Фон снова хардкод-тёмный (не токен),
+   а текст внутри чинится тем же способом, что и остальные тёмные карточки
+   ниже — локальным переопределением --text/--text-muted. */
+/* .streak-metric/.frame-choice в тёмной теме тоже держатся ТОЛЬКО на
+   тёмном фоне страницы под ними (у самих карточек нет непрозрачной тёмной
+   подложки, только полупрозрачная белая "стеклянная" подсветка) — тот же
+   паттерн, что уже чинили для .rating-podium-card чуть выше: добавляем
+   свою тёмную подложку под оригинальный слой подсветки. */
 :root[data-mode="light"] .streak-metric{
-  background: linear-gradient(145deg, rgba(20,15,40,.05), rgba(20,15,40,.02)) !important;
-  border-color: rgba(20,15,40,.08) !important;
-}
-:root[data-mode="light"] .streak-metric b{
-  color: var(--text) !important;
-}
-:root[data-mode="light"] .streak-metric small{
-  color: rgba(26,22,38,.55) !important;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018)),
+    linear-gradient(145deg, rgba(30,27,42,.94), rgba(12,11,18,.94)) !important;
+  border-color: rgba(255,255,255,.06) !important;
 }
 :root[data-mode="light"] .frame-choice{
-  border-color: rgba(20,15,40,.10) !important;
-  background: rgba(20,15,40,.03) !important;
-  color: var(--text) !important;
-}
-:root[data-mode="light"] .frame-choice__text small{
-  color: rgba(26,22,38,.55) !important;
+  border-color: rgba(255,255,255,.07) !important;
+  background:
+    linear-gradient(rgba(255,255,255,.025), rgba(255,255,255,.025)),
+    linear-gradient(145deg, rgba(30,27,42,.94), rgba(12,11,18,.94)) !important;
 }
 :root[data-mode="light"] .profile-cosmetics-head small,
 :root[data-mode="light"] .profile-frame-head small{
-  color: rgba(26,22,38,.55) !important;
+  color: #858191 !important;
 }
 :root[data-mode="light"] .shop-head{
   background:
-    radial-gradient(160px 100px at 100% 0, rgba(139,92,246,.14), transparent 72%),
-    rgba(20,15,40,.03) !important;
-  border-color: rgba(20,15,40,.08) !important;
+    radial-gradient(circle at 100% 0%, rgba(139,92,246,.22), transparent 42%),
+    linear-gradient(145deg, rgba(32,32,50,.95), rgba(20,20,31,.95)) !important;
+  border-color: rgba(255,255,255,.08) !important;
 }
 
 /* ============================================================
@@ -9141,7 +9159,31 @@ body{
 :root[data-mode="light"] .today-focus,
 :root[data-mode="light"] .daily-quests,
 :root[data-mode="light"] .year-heatmap,
-:root[data-mode="light"] .progress-insight{
+:root[data-mode="light"] .progress-insight,
+:root[data-mode="light"] .streak-metric,
+:root[data-mode="light"] .frame-choice,
+:root[data-mode="light"] .shop-head,
+:root[data-mode="light"] .player-card{
   --text: #FFFFFF;
   --text-muted: #9D9DB3;
+}
+
+/* .rating-podium-card в покое опирается только на полупрозрачную белую
+   "стеклянную" подсветку (rgba(255,255,255,.0X)) поверх ТЁМНОГО фона
+   страницы — без тёмной подложки под ней самой. В тёмной теме это
+   работает (страница и так тёмная), в светлой та же подсветка ложится на
+   светлый холст и карточка становится светлой — тот же паттерн, что уже
+   чинили выше для .streak-metric и т.п. Слои сохранены как в оригинале
+   (стекло + для 1-го места ещё и золотое сияние), просто добавлена своя
+   тёмная подложка вместо страницы. */
+:root[data-mode="light"] .rating-podium-card{
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.075), rgba(255,255,255,.025)),
+    linear-gradient(145deg, rgba(30,27,42,.96), rgba(12,11,18,.96)) !important;
+}
+:root[data-mode="light"] .rating-podium-card.rank-1{
+  background:
+    radial-gradient(circle at 50% 0%, rgba(240,180,41,.18), transparent 55%),
+    linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.025)),
+    linear-gradient(145deg, rgba(30,27,42,.96), rgba(12,11,18,.96)) !important;
 }

@@ -1206,7 +1206,10 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = action.label;
-      btn.style.cssText = "margin-left:10px;background:none;border:none;color:inherit;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer;padding:0;";
+      // .toast сам по себе pointer-events:none (чтобы обычные тосты не
+      // перехватывали тапы по контенту под ними). Для тоста с действием
+      // возвращаем клики точечно самой кнопке — иначе "Отменить" не нажимается.
+      btn.style.cssText = "margin-left:10px;background:none;border:none;color:inherit;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer;padding:6px 4px;pointer-events:auto;touch-action:manipulation;";
       btn.addEventListener("click", () => {
         clearTimeout(toastTimer);
         el.classList.remove("is-visible");
@@ -1215,8 +1218,10 @@
       });
       el.appendChild(span);
       el.appendChild(btn);
+      el.style.pointerEvents = "auto";
     } else {
       el.textContent = message;
+      el.style.pointerEvents = "none";
     }
     const ms = duration || 2200;
     toastTimer = setTimeout(() => {
