@@ -543,11 +543,21 @@ font-size:15px;
 
     flex:1;
 
+    min-width:0;
+
     font-size:17px;
 
     font-weight:600;
 
     line-height:1.4;
+
+    /* Тот же перенос по слогам с дефисом, что и в .plan-item__text — чтобы
+       длинное название привычки не ломалось посреди слова без дефиса. */
+    overflow-wrap:break-word;
+
+    hyphens:auto;
+
+    -webkit-hyphens:auto;
 
 }
 
@@ -2296,7 +2306,14 @@ body {
 .plan-item__text{
   flex:1;
   min-width:0;
-  overflow-wrap:anywhere;
+  /* Фидбек: overflow-wrap:anywhere ломало слово в произвольном месте без
+     дефиса ("проанализирова" / "ть" на разных строках). hyphens:auto
+     переносит по правильным слогам с дефисом (словарь берётся из lang="ru"
+     на <html>), break-word — на случай, если браузер вообще не поддержит
+     перенос (тогда ведёт себя как раньше, а не сильнее ломается). */
+  overflow-wrap:break-word;
+  hyphens:auto;
+  -webkit-hyphens:auto;
   color:#fff;
   font-size:14px;
   line-height:1.35;
