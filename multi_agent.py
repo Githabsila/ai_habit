@@ -311,15 +311,24 @@ DEFAULT_STYLE = "neutral"
 # Адаптивный бюджет ответа: чем длиннее вход, тем короче, но всё ещё
 # содержательнее ответ. Это снижает completion-токены без жёсткого ухудшения
 # качества и не заставляет модель писать длинные эссе.
+# Жалоба пользователя: ADAM обрывал ответ буквально посреди списка ("1." и
+# ничего дальше). Причина — бюджет считался от длины ВОПРОСА, а не от того,
+# сколько реально нужно для ответа: короткий бытовой вопрос ("как дела с
+# планом на сегодня") вполне может заслуживать развёрнутый структурированный
+# ответ (пояснение + нумерованный список действий), а 420 токенов на русском
+# тексте — это часто меньше одного такого списка целиком. Бюджеты подняты,
+# плюс у Groq (см. _groq_call) теперь есть та же аварийная подрезка до
+# последнего целого предложения, что уже была у резервного OpenAI-канала —
+# на случай, если модель всё равно упрётся в потолок.
 def _response_budget(task: str) -> tuple[int, int]:
     n = len((task or "").strip())
     if n <= 800:
-        return 420, 0
+        return 560, 0
     if n <= 2200:
-        return 600, 1
+        return 720, 1
     if n <= 4000:
-        return 720, 2
-    return 800, 3
+        return 850, 2
+    return 950, 3
 
 
 def _trim_answer_budget(text: str, max_chars: int) -> str:
@@ -463,7 +472,18 @@ async def _ask(
             max_tokens=max_tokens,
         )
         _log_usage(response, "groq")
-        result = _strip_markdown((response.choices[0].message.content or "").strip())
+        choice = response.choices[0]
+        result = _strip_markdown((choice.message.content or "").strip())
+        # Жалоба пользователя: ответ обрывается посреди слова/списка ("1." и
+        # ничего дальше) — Groq (основной провайдер) упирался в max_tokens
+        # и отдавал буквально то, что успел сгенерировать, БЕЗ подрезки до
+        # целого предложения. Тот же аварийный trim уже был у резервного
+        # OpenAI-канала (см. _openai_call ниже, status == "incomplete") —
+        # у Groq такой проверки не было вообще. finish_reason "length" у
+        # Groq/OpenAI-совместимого API — ровно тот же сигнал "не хватило
+        # токенов", что и incomplete_details.reason == "max_output_tokens".
+        if getattr(choice, "finish_reason", None) == "length":
+            result = _trim_to_last_sentence(result)
         if not result:
             raise RuntimeError("Groq вернул пустой ответ")
         return result
@@ -616,7 +636,10 @@ async def fast_answer(
     answer = await _ask(system, user, temperature=0.35, max_tokens=output_tokens, model=selected_model)
     # Дополнительная страховка по символам: даже если модель решила быть
     # многословной, пользователь получает законченный, компактный ответ.
-    max_chars = 1500 if len(task or "") <= 800 else 2200 if len(task or "") <= 2200 else 2800 if len(task or "") <= 4000 else 3200
+    # Подняты вместе с _response_budget() (см. её комментарий) — иначе этот
+    # более старый char-лимит начал бы сам подрезать теперь-более-длинные
+    # ответы раньше, чем до них вообще доходит проверка по токенам.
+    max_chars = 1900 if len(task or "") <= 800 else 2700 if len(task or "") <= 2200 else 3400 if len(task or "") <= 4000 else 3800
     return _trim_answer_budget(answer, max_chars)
 
 
