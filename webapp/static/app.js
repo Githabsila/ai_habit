@@ -61,6 +61,27 @@
       (navigator.connection && navigator.connection.saveData);
     if (lowPower) document.documentElement.classList.add("performance-lite");
   } catch (_) {}
+
+  // Видео-подтверждённый баг: .tab-bar держит backdrop-filter:blur(28px) —
+  // WebView не успевает пересчитывать его каждый кадр поверх активно
+  // скроллящегося контента и роняет отрисовку (контент чернеет на 0.3-0.5с,
+  // старый кадр проступает призраком у низа экрана). Постоянный вид панели
+  // НЕ трогаем (см. комментарий в style.css у .tab-bar.is-scrolling) —
+  // предыдущая попытка убрать blur насовсем была откачена пользователем.
+  // Вместо этого на время самого скролла (+150мс после остановки) дорогой
+  // blur временно выключается классом — в состоянии покоя визуально ничего
+  // не меняется.
+  (function initScrollPerfGuard() {
+    const bar = document.querySelector(".tab-bar");
+    if (!bar) return;
+    let scrollTimer = null;
+    window.addEventListener("scroll", () => {
+      bar.classList.add("is-scrolling");
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => bar.classList.remove("is-scrolling"), 150);
+    }, { passive: true });
+  })();
+
   const RING_CIRCUMFERENCE = 326.7; // 2 * PI * 52
 
   function pluralRu(n, one, few, many) {
