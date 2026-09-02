@@ -8877,3 +8877,77 @@ body{
 .tab-bar__item.is-active .tab-bar__icon{
   color: #fff !important;
 }
+
+/* ============================================================
+   DUOLINGO-ФОРМЫ, волна 2: модалки, календарь, рейтинг, рамки
+   ============================================================
+   Продолжение волны 1 (см. комментарий выше) — те же толстые обводки и
+   крупные скругления, теперь на оверлеях/модалках/второстепенных экранах,
+   которые волна 1 не затронула. Тот же приём: конец файла, !important.
+*/
+
+/* ---------- Оверлеи с наградой/поводом для радости — золотой акцент ---------- */
+.achievement-share-card,
+.streak-celebration,
+.streak-onboarding-card,
+.double-bonus-card,
+.levelup-card,
+.streak-weekly-card {
+  border-radius: var(--duo-radius-lg) !important;
+  border: 2.5px solid rgba(255,215,79,.35) !important;
+}
+
+/* ---------- Информационные/нейтральные оверлеи — фиолетовый акцент ---------- */
+.app-tour-card,
+.archetype-quiz-card,
+.feedback-card,
+.freeze-purchase-card {
+  border-radius: var(--duo-radius-lg) !important;
+  border: 2.5px solid rgba(139,92,246,.32) !important;
+}
+
+.app-tour-dot.is-active{
+  border-radius: 999px !important;
+}
+
+/* ---------- Календарь ---------- */
+.calendar-card{
+  border-radius: var(--duo-radius-lg) !important;
+  border: 2.5px solid rgba(139,92,246,.32) !important;
+}
+.cal-cell{
+  border-radius: 12px !important;
+}
+
+/* ---------- Рейтинг ---------- */
+.rating-podium-card{
+  border-radius: var(--duo-radius) !important;
+  border: 2.5px solid rgba(255,215,79,.35) !important;
+}
+.rating-item{
+  border-radius: 16px !important;
+  border: 2px solid rgba(139,92,246,.20) !important;
+}
+.team-card{
+  border-radius: var(--duo-radius-lg) !important;
+  border: 2.5px solid rgba(139,92,246,.32) !important;
+}
+
+/* ---------- Рамки аватарки ---------- */
+.frame-choice{
+  border-radius: 16px !important;
+}
+.frame-choice.is-active{
+  border: 2.5px solid var(--duo-violet) !important;
+}
+
+/* ---------- Кнопка "Сбросить прогресс" — та же 3D-механика, компактный масштаб ---------- */
+.settings-danger-btn{
+  box-shadow: 0 2.5px 0 #A82E2E !important;
+  transform: translateY(0) !important;
+  transition: transform .1s ease, box-shadow .1s ease, background .15s ease, border-color .15s ease !important;
+}
+.settings-danger-btn:active{
+  transform: translateY(2.5px) !important;
+  box-shadow: 0 0 0 transparent !important;
+}
