@@ -8951,3 +8951,56 @@ body{
   transform: translateY(2.5px) !important;
   box-shadow: 0 0 0 transparent !important;
 }
+
+/* ============================================================
+   БАГФИКС: .rating-list{display:flex} побеждает [hidden]
+   ============================================================
+   .rating-list задаёт display:flex БЕЗ учёта атрибута hidden — а любое
+   авторское правило с display перебивает встроенный [hidden]{display:none}
+   из UA-стиля независимо от специфичности (авторские стили всегда старше
+   user-agent в каскаде). Из-за этого #seasonRatingList (hidden по
+   умолчанию) и #ratingList (когда JS переключает scope на "Сезон")
+   оставались видимыми одновременно — пользователь видел вперемешку
+   всевременной и сезонный рейтинг под одним заголовком "ЛИДЕРБОРД".
+*/
+.rating-list[hidden]{
+  display: none !important;
+}
+
+/* ---------- Поддержать из подиума (топ-3 раньше были недоступны для 💌) ---------- */
+.rating-podium-card__react-btn{
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 2;
+}
+.rating-podium-card__react-btn:active{ transform: scale(.9); }
+.rating-podium-card__react-btn:disabled{ opacity: .5; }
+
+/* ---------- Кнопка "действия с привычкой" — по фидбеку про непостоянное
+   расположение ⏰/📝/⏭/✕ (переносились по-разному в зависимости от длины
+   названия). Одна кнопка справа по умолчанию, остальные — после тапа. ---------- */
+.habit-item__more{
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .15s cubic-bezier(.34,1.56,.64,1), background .2s ease;
+}
+.habit-item__more:active{ transform: scale(.92); }

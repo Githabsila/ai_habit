@@ -9,7 +9,7 @@
 <title>Project ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260901_DUOLINGO_SHAPES_V2">
+<link rel="stylesheet" href="/static/style.css?v=20260901_FEEDBACK_BATCH_V1">
 </head>
 <body>
 
@@ -448,13 +448,11 @@ class="habit-add-form__submit">
 <button type="button" class="color-mode-btn" data-mode="light">☀️ Светлая</button>
 </div>
 
-<div class="section-heading">
-<h2 data-i18n="language_title">Язык</h2>
-</div>
-<div class="color-mode-picker" id="languagePicker">
-<button type="button" class="color-mode-btn" data-lang="ru">🇷🇺 Русский</button>
-<button type="button" class="color-mode-btn" data-lang="en">🇬🇧 English</button>
-</div>
+<!-- Фидбек: переключатель языка убран из интерфейса — перевод на английский
+     был частичным и выглядел незаконченным. Бэкенд (db.users.set_language/
+     get_language, тесты в tests/test_language.py) не тронут — язык всех
+     пользователей просто остаётся на дефолте 'ru', саму фичу можно будет
+     вернуть в интерфейс, когда перевод будет доделан полностью. -->
 
 <div class="section-heading achievements-heading">
 
@@ -855,7 +853,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260901_FREE_RESTORE_V1"></script>
+<script type="module" src="/static/app.js?v=20260901_FEEDBACK_BATCH_V1"></script>
 
 </body>
 </html>

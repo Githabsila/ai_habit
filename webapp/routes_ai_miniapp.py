@@ -298,12 +298,20 @@ async def ai_chat_miniapp(request):
         if complexity == "просто" and not is_crisis:
             cache_set(cache_key, answer)
 
-    # Списываем ответ только после успешного получения реального ответа.
-    # Сбой AI/пустой ответ больше не "съедает" дневной лимит.
-    if cached_answer is None:
-        if not consume_ai_answer(user_id, pro, cost=cost):
-            quota = get_ai_quota(user_id, pro)
-            return web.json_response({"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}, status=402)
+    # Списываем ответ после получения реального ответа — НЕЗАВИСИМО от того,
+    # пришёл он из кэша или был только что сгенерирован. Раньше consume_ai_answer
+    # вызывался только для НЕ закэшированных ответов — для пользователя это
+    # выглядело как "счётчик 15/15 не уменьшается", хотя на деле уменьшался,
+    # просто не на каждый ответ: кэш живёт 12 часов (db/ai.py::CACHE_TTL_HOURS)
+    # и совпадает по любому похожему/повторному вопросу (см. _cache_key —
+    # текст нормализуется без учёта регистра/пробелов), так что часть ответов
+    # реально не расходовала лимит. С точки зрения пользователя это всё
+    # равно полноценный ответ ADAM, поэтому он должен считаться так же.
+    # Сбой AI/пустой ответ по-прежнему не "съедает" дневной лимит — до этой
+    # строки код не доходит, если solve_task_multiagent бросил исключение.
+    if not consume_ai_answer(user_id, pro, cost=cost):
+        quota = get_ai_quota(user_id, pro)
+        return web.json_response({"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}, status=402)
 
     # Сохраняем в БД
     add_ai_message(user_id, "user", message_text)

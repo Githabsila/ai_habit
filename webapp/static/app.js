@@ -1329,6 +1329,14 @@
   const pendingDeleteHabitIds = new Set();
   const pendingDeleteTimers = new Map();
 
+  // Фидбек: раньше кнопки ⏰/📝-или-⏭/✕ были видны всегда рядом и переносились
+  // на вторую строку по-разному в зависимости от длины названия привычки —
+  // визуально "то сверху, то снизу" от карточки к карточке. Теперь справа по
+  // умолчанию одна кнопка ✏️, остальные появляются только для конкретной
+  // привычки после тапа по ней (id хранится тут, сбрасывается перезагрузкой
+  // страницы — это чисто состояние отображения, не персистентные данные).
+  const expandedHabitActionIds = new Set();
+
   function deleteHabitWithUndo(habitId) {
     pendingDeleteHabitIds.add(habitId);
     renderHabits();
@@ -1506,15 +1514,21 @@
         : (isCounter ? `${h.progress_count || 0}/${h.target_count}` : "");
       const checkClass = isCounter && !h.completed ? "habit-item__check habit-item__check--counter" : "habit-item__check";
 
+      const isExpanded = expandedHabitActionIds.has(h.id);
+      const rowActions = isExpanded
+        ? `
+        <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
+        ${noteBtn}
+        ${h.completed ? "" : `<button class="habit-item__skip" data-action="skip" aria-label="Пропустить сегодня">⏭</button>`}
+        <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>`
+        : `<button class="habit-item__more" data-action="toggle-actions" aria-label="Действия с привычкой" aria-expanded="false">✏️</button>`;
+
       return `
       <li class="habit-item ${h.completed ? "is-done" : ""}" data-id="${h.id}">
         <button class="${checkClass}" data-action="${isCounter && !h.completed ? "progress" : "complete"}" ${h.completed ? "disabled" : ""}>${checkLabel}</button>
         ${badges}<span class="habit-item__title">${escapeHtml(h.title)}</span>
-        <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
         ${suggestBtn}
-        ${noteBtn}
-        ${h.completed ? "" : `<button class="habit-item__skip" data-action="skip" aria-label="Пропустить сегодня">⏭</button>`}
-        <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
+        ${rowActions}
       </li>`;
     }).join("");
   }
@@ -1739,6 +1753,7 @@
           ${r.league_tier ? `<div class="rating-podium-card__league">${escapeHtml(r.league_tier)}</div>` : ""}
           ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
           <div class="rating-podium-card__stats"><span>🔥 ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
+          ${r.can_react ? `<button type="button" class="rating-podium-card__react-btn" data-podium-react-target="${r.telegram_id}" aria-label="Поддержать">💌</button>` : ""}
         </div>`;
       }).join("");
     }
@@ -2034,6 +2049,14 @@ async function celebrateHabitCompletion(result) {
   if (result.streak_event) {
     pendingBonusIntro = !!result.show_bonus_intro;
     openStreakCelebration(result.streak_event);
+  } else if (result.bonus_active) {
+    // Фидбек: большое окно x2-бонуса раньше показывалось только на ПЕРВОЙ
+    // привычке дня (show_bonus_intro завязан на streak_event, а тот бывает
+    // только раз в день). На второй/третьей и т.д. привычке того же дня
+    // окно бонуса тоже продлевается на 30 минут (см. db/habits.py::
+    // complete_habit), но пользователь никак об этом не узнавал — простой
+    // короткий тост вместо полноразмерного окна, как и просили.
+    setTimeout(() => showToast("⚡️ Ещё 30 минут x2 Adam Coin — успей закрыть следующую привычку", "success", 3600), 1400);
   }
   // Пром 8 (доп.): "идеальный день" и, раз в месяц, награда за идеальный
   // месяц — показываем следом за тостом монет, со сдвигом, чтобы не
@@ -2289,8 +2312,23 @@ function initHabitActions() {
     if (!btn) return;
     const li = btn.closest(".habit-item");
     if (!li) return;
-    const habitId = li.dataset.id;
+    // Числом, а не строкой — h.id из API тоже число, и pendingDeleteHabitIds/
+    // expandedHabitActionIds (Set) сравнивают по строгому равенству: строка
+    // "5" никогда не совпадёт с числом 5, и .has() молча всегда возвращал бы
+    // false. Раньше это тихо ломало мгновенное скрытие карточки при удалении
+    // (сама привычка пропадала только после loadBootstrap(), а не сразу).
+    const habitId = Number(li.dataset.id);
     const action = btn.dataset.action;
+
+    if (action === "toggle-actions") {
+      if (expandedHabitActionIds.has(habitId)) {
+        expandedHabitActionIds.delete(habitId);
+      } else {
+        expandedHabitActionIds.add(habitId);
+      }
+      renderHabits();
+      return;
+    }
 
     if (action === "edit-time") {
       // Превращаем чип "⏰ HH:MM" во встроенный нативный time-picker —
@@ -3119,24 +3157,30 @@ async function loadActivityFeed() {
 // Roadmap #19 — реакции/стикеры поддержки другу прямо из рейтинга.
 function initRatingActions() {
   const list = document.getElementById("ratingList");
+  const podium = document.getElementById("ratingPodium");
   if (!list) return;
+
+  async function sendReaction(targetId, emoji) {
+    try {
+      await api(`/api/friends/${targetId}/react`, {
+        method: "POST",
+        body: JSON.stringify({ emoji }),
+      });
+      haptic("light");
+      showToast("Поддержка отправлена " + emoji, "success");
+      await loadBootstrapSecondary("rating");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  }
+
   list.addEventListener("click", async (e) => {
     const emojiChip = e.target.closest(".rating-react-chip");
     if (emojiChip) {
       const targetId = reactPickerForId;
       reactPickerForId = null;
       renderRating();
-      try {
-        await api(`/api/friends/${targetId}/react`, {
-          method: "POST",
-          body: JSON.stringify({ emoji: emojiChip.dataset.emoji }),
-        });
-        haptic("light");
-        showToast("Поддержка отправлена " + emojiChip.dataset.emoji, "success");
-        await loadBootstrapSecondary("rating");
-      } catch (err) {
-        showToast(friendlyError(err), "error");
-      }
+      await sendReaction(targetId, emojiChip.dataset.emoji);
       return;
     }
     const reactBtn = e.target.closest("[data-react-target]");
@@ -3145,6 +3189,18 @@ function initRatingActions() {
       reactPickerForId = reactPickerForId === targetId ? null : targetId;
       renderRating();
     }
+  });
+
+  // Топ-3 живут в отдельном узком гриде подиума — полноразмерный пикер из
+  // 6 эмодзи туда просто не влезает по ширине, поэтому один тап сразу шлёт
+  // дефолтную поддержку 🔥 вместо открытия выбора (было: топ-3 вообще
+  // нельзя было поддержать с экрана рейтинга — у них не было этой кнопки).
+  podium?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-podium-react-target]");
+    if (!btn) return;
+    const targetId = Number(btn.dataset.podiumReactTarget);
+    btn.disabled = true;
+    await sendReaction(targetId, "🔥");
   });
 }
 

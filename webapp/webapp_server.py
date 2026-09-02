@@ -1659,8 +1659,18 @@ async def upload_avatar(request):
     except (UnidentifiedImageError, OSError, ValueError):
         return web.json_response({"error": "unsupported_image"}, status=400)
 
-    if img.width > AVATAR_MAX_DIMENSION or img.height > AVATAR_MAX_DIMENSION:
-        img.thumbnail((AVATAR_MAX_DIMENSION, AVATAR_MAX_DIMENSION), Image.LANCZOS)
+    # Фидбек: не-квадратные фото (вертикальные/горизонтальные) сохранялись
+    # с оригинальными пропорциями через thumbnail() — сам файл вписывался
+    # в 512×512, но не обрезался, а везде в интерфейсе аватарка показывается
+    # в квадратной рамке, поэтому такое фото визуально "растягивалось"/
+    # обрезалось браузером криво. Центр-кроп до квадрата ДО ресайза —
+    # результат всегда ровно AVATAR_MAX_DIMENSION×AVATAR_MAX_DIMENSION.
+    side = min(img.width, img.height)
+    left = (img.width - side) // 2
+    top = (img.height - side) // 2
+    img = img.crop((left, top, left + side, top + side))
+    if side > AVATAR_MAX_DIMENSION:
+        img = img.resize((AVATAR_MAX_DIMENSION, AVATAR_MAX_DIMENSION), Image.LANCZOS)
 
     avatars_dir = Path(DATA_DIR) / "avatars"
     avatars_dir.mkdir(parents=True, exist_ok=True)

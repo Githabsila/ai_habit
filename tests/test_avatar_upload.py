@@ -42,10 +42,31 @@ async def test_upload_avatar_converts_png_to_real_jpeg_and_resizes(client, uid):
     assert media.status == 200
     body = await media.read()
     saved = Image.open(BytesIO(body))
-    # Реально сохранённый формат — JPEG (не переименованный PNG), и большая
-    # сторона ужата до разумного предела.
+    # Реально сохранённый формат — JPEG (не переименованный PNG), и результат
+    # всегда квадратный ровно 512×512 — вход был 800×600 (не квадрат).
     assert saved.format == "JPEG"
-    assert max(saved.size) <= 512
+    assert saved.size == (512, 512)
+
+
+async def test_upload_avatar_center_crops_non_square_photo_to_square(client, uid):
+    # Фидбек: не-квадратное фото раньше сохранялось "растянутым" — вписывалось
+    # в 512×512 БЕЗ обрезки, что ломало квадратные рамки аватарки в UI.
+    add_user(uid, "u", "Test")
+    headers = await _headers(uid)
+
+    # Широкая картинка 1000×400 — после центр-кропа должен остаться средний
+    # квадрат 400×400, а не сплющенное изображение.
+    form = aiohttp.FormData()
+    form.add_field("avatar", _png_bytes(size=(1000, 400)), filename="wide.png", content_type="image/png")
+
+    r = await client.post("/api/profile/avatar", headers=headers, data=form)
+    assert r.status == 200
+    data = await r.json()
+
+    media = await client.get(data["avatar_url"].split("?")[0])
+    body = await media.read()
+    saved = Image.open(BytesIO(body))
+    assert saved.size == (400, 400)
 
 
 async def test_upload_avatar_rejects_bytes_that_are_not_really_an_image(client, uid):
