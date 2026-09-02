@@ -4909,6 +4909,52 @@ section[data-tab="home"] .streak-widget__hero-row{
   transform: translateZ(0);
 }
 
+/* =========================================================
+   ПРОИЗВОДИТЕЛЬНОСТЬ — видео-подтверждённые многосекундные фризы
+   (пользователь прислал видео 02.09, ~17 из 37 секунд экран стоял).
+   Разбор кадр-за-кадром нашёл РОВНО тот же паттерн, что уже был починен
+   выше для .streak-celebration-overlay и т.п. (fullscreen fixed оверлей
+   с backdrop-filter, который WebView не успевает пересчитывать на
+   каждый кадр своей opacity-транзишна), но не вычищенный ещё в 4 местах
+   — включая #loadingOverlay, который висит поверх экрана буквально
+   при КАЖДОМ холодном открытии мини-аппы, пока идёт bootstrap: жалоба
+   "не прогружается" — это, скорее всего, он и есть, а не сама загрузка
+   данных. Плюс — блюр на КАЖДОМ пузыре чата ADAM (их в диалоге может
+   быть неограниченно много, а не до 7 как у .habit-item, который по
+   той же причине уже лишили blur раньше). Везде фон и так почти
+   непрозрачный (.90-.98) — визуальной разницы от blur почти нет, а
+   цена пересчёта на каждый кадр — есть. */
+#loadingOverlay,
+.levelup-overlay,
+.impactday-overlay,
+.archetype-quiz-overlay,
+.achievement-share-overlay {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.adam-message,
+.ai-message,
+.message.ai,
+.message.assistant,
+.chat-message.ai,
+.chat-bubble.ai,
+.ai-input,
+.chat-input,
+.chat-composer,
+.ai-chat input,
+.ai-chat textarea,
+.rating-podium-card,
+.main-day,
+.today-section,
+.daily-tasks,
+.main-tasks,
+.today-card,
+.day-card,
+.toast {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
 .streak-celebration,
 .streak-onboarding-card,
 .streak-weekly-card {
@@ -8626,27 +8672,35 @@ body{
    независимо от того, в каком поколении токенов они были написаны.
    ========================================================= */
 :root[data-mode="light"]{
-  --bg:#F4F2FA;
-  --bg-secondary:#EAE6F5;
+  --bg:#EFEAF9;
+  --bg-secondary:#E3DCF3;
   --surface:#FFFFFF;
   --surface-light:#FFFFFF;
   --border:rgba(20,15,40,.08);
   --text:#1A1626;
   --text-muted:#6B6478;
-  --adam-bg:#F4F2FA;
+  --adam-bg:#EFEAF9;
   --adam-surface:rgba(255,255,255,.85);
   --adam-surface-2:rgba(245,243,250,.9);
   --adam-line:rgba(20,15,40,.08);
   --adam-line-strong:rgba(20,15,40,.14);
 }
 
-:root[data-mode="light"] html{background:#F4F2FA !important}
+/* Фидбек: светлый холст выглядел плоским и "дешёвым" — почти белая
+   бледная заливка. Тот же холст, но глубже и премиальнее: более
+   насыщенные цветовые пятна (было .14/.10, стало .22/.16), третье пятно
+   снизу-слева для объёма, и линейный градиент теперь идёт в три стопа с
+   заметно более тёмным/насыщенным нижним краем (было почти неотличимо
+   от верхнего). Никакого нового backdrop-filter/fixed-attachment — это
+   просто фон под контентом, на производительность не влияет. */
+:root[data-mode="light"] html{background:#EFEAF9 !important}
 :root[data-mode="light"] body{
   color:var(--text) !important;
   background-image:
-    radial-gradient(900px 520px at 50% -12%,rgba(139,108,255,.14),transparent 62%),
-    radial-gradient(650px 520px at 105% 30%,rgba(255,191,71,.10),transparent 65%),
-    linear-gradient(180deg,#F7F5FC,#EDE9F7) !important;
+    radial-gradient(1000px 620px at 50% -14%,rgba(139,92,246,.22),transparent 60%),
+    radial-gradient(700px 560px at 108% 22%,rgba(255,183,54,.16),transparent 62%),
+    radial-gradient(680px 540px at -10% 82%,rgba(99,72,220,.14),transparent 60%),
+    linear-gradient(180deg,#FAF8FF 0%,#EEE7FA 45%,#E1D6F0 100%) !important;
   background-blend-mode:normal !important;
 }
 
