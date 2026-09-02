@@ -5094,6 +5094,7 @@ section[data-tab="home"] .streak-widget__hero-row{
   z-index:4;
   min-width:0;
   flex:1 1 auto;
+  container-type: inline-size;
 }
 
 .player-card__name{
@@ -5104,14 +5105,20 @@ section[data-tab="home"] .streak-widget__hero-row{
 /* Фидбек: ник и купленная медаль раньше делили одну общую nowrap+ellipsis
    область на весь .player-card__name — длинный ник (например "Crystal
    Floyd") обрезался многоточием и утаскивал медаль за собой (она просто не
-   помещалась и не рендерилась). Теперь усечение — только на самом нике,
-   медаль (#playerBadge) не сжимается и всегда видна следом за ним. */
+   помещалась и не рендерилась). Усечение изолировано на самом нике, медаль
+   (#playerBadge) не сжимается и всегда видна следом за ним.
+   Дальше — фидбек №2: даже так ник всё равно упирался в "..." при узкой
+   колонке (например когда рядом есть кнопка админ-панели). Пользователь
+   попросил вместить ник ПОЛНОСТЬЮ в одну строку без многоточия — вместо
+   обрезки шрифт теперь сам уменьшается под фактическую ширину колонки
+   через container query units (не вьюпорта, а именно .player-card__info),
+   поэтому подстраивается и под ринг-аватар, и под админ-кнопку. */
 #playerName{
   min-width:0;
   overflow:hidden;
-  text-overflow:ellipsis;
   white-space:nowrap;
   flex:0 1 auto;
+  font-size: clamp(13px, 6.4cqw, 22px);
 }
 .player-badge{
   flex:0 0 auto;
@@ -9105,6 +9112,81 @@ body{
   border-color: rgba(255,255,255,.08) !important;
 }
 
+/* Фидбек: блок "Аватар + Рамка аватарки" в профиле — тот же паттерн
+   "стеклянная подсветка без своей тёмной подложки": в светлой теме
+   становился видимым светлым табло. Пользователь попросил вернуть тёмным
+   "как все плиты". Заголовки внутри ("Аватар", "Рамка аватарки") лежат
+   прямо в разметке без своего var(--text) — просто наследуют цвет текста,
+   поэтому локальное переопределение токена (см. список ниже) их не
+   красит; чиним явным цветом через wildcard-потомок. */
+:root[data-mode="light"] .profile-cosmetics-panel{
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.018)),
+    linear-gradient(145deg, rgba(30,27,42,.94), rgba(12,11,18,.94)) !important;
+  border-color: rgba(255,255,255,.07) !important;
+}
+:root[data-mode="light"] .profile-cosmetics-panel,
+:root[data-mode="light"] .profile-cosmetics-panel *{
+  color: #FFFFFF;
+}
+:root[data-mode="light"] .profile-cosmetics-head small,
+:root[data-mode="light"] .profile-frame-head small{
+  color: #858191 !important;
+}
+
+/* Фидбек: секция "Привычки" на главной не завёрнута в отдельную карточку в
+   разметке (лежит прямо на холсте страницы после .plan-card) — в тёмной
+   теме это незаметно (холст и так тёмный), в светлой превращается в
+   светлое "табло" на весь блок (шапка + пустое состояние + чипы-шаблоны +
+   готовые программы + кнопка "Добавить привычку"). Пользователь попросил
+   сделать тёмным целиком, включая кнопки. Обёртка .habits-panel добавлена
+   только в разметке (webapp/static/index.html) — в тёмной теме у неё нет
+   собственного фона (0 визуальной разницы), тёмная подложка появляется
+   только здесь. */
+:root[data-mode="light"] .habits-panel{
+  padding: 16px 14px 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.07);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.016)),
+    linear-gradient(145deg, rgba(30,27,42,.95), rgba(12,11,18,.95)) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,.18);
+}
+/* .habits-section-title/.habits-section-count раньше были затемнены в
+   расчёте на то, что лежат прямо на светлом холсте (см. блок выше) —
+   теперь они внутри тёмной .habits-panel, нужен обратный (светлый) цвет.
+   Больше специфичный селектор (с классом .habits-panel) перебивает более
+   ранние canvas-ориентированные правила независимо от порядка в файле. */
+:root[data-mode="light"] .habits-panel .habits-section-title{
+  color: rgba(238,234,244,.68) !important;
+}
+:root[data-mode="light"] .habits-panel .habits-section-count{
+  color: rgba(188,183,200,.72) !important;
+}
+/* .habit-template-chip держится только на полупрозрачной белой подсветке
+   (тот же паттерн, что и .streak-metric/.frame-choice выше) — добавляем
+   тёмную подложку под ней. */
+:root[data-mode="light"] .habit-template-chip{
+  border-color: rgba(255,255,255,.08) !important;
+  background:
+    linear-gradient(rgba(255,255,255,.025), rgba(255,255,255,.025)),
+    linear-gradient(145deg, rgba(30,27,42,.9), rgba(12,11,18,.9)) !important;
+}
+/* Кнопка "Добавить привычку" — тот же .add-collapse__trigger, что и
+   "Добавить задачу" (которая уже сидит внутри тёмной .plan-card и её не
+   трогаем), но именно эта, вне карточки, на светлом холсте выглядела
+   светлой кнопкой — просим только её, через #addHabitCollapse. */
+:root[data-mode="light"] #addHabitCollapse .add-collapse__trigger{
+  border-color: rgba(255,255,255,.14) !important;
+  background:
+    linear-gradient(rgba(255,255,255,.02), rgba(255,255,255,.02)),
+    linear-gradient(145deg, rgba(30,27,42,.92), rgba(12,11,18,.92)) !important;
+  color: #9D9DB3 !important;
+}
+:root[data-mode="light"] #addHabitCollapse .add-collapse__trigger:hover{
+  color: #cfc6ff !important;
+}
+
 /* ============================================================
    БАГ СО СКРОЛЛОМ (видео-подтверждено): .tab-bar{backdrop-filter:blur(28px)}
    ============================================================
@@ -9180,9 +9262,20 @@ body{
 :root[data-mode="light"] .streak-metric,
 :root[data-mode="light"] .frame-choice,
 :root[data-mode="light"] .shop-head,
-:root[data-mode="light"] .player-card{
+:root[data-mode="light"] .player-card,
+:root[data-mode="light"] .habits-panel{
   --text: #FFFFFF;
   --text-muted: #9D9DB3;
+}
+/* #playerName/.player-card__name не объявляют color:var(--text) у себя —
+   просто наследуют его от body{color:var(--text)}, а наследуемое значение
+   уже вычислено на body его собственным --text и не пересчитывается из-за
+   переопределения токена глубже в дереве (это не "живая" ссылка). Поэтому
+   локальное --text выше .player-card не красит сам ник — нужен явный
+   color прямо на нике. */
+:root[data-mode="light"] #playerName,
+:root[data-mode="light"] .player-card__name{
+  color: #FFFFFF !important;
 }
 
 /* .rating-podium-card в покое опирается только на полупрозрачную белую
