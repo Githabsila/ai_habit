@@ -9004,3 +9004,68 @@ body{
   transition: transform .15s cubic-bezier(.34,1.56,.64,1), background .2s ease;
 }
 .habit-item__more:active{ transform: scale(.92); }
+
+/* ============================================================
+   СВЕТЛАЯ ТЕМА — доводка контраста (фидбек #10)
+   ============================================================
+   Проверено визуально по всем вкладкам через dev-стенд. Найденный паттерн:
+   десятки мелких элементов написаны с цветами/фонами, рассчитанными ИСКЛЮЧИТЕЛЬНО
+   на тёмный холст — rgba(255,255,255,.0X) для "стеклянной" подсветки фона/
+   границы (на тёмном фоне даёт лёгкое свечение, на светлом холсте становится
+   почти невидимым — карточка "теряет" свою форму) и hardcoded почти-белый
+   текст (на тёмном фоне — обычный текст, на светлом — нечитаемый). Основная
+   архитектура темы (см. блок выше, :root[data-mode="light"]) сознательно
+   оставляет "карточки" тёмными на светлом холсте — здесь чиним конкретные
+   элементы, которые НЕ являются полноценной тёмной карточкой (лежат прямо на
+   холсте или сами используют полупрозрачный бело-тонированный фон).
+*/
+:root[data-mode="light"] .habits-section-title{
+  color: rgba(26,22,38,.62) !important;
+}
+:root[data-mode="light"] .rating-rest-head{
+  color: rgba(26,22,38,.5) !important;
+}
+:root[data-mode="light"] .rating-rest-head span:first-child{
+  color: rgba(26,22,38,.68) !important;
+}
+:root[data-mode="light"] .habit-filter-chip{
+  border-color: rgba(20,15,40,.10) !important;
+  background: rgba(20,15,40,.035) !important;
+}
+:root[data-mode="light"] .add-collapse__trigger{
+  border-color: rgba(20,15,40,.16) !important;
+  background: rgba(20,15,40,.02) !important;
+}
+:root[data-mode="light"] .profile-photo-btn{
+  border-color: rgba(20,15,40,.12) !important;
+  background: rgba(20,15,40,.045) !important;
+  color: var(--text) !important;
+}
+:root[data-mode="light"] .streak-metric{
+  background: linear-gradient(145deg, rgba(20,15,40,.05), rgba(20,15,40,.02)) !important;
+  border-color: rgba(20,15,40,.08) !important;
+}
+:root[data-mode="light"] .streak-metric b{
+  color: var(--text) !important;
+}
+:root[data-mode="light"] .streak-metric small{
+  color: rgba(26,22,38,.55) !important;
+}
+:root[data-mode="light"] .frame-choice{
+  border-color: rgba(20,15,40,.10) !important;
+  background: rgba(20,15,40,.03) !important;
+  color: var(--text) !important;
+}
+:root[data-mode="light"] .frame-choice__text small{
+  color: rgba(26,22,38,.55) !important;
+}
+:root[data-mode="light"] .profile-cosmetics-head small,
+:root[data-mode="light"] .profile-frame-head small{
+  color: rgba(26,22,38,.55) !important;
+}
+:root[data-mode="light"] .shop-head{
+  background:
+    radial-gradient(160px 100px at 100% 0, rgba(139,92,246,.14), transparent 72%),
+    rgba(20,15,40,.03) !important;
+  border-color: rgba(20,15,40,.08) !important;
+}
