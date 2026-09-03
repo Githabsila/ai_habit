@@ -729,7 +729,32 @@ def premium_buy_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="💎 Купить Premium", callback_data="buy_premium")],
+            [InlineKeyboardButton(text="🎁 Подарить Premium другу", callback_data="gift_premium_start")],
             [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="back_menu")],
+        ]
+    )
+
+
+def gift_premium_candidates_keyboard(candidates):
+    """candidates — список приглашённых пользователей (get_referred_users) —
+    самый быстрый путь выбрать получателя без ручного ввода ID/пересылки
+    сообщения."""
+    rows = [
+        [InlineKeyboardButton(
+            text=f"@{c['username']}" if c["username"] else (c["first_name"] or str(c["telegram_id"])),
+            callback_data=f"gift_premium_to_{c['telegram_id']}",
+        )]
+        for c in candidates[:8]
+    ]
+    rows.append([InlineKeyboardButton(text="⬅️ Отмена", callback_data="premium_info")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def gift_premium_confirm_keyboard(recipient_id: int, price_stars: int):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"🎁 Подарить за {price_stars} ⭐", callback_data=f"gift_premium_confirm_{recipient_id}")],
+            [InlineKeyboardButton(text="⬅️ Отмена", callback_data="premium_info")],
         ]
     )
 

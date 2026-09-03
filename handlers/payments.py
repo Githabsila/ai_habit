@@ -1,4 +1,6 @@
 from aiogram import Router, F
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
     LabeledPrice,
@@ -12,10 +14,18 @@ from db import (
     get_subscription_price_stars, record_subscription_payment, get_subscription_status,
     try_grant_channel_access, activate_xp_booster, get_timezone,
     is_payment_processed, mark_payment_processed, log_error,
+    get_user, get_referred_users,
 )
-from keyboards import premium_buy_keyboard, back_menu_keyboard, subscription_buy_keyboard
+from keyboards import (
+    premium_buy_keyboard, back_menu_keyboard, subscription_buy_keyboard,
+    gift_premium_candidates_keyboard, gift_premium_confirm_keyboard,
+)
 
 router = Router()
+
+
+class GiftState(StatesGroup):
+    waiting_recipient = State()
 
 
 # =====================================
@@ -61,6 +71,104 @@ async def buy_premium(callback: CallbackQuery):
         provider_token="",  # для Stars всегда пусто
         currency="XTR",
         prices=[LabeledPrice(label="Premium", amount=PREMIUM_PRICE_STARS)],
+    )
+    await callback.answer()
+
+
+# =====================================
+# ПОДАРИТЬ PREMIUM ДРУГУ
+# =====================================
+# Раньше подарить Premium было нельзя вообще — только купить себе.
+# Получателя выбираем из уже приглашённых пользователей (не нужно вводить
+# ID руками) либо через пересланное от друга сообщение (message.forward_from —
+# работает, только если у друга не скрыты пересылки в настройках приватности).
+
+def _display_name(row):
+    if not row:
+        return "друг"
+    return f"@{row['username']}" if row["username"] else (row["first_name"] or str(row["telegram_id"]))
+
+
+@router.callback_query(F.data == "gift_premium_start")
+async def gift_premium_start(callback: CallbackQuery, state: FSMContext):
+    candidates = get_referred_users(callback.from_user.id)
+
+    text = "🎁 <b>Подарить Premium другу</b>\n\n"
+    if candidates:
+        text += "Выбери из приглашённых тобой — или перешли мне любое сообщение от другого друга."
+    else:
+        text += (
+            "Перешли мне любое сообщение от друга, кому хочешь подарить "
+            "(должно быть разрешено пересылками в его настройках приватности)."
+        )
+
+    await state.set_state(GiftState.waiting_recipient)
+    await callback.message.edit_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=gift_premium_candidates_keyboard(candidates),
+    )
+    await callback.answer()
+
+
+async def _offer_gift_invoice(message_target, recipient_id: int, giver_id: int):
+    """message_target — объект с .answer()/.answer_invoice() (Message или
+    CallbackQuery.message), общий код для обоих путей выбора получателя."""
+    if recipient_id == giver_id:
+        await message_target.answer("Самому себе Premium уже можно просто купить кнопкой выше 🙂")
+        return
+    recipient = get_user(recipient_id)
+    if not recipient:
+        await message_target.answer(
+            "Этот пользователь ещё не запускал ADAM — попроси его сначала написать /start боту, "
+            "а потом попробуй подарить снова."
+        )
+        return
+    if recipient["premium"]:
+        await message_target.answer(f"У {_display_name(recipient)} уже есть Premium — дарить не нужно 🎉")
+        return
+
+    await message_target.answer(
+        f"Дарим Premium для {_display_name(recipient)} — подтверди оплату:",
+        reply_markup=gift_premium_confirm_keyboard(recipient_id, PREMIUM_PRICE_STARS),
+    )
+
+
+@router.callback_query(F.data.startswith("gift_premium_to_"))
+async def gift_premium_pick_candidate(callback: CallbackQuery, state: FSMContext):
+    recipient_id = int(callback.data.removeprefix("gift_premium_to_"))
+    await state.clear()
+    await _offer_gift_invoice(callback.message, recipient_id, callback.from_user.id)
+    await callback.answer()
+
+
+@router.message(GiftState.waiting_recipient, F.forward_from)
+async def gift_premium_from_forward(message: Message, state: FSMContext):
+    await state.clear()
+    await _offer_gift_invoice(message, message.forward_from.id, message.from_user.id)
+
+
+@router.message(GiftState.waiting_recipient)
+async def gift_premium_no_forward(message: Message):
+    # Пересылки от друга скрыты его настройками приватности, forward_from
+    # пуст — Bot API в этом случае не даёт узнать его ID вообще никак.
+    await message.answer(
+        "Не получилось узнать, кто это — у пересланного сообщения скрыт автор "
+        "(настройки приватности друга). Выбери его из списка приглашённых выше "
+        "или попроси на время разрешить пересылки в настройках Telegram."
+    )
+
+
+@router.callback_query(F.data.startswith("gift_premium_confirm_"))
+async def gift_premium_confirm(callback: CallbackQuery):
+    recipient_id = int(callback.data.removeprefix("gift_premium_confirm_"))
+    await callback.message.answer_invoice(
+        title="Project ADAM Premium — подарок",
+        description="Подарок другу: еженедельный AI-разбор цели, доступ без очереди, метка Premium.",
+        payload=f"gift_premium:{recipient_id}:{callback.from_user.id}",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice(label="Premium в подарок", amount=PREMIUM_PRICE_STARS)],
     )
     await callback.answer()
 
@@ -174,6 +282,34 @@ async def successful_payment(message: Message):
                 f"⚡ Бустер x2 Adam Coin активирован до {until_local}! Все привычки в этом окне приносят вдвое больше.",
                 reply_markup=back_menu_keyboard()
             )
+        return
+
+    # Подарок Premium другу — платит giver (message.from_user.id), Premium
+    # получает recipient_id, поэтому здесь НЕТ обычной проверки
+    # paid_user_id == message.from_user.id, как в остальных ветках выше.
+    if payload.startswith("gift_premium:"):
+        parts = payload.split(":")
+        try:
+            recipient_id = int(parts[1])
+            giver_id = int(parts[2])
+        except (IndexError, ValueError):
+            return
+        if giver_id != message.from_user.id:
+            return
+        give_premium_admin(recipient_id)
+        await message.answer(
+            "🎁 Готово! Premium подарен — друг уже получил уведомление.",
+            reply_markup=back_menu_keyboard()
+        )
+        try:
+            giver = get_user(giver_id)
+            await message.bot.send_message(
+                recipient_id,
+                f"🎁 {_display_name(giver)} подарил(а) тебе Premium в Project ADAM! "
+                "Доступны еженедельный AI-разбор цели, доступ без очереди и метка Premium.",
+            )
+        except Exception:
+            pass  # получатель мог заблокировать бота — сама выдача уже прошла, это не критично
         return
 
     # Пром 13: оплата доступа к боту (триал → подписка).
