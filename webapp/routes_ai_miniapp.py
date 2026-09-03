@@ -19,6 +19,7 @@ from db import (
     get_progress,
     get_habits,
     save_ai_feedback,
+    get_ai_message_text,
     get_ai_style,
     add_habit,
     save_feedback_reason,
@@ -402,6 +403,15 @@ async def ai_feedback_miniapp(request):
 
     if rating not in ["up", "down"]:
         return web.json_response({"error": "invalid_rating"}, status=400)
+
+    # Найдено при security-аудите: message_id приходит от клиента без
+    # проверки принадлежности — без этой проверки любой авторизованный
+    # пользователь мог бы оценить (заспамить дизлайками/лайками) ЧУЖОЕ
+    # сообщение по угаданному/подсмотренному id, засоряя агрегированную
+    # статистику качества ответов ADAM. Тот же паттерн уже применялся для
+    # озвучки ответа (db/ai.py::get_ai_message_text, roadmap #47).
+    if get_ai_message_text(message_id, user_id) is None:
+        return web.json_response({"error": "message_not_found"}, status=404)
 
     save_ai_feedback(message_id, user_id, rating)
 
