@@ -1874,3 +1874,17 @@ async def admin_panel_page(request):
     response = web.FileResponse(BASE_DIR / "static" / "admin_panel.html")
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
+
+
+# Публичные юридические документы — без авторизации (Telegram требует
+# ссылку на privacy policy для ботов с платежами, см. настройки BotFather).
+# Обычное кеширование ок — документы меняются редко, каждое обновление
+# нужно сопровождать актуальной датой в самом файле.
+@routes.get("/privacy")
+async def privacy_policy_page(request):
+    return web.FileResponse(BASE_DIR / "static" / "privacy.html")
+
+
+@routes.get("/terms")
+async def terms_page(request):
+    return web.FileResponse(BASE_DIR / "static" / "terms.html")

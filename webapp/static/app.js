@@ -3785,6 +3785,21 @@ function initDataSupportActions() {
     haptic("light");
     setTimeout(() => feedbackText?.focus(), 250);
   });
+  // Юридические документы (privacy policy требует Telegram у ботов с
+  // платежами) — открываем системным браузером через tg.openLink, а не
+  // обычным <a href>: внутри Telegram WebView обычная навигация со
+  // страницы Mini App ненадёжна.
+  const _openLegalDoc = (path) => {
+    haptic("light");
+    const url = location.origin + path;
+    if (tg && typeof tg.openLink === "function") {
+      tg.openLink(url);
+    } else {
+      window.open(url, "_blank", "noopener");
+    }
+  };
+  document.getElementById("openPrivacyBtn")?.addEventListener("click", () => _openLegalDoc("/privacy"));
+  document.getElementById("openTermsBtn")?.addEventListener("click", () => _openLegalDoc("/terms"));
   document.getElementById("feedbackCancel")?.addEventListener("click", closeFeedback);
   document.getElementById("feedbackBackdrop")?.addEventListener("click", closeFeedback);
   document.getElementById("feedbackSend")?.addEventListener("click", async () => {
