@@ -818,7 +818,7 @@ body{
 <body>
     <div id="root"></div>
 
-   <script src="/static/ai_coach.js?v=20260903_FEEDBACK_V1"></script>
+   <script src="/static/ai_coach.js?v=20260903_UX_V2"></script>
 </body>
 </html>
 <style>
@@ -1515,5 +1515,22 @@ body{
  backdrop-filter:blur(24px) saturate(1.4) !important;
 }
 .performance-lite .message-bubble::after{display:none !important}
+
+/* Markdown внутри ответа ADAM (см. renderMarkdown в ai_coach.js) — раньше
+   ответ рендерился голым pre-wrap текстом, **жирный**/списки показывались
+   буквально со звёздочками/дефисами. */
+.message-bubble strong{color:#fff;font-weight:750}
+.message-bubble em{color:#D9D0FF;font-style:italic}
+.message-bubble code{
+  background:rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.08);
+  padding:1px 6px;
+  border-radius:6px;
+  font-family:'SF Mono',Consolas,monospace;
+  font-size:.9em;
+}
+.message-bubble ul,.message-bubble ol{margin:6px 0;padding-left:20px}
+.message-bubble li{margin:3px 0}
+.message-bubble ul{list-style:disc}
 
 </style>

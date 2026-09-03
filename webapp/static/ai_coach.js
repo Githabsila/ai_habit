@@ -49,7 +49,14 @@ const CHAT_STORAGE_KEY = 'adam_chat_history';
 function fixBrokenText(text) {
     if (typeof text !== 'string' || !text)
         return text;
-    return text.replace(/(\S)\n+(\S)/g, '$1$2');
+    // ВАЖНО: было (\S)\n+(\S) — "любой не-пробельный символ" включает
+    // знаки препинания и цифры, поэтому легитимные переносы строк перед
+    // нумерованным/маркированным списком в ответах ADAM ("...работают:\n\n1. ...")
+    // тоже съедались ("работают:1. ..."), ломая markdown-разметку (см.
+    // renderMarkdown выше). \p{L} (буква) вместо \S — тот же самый фикс
+    // разорванного слова ("Д\nа" → "Да", обе стороны буквы), но больше не
+    // трогает перенос после ":"/"."/цифры перед пунктом списка.
+    return text.replace(/(\p{L})\n+(\p{L})/gu, '$1$2');
 }
 function loadStoredMessages() {
     try {
@@ -79,6 +86,103 @@ function vibrate(type = 'light') {
     }
     catch (e) { }
 }
+// Раньше ответ ADAM рендерился голым pre-wrap текстом — звёздочки/дефисы
+// из markdown-разметки, которую генерирует модель, показывались буквально
+// вместо жирного/списков. Экранируем HTML СНАЧАЛА (защита от prompt-
+// injection в стиле "ответь только вот таким HTML/<script>") и только
+// потом применяем разметку к уже безопасному тексту — dangerouslySetInnerHTML
+// ниже никогда не видит сырой, неэкранированный ввод.
+function escapeHtml(text) {
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+function renderMarkdown(text) {
+    let html = escapeHtml(text);
+    html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+    const lines = html.split('\n');
+    const out = [];
+    let listType = null;
+    for (const line of lines) {
+        const bullet = line.match(/^[-•]\s+(.*)/);
+        const numbered = line.match(/^\d+[.)]\s+(.*)/);
+        if (bullet || numbered) {
+            const type = bullet ? 'ul' : 'ol';
+            if (listType !== type) {
+                if (listType) out.push(`</${listType}>`);
+                out.push(`<${type}>`);
+                listType = type;
+            }
+            out.push(`<li>${(bullet || numbered)[1]}</li>`);
+        }
+        else {
+            if (listType) {
+                out.push(`</${listType}>`);
+                listType = null;
+            }
+            out.push(line);
+        }
+    }
+    if (listType)
+        out.push(`</${listType}>`);
+    return out.join('\n');
+}
+// Имитация печатающегося ответа — раньше текст появлялся одним куском
+// сразу после "Формирую ответ", теперь проявляется постепенно, что
+// ощущается быстрее и живее. НЕ настоящий стриминг токенов от модели
+// (сервер по-прежнему отдаёт готовый ответ целиком одним запросом —
+// для реального стриминга пришлось бы переписывать весь AI-пайплайн
+// см. multi_agent.py, включая подсчёт квоты и обрезку по finish_reason,
+// которые сейчас требуют полного текста) — чисто визуальный эффект на
+// уже полученном тексте. Во время анимации показываем экранированный
+// голый текст (частичная markdown-разметка выглядела бы криво —
+// незакрытый "**" на середине слова), полное форматирование "проявляется"
+// только по завершении анимации.
+function TypewriterText({ id, text, active }) {
+    const [shown, setShown] = useState(active ? '' : text);
+    useEffect(() => {
+        if (!active) {
+            setShown(text);
+            return;
+        }
+        const reduceMotion = document.documentElement.classList.contains('performance-lite')
+            || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        if (reduceMotion) {
+            setShown(text);
+            return;
+        }
+        let i = 0;
+        const step = Math.max(1, Math.ceil(text.length / 40));
+        const timer = setInterval(() => {
+            i += step;
+            if (i >= text.length) {
+                setShown(text);
+                clearInterval(timer);
+            }
+            else {
+                setShown(text.slice(0, i));
+            }
+        }, 18);
+        return () => clearInterval(timer);
+        // Намеренно только [id] — при смене текста того же сообщения (не
+        // бывает в реальности) не хотим перезапускать анимацию заново.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
+    const complete = shown.length >= text.length;
+    const html = complete ? renderMarkdown(text) : escapeHtml(shown);
+    return React.createElement("div", { style: { whiteSpace: 'pre-wrap' }, dangerouslySetInnerHTML: { __html: html } });
+}
+// См. _FEEDBACK_REASONS в handlers/ai.py — те же формулировки, чтобы
+// причины дизлайка из бота и из Mini App попадали в одну и ту же
+// админ-статистику в одинаковом виде.
+const FEEDBACK_REASONS = {
+    long: 'ответ был слишком длинным/затянутым',
+    off: 'ответ был не по теме, что нужно',
+    unclear: 'ответ был непонятно объяснён',
+};
 function AiChat() {
     const [messages, setMessages] = useState(loadStoredMessages);
     const [input, setInput] = useState('');
@@ -164,7 +268,7 @@ function AiChat() {
             }
             if (data.quota)
                 setQuota(data.quota);
-            setMessages(p => [...p, { id: data.message_id, role: 'assistant', text: data.answer, time: formatTime(), isCrisis: data.is_crisis, habit: data.suggested_habit, canRate: true, sourcePrompt: text }]);
+            setMessages(p => [...p, { id: data.message_id, role: 'assistant', text: data.answer, time: formatTime(), isCrisis: data.is_crisis, habit: data.suggested_habit, canRate: true, sourcePrompt: text, isNew: true }]);
             vibrate('light');
         }
         catch (e) {
@@ -197,13 +301,15 @@ function AiChat() {
     // не отображались. save_ai_feedback() делает UPSERT по (message_id,
     // user_id), так что повторный тап меняет оценку, а не дублирует её —
     // поэтому можно не блокировать кнопку после первого клика.
-    const rateMessage = async (id, rating) => {
+    const rateMessage = async (id, rating, reason) => {
         setMessages(p => p.map(m => m.id === id ? { ...m, rated: rating } : m));
         vibrate('light');
         try {
+            const body = { init_data: tg.initData, message_id: id, rating };
+            if (reason) body.reason = reason;
             const res = await fetch('/api/ai/feedback', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ init_data: tg.initData, message_id: id, rating })
+                body: JSON.stringify(body)
             });
             if (!res.ok) throw new Error();
         }
@@ -211,6 +317,27 @@ function AiChat() {
             // Не критично — просто откатываем визуальное состояние, чтобы
             // не врать пользователю, что оценка сохранилась.
             setMessages(p => p.map(m => m.id === id ? { ...m, rated: null } : m));
+        }
+    };
+    // При 👎 необязательно спрашиваем причину — те же формулировки, что и
+    // в боте (см. FEEDBACK_REASONS выше), чтобы попадать в одну статистику.
+    // tg.showPopup поддерживает максимум 3 кнопки — закрытие попапа без
+    // выбора (или платформа без поддержки showPopup) само по себе
+    // считается "пропустить", оценка всё равно сохраняется без причины.
+    const rateDown = (id) => {
+        try {
+            tg.showPopup({
+                title: 'Что не так?',
+                message: 'Необязательно — поможет сделать ADAM лучше',
+                buttons: [
+                    { id: 'long', type: 'default', text: 'Длинно' },
+                    { id: 'off', type: 'default', text: 'Не по теме' },
+                    { id: 'unclear', type: 'default', text: 'Непонятно' },
+                ],
+            }, (buttonId) => rateMessage(id, 'down', FEEDBACK_REASONS[buttonId]));
+        }
+        catch (e) {
+            rateMessage(id, 'down');
         }
     };
     const copyMessage = async (text, id) => {
@@ -247,13 +374,35 @@ function AiChat() {
         try {
             const res = await fetch('/api/ai/tip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ init_data: tg.initData }) });
             const data = await res.json();
-            setMessages(p => [...p, { id: Date.now(), role: 'assistant', text: '✦ Совет дня\n\n' + (data.tip || 'Сделай сегодня один маленький шаг в сторону своей цели.'), time: formatTime(), canRate: false }]);
+            setMessages(p => [...p, { id: Date.now(), role: 'assistant', text: '✦ Совет дня\n\n' + (data.tip || 'Сделай сегодня один маленький шаг в сторону своей цели.'), time: formatTime(), canRate: false, isNew: true }]);
         }
         catch (e) {
             setMessages(p => [...p, { id: Date.now(), role: 'system', text: 'Не удалось получить совет дня.', type: 'error' }]);
         }
         finally {
             setLoading(false);
+        }
+    };
+    // Раньше можно было только "Повторить" последний вопрос — сбросить
+    // весь видимый диалог было нельзя, старые сообщения копились до
+    // бесконечности. Чистит только ЭКРАН (sessionStorage + локальное
+    // состояние) — история на сервере (get_ai_history) не трогается,
+    // так что долгосрочная память ADAM о пользователе не теряется,
+    // просто следующий openHistory-запрос при перезаходе всё равно
+    // подтянет её обратно. Это осознанный выбор: "чистый экран" ощущается
+    // как новый диалог, не требуя отдельного эндпоинта на удаление истории.
+    const startNewDialog = () => {
+        const clear = () => {
+            setMessages([]);
+            try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch (e) { }
+            vibrate('medium');
+        };
+        if (!messages.length) { clear(); return; }
+        try {
+            tg.showConfirm('Начать новый диалог? Текущий останется в истории, но исчезнет с экрана.', (ok) => { if (ok) clear(); });
+        }
+        catch (e) {
+            if (window.confirm('Начать новый диалог? Текущий останется в истории, но исчезнет с экрана.')) clear();
         }
     };
     const quickPrompts = [
@@ -307,6 +456,8 @@ function AiChat() {
             React.createElement("div", { className: "header-buttons" },
                 React.createElement("button", { className: "icon-btn premium-icon", onClick: getTip, title: "\u0421\u043E\u0432\u0435\u0442 \u0434\u043D\u044F" },
                     React.createElement("span", null, "\u2726")),
+                React.createElement("button", { className: "icon-btn premium-icon", onClick: startNewDialog, title: "\u041D\u043E\u0432\u044B\u0439 \u0434\u0438\u0430\u043B\u043E\u0433" },
+                    React.createElement("span", null, "\uD83E\uDDF9")),
                 React.createElement("button", { className: "icon-btn premium-icon home-nav-btn", onClick: goHome, title: "\u0412 \u043C\u0435\u043D\u044E" },
                     React.createElement("span", null, "\uD83C\uDFE0")))),
         React.createElement("div", { className: "chat-toolbar" },
@@ -355,13 +506,13 @@ function AiChat() {
                             "ADAM"),
                         m.isCrisis && React.createElement("div", { className: "crisis-alert" }, "\u26A0\uFE0F \u0412\u0430\u0436\u043D\u043E"),
                         React.createElement("div", { className: "message-bubble" },
-                            React.createElement("div", { style: { whiteSpace: 'pre-wrap' } }, m.text)),
+                            React.createElement(TypewriterText, { key: 'tw-' + m.id, id: m.id, text: m.text, active: !!m.isNew })),
                         React.createElement("div", { className: "message-meta" },
                             React.createElement("span", null, m.time),
                             React.createElement("div", { className: "message-mini-actions" },
                                 m.canRate !== false && React.createElement(React.Fragment, null,
                                     React.createElement("button", { className: `rate-btn ${m.rated === 'up' ? 'is-active' : ''}`, onClick: () => rateMessage(m.id, 'up'), title: "Полезный ответ" }, "\uD83D\uDC4D"),
-                                    React.createElement("button", { className: `rate-btn ${m.rated === 'down' ? 'is-active' : ''}`, onClick: () => rateMessage(m.id, 'down'), title: "Не помогло" }, "\uD83D\uDC4E")),
+                                    React.createElement("button", { className: `rate-btn ${m.rated === 'down' ? 'is-active' : ''}`, onClick: () => rateDown(m.id), title: "Не помогло" }, "\uD83D\uDC4E")),
                                 React.createElement("button", { onClick: () => { copyMessage(m.text, m.id); showToast('Скопировано ✨'); } }, copiedId === m.id ? '✓' : '⧉'),
                                 !m.isCrisis && React.createElement("button", { onClick: () => regenerate(m), disabled: !m.sourcePrompt }, "\u21BB"))),
                         m.habit && React.createElement("div", { className: "habit-suggestion" },
