@@ -192,6 +192,27 @@ function AiChat() {
         setToast(text);
         setTimeout(() => setToast(''), 1500);
     };
+    // Бэкенд (/api/ai/feedback, webapp/routes_ai_miniapp.py) был полностью
+    // готов, но ни одна кнопка в интерфейсе его не вызывала — 👍/👎 нигде
+    // не отображались. save_ai_feedback() делает UPSERT по (message_id,
+    // user_id), так что повторный тап меняет оценку, а не дублирует её —
+    // поэтому можно не блокировать кнопку после первого клика.
+    const rateMessage = async (id, rating) => {
+        setMessages(p => p.map(m => m.id === id ? { ...m, rated: rating } : m));
+        vibrate('light');
+        try {
+            const res = await fetch('/api/ai/feedback', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ init_data: tg.initData, message_id: id, rating })
+            });
+            if (!res.ok) throw new Error();
+        }
+        catch (e) {
+            // Не критично — просто откатываем визуальное состояние, чтобы
+            // не врать пользователю, что оценка сохранилась.
+            setMessages(p => p.map(m => m.id === id ? { ...m, rated: null } : m));
+        }
+    };
     const copyMessage = async (text, id) => {
         try {
             await navigator.clipboard.writeText(text);
@@ -338,6 +359,9 @@ function AiChat() {
                         React.createElement("div", { className: "message-meta" },
                             React.createElement("span", null, m.time),
                             React.createElement("div", { className: "message-mini-actions" },
+                                m.canRate !== false && React.createElement(React.Fragment, null,
+                                    React.createElement("button", { className: `rate-btn ${m.rated === 'up' ? 'is-active' : ''}`, onClick: () => rateMessage(m.id, 'up'), title: "Полезный ответ" }, "\uD83D\uDC4D"),
+                                    React.createElement("button", { className: `rate-btn ${m.rated === 'down' ? 'is-active' : ''}`, onClick: () => rateMessage(m.id, 'down'), title: "Не помогло" }, "\uD83D\uDC4E")),
                                 React.createElement("button", { onClick: () => { copyMessage(m.text, m.id); showToast('Скопировано ✨'); } }, copiedId === m.id ? '✓' : '⧉'),
                                 !m.isCrisis && React.createElement("button", { onClick: () => regenerate(m), disabled: !m.sourcePrompt }, "\u21BB"))),
                         m.habit && React.createElement("div", { className: "habit-suggestion" },

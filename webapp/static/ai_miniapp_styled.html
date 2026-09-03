@@ -818,7 +818,7 @@ body{
 <body>
     <div id="root"></div>
 
-   <script src="/static/ai_coach.js?v=20260828_perf"></script>
+   <script src="/static/ai_coach.js?v=20260903_FEEDBACK_V1"></script>
 </body>
 </html>
 <style>
@@ -1412,6 +1412,21 @@ body{
  background:rgba(167,139,250,.16) !important;
  border-color:rgba(167,139,250,.30) !important;
  color:#fff !important;
+}
+/* Оценка ответа (👍/👎) — раньше бэкенд (/api/ai/feedback) существовал,
+   но ни одна кнопка в чате его не вызывала. Специфичность .message-mini-actions
+   .rate-btn.is-active нужна, чтобы перебить .message-mini-actions button:hover
+   выше — иначе наведённая (или недавно нажатая на тач-устройстве) кнопка
+   продолжает показывать нейтральный hover-цвет вместо цвета оценки. */
+.message-mini-actions .rate-btn.is-active{
+ background:rgba(110,231,183,.16) !important;
+ border-color:rgba(110,231,183,.4) !important;
+ color:#6EE7B7 !important;
+}
+.message-mini-actions .rate-btn.is-active[title="Не помогло"]{
+ background:rgba(239,68,68,.14) !important;
+ border-color:rgba(239,68,68,.38) !important;
+ color:#FF8080 !important;
 }
 .msg-avatar{
  box-shadow:0 8px 20px rgba(91,53,200,.4),0 0 0 1px rgba(255,255,255,.10) !important;

@@ -11,3 +11,4 @@ venv/
 .DS_Store
 .env.example
 webapp/static/_dev_preview.html
+webapp/static/_dev_preview_coach.html
