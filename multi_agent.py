@@ -308,27 +308,32 @@ STYLE_NOTES = {
 }
 DEFAULT_STYLE = "neutral"
 
-# Адаптивный бюджет ответа: чем длиннее вход, тем короче, но всё ещё
-# содержательнее ответ. Это снижает completion-токены без жёсткого ухудшения
-# качества и не заставляет модель писать длинные эссе.
-# Жалоба пользователя: ADAM обрывал ответ буквально посреди списка ("1." и
-# ничего дальше). Причина — бюджет считался от длины ВОПРОСА, а не от того,
-# сколько реально нужно для ответа: короткий бытовой вопрос ("как дела с
-# планом на сегодня") вполне может заслуживать развёрнутый структурированный
-# ответ (пояснение + нумерованный список действий), а 420 токенов на русском
-# тексте — это часто меньше одного такого списка целиком. Бюджеты подняты,
-# плюс у Groq (см. _groq_call) теперь есть та же аварийная подрезка до
-# последнего целого предложения, что уже была у резервного OpenAI-канала —
-# на случай, если модель всё равно упрётся в потолок.
+# Бюджет ответа. НЕ уменьшаем его для коротких вопросов — жалоба
+# пользователя показала, почему это было ошибкой: бюджет считался от длины
+# ВОПРОСА, а не от того, сколько реально нужно для ответа. Короткий бытовой
+# вопрос ("как мне лучше распланировать вечер?") вполне может заслуживать
+# развёрнутый структурированный ответ (пояснение + разбивка по времени +
+# несколько пунктов), а прежние 560-950 токенов на русском тексте — это
+# часто меньше одного такого плана целиком (кириллица в среднем "дороже"
+# по токенам, чем латиница). Нижняя граница поднята почти вдвое (560→900),
+# верхняя — до 1500: с запасом относительно char-лимита в _trim_answer_budget
+# ниже (макс. 3800 символов ≈ 1300 токенов даже при пессимистичной оценке
+# ~3 символа/токен на русском), так что реального "лишнего эссе" от этого
+# не будет — обрежет char-лимит, а не пустой запас токенов.
+# Плюс у _ask() теперь есть continuation (см. allow_continuation) — если
+# модель всё-таки упёрлась в потолок, вместо обрыва на полуслове делается
+# ОДИН доп. запрос "продолжи ровно с этого места", а не просто аварийная
+# подрезка до последнего целого предложения (та подрезка теперь только
+# самый последний fallback, если и continuation не помог).
 def _response_budget(task: str) -> tuple[int, int]:
     n = len((task or "").strip())
     if n <= 800:
-        return 560, 0
+        return 900, 0
     if n <= 2200:
-        return 720, 1
+        return 1100, 1
     if n <= 4000:
-        return 850, 2
-    return 950, 3
+        return 1300, 2
+    return 1500, 3
 
 
 def _trim_answer_budget(text: str, max_chars: int) -> str:
@@ -437,18 +442,37 @@ def _log_usage(response, provider: str) -> None:
         pass
 
 
+# Просим модель продолжить ровно с места обрыва, а не начинать заново —
+# отдельным сообщением, а не частью системного промпта, чтобы не путать
+# исходную инструкцию с этой разовой командой.
+_CONTINUE_INSTRUCTION = (
+    "Продолжи свой предыдущий ответ ровно с того места, где он оборвался. "
+    "Не повторяй уже написанное, не здоровайся заново и не добавляй "
+    "никаких вступлений — просто продолжи текст с полуслова, если нужно."
+)
+
+
 async def _ask(
     system: str,
     user: str,
     temperature: float = 0.7,
     max_tokens: int = 500,
     model: str = MODEL,
+    allow_continuation: bool = False,
 ) -> str:
     """Надёжный LLM-вызов для ADAM.
 
     Главная цель здесь — не максимальная экономия запросов, а стабильный
     пользовательский ответ. Один временный сбой провайдера не должен
     превращаться в пустой ответ или текст вида "ошибка агента" в чате.
+
+    allow_continuation — при упоре в max_tokens вместо аварийной подрезки
+    до последнего целого предложения (которая теряет часть содержания —
+    жалоба пользователя: ADAM отдавал явно НЕполный план/список) делается
+    ОДИН дополнительный запрос "продолжи ровно с этого места", и результат
+    склеивается. Включаем только для настоящих пользовательских ответов
+    (fast_answer) — не для внутренних классификаторов/экстракторов с
+    крошечным max_tokens, где upper-запрос не нужен и не имеет смысла.
 
     Порядок:
       1. основной провайдер (Groq, если задан ключ) — до 2 попыток;
@@ -462,12 +486,13 @@ async def _ask(
         client = _get_groq_client()
         if client is None:
             raise RuntimeError("GROQ_API_KEY не настроен")
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
         response = await client.chat.completions.create(
             model=GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
         )
@@ -476,17 +501,46 @@ async def _ask(
         result = _strip_markdown((choice.message.content or "").strip())
         # Жалоба пользователя: ответ обрывается посреди слова/списка ("1." и
         # ничего дальше) — Groq (основной провайдер) упирался в max_tokens
-        # и отдавал буквально то, что успел сгенерировать, БЕЗ подрезки до
-        # целого предложения. Тот же аварийный trim уже был у резервного
-        # OpenAI-канала (см. _openai_call ниже, status == "incomplete") —
-        # у Groq такой проверки не было вообще. finish_reason "length" у
-        # Groq/OpenAI-совместимого API — ровно тот же сигнал "не хватило
-        # токенов", что и incomplete_details.reason == "max_output_tokens".
-        if getattr(choice, "finish_reason", None) == "length":
-            result = _trim_to_last_sentence(result)
+        # и отдавал буквально то, что успел сгенерировать. finish_reason
+        # "length" у Groq/OpenAI-совместимого API — ровно тот же сигнал
+        # "не хватило токенов", что и incomplete_details.reason ==
+        # "max_output_tokens" у OpenAI ниже.
+        if getattr(choice, "finish_reason", None) == "length" and result:
+            if allow_continuation:
+                result = await _continue_groq(client, messages, result, temperature, max_tokens)
+            else:
+                result = _trim_to_last_sentence(result)
         if not result:
             raise RuntimeError("Groq вернул пустой ответ")
         return result
+
+    async def _continue_groq(client, base_messages, partial, temperature, max_tokens):
+        try:
+            response = await client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=base_messages + [
+                    {"role": "assistant", "content": partial},
+                    {"role": "user", "content": _CONTINUE_INSTRUCTION},
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            _log_usage(response, "groq")
+            choice = response.choices[0]
+            cont = _strip_markdown((choice.message.content or "").strip())
+            if not cont:
+                return _trim_to_last_sentence(partial)
+            combined = f"{partial.rstrip()} {cont.lstrip()}".strip()
+            # Продолжение само по себе тоже может упереться в лимит на
+            # действительно длинных ответах — здесь уже без повторного
+            # continuation (одного доп. запроса достаточно), просто
+            # аккуратно подрезаем до целого предложения.
+            if getattr(choice, "finish_reason", None) == "length":
+                combined = _trim_to_last_sentence(combined)
+            return combined
+        except Exception as e:
+            logger.warning("Groq continuation failed: %s", e)
+            return _trim_to_last_sentence(partial)
 
     async def _openai_call():
         client = _get_openai_client()
@@ -504,11 +558,42 @@ async def _ask(
         if status == "incomplete":
             details = getattr(response, "incomplete_details", None)
             reason = getattr(details, "reason", None) if details else None
-            if reason == "max_output_tokens":
-                text = _trim_to_last_sentence(text)
+            if reason == "max_output_tokens" and text:
+                if allow_continuation:
+                    text = await _continue_openai(client, system, user, text, max_tokens)
+                else:
+                    text = _trim_to_last_sentence(text)
         if not text:
             raise RuntimeError("OpenAI вернул пустой ответ")
         return text
+
+    async def _continue_openai(client, system, user, partial, max_tokens):
+        try:
+            response = await client.responses.create(
+                model=model,
+                instructions=system,
+                input=[
+                    {"role": "user", "content": user},
+                    {"role": "assistant", "content": partial},
+                    {"role": "user", "content": _CONTINUE_INSTRUCTION},
+                ],
+                max_output_tokens=max_tokens,
+            )
+            _log_usage(response, "openai")
+            cont = _strip_markdown((response.output_text or "").strip())
+            if not cont:
+                return _trim_to_last_sentence(partial)
+            combined = f"{partial.rstrip()} {cont.lstrip()}".strip()
+            status = getattr(response, "status", None)
+            if status == "incomplete":
+                details = getattr(response, "incomplete_details", None)
+                reason = getattr(details, "reason", None) if details else None
+                if reason == "max_output_tokens":
+                    combined = _trim_to_last_sentence(combined)
+            return combined
+        except Exception as e:
+            logger.warning("OpenAI continuation failed: %s", e)
+            return _trim_to_last_sentence(partial)
 
     if not GROQ_API_KEY and not OPENAI_API_KEY:
         raise RuntimeError("Не настроен ни GROQ_API_KEY, ни OPENAI_API_KEY")
@@ -633,13 +718,23 @@ async def fast_answer(
     # Не переводим длинный запрос автоматически на дорогую frontier-модель.
     # Groq остаётся быстрым основным каналом, а OpenAI используется как fallback.
     selected_model = MODEL if _needs_deep_pipeline(task) and len(task or "") > 4500 else FAST_MODEL
-    answer = await _ask(system, user, temperature=0.35, max_tokens=output_tokens, model=selected_model)
+    # allow_continuation=True — жалоба пользователя на обрывающиеся ответы
+    # ("1." и ничего дальше): это единственное место, где ADAM реально
+    # отвечает пользователю целым ответом (см. комментарий у _ask), поэтому
+    # именно здесь стоит доп. запрос-продолжение при упоре в лимит токенов.
+    answer = await _ask(system, user, temperature=0.35, max_tokens=output_tokens, model=selected_model, allow_continuation=True)
     # Дополнительная страховка по символам: даже если модель решила быть
     # многословной, пользователь получает законченный, компактный ответ.
     # Подняты вместе с _response_budget() (см. её комментарий) — иначе этот
     # более старый char-лимит начал бы сам подрезать теперь-более-длинные
     # ответы раньше, чем до них вообще доходит проверка по токенам.
-    max_chars = 1900 if len(task or "") <= 800 else 2700 if len(task or "") <= 2200 else 3400 if len(task or "") <= 4000 else 3800
+    # ~4 символа/токен (пессимистично для кириллицы) — с запасом над
+    # соответствующим token-бюджетом _response_budget(), включая то, что
+    # continuation мог добавить. Это должен быть предохранитель от реально
+    # неадекватной многословности, а не рутинный обрезчик обычных ответов —
+    # иначе он сам стал бы новой версией той же проблемы (обрыв не на
+    # уровне токенов, так на уровне символов).
+    max_chars = 3600 if len(task or "") <= 800 else 4400 if len(task or "") <= 2200 else 5200 if len(task or "") <= 4000 else 6500
     return _trim_answer_budget(answer, max_chars)
 
 
