@@ -818,7 +818,7 @@ body{
 <body>
     <div id="root"></div>
 
-   <script src="/static/ai_coach.js?v=20260903_UX_V2"></script>
+   <script src="/static/ai_coach.js?v=20260903_LIGHT_V1"></script>
 </body>
 </html>
 <style>
@@ -1532,5 +1532,52 @@ body{
 .message-bubble ul,.message-bubble ol{margin:6px 0;padding-left:20px}
 .message-bubble li{margin:3px 0}
 .message-bubble ul{list-style:disc}
+
+/* =========================================================
+   СВЕТЛАЯ ТЕМА — раньше эта страница игнорировала выбор темы в
+   настройках основного приложения и оставалась тёмной всегда.
+   Меняется ТОЛЬКО холст (body) и текст приветственного экрана —
+   header/toolbar/composer/пузыри сообщений остаются тёмным "стеклом"
+   в обеих темах: у каждого из них своя НЕПРОЗРАЧНАЯ тёмная подложка
+   (см. ADAM SIGNATURE CHAT REDESIGN выше — rgba(10,8,15,.72) на header,
+   rgba(35,30,48,.94) на пузырях ассистента и т.д.), а не просвечивающий
+   холст — точно так же, как карточки в основном приложении остаются
+   тёмными на светлом фоне (см. style.css, .habits-panel и другие).
+   ========================================================= */
+:root[data-mode="light"] body{
+  background:
+    radial-gradient(1000px 620px at 50% -14%,rgba(139,92,246,.18),transparent 60%),
+    radial-gradient(700px 560px at 108% 22%,rgba(255,183,54,.14),transparent 62%),
+    radial-gradient(680px 540px at -10% 82%,rgba(99,72,220,.12),transparent 60%),
+    linear-gradient(180deg,#FAF8FF 0%,#EEE7FA 45%,#E1D6F0 100%) !important;
+}
+/* .empty-title/.empty-text — единственный текст во всей странице, что
+   лежит ПРЯМО на холсте без тёмной карточки-подложки (приветственный
+   экран "Привет, я ADAM" до первого сообщения) — светлые #F4F1FA/#B6B2C4
+   читались на тёмном холсте, но стали бы почти невидимы на светлом. */
+:root[data-mode="light"] .empty-title{color:#241D3D !important}
+:root[data-mode="light"] .empty-text{color:#5B5570 !important}
+/* adam_premium_overrides.css красит первую букву заголовка в бледно-
+   сиреневый (#D7CFFF) — эффектно на тёмном холсте, почти невидимо на
+   светлом. */
+:root[data-mode="light"] .empty-title::first-letter{color:#6D4FE0 !important}
+/* .habit-suggestion (карточка "ADAM предлагает привычку") и .error-card
+   (⚠️ сообщение об ошибке) — обе сидят прямо в ленте сообщений, как и
+   .empty-state, БЕЗ непрозрачной тёмной подложки (background у них —
+   полупрозрачная золотая/красная плёнка в 8-12% непрозрачности, канва
+   сильно просвечивает). Бледный текст (#F1EBCF/#D7B94E/#FFE58A/#E6C7C7),
+   рассчитанный на тёмный холст, становится почти нечитаемым на светлом. */
+:root[data-mode="light"] .habit-suggestion strong{color:#5B4300 !important}
+:root[data-mode="light"] .habit-label{color:#8A6D00 !important}
+:root[data-mode="light"] .add-habit-btn{
+  color:#5B4300 !important;
+  background:rgba(240,180,41,.28) !important;
+  border-color:rgba(240,180,41,.5) !important;
+}
+:root[data-mode="light"] .error-card{
+  color:#8A2020 !important;
+  background:rgba(239,68,68,.10) !important;
+  border-color:rgba(239,68,68,.25) !important;
+}
 
 </style>

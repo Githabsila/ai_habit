@@ -4,16 +4,61 @@ try {
     if (lowPower) document.documentElement.classList.add('performance-lite');
 } catch (e) {}
 const tg = window.Telegram.WebApp;
+// Тема (светлая/тёмная) — раньше эта страница ВСЕГДА была тёмной,
+// независимо от выбора в настройках основного приложения (Профиль →
+// Тема оформления): --bg был захардкожен, body{background:...#06040b}
+// не читал ничего из state.settings.color_mode. Header/toolbar/composer/
+// пузыри сообщений намеренно ОСТАЮТСЯ тёмным "стеклом" в обеих темах
+// (у них у всех непрозрачный тёмный фон сам по себе — см. комментарий
+// у :root[data-mode="light"] body ниже) — меняется только сам холст
+// (body) и текст приветственного экрана, который раньше лежал прямо на
+// холсте без тёмной подложки.
+// localStorage — синхронный кэш, применяется СРАЗУ (до первого рендера),
+// чтобы не было вспышки неправильной темы; /api/bootstrap ниже лишь
+// подтверждает/поправляет его в фоне на случай, если тема поменялась
+// в основном приложении с прошлого открытия чата.
+const COLOR_MODE_CACHE_KEY = 'adam_color_mode';
+function applyColorMode(mode) {
+    const isLight = mode === 'light';
+    document.documentElement.setAttribute('data-mode', isLight ? 'light' : 'dark');
+    try {
+        tg.setBackgroundColor(isLight ? '#EFEAF9' : '#07040E');
+    }
+    catch (e) { }
+}
+let cachedColorMode = 'dark';
+try {
+    cachedColorMode = localStorage.getItem(COLOR_MODE_CACHE_KEY) || 'dark';
+}
+catch (e) { }
+applyColorMode(cachedColorMode);
 tg.ready();
 try {
     tg.expand();
 }
 catch (e) { }
 try {
+    // Хедер и системная шапка Telegram намеренно остаются тёмными в обеих
+    // темах — .header это непрозрачная тёмная "стеклянная" карточка сама
+    // по себе (см. ADAM SIGNATURE CHAT REDESIGN в CSS), а не часть холста.
     tg.setHeaderColor('#07040E');
-    tg.setBackgroundColor('#07040E');
 }
 catch (e) { }
+fetch('/api/bootstrap', { headers: { 'X-Telegram-Init-Data': tg.initData } })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+    const mode = data && data.settings && data.settings.color_mode;
+    if (mode && mode !== cachedColorMode) {
+        applyColorMode(mode);
+    }
+    if (mode) {
+        try {
+            localStorage.setItem(COLOR_MODE_CACHE_KEY, mode);
+        }
+        catch (e) { }
+    }
+})
+    .catch(() => { });
 function applySafeArea() {
     const top = (tg.contentSafeAreaInset && tg.contentSafeAreaInset.top || 0)
         + (tg.safeAreaInset && tg.safeAreaInset.top || 0);
