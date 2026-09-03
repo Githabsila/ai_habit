@@ -128,6 +128,44 @@ def has_reached_daily_limit(user_id, item_id, item=None):
     return count_purchases_today(user_id, item_id) >= limit
 
 
+# =====================================
+# ИДЕМПОТЕНТНОСТЬ ПЛАТЕЖЕЙ STARS
+# =====================================
+# См. db/core.py::stars_payments — защита от двойного начисления награды,
+# если Telegram повторно доставит один и тот же successful_payment.
+
+def is_payment_processed(charge_id):
+    """True, если этот telegram_payment_charge_id уже был обработан раньше —
+    handlers/payments.py должен молча подтвердить оплату (она реально
+    прошла), но НЕ начислять награду второй раз."""
+    if not charge_id:
+        return False
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM stars_payments WHERE charge_id=?", (charge_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+
+def mark_payment_processed(charge_id, user_id, payload, amount):
+    """Записывает charge_id ДО начисления награды в handlers/payments.py.
+    INSERT OR IGNORE — если между is_payment_processed() и этим вызовом
+    случилась гонка, UNIQUE PRIMARY KEY на charge_id просто тихо не даст
+    вставить дубликат, повторное начисление всё равно не произойдёт
+    благодаря проверке в вызывающем коде."""
+    if not charge_id:
+        return
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR IGNORE INTO stars_payments(charge_id, user_id, payload, amount) VALUES (?, ?, ?, ?)",
+        (charge_id, user_id, payload, amount),
+    )
+    conn.commit()
+    conn.close()
+
+
 def log_stars_purchase(user_id, item_id):
     """Покупки за Telegram Stars списываются не через buy_shop_item (та
     функция тратит Adam Coin), поэтому для дневного лимита их нужно

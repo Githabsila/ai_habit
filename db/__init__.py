@@ -187,6 +187,7 @@ from .shop import (
     get_item_owner_ids,
     get_shop_item, set_cosmetic, add_ai_bonus_answers, get_ai_quota, consume_ai_answer,
     count_purchases_today, has_reached_daily_limit, log_stars_purchase,
+    is_payment_processed, mark_payment_processed,
 )
 
 from .onboarding import (
@@ -332,6 +333,7 @@ __all__ = [
     "has_item", "get_item_owner_ids", "update_theme", "get_theme",
     "get_color_mode", "update_color_mode", "VALID_COLOR_MODES",
     "count_purchases_today", "has_reached_daily_limit", "log_stars_purchase",
+    "is_payment_processed", "mark_payment_processed",
     "get_access_status", "set_access_status", "reject_user", "get_pending_users",
     "get_users_pending_since", "get_access_status_counts",
     "save_survey_answers", "save_survey_analysis", "get_survey", "get_survey_tags",

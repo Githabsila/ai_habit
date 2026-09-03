@@ -1,3 +1,4 @@
+import logging
 import os
 import sqlite3
 import sys
@@ -5,6 +6,8 @@ import threading
 import time
 
 from datetime import datetime
+
+logger = logging.getLogger("backups")
 
 # Даёт доступ к DATA_DIR/DB_PATH из db.py, чтобы бэкапы 100% указывали
 # на тот же файл, что и сама база, а не на случайную копию в другом месте.
@@ -154,3 +157,42 @@ def start_backup_scheduler():
     thread.start()
 
     print("💾 Автобэкап запущен")
+
+
+# =====================================
+# ОФФСАЙТ-КОПИЯ (за пределы Railway volume)
+# =====================================
+# create_backup() выше защищает от порчи самой users.db, но кладёт бэкап
+# РЯДОМ, на тот же Railway volume — если весь volume будет потерян целиком
+# (инцидент платформы, случайное удаление сервиса), пропадут и база, и все
+# её бэкапы одновременно. Единственная реально независимая копия — та, что
+# уехала за пределы Railway. Раз в неделю (см. main.py) отправляем свежий
+# бэкап админу в Telegram документом: бесплатно, не требует внешнего
+# хранилища, и лежит в облаке Telegram, а не на диске сервиса.
+
+async def send_offsite_backup(bot):
+    from aiogram.types import FSInputFile
+
+    from config import ADMIN_ID
+    from db import log_error
+
+    if not os.path.exists(BACKUP_FOLDER):
+        return
+
+    backups = sorted(f for f in os.listdir(BACKUP_FOLDER) if f.endswith(".db"))
+    if not backups:
+        return
+
+    latest = os.path.join(BACKUP_FOLDER, backups[-1])
+    try:
+        await bot.send_document(
+            chat_id=ADMIN_ID,
+            document=FSInputFile(latest),
+            caption=f"💾 Еженедельный оффсайт-бэкап базы: {backups[-1]}",
+        )
+    except Exception as e:
+        logger.warning(f"Не удалось отправить оффсайт-бэкап админу: {e}")
+        try:
+            log_error("backup_offsite_send", e)
+        except Exception:
+            pass

@@ -1051,5 +1051,22 @@ def create_tables():
     if "gender_explicit" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN gender_explicit INTEGER DEFAULT 0")
 
+    # ---------------- Идемпотентность платежей Telegram Stars ----------------
+    # Telegram может редоставить update с successful_payment повторно (сбой
+    # сети, рестарт бота между получением апдейта и обработкой) — без этой
+    # таблицы handlers/payments.py начислил бы награду дважды за одну и ту
+    # же оплату. telegram_payment_charge_id уникален для каждой реальной
+    # транзакции Stars — UNIQUE ловит повтор на уровне БД, даже если сама
+    # проверка в коде почему-то будет пропущена.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS stars_payments(
+        charge_id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        payload TEXT,
+        amount INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     conn.commit()
     conn.close()

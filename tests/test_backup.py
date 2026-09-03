@@ -50,3 +50,60 @@ def test_create_backup_logs_error_on_integrity_failure(monkeypatch, tmp_path):
     after = get_error_stats(hours=24)["total"]
 
     assert after == before + 1
+
+
+# =====================================
+# ОФФСАЙТ-КОПИЯ (send_offsite_backup)
+# =====================================
+# Единственная копия бэкапа за пределами Railway volume — см. комментарий
+# в backups/backup.py. Проверяем, что она реально уезжает админу и что
+# отсутствие бэкапов/сбой отправки не роняют планировщик.
+
+class _FakeBot:
+    def __init__(self, raise_on_send=False):
+        self.sent = []
+        self.raise_on_send = raise_on_send
+
+    async def send_document(self, chat_id, document, caption=None):
+        if self.raise_on_send:
+            raise RuntimeError("Telegram недоступен")
+        self.sent.append((chat_id, document, caption))
+
+
+async def test_send_offsite_backup_sends_latest_file(tmp_path):
+    import backups.backup as backup_mod
+
+    backup_mod.BACKUP_FOLDER = str(tmp_path)
+    backup_mod.create_backup()
+
+    bot = _FakeBot()
+    await backup_mod.send_offsite_backup(bot)
+
+    assert len(bot.sent) == 1
+
+
+async def test_send_offsite_backup_noop_when_no_backups_exist(tmp_path):
+    import backups.backup as backup_mod
+
+    backup_mod.BACKUP_FOLDER = str(tmp_path)
+
+    bot = _FakeBot()
+    await backup_mod.send_offsite_backup(bot)
+
+    assert bot.sent == []
+
+
+async def test_send_offsite_backup_swallows_send_failure(tmp_path):
+    """Сбой отправки (Telegram недоступен и т.п.) не должен ронять
+    планировщик — только залогироваться (см. error_log)."""
+    import backups.backup as backup_mod
+
+    backup_mod.BACKUP_FOLDER = str(tmp_path)
+    backup_mod.create_backup()
+
+    bot = _FakeBot(raise_on_send=True)
+    before = get_error_stats(hours=24)["total"]
+    await backup_mod.send_offsite_backup(bot)
+    after = get_error_stats(hours=24)["total"]
+
+    assert after == before + 1

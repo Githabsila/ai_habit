@@ -11,6 +11,7 @@ from db import (
     give_premium_admin, set_cosmetic, get_shop_item, add_ai_bonus_answers, log_stars_purchase,
     get_subscription_price_stars, record_subscription_payment, get_subscription_status,
     try_grant_channel_access, activate_xp_booster, get_timezone,
+    is_payment_processed, mark_payment_processed, log_error,
 )
 from keyboards import premium_buy_keyboard, back_menu_keyboard, subscription_buy_keyboard
 
@@ -93,6 +94,18 @@ async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
 async def successful_payment(message: Message):
     payment = message.successful_payment
     payload = str(payment.invoice_payload or "")
+
+    # Защита от двойного начисления: Telegram изредка может повторно
+    # доставить update с successful_payment (сетевой сбой/рестарт бота
+    # между получением апдейта и обработкой) — без этой проверки
+    # пользователь получил бы награду дважды за одну и ту же оплату.
+    # telegram_payment_charge_id уникален для каждой реальной транзакции
+    # Stars, в отличие от invoice_payload (тот может повторяться).
+    charge_id = payment.telegram_payment_charge_id
+    if is_payment_processed(charge_id):
+        log_error("duplicate_payment", f"charge_id={charge_id} payload={payload}", message.from_user.id)
+        return
+    mark_payment_processed(charge_id, message.from_user.id, payload, payment.total_amount)
 
     # Покупка платной рамки из Mini App через Telegram Stars.
     if payload.startswith("avatar_frame:"):
