@@ -101,7 +101,9 @@
   // серию дней подряд, теперь принимает произвольный заголовок/большое
   // число/статус, чтобы её же переиспользовать для недельного итога
   // (см. initDataSupportActions -> #shareWeeklyBtn).
+  let lastShareCard = null; // запоминаем для кнопки "Поделиться" внутри карточки
   function openAchievementShare({ title, big, status }) {
+    lastShareCard = { title, big, status };
     const overlay = document.getElementById("achievementShareOverlay");
     const titleEl = document.getElementById("achievementShareTitle");
     const daysEl = document.getElementById("achievementShareDays");
@@ -1086,6 +1088,25 @@
       overlay.classList.remove("show");
       overlay.setAttribute("aria-hidden", "true");
       setTimeout(() => { overlay.hidden = true; }, 220);
+    });
+    // Раньше карточка только красиво показывалась и закрывалась — реального
+    // шаринга не было. t.me/share/url — официальный способ Telegram открыть
+    // выбор чата для пересылки текста, работает без версионных ограничений
+    // Bot API (в отличие от shareToStory) и без генерации картинки на сервере.
+    document.getElementById("achievementShareSend")?.addEventListener("click", () => {
+      const card = lastShareCard || {};
+      const botUsername = state?.bot_username;
+      const refLink = botUsername
+        ? `https://t.me/${botUsername}?start=${state?.user?.telegram_id || ""}`
+        : "https://t.me";
+      const text = `${card.title || "Мой прогресс"} в Project ADAM: ${card.big || ""} 🔥\n\nПрисоединяйся — трекер привычек с AI-коучем:`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(text)}`;
+      if (tg && typeof tg.openTelegramLink === "function") {
+        tg.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, "_blank");
+      }
+      haptic("light");
     });
     const freezeSheet = document.getElementById("freezePurchaseSheet");
     const closeFreezeSheet = () => {
@@ -3316,7 +3337,65 @@ function initSettingsActions() {
     }
   });
 
+  // Необратимо (см. db/account.py::request_account_deletion) — двойное
+  // подтверждение вместо одного, в отличие от "Сбросить" выше: там теряется
+  // только прогресс, здесь весь аккаунт (профиль, привычки, переписка).
+  // window.prompt() здесь не используем — не гарантированно поддерживается
+  // Telegram WebView, в отличие от window.confirm (уже используется выше).
+  document.getElementById("deleteAccountBtn")?.addEventListener("click", async () => {
+    if (!window.confirm("Удалить аккаунт БЕЗВОЗВРАТНО? Пропадут профиль, все привычки, серия, переписка с ADAM и покупки. Отменить это будет нельзя.")) return;
+    if (!window.confirm("Точно-точно? Это последнее предупреждение — восстановить аккаунт после этого будет невозможно.")) return;
+    try {
+      await api("/api/account/delete", { method: "POST" });
+      haptic("heavy");
+      showToast("Аккаунт удалён", "success");
+      if (tg && typeof tg.close === "function") {
+        setTimeout(() => tg.close(), 1200);
+      }
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+
   initQuietHoursActions();
+}
+
+// ===================== «ЧТО НОВОГО» =====================
+// Раньше об обновлениях узнавали только по факту (или никак). Вызывается
+// один раз за сессию, после первого успешного bootstrap (см. boot()) —
+// не на каждый последующий reload данных.
+async function initChangelogCheck() {
+  try {
+    const { entries } = await api("/api/changelog/unseen");
+    if (!entries || !entries.length) return;
+
+    const list = document.getElementById("changelogList");
+    if (list) {
+      list.innerHTML = entries.map(e => `
+        <div class="changelog-item">
+          <div class="changelog-item__title">${escapeHtml(e.title)}</div>
+          <div class="changelog-item__body">${escapeHtml(e.body)}</div>
+        </div>
+      `).join("");
+    }
+
+    const sheet = document.getElementById("changelogSheet");
+    if (!sheet) return;
+    sheet.hidden = false;
+    requestAnimationFrame(() => sheet.classList.add("is-open"));
+    sheet.setAttribute("aria-hidden", "false");
+
+    const close = async () => {
+      sheet.classList.remove("is-open");
+      sheet.setAttribute("aria-hidden", "true");
+      setTimeout(() => { sheet.hidden = true; }, 230);
+      try { await api("/api/changelog/seen", { method: "POST" }); } catch (e) {}
+    };
+    document.getElementById("changelogClose")?.addEventListener("click", close, { once: true });
+    document.getElementById("changelogBackdrop")?.addEventListener("click", close, { once: true });
+  } catch (err) {
+    // Не критично — просто не показываем "что нового" в этот раз.
+  }
 }
 
 // Roadmap #35 — "тихие часы": окно локальных часов, в которое не приходят
@@ -3678,6 +3757,32 @@ function initDataSupportActions() {
     }
   });
 
+  document.getElementById("exportFullDataBtn")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/account/export", {
+        headers: { "Authorization": "tma " + initData() },
+      });
+      if (!res.ok) throw new Error("export_failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "adam_data.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      haptic("light");
+      showToast("Файл готов", "success");
+    } catch (err) {
+      showToast("Не получилось скачать данные", "error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // Уведомления "в 100 раз лучше": не чёрный ящик — история реально
   // отправленных плановых сообщений, а не только "включено/выключено".
   document.getElementById("notificationHistoryBtn")?.addEventListener("click", async (e) => {
@@ -3865,6 +3970,7 @@ async function boot() {
         if (!postBootstrapInitDone) {
             initSettingsActions();
             initDataSupportActions();
+            initChangelogCheck();
             // Эти три читают state.settings/state.user СИНХРОННО в момент своей
             // инициализации (не только внутри later-колбэков) — как и
             // initSettingsActions/initDataSupportActions выше, обязаны идти

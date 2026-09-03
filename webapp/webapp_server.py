@@ -71,6 +71,8 @@ from db import (
     get_friend_activity_feed,
     get_notification_history,
     log_client_error,
+    export_full_account_data, request_account_deletion,
+    get_unseen_changelog_entries, mark_changelog_seen,
 )
 
 from datetime import date, datetime, timezone
@@ -242,6 +244,27 @@ async def error_middleware(request, handler):
 
 # ====================== МАРШРУТЫ ======================
 
+# Юзернейм бота нужен фронту, чтобы собрать реферальную ссылку и текст
+# для кнопки "Поделиться" (achievement-share-overlay) — раньше карточка
+# только красиво показывалась и закрывалась, реального шаринга не было.
+# Кэшируем на весь процесс: один вызов Telegram API вместо одного на
+# каждое открытие Mini App.
+_BOT_USERNAME_CACHE = {"value": None}
+
+
+async def _get_bot_username(bot):
+    if _BOT_USERNAME_CACHE["value"]:
+        return _BOT_USERNAME_CACHE["value"]
+    if not bot:
+        return None
+    try:
+        me = await bot.get_me()
+        _BOT_USERNAME_CACHE["value"] = me.username
+        return me.username
+    except Exception:
+        return None
+
+
 @routes.get("/api/bootstrap")
 async def bootstrap(request):
     """Критический снимок для первого экрана.
@@ -262,8 +285,10 @@ async def bootstrap(request):
     bonus_until_dt = get_bonus_window(telegram_id)
     has_incomplete_habits = any(not h["completed"] for h in habits)
     bonus_active = bool(bonus_until_dt and bonus_until_dt > datetime.now(timezone.utc).replace(tzinfo=None) and has_incomplete_habits)
+    bot_username = await _get_bot_username(request.app.get("bot"))
 
     return web.json_response({
+        "bot_username": bot_username,
         "user": {
             "telegram_id": telegram_id,
             "first_name": user["first_name"] if user else "",
@@ -442,6 +467,21 @@ async def notification_history_route(request):
     для всех), а не чёрный ящик."""
     telegram_id, _ = await _authenticate(request)
     return web.json_response({"history": get_notification_history(telegram_id)})
+
+
+@routes.get("/api/changelog/unseen")
+async def changelog_unseen_route(request):
+    """«Что нового» — см. db/changelog.py. Фронт показывает эти записи
+    модальным окном один раз при открытии, затем сразу шлёт /seen."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({"entries": get_unseen_changelog_entries(telegram_id)})
+
+
+@routes.post("/api/changelog/seen")
+async def changelog_seen_route(request):
+    telegram_id, _ = await _authenticate(request)
+    mark_changelog_seen(telegram_id)
+    return web.json_response({"ok": True})
 
 
 @routes.get("/api/bootstrap-secondary")
@@ -1139,6 +1179,31 @@ async def set_goals_route(request):
 async def reset_progress_route(request):
     telegram_id, _ = await _authenticate(request)
     reset_progress(telegram_id)
+    return web.json_response({"ok": True})
+
+
+# ====================== САМООБСЛУЖИВАНИЕ АККАУНТА ======================
+# Раньше единственный способ выгрузить свои данные целиком или удалить
+# аккаунт был написать на email из privacy.html и ждать до 30 дней, пока
+# это вручную сделает админ (см. db/account.py).
+
+@routes.get("/api/account/export")
+async def account_export_route(request):
+    telegram_id, _ = await _authenticate(request)
+    data = export_full_account_data(telegram_id)
+    response = web.json_response(data, dumps=lambda d: json.dumps(d, ensure_ascii=False, indent=2))
+    response.headers["Content-Disposition"] = f'attachment; filename="adam_data_{telegram_id}.json"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@routes.post("/api/account/delete")
+async def account_delete_route(request):
+    """Необратимо (см. db/account.py::request_account_deletion) — фронт
+    обязан показать явное подтверждение ПЕРЕД этим запросом, здесь его
+    больше негде перепроверить."""
+    telegram_id, _ = await _authenticate(request)
+    request_account_deletion(telegram_id)
     return web.json_response({"ok": True})
 
 # ====================== ЕЖЕДНЕВНЫЕ ЗАДАНИЯ / БОНУС ======================

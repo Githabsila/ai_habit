@@ -1,4 +1,5 @@
 from aiogram import Router, F
+from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
@@ -24,6 +25,7 @@ from db import (
     get_progress,
     search_users_by_tag,
     get_users_by_tags,
+    add_changelog_entry,
 )
 
 from handlers.onboarding import notify_approved
@@ -408,6 +410,37 @@ async def admin_stats(callback: CallbackQuery):
 
     await callback.message.answer(build_stats_report(), parse_mode="HTML")
     await callback.answer()
+
+
+# =====================================
+# «ЧТО НОВОГО» (changelog в Mini App)
+# =====================================
+# Первая строка — заголовок, всё остальное — текст. Не через кнопку
+# admin_keyboard (это редкое разовое действие, не стоит захламлять и без
+# того большую панель ради него отдельной FSM-веткой) — обычная команда,
+# доступная только админам, см. db/changelog.py.
+
+@router.message(Command("changelog"))
+async def add_changelog(message: Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    text = (message.text or "").split(maxsplit=1)
+    if len(text) < 2 or "\n" not in text[1]:
+        await message.answer(
+            "Формат:\n<code>/changelog Заголовок\nТекст записи, можно в несколько строк</code>",
+            parse_mode="HTML",
+        )
+        return
+
+    title, body = text[1].split("\n", 1)
+    title, body = title.strip(), body.strip()
+    if not title or not body:
+        await message.answer("Заголовок и текст не могут быть пустыми.")
+        return
+
+    add_changelog_entry(title, body)
+    await message.answer(f"✅ Добавлено в «Что нового»:\n\n<b>{title}</b>\n{body}", parse_mode="HTML")
 
 
 # =====================================

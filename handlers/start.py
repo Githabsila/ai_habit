@@ -32,6 +32,7 @@ async def start(message: Message, state: FSMContext):
 
     # Проверяем реферальную ссылку
     args = message.text.split()
+    referred_bonus_given = False
 
     if len(args) > 1:
 
@@ -57,6 +58,13 @@ async def start(message: Message, state: FSMContext):
                     # Начисляем бонус пригласившему
                     add_xp(referrer_id, 100)
 
+                    # Бонус и приглашённому — раньше выгоду от рефералки
+                    # получала только одна сторона, что слабее мотивирует
+                    # переходить по ссылке (в отличие от "пригласи и оба
+                    # получите бонус").
+                    add_xp(message.from_user.id, 50)
+                    referred_bonus_given = True
+
         except ValueError:
             pass
 
@@ -74,6 +82,8 @@ async def start(message: Message, state: FSMContext):
     status = get_access_status(message.from_user.id)
 
     if not is_admin and status == "new":
+        if referred_bonus_given:
+            await message.answer("🎁 Бонус за переход по приглашению друга: +50 Adam Coin!")
         await begin_survey(message, state)
         return
 
@@ -84,6 +94,9 @@ async def start(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
         return
+
+    if referred_bonus_given:
+        await message.answer("🎁 Бонус за переход по приглашению друга: +50 Adam Coin!")
 
     # Приветственное сообщение
     await message.answer(

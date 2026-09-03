@@ -356,4 +356,9 @@ __all__ = [
     "get_subscription_price_stars", "record_subscription_payment",
     "gate_applies_to", "bot_access_allowed", "get_subscription_status",
     "mark_channel_access_granted", "try_grant_channel_access",
+    "export_full_account_data", "request_account_deletion",
+    "add_changelog_entry", "get_unseen_changelog_entries", "mark_changelog_seen",
 ]
+
+from .account import export_full_account_data, request_account_deletion
+from .changelog import add_changelog_entry, get_unseen_changelog_entries, mark_changelog_seen

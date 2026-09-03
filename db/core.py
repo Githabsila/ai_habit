@@ -1068,5 +1068,28 @@ def create_tables():
     )
     """)
 
+    # ---------------- «Что нового» (changelog внутри Mini App) ----------------
+    # Раньше об обновлениях узнавали только по факту (или никак) — теперь
+    # каждая запись здесь показывается пользователю один раз модальным окном
+    # при следующем открытии Mini App (см. db/changelog.py,
+    # webapp_server.py /api/changelog/*). last_seen_changelog_id — ID
+    # последней увиденной записи, а не TIMESTAMP: секундная точность
+    # CURRENT_TIMESTAMP в SQLite создавала реальный race condition (запись,
+    # добавленная в ту же секунду, что и отметка "просмотрено", терялась бы
+    # или наоборот показывалась повторно). Целочисленный ID монотонен и
+    # такой гонки не имеет. DEFAULT 0 (а не NULL) — у всех существующих
+    # пользователей на момент этой миграции корректно означает "не видел
+    # ни одной из уже существующих записей" (id начинаются с 1).
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS changelog_entries(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    if "last_seen_changelog_id" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_seen_changelog_id INTEGER DEFAULT 0")
+
     conn.commit()
     conn.close()

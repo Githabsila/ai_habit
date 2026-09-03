@@ -7511,6 +7511,26 @@ body{
   50%{transform:scale(1.035)}
 }
 
+/* "Поделиться" — реальное действие поверх декоративной карточки (раньше
+   у неё была только кнопка закрытия). Вторичный стиль (стекло, без
+   градиентной анимации close-кнопки) — он не должен спорить с ней
+   за внимание, просто стоять рядом как более спокойный вариант. */
+.achievement-share-actions__share{
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  width:100%;
+  padding:13px 20px;
+  margin-bottom:10px;
+  border-radius:20px;
+  font-size:15px;
+  font-weight:700;
+  color:#fff;
+  background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.22);
+  backdrop-filter:none;
+  transition:transform .16s cubic-bezier(.34,1.56,.64,1), background .15s ease;
+}
+.achievement-share-actions__share:active{transform:scale(.965);background:rgba(255,255,255,.22)}
+
 .achievement-share-close{
   position:relative;
   overflow:hidden;
@@ -8631,6 +8651,19 @@ body{
 }
 .feedback-card h3{margin:0;text-align:center;font:800 19px 'Space Grotesk',sans-serif;color:#F4F7FF}
 .feedback-card p{margin:7px auto 14px;max-width:340px;text-align:center;color:#9EA8BD;font-size:11px;line-height:1.45}
+.changelog-list{
+  display:flex;flex-direction:column;gap:10px;
+  margin:10px 0 14px;max-height:min(50vh,420px);overflow-y:auto;
+}
+.changelog-item{
+  padding:12px 14px;border-radius:14px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);
+}
+.changelog-item__title{font:800 14px 'Space Grotesk',sans-serif;color:#F4F7FF;margin-bottom:4px}
+.changelog-item__body{font-size:12.5px;line-height:1.5;color:#9EA8BD;white-space:pre-line}
+:root[data-mode="light"] .changelog-item{background:rgba(0,0,0,.035);border-color:rgba(0,0,0,.08)}
+:root[data-mode="light"] .changelog-item__title{color:#1C1730}
+:root[data-mode="light"] .changelog-item__body{color:#5B5570}
 .feedback-textarea{
   width:100%;min-height:96px;padding:12px 14px;margin-bottom:12px;
   border-radius:14px;border:1px solid rgba(255,255,255,.08);
