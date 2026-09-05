@@ -9317,6 +9317,23 @@ body{
   background: rgba(255,255,255,.95) !important;
 }
 
+/* .player-card — тот же паттерн, что .tab-bar выше (постоянный
+   backdrop-filter:blur(22px) + ПОСТОЯННО анимированный ::before,
+   cardGlow/cardShineStable, 5.8-6s infinite). Карточка не зафиксирована
+   (не sticky/fixed) — уходит из вьюпорта и возвращается при обычном
+   скролле, и остаётся в DOM поверх смены вкладок (см. header.player-card
+   в index.html, вне .tab-panel). Та же осторожность: постоянный вид
+   НЕ трогаем, blur гасим только на время всплеска (initScrollPerfGuard
+   и initTabs в app.js навешивают/снимают .is-scrolling).
+   ВАЖНО: остаётся тёмной даже в светлой теме (см. правило чуть ниже про
+   :root[data-mode="light"] .player-card — только текст меняется),
+   поэтому отдельного light-варианта фона тут не требуется. */
+.player-card.is-scrolling{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(18,14,28,.94) !important;
+}
+
 /* ============================================================
    СВЕТЛАЯ ТЕМА — корневая причина оставшихся "выцветших" карточек
    ============================================================

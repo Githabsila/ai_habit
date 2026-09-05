@@ -71,14 +71,28 @@
   // Вместо этого на время самого скролла (+150мс после остановки) дорогой
   // blur временно выключается классом — в состоянии покоя визуально ничего
   // не меняется.
+  // .player-card (верхняя карточка уровня) — тот же паттерн, что и
+  // .tab-bar: постоянный backdrop-filter:blur(22px) поверх ПОСТОЯННО
+  // анимированного ::before (бегущий блик, 5.8s infinite). Карточка не
+  // зафиксирована (не sticky/fixed) — при обычном скролле она уходит и
+  // возвращается в вьюпорт, и это ровно тот же класс WebView-бага
+  // (см. комментарий у .tab-bar.is-scrolling в style.css). Раньше эта
+  // карточка получила только транслейт-промоушен слоя (translateZ(0)),
+  // сам blur не трогали. Чиним так же аккуратно, как .tab-bar: blur
+  // выключаем ТОЛЬКО на время активного скролла, в покое — как было.
   (function initScrollPerfGuard() {
     const bar = document.querySelector(".tab-bar");
-    if (!bar) return;
+    const card = document.querySelector("header.player-card");
+    if (!bar && !card) return;
     let scrollTimer = null;
     window.addEventListener("scroll", () => {
-      bar.classList.add("is-scrolling");
+      bar?.classList.add("is-scrolling");
+      card?.classList.add("is-scrolling");
       clearTimeout(scrollTimer);
-      scrollTimer = setTimeout(() => bar.classList.remove("is-scrolling"), 150);
+      scrollTimer = setTimeout(() => {
+        bar?.classList.remove("is-scrolling");
+        card?.classList.remove("is-scrolling");
+      }, 150);
     }, { passive: true });
   })();
 
@@ -631,14 +645,17 @@
               // не дублируя на сервере (loadBootstrapSecondary дедуплицирует
               // повторные вызовы сама, см. secondaryLoaded выше).
               loadBootstrapSecondary("calendar");
+              stabilizeFirstPaint(["shopList", "achievementList", "achievementArchiveList"]);
             } else if (key === "rating") {
               state.leaderboard = data.leaderboard || [];
               renderRating();
               loadTeamAndSeason();
+              stabilizeFirstPaint(["ratingList"]);
             } else if (key === "calendar") {
               state.calendar_events = data.calendar_events || [];
               renderCalendar();
               renderYearHeatmap();
+              stabilizeFirstPaint(["calendarGrid"]);
             }
             secondaryLoaded.add(key);
             setTabLoading(key, false);
@@ -2054,9 +2071,16 @@ function initTabs() {
     // (adamPanelIn .38s) — это такой же большой перерасчёт области под
     // размытым .tab-bar, как и скролл, просто триггер другой. Гасим blur
     // на время этого всплеска тем же классом .is-scrolling.
+    // .player-card — постоянный header над всеми вкладками, тот же
+    // размытый+анимированный элемент, что и .tab-bar — гасим синхронно.
+    const playerCard = document.querySelector("header.player-card");
     tabBar.classList.add("is-scrolling");
+    playerCard?.classList.add("is-scrolling");
     clearTimeout(tabBar._perfGuardTimer);
-    tabBar._perfGuardTimer = setTimeout(() => tabBar.classList.remove("is-scrolling"), 450);
+    tabBar._perfGuardTimer = setTimeout(() => {
+      tabBar.classList.remove("is-scrolling");
+      playerCard?.classList.remove("is-scrolling");
+    }, 450);
     document.querySelectorAll(".tab-bar__item").forEach(b => b.classList.toggle("is-active", b === btn));
     document.querySelectorAll(".tab-panel").forEach(panel => {
       const active = panel.dataset.tab === tab;
@@ -3041,7 +3065,12 @@ function initPlanActions() {
 // renderAll(); (2) список целей расширен на все контейнеры, которые
 // renderAll() перерисовывает через innerHTML и где пользователи видели
 // пропавший текст/иконки.
-function stabilizeFirstPaint() {
+// extraTargets — id-шники (или сами элементы) контейнеров, которые ТОЛЬКО
+// что перерисовали через innerHTML в этом конкретном вызове (вкладки
+// Магазин/Достижения/Рейтинг/Календарь рисуются лениво, при первом
+// открытии вкладки — их не было смысла держать в фиксированном списке
+// критичных элементов, они просто ещё не существуют до первого рендера).
+function stabilizeFirstPaint(extraTargets) {
     const critical = [
         document.querySelector("header.player-card"),
         document.querySelector('section[data-tab="home"]'),
@@ -3057,10 +3086,26 @@ function stabilizeFirstPaint() {
         document.getElementById("planList"),
         document.getElementById("streakDays"),
     ].filter(Boolean);
-    const targets = critical.concat(dynamic);
+    const extra = (Array.isArray(extraTargets) ? extraTargets : [])
+        .map(x => (typeof x === "string" ? document.getElementById(x) : x))
+        .filter(Boolean);
+    const targets = critical.concat(dynamic, extra);
     if (!targets.length) return;
     requestAnimationFrame(() => {
-        targets.forEach(el => void el.offsetHeight);
+        targets.forEach(el => {
+            // offsetHeight форсит пересчёт layout, но НЕ гарантирует repaint —
+            // WebView может честно посчитать актуальный layout и всё равно
+            // не перерисовать уже закэшированный слой (именно поэтому текст/
+            // иконки оставались пустыми до скролла — скролл сам по себе
+            // инвалидирует paint). Микро-толчок opacity форсит именно paint/
+            // recomposite этого слоя, а не просто layout-числа.
+            void el.offsetHeight;
+            const prevOpacity = el.style.opacity;
+            el.style.opacity = "0.999";
+            requestAnimationFrame(() => {
+                el.style.opacity = prevOpacity;
+            });
+        });
     });
 }
 
