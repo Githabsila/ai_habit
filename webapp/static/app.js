@@ -2404,7 +2404,7 @@ function initDailyQuestActions() {
       const result = await api(`/api/quests/${questKey}/claim`, { method: "POST" });
       haptic("medium");
       showToast(`+${result.reward} Adam Coin`, "praise");
-      await loadBootstrap();
+      applyActionPatch(result);
     } catch (err) {
       showToast(friendlyError(err), "error");
       btn.disabled = false;

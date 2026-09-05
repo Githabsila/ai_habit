@@ -59,6 +59,11 @@ async def test_claim_quest_route_awards_after_completion(client, uid, monkeypatc
     assert r2.status == 200
     data = await r2.json()
     assert data["reward"] == claimable["reward"]
+    # claim_daily_quest начисляет XP — уровень мог измениться, поэтому
+    # ответ должен нести user/daily_quests целиком (app.js::applyActionPatch
+    # патчит точечно вместо await loadBootstrap() за всем bootstrap).
+    assert data["user"]["telegram_id"] == uid
+    assert any(q["key"] == claimable["key"] and q["claimed"] for q in data["daily_quests"])
 
 
 async def test_stars_invoice_route_accepts_booster_item(client, uid, monkeypatch):

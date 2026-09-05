@@ -435,12 +435,22 @@ async def daily_quests_route(request):
 
 @routes.post("/api/quests/{quest_key}/claim")
 async def claim_quest_route(request):
-    telegram_id, _ = await _authenticate(request)
+    telegram_id, is_admin = await _authenticate(request)
     quest_key = request.match_info["quest_key"]
     reward = claim_daily_quest(telegram_id, quest_key)
     if reward is None:
         return web.json_response({"error": "quest_not_claimable"}, status=400)
-    return web.json_response({"ok": True, "reward": reward, "progress": get_progress(telegram_id)})
+    # claim_daily_quest начисляет XP (не только монеты) — уровень мог
+    # измениться, поэтому отдаём user целиком, а не только progress. Фронт
+    # (applyActionPatch) точечно обновляет карточку игрока и список квестов
+    # без await loadBootstrap() за всем главным экраном.
+    return web.json_response({
+        "ok": True,
+        "reward": reward,
+        "progress": get_progress(telegram_id),
+        "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
+        "daily_quests": get_daily_quests(telegram_id),
+    })
 
 
 @routes.get("/api/pet")
