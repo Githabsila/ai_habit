@@ -1091,5 +1091,31 @@ def create_tables():
     if "last_seen_changelog_id" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN last_seen_changelog_id INTEGER DEFAULT 0")
 
+    # ---------------- Телеметрия долгих кадров (Mini App) ----------------
+    # Пользователи жалуются на "лаги/чернеет при прокрутке" в Telegram
+    # WebView на Android — этот класс багов физически невозможно
+    # воспроизвести или отладить с обычного десктопа: движок другой,
+    # железо другое, и по видео можно только гадать. app.js меряет
+    # реальные разрывы между кадрами (через requestAnimationFrame) и
+    # длинные JS-таски (PerformanceObserver longtask) на устройстве
+    # пользователя и шлёт сюда — так у разработчика появляются точные
+    # цифры без переписки "у меня лагает" / "а на каком кадре".
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS perf_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        tab TEXT,
+        path TEXT,
+        is_scrolling INTEGER DEFAULT 0,
+        device_info TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_perf_events_created ON perf_events(created_at)"
+    )
+
     conn.commit()
     conn.close()

@@ -53,6 +53,75 @@
     );
   });
 
+  // "Лагает/чернеет при прокрутке" в Telegram WebView на Android — баг
+  // физически невозможно воспроизвести или отладить с десктопа (другой
+  // движок, другое железо). Раньше единственным источником были видео от
+  // пользователя, по которым можно было только гадать, что происходит в
+  // конкретный момент. Меряем прямо на устройстве пользователя две вещи
+  // и шлём на сервер (тот же best-effort/лимит-на-сессию приём, что и у
+  // reportClientError выше):
+  // 1) реальные разрывы между кадрами (requestAnimationFrame) — именно
+  //    это и есть визуальное "подвисание/почернение", независимо от того,
+  //    что его вызвало (paint, compositor, GC — неважно, разрыв виден
+  //    пользователю в любом случае);
+  // 2) длинные JS-таски (PerformanceObserver longtask, 50мс+) — отдельная
+  //    причина: конкретно код блокирует поток, а не рендер-движок.
+  let _perfEventsSent = 0;
+  function reportPerfEvent(eventType, durationMs, isScrolling) {
+    if (_perfEventsSent >= 20) return;
+    _perfEventsSent += 1;
+    try {
+      const initDataRaw = (tg && tg.initData) || (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || "";
+      const activeTab = document.querySelector(".tab-panel:not([hidden])")?.dataset.tab || null;
+      fetch("/api/perf/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "tma " + initDataRaw },
+        body: JSON.stringify({
+          event_type: eventType,
+          duration_ms: Math.round(durationMs),
+          tab: activeTab,
+          path: location.pathname,
+          is_scrolling: !!isScrolling,
+          device_info: JSON.stringify({
+            ua: (navigator.userAgent || "").slice(0, 200),
+            mem: navigator.deviceMemory || null,
+            cores: navigator.hardwareConcurrency || null,
+          }),
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch (_) {}
+  }
+
+  // Обычный кадр — ~16мс при 60Гц, но у многих телефонов экран 90-120Гц.
+  // Порог с большим запасом, чтобы ловить именно заметные пользователю
+  // подвисания, а не обычный джиттер на 1-2 кадра.
+  const LONG_FRAME_THRESHOLD_MS = 200;
+  let _lastFrameTime = performance.now();
+  function frameWatcher(now) {
+    const gap = now - _lastFrameTime;
+    _lastFrameTime = now;
+    if (gap > LONG_FRAME_THRESHOLD_MS) {
+      const scrolling =
+        document.querySelector(".tab-bar")?.classList.contains("is-scrolling") ||
+        document.querySelector("header.player-card")?.classList.contains("is-scrolling");
+      reportPerfEvent("long_frame", gap, scrolling);
+    }
+    requestAnimationFrame(frameWatcher);
+  }
+  requestAnimationFrame(frameWatcher);
+
+  try {
+    if ("PerformanceObserver" in window) {
+      const po = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          reportPerfEvent("long_task", entry.duration, false);
+        }
+      });
+      po.observe({ type: "longtask", buffered: true });
+    }
+  } catch (_) {}
+
   const tg = window.Telegram ? window.Telegram.WebApp : null;
   try {
     const lowPower =

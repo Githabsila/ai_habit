@@ -49,6 +49,10 @@ from .feature_flags import (
     is_feature_enabled, get_all_flags, set_feature_flag, delete_feature_flag,
 )
 
+from .perf import (
+    add_perf_event, get_recent_perf_events, get_perf_summary,
+)
+
 from .seasons import (
     current_season_key, get_season_leaderboard, get_season_rank, award_season_rewards,
     get_rank_overtakes_and_update_snapshot,

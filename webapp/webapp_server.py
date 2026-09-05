@@ -73,6 +73,7 @@ from db import (
     log_client_error,
     export_full_account_data, request_account_deletion,
     get_unseen_changelog_entries, mark_changelog_seen,
+    add_perf_event,
 )
 
 from datetime import date, datetime, timezone
@@ -1405,6 +1406,51 @@ async def client_error_route(request):
         )
     except Exception:
         logger.warning("Не удалось сохранить client_error для %s", telegram_id)
+    return web.Response(status=204)
+
+
+# Разрывы кадров/длинные JS-таски с фронта (app.js::reportPerfEvent) —
+# см. комментарий там же и у таблицы perf_events в db/core.py. Тот же
+# приём, что и у /api/client-error выше: сама отправка телеметрии не
+# должна уметь уронить что-то ещё, поэтому любая проблема тихо
+# превращается в 204.
+_VALID_PERF_EVENT_TYPES = {"long_frame", "long_task"}
+
+
+@routes.post("/api/perf/report")
+async def perf_report_route(request):
+    try:
+        telegram_id, _ = await _authenticate(request)
+    except web.HTTPException:
+        return web.Response(status=204)
+
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.Response(status=204)
+
+    event_type = body.get("event_type")
+    if event_type not in _VALID_PERF_EVENT_TYPES:
+        return web.Response(status=204)
+    try:
+        duration_ms = int(body.get("duration_ms") or 0)
+    except (TypeError, ValueError):
+        return web.Response(status=204)
+    if duration_ms <= 0:
+        return web.Response(status=204)
+
+    try:
+        add_perf_event(
+            telegram_id,
+            event_type,
+            duration_ms,
+            tab=(body.get("tab") or None),
+            path=(body.get("path") or None),
+            is_scrolling=bool(body.get("is_scrolling")),
+            device_info=(body.get("device_info") or None),
+        )
+    except Exception:
+        logger.warning("Не удалось сохранить perf_event для %s", telegram_id)
     return web.Response(status=204)
 
 

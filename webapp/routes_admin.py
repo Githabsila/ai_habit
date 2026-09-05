@@ -33,6 +33,7 @@ from db import (
     get_churn_risk_report,
     get_all_flags, set_feature_flag, delete_feature_flag,
     get_recent_client_errors,
+    get_recent_perf_events, get_perf_summary,
 )
 from db.core import DB_PATH
 from admin_digest_scheduler import build_stats_report
@@ -181,6 +182,25 @@ async def admin_client_errors_route(request):
     пользователей, вместо ручных отчётов "странички лагают" со скриншотами."""
     await _authenticate_admin(request)
     return web.json_response({"errors": get_recent_client_errors(limit=100)})
+
+
+@routes.get("/api/admin/perf-events")
+async def admin_perf_events_route(request):
+    """Разрывы кадров/длинные JS-таски с реальных устройств (app.js::
+    reportPerfEvent) — тот же принцип, что и client-errors выше: точные
+    цифры с телефона пользователя вместо разбора видео "лагает/чернеет
+    при прокрутке" покадрово. summary — агрегат по типу события (сколько
+    раз, средняя/максимальная длительность, сколько за последние сутки),
+    events — последние сырые записи для разбора конкретных случаев."""
+    await _authenticate_admin(request)
+    try:
+        limit = min(int(request.query.get("limit", 200)), 1000)
+    except (TypeError, ValueError):
+        limit = 200
+    return web.json_response({
+        "summary": get_perf_summary(),
+        "events": get_recent_perf_events(limit=limit),
+    })
 
 
 @routes.post("/api/admin/user/{telegram_id}/ban")

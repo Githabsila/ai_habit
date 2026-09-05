@@ -1,5 +1,7 @@
 .env
 users.db
+users.db-wal
+users.db-shm
 backups/*.db
 __pycache__/
 *.pyc
