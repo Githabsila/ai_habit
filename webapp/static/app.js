@@ -2262,6 +2262,38 @@ async function celebrateHabitCompletion(result) {
   }
 }
 
+// Раньше ЛЮБАЯ отметка привычки (в том числе просто +1 к счётчику, ещё
+// не закрывающий цель) вызывала await loadBootstrap() — это отдельный
+// сетевой запрос ЗА ВСЕМ главным экраном разом, плюс renderAll()
+// перерисовывает буквально все секции (план дня, квесты, лигу, питомца,
+// настройки темы/языка/пола, проверки обучения) — хотя от отметки ОДНОЙ
+// привычки могли измениться только: сам пользователь (xp/уровень/монеты),
+// сама эта привычка, квесты дня. /api/habits/{id}/complete и /progress
+// теперь возвращают ровно эти три вещи готовыми (_shape_user/_shape_habit
+// в webapp_server.py) — патчим state точечно и рендерим только то, что
+// реально могло поменяться, без единого лишнего запроса или перерисовки.
+function applyActionPatch(result) {
+  if (!state || !result) return;
+  if (result.user) Object.assign(state.user, result.user);
+  if (result.habit) {
+    const idx = (state.habits || []).findIndex(h => h.id === result.habit.id);
+    if (idx !== -1) state.habits[idx] = result.habit;
+  }
+  if (result.daily_quests) state.daily_quests = result.daily_quests;
+  if (result.streak) state.streak = result.streak;
+  if (result.monthly_progress) state.monthly_progress = result.monthly_progress;
+  if (result.pet) state.pet = result.pet;
+
+  renderPlayerCard();
+  renderHabits();
+  renderTodayFocus();
+  renderStreak();
+  renderBoosterBanner();
+  if (result.daily_quests) renderDailyQuests();
+  if (result.pet) renderPetWidget();
+  stabilizeFirstPaint();
+}
+
 // Roadmap #3 — заметка/фото к выполненной привычке: маленькая встроенная
 // форма прямо под карточкой привычки (без модалки), фото сжимается на
 // клиенте в canvas перед отправкой, чтобы не раздувать запрос/БД.
@@ -2577,7 +2609,7 @@ function initHabitActions() {
         btn.disabled = true;
         const result = await api(`/api/habits/${habitId}/complete`, { method: "POST" });
         haptic("medium");
-        await loadBootstrap();
+        applyActionPatch(result);
         await celebrateHabitCompletion(result);
       } else if (action === "progress") {
         btn.disabled = true;
@@ -2586,7 +2618,7 @@ function initHabitActions() {
         // streak и т.д.) — празднуем точно так же.
         const result = await api(`/api/habits/${habitId}/progress`, { method: "POST" });
         haptic(result.just_completed ? "medium" : "light");
-        await loadBootstrap();
+        applyActionPatch(result);
         if (result.just_completed) {
           await celebrateHabitCompletion(result);
         } else {

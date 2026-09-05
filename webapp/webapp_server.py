@@ -293,6 +293,61 @@ async def _get_bot_username(bot):
         return None
 
 
+# Вынесено из /api/bootstrap, чтобы теми же формами данных мог отдавать
+# точечный ответ /api/habits/{id}/complete и /progress — без этого клиенту
+# после каждой отметки привычки приходилось заново дёргать ВЕСЬ bootstrap
+# и перерисовывать вообще всё (см. app.js::applyActionPatch): "отметил
+# привычку — не надо перезагружать весь экран, обнови конкретную привычку
+# и то немногое, что реально могло измениться".
+def _shape_user(telegram_id, user, is_admin=False):
+    return {
+        "telegram_id": telegram_id,
+        "first_name": user["first_name"] if user else "",
+        "xp": user["xp"] if user else 0,
+        "total_xp": user["total_xp"] if user else 0,
+        "level": user["level"] if user else 1,
+        "streak": user["streak"] if user else 0,
+        "diamonds": user["diamonds"] if user and "diamonds" in user.keys() else 0,
+        "premium": bool(user["premium"]) if user else False,
+        "badge": has_item(telegram_id, BADGE_ITEM_ID),
+        "avatar_id": user["avatar_id"] if user else "default",
+        "frame_id": user["frame_id"] if user else "default",
+        "is_admin": is_admin,
+        "league_tier": get_league_tier(user["total_xp"] if user else 0),
+        "league_progress": get_league_progress(user["total_xp"] if user else 0),
+        "archetype": (ARCHETYPES.get(user["archetype"]) if user and "archetype" in user.keys() and user["archetype"] else None),
+        "xp_boosted": is_xp_booster_active(telegram_id),
+        "xp_boost_until": user["bonus_2x_xp_until"] if user and "bonus_2x_xp_until" in user.keys() else None,
+    }
+
+
+def _shape_habit(h, telegram_id):
+    if h is None:
+        return None
+    return {
+        "id": h["id"],
+        "title": h["title"],
+        "completed": bool(h["completed"]),
+        "planned_time": h["planned_time"] if "planned_time" in h.keys() else None,
+        "time_window_minutes": h["time_window_minutes"] if "time_window_minutes" in h.keys() else 60,
+        "category": h["category"] if "category" in h.keys() else None,
+        "priority": h["priority"] if "priority" in h.keys() and h["priority"] else 1,
+        "skip_reason": h["skip_reason"] if "skip_reason" in h.keys() else None,
+        "target_count": h["target_count"] if "target_count" in h.keys() and h["target_count"] else 1,
+        "progress_count": h["progress_count"] if "progress_count" in h.keys() and h["progress_count"] else 0,
+        "frequency_per_week": h["frequency_per_week"] if "frequency_per_week" in h.keys() else None,
+        "weekly_progress": (
+            get_weekly_progress(h["id"], telegram_id)
+            if "frequency_per_week" in h.keys() and h["frequency_per_week"] else None
+        ),
+        "chain_trigger_habit_id": h["chain_trigger_habit_id"] if "chain_trigger_habit_id" in h.keys() else None,
+        "suggested_time": (
+            suggest_optimal_reminder_time(h["id"], telegram_id)
+            if not (h["planned_time"] if "planned_time" in h.keys() else None) else None
+        ),
+    }
+
+
 @routes.get("/api/bootstrap")
 async def bootstrap(request):
     """Критический снимок для первого экрана.
@@ -317,55 +372,11 @@ async def bootstrap(request):
 
     return web.json_response({
         "bot_username": bot_username,
-        "user": {
-            "telegram_id": telegram_id,
-            "first_name": user["first_name"] if user else "",
-            "xp": user["xp"] if user else 0,
-            "total_xp": user["total_xp"] if user else 0,
-            "level": user["level"] if user else 1,
-            "streak": user["streak"] if user else 0,
-            "diamonds": user["diamonds"] if user and "diamonds" in user.keys() else 0,
-            "premium": bool(user["premium"]) if user else False,
-            "badge": has_item(telegram_id, BADGE_ITEM_ID),
-            "avatar_id": user["avatar_id"] if user else "default",
-            "frame_id": user["frame_id"] if user else "default",
-            "is_admin": is_admin,
-            "league_tier": get_league_tier(user["total_xp"] if user else 0),
-            "league_progress": get_league_progress(user["total_xp"] if user else 0),
-            "archetype": (ARCHETYPES.get(user["archetype"]) if user and "archetype" in user.keys() and user["archetype"] else None),
-            "xp_boosted": is_xp_booster_active(telegram_id),
-            "xp_boost_until": user["bonus_2x_xp_until"] if user and "bonus_2x_xp_until" in user.keys() else None,
-        },
+        "user": _shape_user(telegram_id, user, is_admin),
         "daily_quests": get_daily_quests(telegram_id),
         "pet": get_pet(telegram_id),
         "monthly_progress": get_monthly_progress(telegram_id),
-        "habits": [
-            {
-                "id": h["id"],
-                "title": h["title"],
-                "completed": bool(h["completed"]),
-                "planned_time": h["planned_time"] if "planned_time" in h.keys() else None,
-                "time_window_minutes": h["time_window_minutes"] if "time_window_minutes" in h.keys() else 60,
-                "category": h["category"] if "category" in h.keys() else None,
-                "priority": h["priority"] if "priority" in h.keys() and h["priority"] else 1,
-                "skip_reason": h["skip_reason"] if "skip_reason" in h.keys() else None,
-                "target_count": h["target_count"] if "target_count" in h.keys() and h["target_count"] else 1,
-                "progress_count": h["progress_count"] if "progress_count" in h.keys() and h["progress_count"] else 0,
-                "frequency_per_week": h["frequency_per_week"] if "frequency_per_week" in h.keys() else None,
-                "weekly_progress": (
-                    get_weekly_progress(h["id"], telegram_id)
-                    if "frequency_per_week" in h.keys() and h["frequency_per_week"] else None
-                ),
-                "chain_trigger_habit_id": h["chain_trigger_habit_id"] if "chain_trigger_habit_id" in h.keys() else None,
-                # Roadmap #23/#36 — только когда у привычки ЕЩЁ нет своего
-                # времени: если планово время уже стоит, подсказывать нечего.
-                "suggested_time": (
-                    suggest_optimal_reminder_time(h["id"], telegram_id)
-                    if not (h["planned_time"] if "planned_time" in h.keys() else None) else None
-                ),
-            }
-            for h in habits
-        ],
+        "habits": [_shape_habit(h, telegram_id) for h in habits],
         # Roadmap #22 — привычки, проваленные несколько дней подряд, для
         # мягкой подсказки "может, снизить планку?".
         "struggling_habits": get_struggling_habits(telegram_id),
@@ -744,7 +755,7 @@ async def unskip_habit_route(request):
 
 @routes.post("/api/habits/{habit_id}/complete")
 async def complete_habit_route(request):
-    telegram_id, _ = await _authenticate(request)
+    telegram_id, is_admin = await _authenticate(request)
     habit_id = int(request.match_info["habit_id"])
     _owned_habit_or_404(habit_id, telegram_id)
     success = complete_habit(habit_id)
@@ -807,8 +818,16 @@ async def complete_habit_route(request):
         except Exception:
             logger.exception("Не удалось отправить сообщение о награде месяца")
 
+    # Отметка привычки не должна заставлять клиента перезагружать и
+    # перерисовывать ВЕСЬ главный экран (см. _shape_user/_shape_habit
+    # выше) — здесь уже есть все данные, которые реально могли измениться
+    # от этого одного действия: сам пользователь (xp/уровень/монеты),
+    # сама привычка, квесты дня. app.js::applyActionPatch патчит только их.
     return web.json_response({
         "ok": True,
+        "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
+        "habit": _shape_habit(get_habit(habit_id), telegram_id),
+        "daily_quests": get_daily_quests(telegram_id),
         "progress": get_progress(telegram_id),
         "streak": streak,
         "streak_event": event,
@@ -835,7 +854,7 @@ async def habit_progress_route(request):
     полностью совпадает с complete_habit_route (те же монеты/streak/
     ачивки/цепочки) — просто достигается через несколько нажатий вместо
     одного."""
-    telegram_id, _ = await _authenticate(request)
+    telegram_id, is_admin = await _authenticate(request)
     habit_id = int(request.match_info["habit_id"])
     _owned_habit_or_404(habit_id, telegram_id)
     try:
@@ -853,11 +872,16 @@ async def habit_progress_route(request):
         return web.json_response({"error": "already_completed"}, status=409)
 
     if not result.get("just_completed"):
+        # Цель ещё не достигнута — изменился только прогресс ЭТОЙ одной
+        # привычки, ничего больше (ни XP, ни streak, ни квесты). Отдаём
+        # её же в форме _shape_habit, чтобы app.js::applyActionPatch мог
+        # точечно обновить один элемент списка вместо loadBootstrap().
         return web.json_response({
             "ok": True,
             "just_completed": False,
             "progress_count": result["progress_count"],
             "target_count": result["target_count"],
+            "habit": _shape_habit(get_habit(habit_id), telegram_id),
         })
 
     # Цель достигнута этим нажатием — привычка только что выполнена целиком,
@@ -894,6 +918,9 @@ async def habit_progress_route(request):
         "just_completed": True,
         "progress_count": result["progress_count"],
         "target_count": result["target_count"],
+        "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
+        "habit": _shape_habit(get_habit(habit_id), telegram_id),
+        "daily_quests": get_daily_quests(telegram_id),
         "progress": get_progress(telegram_id),
         "streak": streak,
         "streak_event": event,
