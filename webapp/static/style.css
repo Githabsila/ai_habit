@@ -4953,7 +4953,16 @@ section[data-tab="home"] .streak-widget__hero-row{
 .levelup-overlay,
 .impactday-overlay,
 .archetype-quiz-overlay,
-.achievement-share-overlay {
+.achievement-share-overlay,
+/* Догнано при повторном полном аудите backdrop-filter по всему файлу —
+   те же fullscreen fixed оверлеи с тем же паттерном, просто не попали
+   в список выше в прошлый раз: .app-tour-overlay (обучение при первом
+   входе), .freeze-purchase-sheet__backdrop/.feedback-sheet__backdrop
+   (нижние шторки — .58 непрозрачности, чуть более "просвечивающий" фон,
+   но всё ещё плотный затемняющий скрим, а не осмысленное стекло). */
+.app-tour-overlay,
+.freeze-purchase-sheet__backdrop,
+.feedback-sheet__backdrop {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }

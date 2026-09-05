@@ -1580,4 +1580,47 @@ body{
   border-color:rgba(239,68,68,.25) !important;
 }
 
+/* =========================================================
+   ПРОИЗВОДИТЕЛЬНОСТЬ — тот же баг WebView, что уже чинился в основном
+   приложении (style.css, см. .tab-bar/.player-card): backdrop-filter
+   на элементе, который либо зафиксирован/прилипает над активно
+   скроллящимся контентом (.header — sticky, .composer — fixed поверх
+   ленты сообщений), либо сам двигается при скролле (.message-bubble —
+   их в переписке может быть неограниченно много, каждый требует
+   пересчёта блюра на каждый кадр). Эта страница (/coach) — ОТДЕЛЬНЫЙ
+   от основного app HTML-файл со своим CSS, и ни разу не получала этот
+   фикс, хотя жалоба "лагает/чернеет при пролистывании" применима к ней
+   ничуть не меньше — если не больше (28-38px блюр здесь местами тяжелее
+   всего, что было в основном приложении).
+   Для непрозрачных ≥70% элементов (header/composer/toolbar/панели/
+   кнопки) блюр просто убираем — визуальной разницы почти нет, ровно та
+   же логика, что уже применена в style.css для .adam-message/.toast и
+   т.п. Для .message-bubble/.thinking фон гораздо прозрачнее (2.5-7.5%
+   белого) — блюр там реально формирует вид "стекла", полное отключение
+   было бы заметной регрессией, поэтому радиус СИЛЬНО уменьшаем (в разы
+   дешевле пересчитать), а не убираем совсем. */
+.header,
+.chat-toolbar,
+.composer,
+.input-area,
+.emoji-panel,
+.quick-prompts,
+.quick-prompts button,
+.welcome-prompts button,
+.voice-btn,
+.emoji-launcher,
+.send-btn,
+.icon-btn,
+.quota-panel,
+.habit-suggestion,
+.error-card{
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+.message-bubble,
+.thinking{
+  backdrop-filter:blur(8px) !important;
+  -webkit-backdrop-filter:blur(8px) !important;
+}
+
 </style>
