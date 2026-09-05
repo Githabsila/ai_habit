@@ -548,6 +548,17 @@ font-size:15px;
 
 .habit-item__title{
 
+    /* Найдено при доводке дизайна (05.09): в светлой теме название
+       НЕвыполненной привычки было практически невидимым (тёмный текст
+       body для светлого холста наследовался как есть — сам .habit-item
+       переопределяет --text на #FFFFFF для СВЕТЛОЙ темы, потому что
+       карточка сознательно остаётся тёмной, но color наследуется по
+       вычисленному значению от body, а не пересчитывается через var()
+       на потомке, если тот сам не обращается к переменной). Выполненные
+       привычки этого не показывали — там цвет задан отдельно, жёстко
+       (см. .habit-item.is-done .habit-item__title ниже). */
+    color:var(--text);
+
     flex:1 1 120px;
 
     /* Было min-width:0 — при развёрнутых действиях (⏰/📝/⏭/✕, до 4 кнопок
@@ -577,6 +588,18 @@ font-size:15px;
     hyphens:auto;
 
     -webkit-hyphens:auto;
+
+    /* Доводка дизайна (05.09): без ограничения строк одно длинное
+       название ("Утренние размышления, книга, всё про эффективность!)")
+       растягивало карточку на 4+ строки, а соседние привычки с короткими
+       названиями оставались втрое ниже — вразнобой по высоте карточки на
+       одном экране читаются как несобранный, "самодельный" список.
+       2 строки с многоточием держат карточки единой высоты; полный
+       текст остаётся доступен через title (нативная подсказка). */
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
 
 }
 
@@ -9020,21 +9043,33 @@ body{
   box-shadow: 0 3px 0 var(--duo-green-shadow) !important;
 }
 
-/* ---------- Карточки: толще обводка, крупнее скругление ---------- */
+/* ---------- Карточки: толще обводка, крупнее скругление ----------
+   Доводка (05.09): 2-2.5px читалось как "приклеенная стикером" обводка
+   поверх и без того детальной стеклянной карточки (градиент+тень), а не
+   как аккуратный акцент — плюс наносилось только на часть карточек
+   Главной (у "Сегодня осталось"/"Квесты дня"/питомца обводки не было
+   вообще), из-за чего один и тот же экран выглядел наполовину
+   переодетым. Единая толщина 1.5px везде + та же обводка добавлена
+   недостающим карточкам (см. ниже), с цветом по смыслу карточки
+   (фиолет — обычный контент, золото — сегодня/ударный режим/награда). */
+:root{ --duo-border-w: 1.5px; }
 .habit-item,
 .plan-card,
 .settings-card,
 .shop-item,
 .data-support-card,
 .progress-stats-card,
-.streak-profile-metrics .streak-metric {
+.streak-profile-metrics .streak-metric,
+.daily-quests,
+.pet-widget {
   border-radius: var(--duo-radius-lg) !important;
-  border: 2.5px solid rgba(139,92,246,.38) !important;
+  border: var(--duo-border-w) solid rgba(139,92,246,.32) !important;
 }
 
-.streak-widget--hero{
+.streak-widget--hero,
+.today-focus {
   border-radius: var(--duo-radius-lg) !important;
-  border: 2.5px solid rgba(255,215,79,.4) !important;
+  border: var(--duo-border-w) solid rgba(255,215,79,.38) !important;
 }
 
 /* ---------- Чипы/переключатели: жирная активная "таблетка" ---------- */
@@ -9083,7 +9118,7 @@ body{
 .levelup-card,
 .streak-weekly-card {
   border-radius: var(--duo-radius-lg) !important;
-  border: 2.5px solid rgba(255,215,79,.35) !important;
+  border: var(--duo-border-w) solid rgba(255,215,79,.35) !important;
 }
 
 /* ---------- Информационные/нейтральные оверлеи — фиолетовый акцент ---------- */
@@ -9092,7 +9127,7 @@ body{
 .feedback-card,
 .freeze-purchase-card {
   border-radius: var(--duo-radius-lg) !important;
-  border: 2.5px solid rgba(139,92,246,.32) !important;
+  border: var(--duo-border-w) solid rgba(139,92,246,.32) !important;
 }
 
 .app-tour-dot.is-active{
@@ -9102,7 +9137,7 @@ body{
 /* ---------- Календарь ---------- */
 .calendar-card{
   border-radius: var(--duo-radius-lg) !important;
-  border: 2.5px solid rgba(139,92,246,.32) !important;
+  border: var(--duo-border-w) solid rgba(139,92,246,.32) !important;
 }
 .cal-cell{
   border-radius: 12px !important;
@@ -9111,15 +9146,15 @@ body{
 /* ---------- Рейтинг ---------- */
 .rating-podium-card{
   border-radius: var(--duo-radius) !important;
-  border: 2.5px solid rgba(255,215,79,.35) !important;
+  border: var(--duo-border-w) solid rgba(255,215,79,.35) !important;
 }
 .rating-item{
   border-radius: 16px !important;
-  border: 2px solid rgba(139,92,246,.20) !important;
+  border: var(--duo-border-w) solid rgba(139,92,246,.20) !important;
 }
 .team-card{
   border-radius: var(--duo-radius-lg) !important;
-  border: 2.5px solid rgba(139,92,246,.32) !important;
+  border: var(--duo-border-w) solid rgba(139,92,246,.32) !important;
 }
 
 /* ---------- Рамки аватарки ---------- */

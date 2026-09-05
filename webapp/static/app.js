@@ -1653,7 +1653,7 @@
         return `
       <li class="habit-item is-skipped" data-id="${h.id}">
         <button class="habit-item__check" disabled>⏭</button>
-        ${badges}<span class="habit-item__title">${escapeHtml(h.title)}</span>
+        ${badges}<span class="habit-item__title" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
         <div class="habit-item__skip-note">Пропущено: ${escapeHtml(h.skip_reason)} · <button type="button" data-action="unskip">вернуть</button></div>
       </li>`;
@@ -1663,7 +1663,7 @@
         return `
       <li class="habit-item" data-id="${h.id}">
         <button class="habit-item__check" data-action="complete"></button>
-        ${badges}<span class="habit-item__title">${escapeHtml(h.title)}</span>
+        ${badges}<span class="habit-item__title" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
         <div class="habit-skip-reasons">
           ${SKIP_REASONS.map(r => `<button type="button" class="habit-skip-reason-chip" data-reason="${escapeHtml(r)}">${escapeHtml(r)}</button>`).join("")}
@@ -1689,7 +1689,7 @@
       return `
       <li class="habit-item ${h.completed ? "is-done" : ""}" data-id="${h.id}">
         <button class="${checkClass}" data-action="${isCounter && !h.completed ? "progress" : "complete"}" ${h.completed ? "disabled" : ""}>${checkLabel}</button>
-        ${badges}<span class="habit-item__title">${escapeHtml(h.title)}</span>
+        ${badges}<span class="habit-item__title" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
         ${suggestBtn}
         ${rowActions}
       </li>`;
