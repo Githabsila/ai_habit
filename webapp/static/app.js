@@ -527,6 +527,7 @@
     setBonusWindow(bw && bw.active ? bw.until : null);
     maybeShowAppTour();
     maybeShowStreakOnboarding();
+    stabilizeFirstPaint();
 
     // Второстепенные вкладки дорисовываем после первого кадра, когда браузер
     // освободит основной поток. Качество UI не меняется — меняется только
@@ -3028,20 +3029,38 @@ function initPlanActions() {
   }
 
   // ===================== BOOT =====================
+// БАГ "непрогрузки": эта функция была написана как фикс для того самого
+// класса багов, о котором пишут пользователи (пустые эмодзи-иконки —
+// ✏️/🔥/❄️ — то в списке привычек, то в днях ударного режима, до тех
+// пор пока не тронешь скролл), но её НИКТО и НИКОГДА не вызывал — она
+// была мёртвым кодом. К тому же она чинила только 3 контейнера один раз
+// при первой загрузке, а WebView теряет отрисовку конкретных текстовых
+// узлов на КАЖДОМ перерисовывании через innerHTML (renderAll() вызывается
+// повторно после каждого действия — отметил привычку, добавил задачу
+// и т.п.), не только на старте. Поэтому: (1) реально подключена в конце
+// renderAll(); (2) список целей расширен на все контейнеры, которые
+// renderAll() перерисовывает через innerHTML и где пользователи видели
+// пропавший текст/иконки.
 function stabilizeFirstPaint() {
     const critical = [
         document.querySelector("header.player-card"),
         document.querySelector('section[data-tab="home"]'),
         document.getElementById("streakWidget")
     ].filter(Boolean);
-    if (!critical.length) return;
     // Не заставляем WebView держать большие слои в compositor-cache.
     critical.forEach(el => {
         el.style.visibility = "visible";
         el.style.contain = el === critical[1] ? "layout style" : "layout paint";
     });
+    const dynamic = [
+        document.getElementById("habitList"),
+        document.getElementById("planList"),
+        document.getElementById("streakDays"),
+    ].filter(Boolean);
+    const targets = critical.concat(dynamic);
+    if (!targets.length) return;
     requestAnimationFrame(() => {
-        critical.forEach(el => void el.offsetHeight);
+        targets.forEach(el => void el.offsetHeight);
     });
 }
 
