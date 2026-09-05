@@ -1585,7 +1585,9 @@ async def delete_plan_task_route(request):
 
 @routes.get("/")
 async def index(request):
-    response = web.FileResponse(BASE_DIR / "static" / "index.html")
+    # index.html (~44 КБ) отдавался как есть, без сжатия — та же логика,
+    # что и для style.css/app.js: gzip в памяти, кэш не трогаем.
+    response = _serve_gzip_asset(request, BASE_DIR / "static" / "index.html", "text/html")
     # Telegram WebView агрессивно кэширует Mini App. Главная страница должна
     # всегда получать актуальные ссылки на JS/CSS, иначе старый интерфейс
     # возвращается даже после обычного обновления.
@@ -1924,11 +1926,18 @@ async def static_app_js(request):
     return _serve_gzip_asset(request, BASE_DIR / "static" / "app.js", "text/javascript")
 
 
+# ai_coach.js (~44 КБ) раньше уходил через общий app.router.add_static —
+# тот отдаёт файл как есть, без сжатия. Тот же приём, что и выше для
+# style.css/app.js: даём gzip, no-cache оставляем — этот путь всё равно
+# перезатирается middleware для /static/* (см. error_middleware).
+@routes.get("/static/ai_coach.js")
+async def static_ai_coach_js(request):
+    return _serve_gzip_asset(request, BASE_DIR / "static" / "ai_coach.js", "text/javascript")
+
+
 @routes.get("/coach")
 async def coach(request):
-    response = web.FileResponse(BASE_DIR / "static" / "ai_miniapp_styled.html")
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return response
+    return _serve_gzip_asset(request, BASE_DIR / "static" / "ai_miniapp_styled.html", "text/html")
 
 
 @routes.get("/admin")
