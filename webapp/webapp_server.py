@@ -221,6 +221,21 @@ async def _push(app, telegram_id, text):
 
 # ====================== MIDDLEWARE ======================
 
+# /api/bootstrap и т.п. отдают JSON без сжатия — раньше gzip был только
+# у пары ручных маршрутов (style.css/app.js). А ведь именно /api/bootstrap
+# качается на КАЖДОМ открытии Mini App и содержит все привычки/квесты/
+# план дня разом. JSON сжимается gzip'ом особенно хорошо (повторяющиеся
+# ключи). Список типов — только текстовые форматы: PDF-отчёт (см. ниже
+# по файлу) уже сжат внутри своего формата, повторное сжатие только
+# тратит CPU без выигрыша.
+_COMPRESSIBLE_CONTENT_TYPES = {
+    "application/json", "text/html", "text/css", "text/csv",
+    "text/plain", "text/javascript", "application/javascript",
+    "image/svg+xml",
+}
+_MIN_COMPRESSIBLE_SIZE = 512
+
+
 @web.middleware
 async def error_middleware(request, handler):
     try:
@@ -235,6 +250,18 @@ async def error_middleware(request, handler):
             # JS/CSS URLs are versioned in index.html; long caching avoids
             # re-downloading ~100KB+ of assets on every Mini App open.
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+
+        if (
+            isinstance(response, web.Response)
+            and "Content-Encoding" not in response.headers
+            and response.content_type in _COMPRESSIBLE_CONTENT_TYPES
+            and response.body
+            and len(response.body) > _MIN_COMPRESSIBLE_SIZE
+            and "gzip" in request.headers.get("Accept-Encoding", "")
+        ):
+            response.body = gzip.compress(response.body, compresslevel=6)
+            response.headers["Content-Encoding"] = "gzip"
+            response.headers["Vary"] = "Accept-Encoding"
         return response
     except web.HTTPException:
         raise
