@@ -92,6 +92,16 @@
       scrollTimer = setTimeout(() => {
         bar?.classList.remove("is-scrolling");
         card?.classList.remove("is-scrolling");
+        // Видео от пользователя (05.09, второй заход) — целые секции
+        // (например "Привычки") на ~0.3-1с становятся полностью пустыми
+        // ЧЁРНЫМИ прямоугольниками именно там, куда только что доскроллили,
+        // а не только там, где что-то только что перерисовалось через
+        // innerHTML. Значит дело не только в моменте рендера (это уже
+        // лечит stabilizeFirstPaint() внутри renderAll()) — сам скролл
+        // тоже роняет paint произвольных секций. Переиспользуем ту же
+        // функцию на каждой остановке скролла, а не только после смены
+        // данных — она сама подхватит реально видимую сейчас вкладку.
+        if (typeof stabilizeFirstPaint === "function") stabilizeFirstPaint();
       }, 150);
     }, { passive: true });
   })();
@@ -3078,15 +3088,21 @@ function initPlanActions() {
 // открытии вкладки — их не было смысла держать в фиксированном списке
 // критичных элементов, они просто ещё не существуют до первого рендера).
 function stabilizeFirstPaint(extraTargets) {
+    // Раньше бралась только Главная (hardcoded 'section[data-tab="home"]') —
+    // но эта функция теперь вызывается и при остановке скролла (см.
+    // initScrollPerfGuard), когда открыта может быть ЛЮБАЯ вкладка. Берём
+    // реально видимую панель, а не всегда Главную.
+    const activePanel = document.querySelector(".tab-panel:not([hidden])")
+        || document.querySelector('section[data-tab="home"]');
     const critical = [
         document.querySelector("header.player-card"),
-        document.querySelector('section[data-tab="home"]'),
+        activePanel,
         document.getElementById("streakWidget")
     ].filter(Boolean);
     // Не заставляем WebView держать большие слои в compositor-cache.
     critical.forEach(el => {
         el.style.visibility = "visible";
-        el.style.contain = el === critical[1] ? "layout style" : "layout paint";
+        el.style.contain = el === activePanel ? "layout style" : "layout paint";
     });
     const dynamic = [
         document.getElementById("habitList"),
