@@ -43,6 +43,13 @@ html, body {
   color: var(--text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  /* Жалоба "при пролистывании всё заново прогружается": без этого
+     резиновый оттяг скролла у самого верха/низа страницы уходит в
+     нативный жест Telegram (сворачивание/закрытие Mini App) — повторное
+     открытие грузит всё с нуля. В AI-чате (ai_miniapp_styled.html) это
+     уже стояло, здесь — забыли. См. также disableVerticalSwipes() в
+     app.js/ai_coach.js — это дополняющий фикс на стороне Telegram SDK. */
+  overscroll-behavior-y: none;
 }
 
 body{
