@@ -3183,20 +3183,21 @@ function stabilizeFirstPaint(extraTargets) {
         .filter(Boolean);
     const targets = critical.concat(dynamic, extra);
     if (!targets.length) return;
+    // НАЙДЕНО по реальной телеметрии с прода (см. app.js::reportPerfEvent):
+    // именно этот вызов (при остановке КАЖДОГО скролла) давал long_task до
+    // 690мс и long_frame до 1750мс — то есть САМ ФИКС от лагов вызывал лаги.
+    // Причина — classic layout thrashing: цикл ЧЕРЕДОВАЛ чтение
+    // (el.offsetHeight) и запись (el.style.opacity) по 6-9 элементам, а
+    // каждое чтение после чужой записи форсит ОТДЕЛЬНЫЙ синхронный
+    // пересчёт layout. offsetHeight тут и не был нужен — нужен именно
+    // paint/recomposite слоя, а opacity его форсит и БЕЗ layout (opacity —
+    // чисто композитное свойство, geometry не трогает). Теперь: все записи
+    // одним батчем, без единого чтения между ними.
     requestAnimationFrame(() => {
-        targets.forEach(el => {
-            // offsetHeight форсит пересчёт layout, но НЕ гарантирует repaint —
-            // WebView может честно посчитать актуальный layout и всё равно
-            // не перерисовать уже закэшированный слой (именно поэтому текст/
-            // иконки оставались пустыми до скролла — скролл сам по себе
-            // инвалидирует paint). Микро-толчок opacity форсит именно paint/
-            // recomposite этого слоя, а не просто layout-числа.
-            void el.offsetHeight;
-            const prevOpacity = el.style.opacity;
-            el.style.opacity = "0.999";
-            requestAnimationFrame(() => {
-                el.style.opacity = prevOpacity;
-            });
+        const prevOpacities = targets.map(el => el.style.opacity);
+        targets.forEach(el => { el.style.opacity = "0.999"; });
+        requestAnimationFrame(() => {
+            targets.forEach((el, i) => { el.style.opacity = prevOpacities[i]; });
         });
     });
 }
