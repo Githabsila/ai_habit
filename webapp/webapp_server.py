@@ -348,6 +348,17 @@ def _shape_habit(h, telegram_id):
     }
 
 
+def _shape_daily_plan(daily_plan):
+    return {
+        "main_goal": daily_plan["main_goal"],
+        "main_goal_completed": bool(daily_plan["main_goal_completed"]),
+        "tasks": [
+            {"id": t["id"], "text": t["text"], "completed": bool(t["completed"])}
+            for t in daily_plan["tasks"]
+        ],
+    }
+
+
 @routes.get("/api/bootstrap")
 async def bootstrap(request):
     """Критический снимок для первого экрана.
@@ -407,14 +418,7 @@ async def bootstrap(request):
             "public_profile_enabled": bool(user["public_profile_enabled"]) if user and "public_profile_enabled" in user.keys() else False,
             "long_term_goals": get_long_term_goals(telegram_id),
         },
-        "daily_plan": {
-            "main_goal": daily_plan["main_goal"],
-            "main_goal_completed": bool(daily_plan["main_goal_completed"]),
-            "tasks": [
-                {"id": t["id"], "text": t["text"], "completed": bool(t["completed"])}
-                for t in daily_plan["tasks"]
-            ],
-        },
+        "daily_plan": _shape_daily_plan(daily_plan),
         "bonus_window": {
             "active": bonus_active,
             "until": bonus_until_dt.isoformat() if bonus_active else None,
@@ -1606,7 +1610,12 @@ async def toggle_plan_task_route(request):
         )
         record_secondary_task_praise(telegram_id, key)
 
-    return web.json_response({"ok": True, "message": message})
+    # Тумблер задачи плана дня не трогает XP/монеты/streak/квесты — от
+    # этого действия могло измениться только состояние самого плана дня.
+    # Отдаём его целиком (та же форма, что и в /api/bootstrap) — фронт
+    # (app.js::planActionPatch) точечно перерисовывает только план дня и
+    # "Сегодня осталось", а не весь главный экран.
+    return web.json_response({"ok": True, "message": message, "daily_plan": _shape_daily_plan(updated_plan)})
 
 @routes.post("/api/plan/main/save")
 async def save_main_goal_route(request):
@@ -1634,7 +1643,11 @@ async def toggle_main_goal_route(request):
     # с ботом больше не шлём.
     message = format_main_goal_done_message() if not was_completed else None
 
-    return web.json_response({"ok": True, "message": message})
+    return web.json_response({
+        "ok": True,
+        "message": message,
+        "daily_plan": _shape_daily_plan(get_daily_plan(telegram_id)),
+    })
 
 @routes.delete("/api/plan/main")
 async def delete_main_goal_route(request):

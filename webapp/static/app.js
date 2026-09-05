@@ -2294,6 +2294,17 @@ function applyActionPatch(result) {
   stabilizeFirstPaint();
 }
 
+// Тот же приём, что и applyActionPatch выше, для тумблеров плана дня
+// (/api/plan/task/toggle, /api/plan/main/toggle) — эти действия вообще
+// не трогают XP/монеты/streak/квесты, только сам план дня.
+function applyPlanPatch(result) {
+  if (!state || !result || !result.daily_plan) return;
+  state.daily_plan = result.daily_plan;
+  renderPlan();
+  renderTodayFocus();
+  stabilizeFirstPaint();
+}
+
 // Roadmap #3 — заметка/фото к выполненной привычке: маленькая встроенная
 // форма прямо под карточкой привычки (без модалки), фото сжимается на
 // клиенте в canvas перед отправкой, чтобы не раздувать запрос/БД.
@@ -2936,7 +2947,7 @@ function initPlanActions() {
       try {
         const res = await api("/api/plan/main/toggle", { method: "POST" });
         if (res && res.message) showToast(res.message, "praise", 4500);
-        await loadBootstrap();
+        applyPlanPatch(res);
       } catch (err) {
         showToast(friendlyError(err), "error");
         await loadBootstrap();
@@ -2948,7 +2959,7 @@ function initPlanActions() {
           body: JSON.stringify({ task_id: e.target.dataset.id })
         });
         if (res && res.message) showToast(res.message, "praise", 4500);
-        await loadBootstrap();
+        applyPlanPatch(res);
       } catch (err) {
         showToast(friendlyError(err), "error");
         await loadBootstrap();
