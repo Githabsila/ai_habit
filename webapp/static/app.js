@@ -1633,7 +1633,20 @@
       return;
     }
 
-    list.innerHTML = visibleHabits.map(h => {
+    list.innerHTML = visibleHabits.map(habitItemHtml).join("");
+  }
+
+  // Вынесено из renderHabits() (05.09, по телеметрии с реальных устройств —
+  // см. коммит про applyActionPatch): даже "точечный" патч состояния всё
+  // равно гонял ПОЛНУЮ пересборку innerHTML всего списка на каждый тап по
+  // ОДНОЙ привычке — на телефонах пользователей это давало серии long_task/
+  // long_frame по 100-700мс КАЖДЫЙ, даже на мощных устройствах (Samsung
+  // S938B, 8ГБ/8 ядер) — то есть дело не в железе, а в том, что список
+  // пересобирается целиком там, где поменялась одна строка. Теперь шаблон
+  // одной привычки — отдельная функция: renderHabits() использует её в
+  // цикле как раньше, а renderSingleHabit() (см. ниже) точечно подменяет
+  // ТОЛЬКО один <li>, не трогая остальные N-1 строк списка.
+  function habitItemHtml(h) {
       const catMeta = h.category ? HABIT_CATEGORY_META[h.category] : null;
       const isCounter = (h.target_count || 1) > 1;
       const badges =
@@ -1693,7 +1706,22 @@
         ${suggestBtn}
         ${rowActions}
       </li>`;
-    }).join("");
+  }
+
+  // Точечная замена ОДНОЙ строки списка привычек, без пересборки списка
+  // целиком. Возвращает true, если реально подменила узел в DOM (список
+  // сейчас на экране, привычка в нём есть и видна при текущем фильтре) —
+  // если нет (например, привычка отфильтрована категорией, или списка нет
+  // на экране), вызывающий код сам решает, нужен ли полный renderHabits().
+  function renderSingleHabit(habitId) {
+    const list = document.getElementById("habitList");
+    const h = (state.habits || []).find(x => x.id === habitId);
+    if (!list || !h) return false;
+    if (activeHabitFilter && h.category !== activeHabitFilter) return false;
+    const li = list.querySelector(`.habit-item[data-id="${habitId}"]`);
+    if (!li) return false;
+    li.outerHTML = habitItemHtml(h);
+    return true;
   }
 
   // Готовые привычки для новичков — один тап, без набора текста.
@@ -2275,9 +2303,27 @@ async function celebrateHabitCompletion(result) {
 function applyActionPatch(result) {
   if (!state || !result) return;
   if (result.user) Object.assign(state.user, result.user);
+  let habitPatched = false;
   if (result.habit) {
     const idx = (state.habits || []).findIndex(h => h.id === result.habit.id);
     if (idx !== -1) state.habits[idx] = result.habit;
+    // По телеметрии с реальных устройств (05.09) — даже "точечный" патч
+    // всё равно гонял renderHabits(), а она пересобирает innerHTML ВСЕГО
+    // списка на каждый тап по одной привычке. На телефонах пользователей
+    // (включая мощные — Samsung S938B, 8ГБ/8 ядер) это давало серии
+    // long_task/long_frame по 100-700мс каждый тап. Теперь подменяем
+    // только один <li> (renderSingleHabit) и обновляем счётчик "N/M"
+    // сверху вручную — полный renderHabits() остаётся страховкой на
+    // случай, если точечная замена не смогла найти нужный узел.
+    habitPatched = renderSingleHabit(result.habit.id);
+    if (habitPatched) {
+      const progressLabel = document.getElementById("habitsProgressLabel");
+      if (progressLabel) {
+        const habits = (state.habits || []).filter(h => !pendingDeleteHabitIds.has(h.id));
+        const done = habits.filter(h => h.completed).length;
+        progressLabel.textContent = `${done}/${habits.length}`;
+      }
+    }
   }
   if (result.daily_quests) state.daily_quests = result.daily_quests;
   if (result.streak) state.streak = result.streak;
@@ -2285,7 +2331,7 @@ function applyActionPatch(result) {
   if (result.pet) state.pet = result.pet;
 
   renderPlayerCard();
-  renderHabits();
+  if (result.habit && !habitPatched) renderHabits();
   renderTodayFocus();
   renderStreak();
   renderBoosterBanner();
