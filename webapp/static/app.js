@@ -66,8 +66,32 @@
   //    пользователю в любом случае);
   // 2) длинные JS-таски (PerformanceObserver longtask, 50мс+) — отдельная
   //    причина: конкретно код блокирует поток, а не рендер-движок.
+  // Текущий детект "слабого" устройства (ниже) смотрит только на число
+  // ядер/RAM — реальная телеметрия с прода показала, что это НЕ ловит
+  // проблему: флагман Samsung S25 Ultra (8 ядер, 8ГБ) всё равно даёт
+  // долгие кадры — дело не в мощности как таковой, а в конкретном
+  // рендер-движке WebView на конкретной прошивке, и это никак не
+  // коррелирует с характеристиками из navigator. Поэтому копим факт
+  // "у ЭТОГО телефона реально были долгие кадры" в localStorage — и раз
+  // порог пройден, лайт-режим включаем на будущих открытиях уже по
+  // факту, а не по догадке о железе. Не завязано на eventType — оба типа
+  // (long_frame и long_task) одинаково означают "юзер это видит".
+  const PERF_HITS_KEY = "adam_perf_hits";
+  const PERF_HITS_THRESHOLD = 3;
+  function _bumpPerfHitCounter(durationMs) {
+    // >5000мс отсекаем — это диапазон, где живут артефакты измерения
+    // (например, старый баг с фоновой вкладкой, см. frameWatcher ниже),
+    // а не реальные фризы, которые пользователь мог бы увидеть на экране.
+    if (durationMs <= 0 || durationMs > 5000) return;
+    try {
+      const n = (parseInt(localStorage.getItem(PERF_HITS_KEY), 10) || 0) + 1;
+      localStorage.setItem(PERF_HITS_KEY, String(n));
+    } catch (_) {}
+  }
+
   let _perfEventsSent = 0;
   function reportPerfEvent(eventType, durationMs, isScrolling) {
+    _bumpPerfHitCounter(durationMs);
     if (_perfEventsSent >= 20) return;
     _perfEventsSent += 1;
     try {
@@ -98,10 +122,21 @@
   // подвисания, а не обычный джиттер на 1-2 кадра.
   const LONG_FRAME_THRESHOLD_MS = 200;
   let _lastFrameTime = performance.now();
+  // НАЙДЕНО при разборе реальных данных с /api/admin/perf-events: часть
+  // long_frame событий имела duration_ms в МИЛЛИОНАХ (часы) — это не
+  // реальные фризы, а артефакт измерения. requestAnimationFrame не
+  // тикает, пока вкладка/Mini App свёрнута — следующий кадр после
+  // возврата считает разрыв как "now - _lastFrameTime за ВЕСЬ фон",
+  // раздувая телеметрию мусором и маскируя реальную картину. Сбрасываем
+  // точку отсчёта при возврате в приложение, чтобы такой кадр вообще не
+  // засчитывался как разрыв.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) _lastFrameTime = performance.now();
+  });
   function frameWatcher(now) {
     const gap = now - _lastFrameTime;
     _lastFrameTime = now;
-    if (gap > LONG_FRAME_THRESHOLD_MS) {
+    if (gap > LONG_FRAME_THRESHOLD_MS && !document.hidden) {
       const scrolling =
         document.querySelector(".tab-bar")?.classList.contains("is-scrolling") ||
         document.querySelector("header.player-card")?.classList.contains("is-scrolling");
@@ -124,10 +159,13 @@
 
   const tg = window.Telegram ? window.Telegram.WebApp : null;
   try {
+    let pastHits = 0;
+    try { pastHits = parseInt(localStorage.getItem(PERF_HITS_KEY), 10) || 0; } catch (_) {}
     const lowPower =
       (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
       (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
-      (navigator.connection && navigator.connection.saveData);
+      (navigator.connection && navigator.connection.saveData) ||
+      pastHits >= PERF_HITS_THRESHOLD;
     if (lowPower) document.documentElement.classList.add("performance-lite");
   } catch (_) {}
 

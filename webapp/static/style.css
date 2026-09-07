@@ -4529,7 +4529,8 @@ section[data-tab="home"] .streak-widget__hero-row{
 .app-performance-paused .rating-live-dot,
 .app-performance-paused .achievement-share-fire img,
 .app-performance-paused .plan-main__flame img,
-.app-performance-paused .plan-main__flame-ring{
+.app-performance-paused .plan-main__flame-ring,
+.app-performance-paused .pet-widget__emoji{
   animation-play-state:paused!important;
 }
 
@@ -4545,9 +4546,24 @@ section[data-tab="home"] .streak-widget__hero-row{
 .decor-settled .streak-widget--hero::before,
 .decor-settled .streak-profile-card--premium::before,
 .decor-settled .player-card::before,
-.decor-settled .rating-hero::after{
+.decor-settled .rating-hero::after,
+.decor-settled .streak-orbit,
+.decor-settled .streak-widget__flame-halo,
+.decor-settled .streak-widget__icon-ember--a,
+.decor-settled .streak-widget__icon-ember--b{
   animation-play-state:paused!important;
   opacity:0!important;
+}
+/* Эти четыре раньше не попадали в "успокоение" вообще (только пауза при
+   сворачивании приложения) — крутились бесконечно ВСЁ время, пока открыт
+   главный экран, где происходит 93% реальных долгих кадров по телеметрии
+   (см. /api/admin/perf-events). Орбиты/гало/эмберы — чистая атмосфера без
+   смысла, как искры выше, поэтому тоже гасим через opacity. Дни серии и
+   питомец несут смысл (статус дня, состояние питомца) — им оставляем
+   только паузу анимации, сам элемент не прячем. */
+.decor-settled .streak-day.is-done span,
+.decor-settled .pet-widget__emoji{
+  animation-play-state:paused!important;
 }
 .decor-settled .streak-widget__count strong{
   animation-play-state:paused!important;
