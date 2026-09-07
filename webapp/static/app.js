@@ -3257,10 +3257,24 @@ function stabilizeFirstPaint(extraTargets) {
         activePanel,
         document.getElementById("streakWidget")
     ].filter(Boolean);
-    // Не заставляем WebView держать большие слои в compositor-cache.
+    // НАЙДЕНО по реальной продакшн-телеметрии (запрос напрямую к живому
+    // /api/admin/perf-events): 86% реальных long_frame/long_task событий
+    // происходят с is_scrolling=0 — то есть ЧЕРЕЗ 150мс ПОСЛЕ остановки
+    // скролла, ровно когда initScrollPerfGuard зовёт именно эту функцию.
+    // Причина найдена здесь: header.player-card и streakWidget получали
+    // contain:"layout paint" — а contain:paint это ТА САМАЯ причина
+    // WebView compositor-layer-loss, которую весь остальной проект
+    // намеренно избегает (см. комментарии у .habit-item и др. в style.css:
+    // contain:paint уже один раз ловил именно этот баг и был убран
+    // отовсюду). Здесь он был пропущен и остался единственным местом в
+    // коде, ставящим contain:paint — причём НИКОГДА не откатываемым
+    // назад (в отличие от opacity ниже), то есть header и streakWidget
+    // накапливали это состояние заново при КАЖДОМ renderAll() и КАЖДОЙ
+    // остановке скролла. Только "layout style" (без paint) — как и везде
+    // в проекте.
     critical.forEach(el => {
         el.style.visibility = "visible";
-        el.style.contain = el === activePanel ? "layout style" : "layout paint";
+        el.style.contain = "layout style";
     });
     const dynamic = [
         document.getElementById("habitList"),
