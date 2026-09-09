@@ -473,7 +473,10 @@ font-size:15px;
     box-shadow:
         0 12px 30px rgba(0,0,0,.30);
 
-    transition:.3s;
+    /* Было "transition:.3s" без имени свойства — парсится как ALL
+       (десятки лишних transition-объектов на каждую карточку списка,
+       см. document.getAnimations()). Явные свойства по соседнему :hover. */
+    transition: transform .3s, border-color .3s, box-shadow .3s;
 }
 
   .habit-item:hover{
@@ -522,10 +525,12 @@ font-size:15px;
 
     font-size:22px;
 
-    transition:.25s;
+    /* см. комментарий у .habit-item выше — "transition:.25s" без
+       свойства = ALL. */
+    transition: transform .25s, color .25s, box-shadow .25s;
 
-} 
-             
+}
+
   .habit-item.is-done .habit-item__check{
 
     background:
@@ -633,7 +638,9 @@ font-size:15px;
 
     color:#9CA3AF;
 
-    transition:.25s;
+    /* см. комментарий у .habit-item выше — "transition:.25s" без
+       свойства = ALL. */
+    transition: background-color .25s, color .25s;
 
 }
 
@@ -1336,7 +1343,15 @@ opacity:.35;
 
     color:#8D8DA7;
 
-    transition:.35s;
+    /* НАЙДЕНО через document.getAnimations(): "transition:.35s" без
+       имени свойства парсится как transition-property:ALL — браузер
+       заводит отдельный transition-объект на КАЖДОЕ анимируемое
+       CSS-свойство (включая экзотику вроде scrollbarColor/outlineWidth/
+       columnRuleWidth, которые тут никогда не меняются), а не только на
+       то единственное, что реально меняется. На 5 кнопках таб-бара это
+       десятки лишних объектов, которые браузер пересчитывает каждый
+       кадр. Явно перечисляем только то, что действительно меняется. */
+    transition: color .35s, background-color .35s, transform .35s;
 
     cursor:pointer;
 
@@ -1352,7 +1367,9 @@ opacity:.35;
         "opsz" 24;
 
     line-height: 1;
-    transition: .3s ease;
+    /* см. комментарий у .tab-bar__item выше — "transition:.3s ease" без
+       свойства = ALL. */
+    transition: transform .3s ease, color .3s ease, text-shadow .3s ease;
 }
 
 .tab-bar__item.is-active{
@@ -1386,7 +1403,9 @@ opacity:.35;
 
     font-weight:600;
 
-    transition:.35s;
+    /* см. комментарий у .tab-bar__item выше — то же самое "transition:
+       ВСЕ свойства" по ошибке вместо одного нужного. */
+    transition: color .35s;
 
 }
 
@@ -1695,7 +1714,9 @@ body {
   font-size: 18px;
   color: transparent;
 
-  transition: all .2s ease;
+  /* было "transition: all" — то же самое, десятки лишних transition-
+     объектов на каждую привычку в списке (см. document.getAnimations()). */
+  transition: color .2s ease, box-shadow .2s ease;
 }
 
 .habit-item.is-done .habit-item__check {
@@ -2041,7 +2062,10 @@ body {
 
     opacity:0;
 
-    transition:.35s;
+    /* см. комментарий у .tab-bar__item — та же ошибка "transition:
+       ВСЕ свойства" вместо одного нужного (opacity — свечение при
+       ховере/тапе). */
+    transition: opacity .35s;
 
     pointer-events:none;
 
@@ -2162,7 +2186,10 @@ body {
 
 .tab-bar__item{
 
-    transition:.25s;
+    /* см. комментарий у первого .tab-bar__item — эта, более поздняя по
+       каскаду, декларация transition и есть та, что реально выигрывает
+       (тот же свойство "ALL" по ошибке). */
+    transition: color .25s, background-color .25s, transform .25s;
 
 }
 
@@ -5840,7 +5867,9 @@ button:hover,.btn:hover{filter:brightness(1.08)}
 .tab-bar__item::before{
   content:"";position:absolute;inset:5px;border-radius:17px;
   background:linear-gradient(145deg,rgba(143,114,255,.16),rgba(255,255,255,.025));
-  opacity:0;transform:scale(.88);transition:.22s;
+  opacity:0;transform:scale(.88);
+  /* было "transition:.22s" без свойства = ALL (см. комментарии выше). */
+  transition: opacity .22s, transform .22s;
 }
 .tab-bar__item.is-active{color:#eee9ff !important}
 .tab-bar__item.is-active::before{opacity:1;transform:none}
