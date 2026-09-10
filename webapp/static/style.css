@@ -1989,22 +1989,12 @@ body {
 
 /* ===== АНИМАЦИЯ ПОЯВЛЕНИЯ ===== */
 
+/* opacity/scale убраны (см. комментарий у @keyframes tabEnter):
+   стартовое «невидимо» на элементах списка = риск пустого экрана при
+   скролле только что открытой вкладки. Только лёгкий сдвиг. */
 @keyframes fadeUp{
-
-    from{
-
-        opacity:0;
-        transform:translateY(25px) scale(.97);
-
-    }
-
-    to{
-
-        opacity:1;
-        transform:translateY(0) scale(1);
-
-    }
-
+    from{ transform:translateY(12px); }
+    to{ transform:translateY(0); }
 }
 
 .habit-item{
@@ -2229,22 +2219,23 @@ body {
 
 #content{
 
-    animation:pageOpen .6s ease;
+    animation:pageOpen .4s ease;
 
 }
 
+/* opacity:0 убран — та же причина, что у tabEnter/itemReveal ниже:
+   стартовое состояние «невидимо» на всей области контента = риск
+   пустого экрана, если WebView пропустит кадры. Только сдвиг. */
 @keyframes pageOpen{
 
     from{
 
-        opacity:0;
-        transform:translateY(20px);
+        transform:translateY(16px);
 
     }
 
     to{
 
-        opacity:1;
         transform:translateY(0);
 
     }
@@ -2515,8 +2506,8 @@ body {
 .plan-add-form__btn:disabled{opacity:.4; cursor:not-allowed;}
 
 @keyframes planItemIn{
-  from{opacity:0; transform:translateY(4px)}
-  to{opacity:1; transform:translateY(0)}
+  from{transform:translateY(4px)}
+  to{transform:translateY(0)}
 }
 
 /* ===================== МАГАЗИН: ЗНАЧОК В РЕЙТИНГЕ/ПРОФИЛЕ ===================== */
@@ -3313,7 +3304,7 @@ body[data-theme="violet"] .player-card{
 .rating-hero h2{margin:5px 0 3px;font:800 32px/1.05 'Space Grotesk',sans-serif;letter-spacing:-.04em}.rating-hero p{margin:0;color:#9694A6;font-size:12px}.rating-hero__stats{display:flex;gap:8px;margin-top:15px}.rating-hero__stats>span{padding:7px 10px;border-radius:11px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.06);font-size:10px;color:#AAA8B8}.rating-hero__stats b{color:#fff}#ratingPlayerCountLabel{background:none;border:none;padding:0;font-size:inherit;color:inherit}
 .rating-podium{display:grid;grid-template-columns:1fr 1.12fr 1fr;align-items:end;gap:8px;margin:0 0 14px}.rating-podium-card{position:relative;min-width:0;overflow:hidden;text-align:center;padding:13px 7px 12px;border-radius:21px;background:linear-gradient(160deg,rgba(255,255,255,.075),rgba(255,255,255,.025));border:1px solid rgba(255,255,255,.075);box-shadow:0 14px 35px rgba(0,0,0,.22);transition:transform .25s ease,border-color .25s ease}.rating-podium-card:hover{transform:translateY(-4px)}.rating-podium-card.rank-1{padding-top:17px;padding-bottom:16px;border-color:rgba(240,180,41,.42);background:radial-gradient(circle at 50% 0%,rgba(240,180,41,.18),transparent 55%),linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.025));box-shadow:0 18px 45px rgba(240,180,41,.12)}.rating-podium-card.is-me{box-shadow:0 0 0 1px rgba(255,255,255,.12),0 18px 45px rgba(124,92,252,.15)}
 .rating-podium-card__crown{font-size:22px;line-height:1;margin-bottom:5px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.25))}.rating-podium-card.rank-1 .rating-podium-card__crown{font-size:28px}.rating-podium-card__avatar{width:52px;height:52px;margin:auto;border-radius:17px;display:grid;place-items:center;background:#25253A;border:2px solid rgba(255,255,255,.09);font:900 21px 'Space Grotesk',sans-serif;box-shadow:0 7px 20px rgba(0,0,0,.25)}.rank-1 .rating-podium-card__avatar{width:62px;height:62px;border-radius:20px;font-size:25px}.rating-podium-card__rank{margin-top:7px;font-size:9px;color:#8F8C9C;font-weight:800;letter-spacing:.08em}.rating-podium-card__name{margin-top:3px;font-size:12px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rating-podium-card__status{margin-top:3px;color:#FFB36F;font-size:8px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rating-podium-card__stats{display:flex;justify-content:center;gap:8px;margin-top:8px;color:#B7B4C2;font-size:9px;font-weight:800}.rating-podium-card__stats .stat-icon{font-size:13px}.rating-podium-card__stats svg{width:13px;height:13px;vertical-align:-3px}.rating-rest-head{display:flex;justify-content:space-between;align-items:center;margin:3px 2px 8px;color:#777586;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.rating-rest-head span:first-child{color:#BDB9C8}
-.rating-list{gap:7px}.rating-item{position:relative;overflow:hidden;padding:10px 11px;border-radius:18px;background:linear-gradient(110deg,rgba(255,255,255,.045),rgba(255,255,255,.018));border-color:rgba(255,255,255,.06);box-shadow:0 7px 20px rgba(0,0,0,.12);transition:transform .2s ease,background .2s ease}.rating-item:hover{transform:translateX(3px);background:rgba(255,255,255,.065)}.rating-item.is-me{border-color:rgba(240,180,41,.38);background:linear-gradient(100deg,rgba(240,180,41,.12),rgba(255,255,255,.025) 68%)}.rating-item__rank{font-size:11px;color:#767385}.rating-avatar{width:40px;height:40px;flex-basis:40px;border-radius:13px;border:1px solid rgba(255,255,255,.08);box-shadow:0 6px 16px rgba(0,0,0,.2)}.rating-item__name-text{font-weight:800}.rating-item__meta{font-weight:800}.rating-item:nth-child(1){animation:ratingIn .45s ease both}.rating-item:nth-child(2){animation:ratingIn .45s .04s ease both}.rating-item:nth-child(3){animation:ratingIn .45s .08s ease both}@keyframes ratingIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.rating-list{gap:7px}.rating-item{position:relative;overflow:hidden;padding:10px 11px;border-radius:18px;background:linear-gradient(110deg,rgba(255,255,255,.045),rgba(255,255,255,.018));border-color:rgba(255,255,255,.06);box-shadow:0 7px 20px rgba(0,0,0,.12);transition:transform .2s ease,background .2s ease}.rating-item:hover{transform:translateX(3px);background:rgba(255,255,255,.065)}.rating-item.is-me{border-color:rgba(240,180,41,.38);background:linear-gradient(100deg,rgba(240,180,41,.12),rgba(255,255,255,.025) 68%)}.rating-item__rank{font-size:11px;color:#767385}.rating-avatar{width:40px;height:40px;flex-basis:40px;border-radius:13px;border:1px solid rgba(255,255,255,.08);box-shadow:0 6px 16px rgba(0,0,0,.2)}.rating-item__name-text{font-weight:800}.rating-item__meta{font-weight:800}.rating-item:nth-child(1){animation:ratingIn .45s ease both}.rating-item:nth-child(2){animation:ratingIn .45s .04s ease both}.rating-item:nth-child(3){animation:ratingIn .45s .08s ease both}@keyframes ratingIn{from{transform:translateY(8px)}to{transform:none}}
 
 .streak-profile-card--premium{position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;min-height:158px;padding:20px;margin-bottom:12px;border-radius:30px;background:radial-gradient(circle at 82% 25%,rgba(255,122,24,.22),transparent 28%),radial-gradient(circle at 20% 100%,rgba(240,180,41,.1),transparent 35%),linear-gradient(145deg,#21151A,#12111A 72%);border:1px solid rgba(255,122,24,.22);box-shadow:0 25px 60px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.07)}.streak-profile-card--premium::before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.035) 50%,transparent 70%);transform:translateX(-120%);animation:profileSheen 5s ease-in-out infinite}@keyframes profileSheen{55%,100%{transform:translateX(120%)}}
 .streak-profile-card__particles i{position:absolute;width:4px;height:4px;border-radius:50%;background:#FFB45F;opacity:.35;animation:profileParticle 3s ease-in-out infinite}.streak-profile-card__particles i:nth-child(1){left:18%;top:15%}.streak-profile-card__particles i:nth-child(2){left:60%;top:12%;animation-delay:.8s}.streak-profile-card__particles i:nth-child(3){left:72%;bottom:18%;animation-delay:1.5s}.streak-profile-card__particles i:nth-child(4){left:34%;bottom:10%;animation-delay:2s}@keyframes profileParticle{50%{transform:translateY(-8px) scale(1.5);opacity:.8}}
@@ -3920,25 +3911,43 @@ select:focus {
 .habit-item:nth-child(4), .plan-list > li:nth-child(4), .rating-item:nth-child(4), .achievement-item:nth-child(4), .shop-item:nth-child(4), .cal-cell:nth-child(4) { animation-delay: 105ms; }
 .habit-item:nth-child(5), .plan-list > li:nth-child(5), .rating-item:nth-child(5), .achievement-item:nth-child(5), .shop-item:nth-child(5), .cal-cell:nth-child(5) { animation-delay: 140ms; }
 .habit-item:nth-child(n+6), .plan-list > li:nth-child(n+6), .rating-item:nth-child(n+6), .achievement-item:nth-child(n+6), .shop-item:nth-child(n+6) { animation-delay: 175ms; }
+/* Дальше первой дюжины появление вообще не проигрываем: на Профиле
+   таких элементов 30+, и десятки одновременных transform-анимаций при
+   рендере вкладки — лишняя нагрузка ровно в тот момент, когда юзер уже
+   скроллит. Сдвиг всего 8px — «выскок» без анимации незаметен. */
+.habit-item:nth-child(n+13), .plan-list > li:nth-child(n+13),
+.rating-item:nth-child(n+13), .achievement-item:nth-child(n+13),
+.shop-item:nth-child(n+13), .cal-cell:nth-child(n+13) { animation: none !important; }
 
+/* ВАЖНО (видео клиента «апи.mp4»): при переключении на вкладку Рейтинг/
+   Профиль и одновременном скролле весь контент между шапкой и таб-баром
+   на 0.15-0.35с становится ПУСТЫМ ЧЁРНЫМ, потом «прогружается заново».
+   Причина — эти появления анимировали opacity С НУЛЯ на десятках
+   элементов сразу (+ blur на всей длинной панели). Если WebView не
+   успевает кадр — он показывает стартовое состояние (opacity:0 =
+   невидимо), и так несколько кадров = пустой экран. Плюс filter:blur и
+   scale на панели высотой 2000px+ = огромный слой для растеризации.
+   Оставляем только лёгкий сдвиг translateY (transform по уже
+   отрисованному контенту — дёшево и в худшем случае просто «не
+   проехало», а не «исчезло»). Никакой анимации opacity/filter/scale. */
 @keyframes contentReveal {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
 }
 
 @keyframes itemReveal {
-  from { opacity: 0; transform: translateY(10px) scale(.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
 }
 
 /* Tab switching animation. JS toggles this class for a real enter transition. */
 .tab-panel.tab-enter {
-  animation: tabEnter 360ms var(--motion-ease) both;
+  animation: tabEnter 300ms var(--motion-ease) both;
 }
 
 @keyframes tabEnter {
-  from { opacity: 0; transform: translateY(12px); filter: blur(2px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from { transform: translateY(10px); }
+  to { transform: translateY(0); }
 }
 
 /* More natural progress feedback. */
@@ -3965,8 +3974,8 @@ select:focus {
 }
 
 @keyframes playerCardReveal {
-  from { opacity: 0; transform: translateY(12px) scale(.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { transform: translateY(10px); }
+  to { transform: translateY(0); }
 }
 
 /* Respect OS / Telegram accessibility preference. */
@@ -5534,11 +5543,15 @@ body::before{
 }
 #content{position:relative;z-index:1}
 .tab-panel{
-  animation:adamPanelIn .38s cubic-bezier(.22,1,.36,1);
+  animation:adamPanelIn .32s cubic-bezier(.22,1,.36,1);
 }
+/* Было opacity:0 + scale(.992) на всей панели (высотой 2000px+ на
+   Профиле) — при переключении вкладки + скролле WebView не успевал и
+   показывал пустой экран (см. видео «апи.mp4», комментарий у
+   @keyframes tabEnter). Только лёгкий сдвиг, без opacity/scale. */
 @keyframes adamPanelIn{
-  from{opacity:0;transform:translateY(10px) scale(.992)}
-  to{opacity:1;transform:none}
+  from{transform:translateY(8px)}
+  to{transform:translateY(0)}
 }
 
 /* ====== HEADER / PLAYER ====== */
@@ -7539,8 +7552,8 @@ body{
 .performance-lite .settings-card,.performance-lite .progress-stats-card,
 .performance-lite .calendar-card{animation:none !important}
 @keyframes adamSectionIn{
-  from{opacity:0;transform:translateY(10px)}
-  to{opacity:1;transform:translateY(0)}
+  from{transform:translateY(9px)}
+  to{transform:translateY(0)}
 }
 
 /* =========================================================
