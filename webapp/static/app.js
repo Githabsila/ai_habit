@@ -1996,7 +1996,10 @@
         const cell = `style="grid-column:${gridCol[idx]}"`;
         if (r.can_react) return `<button type="button" class="rating-podium-react-btn" ${cell} data-podium-react-target="${r.telegram_id}" aria-label="Поддержать ${escapeHtml(r.first_name || r.username || "игрока")}">💌</button>`;
         if (isMe) return `<span class="rating-podium-react-btn rating-podium-react-btn--self" ${cell} aria-hidden="true">ты</span>`;
-        return `<span ${cell}></span>`;
+        // не can_react и не я → сегодня уже поддержал этого игрока.
+        // Показываем "галочку" вместо пустоты, чтобы ряд был ровным и
+        // было понятно почему тут нет активного конвертика.
+        return `<span class="rating-podium-react-btn rating-podium-react-btn--sent" ${cell} aria-hidden="true" title="Сегодня уже поддержал">✓</span>`;
       }).join("") + `</div>`;
       podium.innerHTML = cardsHtml + reactionsHtml;
     }
@@ -2013,7 +2016,9 @@
           ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
         </span>
         <span class="rating-item__meta"><span class="rating-stat"><span class="material-symbols-rounded stat-icon">local_fire_department</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
-        ${r.can_react ? `<button type="button" class="rating-item__react-btn" data-react-target="${r.telegram_id}" aria-label="Поддержать">💌</button>` : ""}
+        ${r.can_react
+          ? `<button type="button" class="rating-item__react-btn" data-react-target="${r.telegram_id}" aria-label="Поддержать">💌</button>`
+          : (isMe ? "" : `<span class="rating-item__react-btn rating-item__react-btn--sent" aria-hidden="true" title="Сегодня уже поддержал">✓</span>`)}
         ${reactPickerForId === r.telegram_id ? `
         <div class="rating-react-picker">
           ${REACTION_EMOJIS.map(e => `<button type="button" class="rating-react-chip" data-emoji="${e}">${e}</button>`).join("")}
@@ -3555,6 +3560,10 @@ function initRatingActions() {
       });
       haptic("light");
       showToast("Поддержка отправлена " + emoji, "success");
+      // loadBootstrapSecondary кэширует по ключу — без сброса кэша
+      // повторный вызов был no-op, и 💌 не превращался в ✓ до
+      // перезахода на вкладку (тот же приём, что и для Профиля).
+      secondaryLoaded.delete("rating");
       await loadBootstrapSecondary("rating");
     } catch (err) {
       showToast(friendlyError(err), "error");

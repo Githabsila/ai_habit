@@ -7108,6 +7108,7 @@ section[data-tab="profile"] .section-heading h2::first-letter{
 .rating-item{flex-wrap:wrap}
 .rating-item__react-btn{
   flex:0 0 auto;
+  box-sizing:border-box;
   width:30px;height:30px;
   display:grid;place-items:center;
   border-radius:10px;
@@ -7115,6 +7116,15 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   background:rgba(255,255,255,.04);
   font-size:14px;
   cursor:pointer;
+}
+/* ✓ — сегодня уже поддержал этого игрока (тот же бокс, приглушённый). */
+.rating-item__react-btn--sent{
+  cursor:default;
+  color:#7FE0A8;
+  font-size:15px;
+  font-weight:800;
+  background:rgba(90,220,150,.08);
+  border-color:rgba(127,224,168,.18);
 }
 .rating-react-picker{
   flex:0 0 100%;
@@ -9361,15 +9371,17 @@ body{
 }
 
 /* ---------- Поддержать из подиума ----------
-   Кнопки 💌 вынесены в отдельный ряд-оверлей над подиумом (см.
-   app.js::renderRating). Карточки пьедестала разной высоты и смещены
-   ступеньками — конвертики в их углах оказывались на разной высоте
-   («неровно»). Оверлей — грид с ТЕМИ ЖЕ колонками, что и подиум,
-   прибит к его верху: все три кнопки на одной линии, каждая у правого
-   края своей колонки. Для 3-го места тоже работает как для всех. */
+   Кнопки 💌 — отдельный ряд-оверлей над подиумом (см. app.js::renderRating).
+   Карточки разной высоты и смещены ступеньками — в углах карточек
+   конвертики висели на разной высоте. Оверлей — грид с ТЕМИ ЖЕ
+   колонками, прибит к верху: все три ячейки СТРОГО на одной линии.
+   Три состояния (одинаковый размер бокса, чтобы ряд был ровным):
+   .rating-podium-react-btn           — активная 💌 (можно поддержать)
+   .rating-podium-react-btn--sent     — ✓ (сегодня уже поддержал)
+   .rating-podium-react-btn--self     — «ты» (своя карточка) */
 .rating-podium-reactions{
   position: absolute;
-  top: 30px;
+  top: 32px;
   left: 0;
   right: 0;
   display: grid;
@@ -9383,41 +9395,59 @@ body{
   grid-row: 1;
   justify-self: end;
   align-self: start;
-  margin-right: 7px;
+  margin-right: 8px;
 }
-/* Все три конвертика на ОДНОЙ линии (это и просил пользователь). Карточки
-   почти вровень по верху (2-е и 3-е — одинаково, 1-е чуть выше за счёт
-   translateY/scale), поэтому доп. компенсация не нужна. */
 .rating-podium-react-btn{
   pointer-events: auto;
-  width: 26px;
-  height: 26px;
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(20,18,30,.82);
-  box-shadow: 0 4px 12px rgba(0,0,0,.3);
-  font-size: 12px;
+  border-radius: 11px;
+  border: 1px solid rgba(255,255,255,.14);
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgba(139,108,255,.28), transparent 70%),
+    linear-gradient(160deg, rgba(38,33,54,.96), rgba(22,19,32,.96));
+  box-shadow:
+    0 6px 16px rgba(0,0,0,.34),
+    inset 0 1px 0 rgba(255,255,255,.10);
+  font-size: 13px;
+  line-height: 1;
   cursor: pointer;
-  transition: transform .15s ease;
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+}
+.rating-podium-react-btn:hover{
+  border-color: rgba(183,164,255,.4);
+  box-shadow: 0 8px 20px rgba(124,92,252,.3), inset 0 1px 0 rgba(255,255,255,.12);
 }
 .rating-podium-react-btn:active{ transform: scale(.88); }
-.rating-podium-react-btn:disabled{ opacity: .5; }
-/* Своя карточка: вместо 💌 — метка «ты», чтобы ряд был симметричным и
-   было понятно, почему тут нельзя поддержать (нельзя самого себя). */
-.rating-podium-react-btn--self{
-  width: auto;
-  min-width: 26px;
-  padding: 0 7px;
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: #B9B4C6;
-  background: rgba(20,18,30,.62);
+
+/* ✓ — сегодня уже поддержал этого игрока. Тот же бокс, приглушённый,
+   без указателя. */
+.rating-podium-react-btn--sent{
   cursor: default;
   pointer-events: none;
+  color: #7FE0A8;
+  font-size: 15px;
+  font-weight: 800;
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgba(90,220,150,.16), transparent 70%),
+    linear-gradient(160deg, rgba(30,30,40,.9), rgba(18,18,26,.9));
+  border-color: rgba(127,224,168,.22);
+}
+
+/* «ты» — своя карточка. Тот же бокс, серая подпись. */
+.rating-podium-react-btn--self{
+  cursor: default;
+  pointer-events: none;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #A9A4BA;
+  background: linear-gradient(160deg, rgba(30,27,42,.9), rgba(18,16,26,.9));
+  border-color: rgba(255,255,255,.09);
 }
 
 /* ---------- Кнопка "действия с привычкой" — по фидбеку про непостоянное
