@@ -5119,10 +5119,13 @@ section[data-tab="home"] .streak-widget__hero-row{
 }
 
 @keyframes cardShineStable {
+  /* Пики опущены (.95→.4): теперь основной визуал шапки — аврора,
+     а блик должен быть тонким скольжением, а не яркой вспышкой,
+     иначе на скролле читается как то же мигание. */
   0%, 9% { opacity: 0; transform: translate3d(0,0,0) skewX(-10deg); }
-  16% { opacity: .72; }
-  48% { opacity: .95; }
-  76% { opacity: .55; }
+  16% { opacity: .28; }
+  48% { opacity: .4; }
+  76% { opacity: .22; }
   93%, 100% { opacity: 0; transform: translate3d(430%,0,0) skewX(-10deg); }
 }
 
@@ -5545,17 +5548,90 @@ body::before{
   gap:28px !important;
   border-radius:34px !important;
   border:1px solid rgba(255,255,255,.105) !important;
+  /* Фон был rgba(...,.94) + backdrop-filter:blur(26px). При .94 сквозь
+     фон проходит всего ~6% — blur почти ничего не даёт визуально, но
+     стоит дорого композитору и — главное — МИГАЕТ при скролле (видео
+     пользователя «паи.mp4»): JS на время скролла навешивает .is-scrolling
+     и подменяет фон/выключает blur, при листании вверх-вниз это
+     переключение туда-сюда и есть мигание. Делаем фон полностью
+     непрозрачным, blur убираем совсем — тогда подменять при скролле
+     нечего, мигание уходит. Дизайн-градиент сохранён 1:1, просто без
+     альфы. */
   background:
-    radial-gradient(500px 240px at 5% 0%,rgba(139,108,255,.18),transparent 65%),
-    radial-gradient(380px 220px at 100% 100%,rgba(255,215,106,.08),transparent 65%),
-    linear-gradient(145deg,rgba(30,27,42,.94),rgba(12,11,18,.94)) !important;
+    radial-gradient(500px 240px at 5% 0%,rgba(139,108,255,.16),transparent 65%),
+    radial-gradient(380px 220px at 100% 100%,rgba(255,215,106,.07),transparent 65%),
+    linear-gradient(145deg,#1e1b2a,#0c0b12) !important;
   box-shadow:0 30px 90px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.11) !important;
-  backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
 }
 .player-card::after{
   content:"";
   position:absolute;inset:1px;border-radius:33px;pointer-events:none;
   background:linear-gradient(120deg,rgba(255,255,255,.08),transparent 25%,transparent 70%,rgba(255,215,106,.04));
+  z-index:1;
+}
+
+/* ============================================================
+   ЖИВОЙ ФОН ШАПКИ — "аврора"
+   Просьба пользователя: убрать мигание шапки при скролле И добавить
+   красивую анимацию на фон. Мигание убрано выше (непрозрачный фон, без
+   backdrop-filter). Здесь — три больших мягких цветовых пятна, которые
+   медленно дрейфуют за контентом. Анимируется ТОЛЬКО transform (GPU,
+   без filter/blur, без layout/paint) — дёшево даже для слабого WebView.
+   Пятна размыты не filter'ом, а мягким краем самого radial-gradient. */
+.player-card__aurora{
+  position:absolute;inset:0;z-index:0;
+  border-radius:inherit;overflow:hidden;pointer-events:none;
+  /* лёгкая маска, чтобы у краёв шапки пятна затухали и не было резкой
+     границы у скруглённого угла */
+  -webkit-mask:radial-gradient(120% 130% at 50% 20%,#000 55%,transparent 100%);
+          mask:radial-gradient(120% 130% at 50% 20%,#000 55%,transparent 100%);
+}
+.player-card__aurora i{
+  position:absolute;display:block;border-radius:50%;
+  /* без will-change намеренно: transform-анимация и так уедет на GPU, а
+     постоянный will-change на декоре жрёт бюджет compositor-слоёв
+     WebView (уже ловили этот баг в этом проекте). */
+}
+.player-card__aurora i:nth-child(1){
+  width:300px;height:300px;left:-70px;top:-140px;
+  background:radial-gradient(circle,rgba(139,108,255,.55),rgba(139,108,255,0) 68%);
+  animation:pcAurora1 19s ease-in-out infinite;
+}
+.player-card__aurora i:nth-child(2){
+  width:260px;height:260px;right:-80px;top:-70px;
+  background:radial-gradient(circle,rgba(255,141,74,.32),rgba(255,141,74,0) 70%);
+  animation:pcAurora2 24s ease-in-out infinite;
+}
+.player-card__aurora i:nth-child(3){
+  width:280px;height:230px;left:32%;bottom:-150px;
+  background:radial-gradient(circle,rgba(64,196,255,.26),rgba(64,196,255,0) 72%);
+  animation:pcAurora3 29s ease-in-out infinite;
+}
+@keyframes pcAurora1{
+  0%,100%{transform:translate3d(0,0,0) scale(1)}
+  33%{transform:translate3d(70px,50px,0) scale(1.22)}
+  66%{transform:translate3d(30px,20px,0) scale(.92)}
+}
+@keyframes pcAurora2{
+  0%,100%{transform:translate3d(0,0,0) scale(1)}
+  40%{transform:translate3d(-60px,40px,0) scale(1.18)}
+  70%{transform:translate3d(-20px,10px,0) scale(.9)}
+}
+@keyframes pcAurora3{
+  0%,100%{transform:translate3d(0,0,0) scale(1)}
+  50%{transform:translate3d(-50px,-40px,0) scale(1.25)}
+}
+/* Аврора — это теперь основной вид фона шапки, поэтому decor-settled её
+   НЕ трогает (в отличие от чисто атмосферных искр): 3 transform-анимации
+   на 19-29с — почти бесплатно. Гасим только когда реально надо: слабое
+   устройство, свёрнутое приложение, явный запрос reduced-motion. */
+.performance-lite .player-card__aurora i,
+.app-performance-paused .player-card__aurora i{
+  animation-play-state:paused!important;
+}
+@media (prefers-reduced-motion:reduce){
+  .player-card__aurora i{animation:none!important}
 }
 .player-card__ring-wrap{filter:drop-shadow(0 18px 34px rgba(118,80,255,.25))}
 .player-card__name{
@@ -9481,10 +9557,15 @@ body{
    ВАЖНО: остаётся тёмной даже в светлой теме (см. правило чуть ниже про
    :root[data-mode="light"] .player-card — только текст меняется),
    поэтому отдельного light-варианта фона тут не требуется. */
+/* .player-card теперь непрозрачна и БЕЗ backdrop-filter в состоянии покоя
+   (см. правило .player-card выше, ~строка 5540) — на время скролла
+   подменять нечего. Раньше здесь фон менялся на rgba(18,14,28,.94) и это
+   переключение при листании вверх-вниз давало мигание шапки (видео
+   «паи.mp4»). Правило оставлено пустым намеренно: JS всё ещё навешивает
+   класс .is-scrolling, пусть он просто ни на что не влияет. */
 .player-card.is-scrolling{
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  background: rgba(18,14,28,.94) !important;
 }
 
 /* ============================================================
