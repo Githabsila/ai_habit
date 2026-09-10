@@ -1970,9 +1970,16 @@
     };
     const medal = ["🥇", "🥈", "🥉"];
     if (podium) {
-      podium.innerHTML = rows.slice(0, 3).map((r, idx) => {
+      // Колонка каждого места в гриде: 1-е — центр (2), 2-е — слева (1),
+      // 3-е — справа (3). Кнопки 💌 вынесены в ОТДЕЛЬНЫЙ ряд-оверлей над
+      // подиумом (а не в углы карточек) — карточки разной высоты и
+      // смещены "ступеньками", из-за чего конвертики в углах оказывались
+      // на разной высоте (фидбек — «неровно»). Оверлей выравнивает их
+      // по одной линии независимо от карточек.
+      const gridCol = [2, 1, 3];
+      const cardsHtml = rows.slice(0, 3).map((r, idx) => {
         const rank = idx + 1, isMe = r.telegram_id === myId, name = r.first_name || r.username || "Игрок";
-        const {ss, reward, status} = getStatus(r);
+        const {ss, status} = getStatus(r);
         const frame = ss.temp_frame || "none";
         return `<div class="rating-podium-card rank-${rank} ${isMe ? "is-me" : ""}">
           <div class="rating-podium-card__crown">${medal[idx]}</div>
@@ -1982,9 +1989,16 @@
           ${r.league_tier ? `<div class="rating-podium-card__league">${escapeHtml(r.league_tier)}</div>` : ""}
           ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
           <div class="rating-podium-card__stats"><span>🔥 ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
-          ${r.can_react ? `<button type="button" class="rating-podium-card__react-btn" data-podium-react-target="${r.telegram_id}" aria-label="Поддержать">💌</button>` : ""}
         </div>`;
       }).join("");
+      const reactionsHtml = `<div class="rating-podium-reactions" aria-hidden="false">` + rows.slice(0, 3).map((r, idx) => {
+        const isMe = r.telegram_id === myId;
+        const cell = `style="grid-column:${gridCol[idx]}"`;
+        if (r.can_react) return `<button type="button" class="rating-podium-react-btn" ${cell} data-podium-react-target="${r.telegram_id}" aria-label="Поддержать ${escapeHtml(r.first_name || r.username || "игрока")}">💌</button>`;
+        if (isMe) return `<span class="rating-podium-react-btn rating-podium-react-btn--self" ${cell} aria-hidden="true">ты</span>`;
+        return `<span ${cell}></span>`;
+      }).join("") + `</div>`;
+      podium.innerHTML = cardsHtml + reactionsHtml;
     }
     list.innerHTML = rows.slice(3).map((r, i) => {
       const rank = i + 4, isMe = r.telegram_id === myId, name = r.first_name || r.username || "Игрок";
@@ -3193,6 +3207,9 @@ function initPlanActions() {
     not_admin: "Admins only",
     bot_unavailable: "The bot is temporarily unavailable, try again later",
     rate_limited: "Too many requests — wait a couple seconds and try again",
+    already_reacted_today: "You already cheered this player today — try again tomorrow",
+    invalid_reaction: "Couldn't send support",
+    invalid_target: "Player not found",
   };
 
   function friendlyError(err) {
@@ -3220,7 +3237,10 @@ function initPlanActions() {
         request_failed: "Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.",
         not_admin: "Доступно только администраторам",
         bot_unavailable: "Бот временно недоступен, попробуйте позже",
-        rate_limited: "Слишком много запросов подряд — подожди пару секунд и попробуй ещё раз"
+        rate_limited: "Слишком много запросов подряд — подожди пару секунд и попробуй ещё раз",
+        already_reacted_today: "Сегодня ты уже поддержал этого игрока — можно снова завтра",
+        invalid_reaction: "Не получилось отправить поддержку",
+        invalid_target: "Игрок не найден"
     };
 
     const activeMap = currentLanguage === "en" ? ERROR_MAP_EN : map;

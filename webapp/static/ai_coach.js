@@ -225,7 +225,7 @@ function TypewriterText({ id, text, active }) {
     }, [id]);
     const complete = shown.length >= text.length;
     const html = complete ? renderMarkdown(text) : escapeHtml(shown);
-    return React.createElement("div", { style: { whiteSpace: 'pre-wrap' }, dangerouslySetInnerHTML: { __html: html } });
+    return React.createElement("div", { style: { whiteSpace: 'pre-line', overflowWrap: 'break-word' }, dangerouslySetInnerHTML: { __html: html } });
 }
 // См. _FEEDBACK_REASONS в handlers/ai.py — те же формулировки, чтобы
 // причины дизлайка из бота и из Mini App попадали в одну и ту же

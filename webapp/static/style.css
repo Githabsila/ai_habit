@@ -3469,19 +3469,27 @@ section[data-tab="home"] .plan-main::before{
   position: relative;
   display: grid !important;
   grid-template-columns: 1fr 1.12fr 1fr !important;
-  align-items: end !important;
+  /* stretch (было end): все три карточки одной высоты — тогда ряд-оверлей
+     с конвертиками 💌 над подиумом ложится ровно по верхам всех трёх,
+     а не пляшет из-за разной высоты карточек. Ступеньки пьедестала
+     остаются за счёт translateY/scale ниже. */
+  align-items: stretch !important;
   gap: clamp(10px, 2vw, 24px) !important;
   min-height: 250px;
-  padding: 28px 10px 8px;
+  padding: 22px 10px 8px;
 }
 
+/* Ступеньки пьедестала сделаны мягче (было -24/2/28): при большом
+   разбросе конвертики 💌 в углах карточек оказывались на очень разной
+   высоте (фидбек пользователя — «неровно»). Компенсацию положения самих
+   конвертиков см. ниже у .rating-podium-card__react-btn. */
 .rating-podium > :nth-child(1),
 .leaderboard-podium > :nth-child(1),
 .top-three > :nth-child(1),
 .rating-top-three > :nth-child(1) {
   grid-column: 2;
   grid-row: 1;
-  transform: translateY(-24px);
+  transform: translateY(-5px) scale(1.03);
 }
 
 .rating-podium > :nth-child(2),
@@ -3490,7 +3498,7 @@ section[data-tab="home"] .plan-main::before{
 .rating-top-three > :nth-child(2) {
   grid-column: 1;
   grid-row: 1;
-  transform: translateY(2px);
+  transform: translateY(4px);
 }
 
 .rating-podium > :nth-child(3),
@@ -3499,7 +3507,7 @@ section[data-tab="home"] .plan-main::before{
 .rating-top-three > :nth-child(3) {
   grid-column: 3;
   grid-row: 1;
-  transform: translateY(28px);
+  transform: translateY(4px);
 }
 
 .rating-podium > *,
@@ -3513,21 +3521,21 @@ section[data-tab="home"] .plan-main::before{
 .leaderboard-podium > :nth-child(1):hover,
 .top-three > :nth-child(1):hover,
 .rating-top-three > :nth-child(1):hover {
-  transform: translateY(-31px) scale(1.025);
+  transform: translateY(-9px) scale(1.045);
 }
 
 .rating-podium > :nth-child(2):hover,
 .leaderboard-podium > :nth-child(2):hover,
 .top-three > :nth-child(2):hover,
 .rating-top-three > :nth-child(2):hover {
-  transform: translateY(-3px) scale(1.02);
+  transform: translateY(0) scale(1.03);
 }
 
 .rating-podium > :nth-child(3):hover,
 .leaderboard-podium > :nth-child(3):hover,
 .top-three > :nth-child(3):hover,
 .rating-top-three > :nth-child(3):hover {
-  transform: translateY(23px) scale(1.02);
+  transform: translateY(0) scale(1.03);
 }
 
 /* Remove rainbow/accent strips from the main-day/task area. */
@@ -3692,14 +3700,14 @@ section[data-tab="home"] .plan-main::before{
   .leaderboard-podium > :nth-child(1),
   .top-three > :nth-child(1),
   .rating-top-three > :nth-child(1) {
-    transform: translateY(-16px);
+    transform: translateY(-5px) scale(1.03);
   }
 
   .rating-podium > :nth-child(3),
   .leaderboard-podium > :nth-child(3),
   .top-three > :nth-child(3),
   .rating-top-three > :nth-child(3) {
-    transform: translateY(18px);
+    transform: translateY(4px);
   }
 }
 
@@ -9352,24 +9360,65 @@ body{
   display: none !important;
 }
 
-/* ---------- Поддержать из подиума (топ-3 раньше были недоступны для 💌) ---------- */
-.rating-podium-card__react-btn{
+/* ---------- Поддержать из подиума ----------
+   Кнопки 💌 вынесены в отдельный ряд-оверлей над подиумом (см.
+   app.js::renderRating). Карточки пьедестала разной высоты и смещены
+   ступеньками — конвертики в их углах оказывались на разной высоте
+   («неровно»). Оверлей — грид с ТЕМИ ЖЕ колонками, что и подиум,
+   прибит к его верху: все три кнопки на одной линии, каждая у правого
+   края своей колонки. Для 3-го места тоже работает как для всех. */
+.rating-podium-reactions{
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 30px;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 1fr 1.12fr 1fr;
+  gap: clamp(10px, 2vw, 24px);
+  padding: 0 10px;
+  pointer-events: none;
+  z-index: 4;
+}
+.rating-podium-reactions > *{
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  margin-right: 7px;
+}
+/* Все три конвертика на ОДНОЙ линии (это и просил пользователь). Карточки
+   почти вровень по верху (2-е и 3-е — одинаково, 1-е чуть выше за счёт
+   translateY/scale), поэтому доп. компенсация не нужна. */
+.rating-podium-react-btn{
+  pointer-events: auto;
   width: 26px;
   height: 26px;
   display: grid;
   place-items: center;
   border-radius: 9px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(20,18,30,.82);
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
   font-size: 12px;
   cursor: pointer;
-  z-index: 2;
+  transition: transform .15s ease;
 }
-.rating-podium-card__react-btn:active{ transform: scale(.9); }
-.rating-podium-card__react-btn:disabled{ opacity: .5; }
+.rating-podium-react-btn:active{ transform: scale(.88); }
+.rating-podium-react-btn:disabled{ opacity: .5; }
+/* Своя карточка: вместо 💌 — метка «ты», чтобы ряд был симметричным и
+   было понятно, почему тут нельзя поддержать (нельзя самого себя). */
+.rating-podium-react-btn--self{
+  width: auto;
+  min-width: 26px;
+  padding: 0 7px;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #B9B4C6;
+  background: rgba(20,18,30,.62);
+  cursor: default;
+  pointer-events: none;
+}
 
 /* ---------- Кнопка "действия с привычкой" — по фидбеку про непостоянное
    расположение ⏰/📝/⏭/✕ (переносились по-разному в зависимости от длины
