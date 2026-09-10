@@ -4573,21 +4573,16 @@ section[data-tab="home"] .streak-widget__hero-row{
 .decor-settled .streak-widget--hero::before,
 .decor-settled .streak-profile-card--premium::before,
 .decor-settled .player-card::before,
-.decor-settled .rating-hero::after,
-.decor-settled .streak-orbit,
-.decor-settled .streak-widget__flame-halo,
-.decor-settled .streak-widget__icon-ember--a,
-.decor-settled .streak-widget__icon-ember--b{
+.decor-settled .rating-hero::after{
   animation-play-state:paused!important;
   opacity:0!important;
 }
-/* Эти четыре раньше не попадали в "успокоение" вообще (только пауза при
-   сворачивании приложения) — крутились бесконечно ВСЁ время, пока открыт
-   главный экран, где происходит 93% реальных долгих кадров по телеметрии
-   (см. /api/admin/perf-events). Орбиты/гало/эмберы — чистая атмосфера без
-   смысла, как искры выше, поэтому тоже гасим через opacity. Дни серии и
-   питомец несут смысл (статус дня, состояние питомца) — им оставляем
-   только паузу анимации, сам элемент не прячем. */
+/* Питомец и флик дней серии несут смысл (состояние питомца, статус дня) —
+   после "успокоения" оставляем их видимыми, только останавливаем анимацию.
+   Орбиты/гало/эмберы вокруг огонька серии НЕ трогаем здесь: фидбек
+   пользователя — «движущиеся элементы вокруг огонька пропали вообще» —
+   их полное скрытие было заметной потерей, а выигрыш по перфу дал не этот
+   декор, а фикс transition:ALL (см. коммит 0f0caa8). */
 .decor-settled .streak-day.is-done span,
 .decor-settled .pet-widget__emoji{
   animation-play-state:paused!important;
@@ -6103,7 +6098,13 @@ ul#shopList.shop-list,
 }
 .freeze-purchase-sheet[hidden]{display:none}
 .freeze-purchase-sheet__backdrop{
-  position:absolute;inset:0;background:rgba(3,4,10,.58);backdrop-filter:blur(7px);
+  /* Видео пользователя: открытие этой шторки даёт ~1.8с фриз. Фон был
+     rgba(...,.58) — полупрозрачный, значит браузер обязан продолжать
+     композитить всю анимированную Главную ПОД скримом каждый кадр.
+     Делаем скрим почти непрозрачным (.93) — тогда движок может отсечь
+     перерисовку того, что за ним. Визуально это тот же тёмный скрим.
+     blur и так убран !important-ом выше (см. аудит backdrop-filter). */
+  position:absolute;inset:0;background:rgba(3,4,10,.93);
   opacity:0;transition:opacity .22s ease;
 }
 .freeze-purchase-card{
@@ -6111,7 +6112,9 @@ ul#shopList.shop-list,
   padding:18px 16px 15px;border-radius:24px;
   background:linear-gradient(145deg,rgba(30,32,48,.98),rgba(16,18,29,.99));
   border:1px solid rgba(255,255,255,.10);
-  box-shadow:0 18px 55px rgba(0,0,0,.42),0 0 28px rgba(74,137,255,.08);
+  /* тень 55px радиуса на карточке 430px — большая размытая площадь для
+     растеризации при появлении; ужимаем до умеренной. */
+  box-shadow:0 14px 30px rgba(0,0,0,.42);
   transform:translateY(28px);opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .22s ease;
 }
 .freeze-purchase-sheet.is-open .freeze-purchase-sheet__backdrop{opacity:1}
@@ -8786,7 +8789,9 @@ body{
 }
 .feedback-sheet[hidden]{display:none}
 .feedback-sheet__backdrop{
-  position:absolute;inset:0;background:rgba(3,4,10,.58);backdrop-filter:blur(7px);
+  /* та же причина, что у .freeze-purchase-sheet__backdrop — почти
+     непрозрачный скрим, чтобы движок отсекал перерисовку Главной под ним. */
+  position:absolute;inset:0;background:rgba(3,4,10,.93);
   opacity:0;transition:opacity .22s ease;
 }
 .feedback-card{
@@ -8794,7 +8799,7 @@ body{
   padding:18px 16px 16px;border-radius:24px;
   background:linear-gradient(145deg,rgba(30,32,48,.98),rgba(16,18,29,.99));
   border:1px solid rgba(255,255,255,.10);
-  box-shadow:0 18px 55px rgba(0,0,0,.42);
+  box-shadow:0 14px 30px rgba(0,0,0,.42);
   transform:translateY(28px);opacity:0;transition:transform .25s cubic-bezier(.2,.8,.2,1),opacity .22s ease;
 }
 .feedback-sheet.is-open .feedback-sheet__backdrop{opacity:1}

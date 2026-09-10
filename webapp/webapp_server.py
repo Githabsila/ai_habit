@@ -359,6 +359,22 @@ def _shape_daily_plan(daily_plan):
     }
 
 
+def _plan_fully_complete(plan):
+    """Весь план дня закрыт: главная задача (если есть) выполнена И все
+    второстепенные задачи выполнены. Пустой план (ни цели, ни задач) —
+    не считается "закрытым". Раньше "все задачи готовы" показывалось,
+    когда закрыты только второстепенные задачи, даже если главная цель
+    ещё открыта — фидбек пользователя: «отметил вторую, а первую нет,
+    а система думает что всё закрыто»."""
+    has_main = bool(plan["main_goal"])
+    tasks = plan["tasks"]
+    if not has_main and not tasks:
+        return False
+    if has_main and not plan["main_goal_completed"]:
+        return False
+    return all(t["completed"] for t in tasks)
+
+
 @routes.get("/api/bootstrap")
 async def bootstrap(request):
     """Критический снимок для первого экрана.
@@ -1592,9 +1608,8 @@ async def toggle_plan_task_route(request):
     # Промт п.3: поздравление сразу после того, как отмечена ПОСЛЕДНЯЯ
     # незакрытая задача плана дня (а не при каждой отдельной задаче).
     updated_plan = get_daily_plan(telegram_id)
-    tasks = updated_plan["tasks"]
     message = None
-    if tasks and all(t["completed"] for t in tasks):
+    if _plan_fully_complete(updated_plan):
         message = format_all_tasks_done_message()
     elif not was_completed:
         # Промт п.7.1: короткая похвала за КАЖДУЮ отдельную второстепенную
@@ -1647,16 +1662,27 @@ async def toggle_main_goal_route(request):
     was_completed = plan["main_goal_completed"]
     toggle_daily_main_goal(telegram_id)
 
+    updated_plan = get_daily_plan(telegram_id)
+
     # Промт п.7: поощрение показываем только когда цель ПЕРЕХОДИТ в
     # выполненное состояние (не при повторном снятии галочки). Отдаём
     # текст в ответе API — фронт мини-аппа показывает его тостом, в чат
     # с ботом больше не шлём.
-    message = format_main_goal_done_message() if not was_completed else None
+    # Фидбек пользователя: главную задачу не всегда закрывают первой.
+    # Если ею закрыт ВЕСЬ план дня (все второстепенные уже готовы) —
+    # показываем "всё готово", а не "самое важное позади, теперь остальное".
+    message = None
+    if not was_completed:
+        message = (
+            format_all_tasks_done_message()
+            if _plan_fully_complete(updated_plan)
+            else format_main_goal_done_message()
+        )
 
     return web.json_response({
         "ok": True,
         "message": message,
-        "daily_plan": _shape_daily_plan(get_daily_plan(telegram_id)),
+        "daily_plan": _shape_daily_plan(updated_plan),
     })
 
 @routes.delete("/api/plan/main")
