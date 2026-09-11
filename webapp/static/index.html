@@ -9,7 +9,7 @@
 <title>Project ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260911_PODIUM_V8">
+<link rel="stylesheet" href="/static/style.css?v=20260911_HOMESIMPLIFY_V9">
 </head>
 <body>
 
@@ -122,20 +122,15 @@ style="width:0%">
     <div class="today-focus__title" id="todayFocusTitle">Сегодня осталось: 0</div>
     <div class="today-focus__sub" id="todayFocusSub"></div>
   </div>
-</div>
-
-<div class="daily-quests" id="dailyQuests" hidden>
-  <div class="daily-quests__title">🗺️ Квесты дня</div>
-  <ul class="daily-quests__list" id="dailyQuestsList"></ul>
-</div>
-
-<div class="pet-widget" id="petWidget" hidden>
-  <div class="pet-widget__emoji" id="petWidgetEmoji">🥚</div>
-  <div class="pet-widget__body">
-    <div class="pet-widget__name" id="petWidgetName">Яйцо</div>
-    <div class="pet-widget__bar"><div class="pet-widget__bar-fill" id="petWidgetBarFill"></div></div>
-    <div class="pet-widget__hint" id="petWidgetHint"></div>
-  </div>
+  <!-- Промт: раньше "Квесты дня" были отдельной карточкой на всю ширину —
+       перегружали главный экран. Теперь маленькая кнопка тут же, справа
+       от "Сегодня" — открывает модалку (см. #dailyQuestsOverlay внизу
+       страницы). Класс .has-claimable добавляет app.js::renderDailyQuests,
+       когда есть квест с наградой к получению — обводка "дышит", чтобы
+       было заметно ещё до открытия. -->
+  <button type="button" class="today-focus__quests-btn" id="dailyQuestsBtn" aria-label="Квесты дня" hidden>
+    <span class="today-focus__quests-icon" aria-hidden="true">🗺️</span>
+  </button>
 </div>
 
 <div class="streak-widget streak-widget--hero" id="streakWidget">
@@ -416,6 +411,20 @@ class="habit-add-form__submit">
   <div class="streak-metric"><span>🔥</span><b id="profileMetricStreak">0</b><small>серия</small></div>
   <div class="streak-metric"><span>❄️</span><b id="profileMetricFreeze">0/2</b><small>заморозки</small></div>
   <div class="streak-metric"><span>🏆</span><b id="profileMetricReward">—</b><small>статус</small></div>
+</div>
+
+<!-- Промт: питомец (прогресс по привычкам) переехал сюда с главного
+     экрана — вся "прогрессная" информация теперь собрана в Профиле,
+     Главная осталась только с "Сегодня" / ударным днём / планом.
+     Разметка и id не менялись — app.js::renderPetWidget их не знает,
+     откуда он рендерится. -->
+<div class="pet-widget" id="petWidget" hidden>
+  <div class="pet-widget__emoji" id="petWidgetEmoji">🥚</div>
+  <div class="pet-widget__body">
+    <div class="pet-widget__name" id="petWidgetName">Яйцо</div>
+    <div class="pet-widget__bar"><div class="pet-widget__bar-fill" id="petWidgetBarFill"></div></div>
+    <div class="pet-widget__hint" id="petWidgetHint"></div>
+  </div>
 </div>
 
 <div class="profile-cosmetics-panel">
@@ -726,6 +735,21 @@ class="habit-add-form__submit">
   </section>
 </div>
 
+<!-- Промт: "Квесты дня" были карточкой прямо на главном экране — теперь
+     маленькая кнопка в "Сегодня" (#dailyQuestsBtn) открывает эту модалку
+     по центру экрана. Оформление списка (.daily-quest, #dailyQuestsList)
+     не менялось — просто живёт внутри модалки, а не в карточке на весь
+     экран. contain:layout — модалка вне #app и .tab-panel (см. похожий
+     комментарий у .freeze-purchase-sheet про position:fixed). -->
+<div class="daily-quests-overlay" id="dailyQuestsOverlay" hidden aria-hidden="true">
+  <div class="daily-quests-overlay__backdrop" id="dailyQuestsBackdrop"></div>
+  <section class="daily-quests-modal" role="dialog" aria-modal="true" aria-labelledby="dailyQuestsModalTitle">
+    <button type="button" class="daily-quests-modal__close" id="dailyQuestsClose" aria-label="Закрыть">✕</button>
+    <div class="daily-quests-modal__title" id="dailyQuestsModalTitle">🗺️ Квесты дня</div>
+    <ul class="daily-quests__list" id="dailyQuestsList"></ul>
+  </section>
+</div>
+
 <div class="achievement-share-overlay" id="achievementShareOverlay" hidden aria-hidden="true">
   <div class="achievement-share-card">
     <span class="as-orb as-orb--1" aria-hidden="true"></span>
@@ -903,7 +927,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260911_PODIUM_V8"></script>
+<script type="module" src="/static/app.js?v=20260911_HOMESIMPLIFY_V9"></script>
 
 </body>
 </html>

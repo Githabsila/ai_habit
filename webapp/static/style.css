@@ -8755,6 +8755,102 @@ body{
   line-height:1.3;
 }
 
+/* Кнопка "Квесты дня" — маленькая, справа от "Сегодня" (просьба
+   упростить Главную: карточка квестов на весь экран убрана, открывается
+   по клику модалкой, см. .daily-quests-overlay ниже). */
+.today-focus__quests-btn{
+  flex:0 0 auto;
+  position:relative;
+  width:42px;height:42px;
+  display:grid;place-items:center;
+  border-radius:14px;
+  border:1.5px solid rgba(255,209,102,.30);
+  background:rgba(255,209,102,.10);
+  cursor:pointer;
+  transition:transform .14s ease, border-color .2s ease, background .2s ease;
+}
+.today-focus__quests-btn[hidden]{display:none !important}
+.today-focus__quests-icon{font-size:19px;line-height:1}
+.today-focus__quests-btn:active{transform:scale(.9)}
+/* Есть квест с наградой к получению — обводка "дышит" ДО открытия, чтобы
+   было заметно (просьба пользователя). Только box-shadow на одном
+   маленьком элементе — дёшево, не тот класс анимаций, что роняет кадры
+   на больших контейнерах. */
+.today-focus__quests-btn.has-claimable{
+  border-color:#FFD76A;
+  background:rgba(255,209,102,.16);
+  animation: questBtnGlow 1.8s ease-in-out infinite;
+}
+@keyframes questBtnGlow{
+  0%,100%{ box-shadow:0 0 0 0 rgba(255,209,102,.5); }
+  50%{ box-shadow:0 0 0 7px rgba(255,209,102,0); }
+}
+.app-performance-paused .today-focus__quests-btn.has-claimable,
+.performance-lite .today-focus__quests-btn.has-claimable{
+  animation-play-state:paused;
+}
+@media (prefers-reduced-motion:reduce){
+  .today-focus__quests-btn.has-claimable{ animation:none; }
+}
+
+/* =========================================================
+   МОДАЛКА "КВЕСТЫ ДНЯ" — по центру экрана, поверх всего (вне #app и
+   .tab-panel, как и остальные шторки — см. комментарий у
+   .freeze-purchase-sheet__backdrop про такой же приём).
+   Фон затемнения ПОЧТИ непрозрачный и БЕЗ backdrop-filter — прямой урок
+   этой же сессии (см. коммит про лаг шторки заморозки): полупрозрачный
+   blur-фон заставляет WebView перерисовывать анимированную Главную под
+   собой каждый кадр. Сама карточка модалки анимирует ТОЛЬКО transform,
+   без opacity — контентный блок с текстом квестов не должен на старте
+   анимации быть invisible (см. коммит про пустой экран при переключении
+   вкладок — ровно та же причина, тот же фикс на будущее). */
+.daily-quests-overlay{
+  position:fixed;inset:0;z-index:9999;
+  display:grid;place-items:center;padding:18px;
+}
+.daily-quests-overlay[hidden]{display:none !important}
+.daily-quests-overlay__backdrop{
+  position:absolute;inset:0;
+  background:rgba(3,4,10,.93);
+  opacity:0;
+  transition:opacity .2s ease;
+}
+.daily-quests-overlay.is-open .daily-quests-overlay__backdrop{opacity:1}
+.daily-quests-modal{
+  position:relative;
+  width:min(400px,100%);
+  max-height:min(560px,80vh);
+  overflow-y:auto;
+  padding:24px 20px 20px;
+  border-radius:26px;
+  border:1.5px solid rgba(255,215,79,.38);
+  background:linear-gradient(145deg,rgba(35,31,48,.98),rgba(17,15,24,.98));
+  box-shadow:0 30px 80px rgba(0,0,0,.45);
+  transform:translateY(18px) scale(.97);
+  transition:transform .22s cubic-bezier(.2,.8,.2,1);
+}
+.daily-quests-overlay.is-open .daily-quests-modal{
+  transform:translateY(0) scale(1);
+}
+.daily-quests-modal__close{
+  position:absolute;top:14px;right:14px;
+  width:28px;height:28px;
+  display:grid;place-items:center;
+  border-radius:9px;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.08);
+  color:var(--text-muted,#9D9DB3);
+  cursor:pointer;
+}
+.daily-quests-modal__title{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:17px;
+  font-weight:800;
+  color:#fff;
+  margin-bottom:16px;
+  padding-right:26px;
+}
+
 /* =========================================================
    ROADMAP #32 — БАННЕР АКТИВНОГО БУСТЕРА x2 ADAM COIN
    ========================================================= */
@@ -8774,24 +8870,10 @@ body{
 
 /* =========================================================
    ROADMAP #12 — КВЕСТЫ ДНЯ
+   (карточка на весь экран убрана с Главной — список теперь живёт в
+   модалке .daily-quests-modal, см. выше; .daily-quests__list и
+   .daily-quest* ниже не менялись, просто сменили "дом".)
    ========================================================= */
-.daily-quests{
-  width:100%;
-  margin-bottom:16px;
-  padding:14px 16px;
-  border-radius:22px;
-  border:1px solid rgba(255,255,255,.07);
-  background:linear-gradient(145deg,rgba(35,31,48,.88),rgba(17,15,24,.88));
-  box-shadow:0 12px 32px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.05);
-}
-.daily-quests[hidden]{display:none !important}
-.daily-quests__title{
-  font-family:'Space Grotesk', sans-serif;
-  font-size:14px;
-  font-weight:800;
-  color:#fff;
-  margin-bottom:10px;
-}
 .daily-quests__list{display:flex;flex-direction:column;gap:10px}
 .daily-quest{
   display:flex;align-items:center;gap:10px;
@@ -8838,7 +8920,7 @@ body{
   color:#4ADE80;
   font-weight:800;
 }
-.daily-quests .daily-quest__claim{
+.daily-quests-modal .daily-quest__claim{
   flex:0 0 auto;
   padding:6px 12px;
   border-radius:999px;
@@ -9239,7 +9321,6 @@ body{
 .data-support-card,
 .progress-stats-card,
 .streak-profile-metrics .streak-metric,
-.daily-quests,
 .pet-widget {
   border-radius: var(--duo-radius-lg) !important;
   border: var(--duo-border-w) solid rgba(139,92,246,.32) !important;
@@ -9704,7 +9785,7 @@ body{
 :root[data-mode="light"] .streak-profile-card--premium,
 :root[data-mode="light"] .pet-widget,
 :root[data-mode="light"] .today-focus,
-:root[data-mode="light"] .daily-quests,
+:root[data-mode="light"] .daily-quests-modal,
 :root[data-mode="light"] .year-heatmap,
 :root[data-mode="light"] .progress-insight,
 :root[data-mode="light"] .streak-metric,

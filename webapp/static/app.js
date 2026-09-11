@@ -521,14 +521,22 @@
   }
 
   // Roadmap #12 — квесты дня: короткий список с прогресс-баром и кнопкой
-  // "Забрать" у выполненных.
+  // "Забрать" у выполненных. Список живёт внутри модалки (#dailyQuestsOverlay,
+  // открывается по кнопке #dailyQuestsBtn в "Сегодня") — карточка на весь
+  // экран убрана с Главной по просьбе пользователя (перегружала экран).
   function renderDailyQuests() {
-    const wrap = document.getElementById("dailyQuests");
     const list = document.getElementById("dailyQuestsList");
-    if (!wrap || !list) return;
+    const btn = document.getElementById("dailyQuestsBtn");
+    if (!list) return;
     const quests = Array.isArray(state.daily_quests) ? state.daily_quests : [];
-    if (quests.length === 0) { wrap.hidden = true; return; }
-    wrap.hidden = false;
+    if (btn) {
+      btn.hidden = quests.length === 0;
+      // Награду можно забрать хотя бы у одного квеста — подсвечиваем
+      // кнопку ДО открытия, чтобы было заметно, что там что-то ждёт
+      // (просьба пользователя: "чтобы бросалось в глаза").
+      const claimable = quests.some(q => q.completed && !q.claimed);
+      btn.classList.toggle("has-claimable", claimable);
+    }
     list.innerHTML = quests.map(q => {
       const pct = Math.min(100, Math.round(100 * q.progress / q.target));
       const stateClass = q.claimed ? "is-claimed" : (q.completed ? "is-ready" : "");
@@ -769,7 +777,7 @@
               // не дублируя на сервере (loadBootstrapSecondary дедуплицирует
               // повторные вызовы сама, см. secondaryLoaded выше).
               loadBootstrapSecondary("calendar");
-              stabilizeFirstPaint(["shopList", "achievementList", "achievementArchiveList"]);
+              stabilizeFirstPaint(["shopList", "achievementList", "achievementArchiveList", "petWidget"]);
             } else if (key === "rating") {
               state.leaderboard = data.leaderboard || [];
               renderRating();
@@ -2494,7 +2502,8 @@ function compressImageToDataUrl(file) {
   });
 }
 
-// Roadmap #12 — клик "Забрать" у выполненного квеста дня.
+// Roadmap #12 — клик "Забрать" у выполненного квеста дня + открытие/
+// закрытие модалки квестов (кнопка #dailyQuestsBtn в "Сегодня").
 function initDailyQuestActions() {
   const list = document.getElementById("dailyQuestsList");
   if (!list) return;
@@ -2513,6 +2522,27 @@ function initDailyQuestActions() {
       btn.disabled = false;
     }
   });
+
+  // Тот же приём открытия/закрытия, что и у остальных модалок-шторок
+  // (см. openFreezeSheet выше) — requestAnimationFrame для плавного входа,
+  // hidden выставляется с задержкой под длительность анимации закрытия.
+  const overlay = document.getElementById("dailyQuestsOverlay");
+  const closeQuestsOverlay = () => {
+    if (!overlay) return;
+    overlay.classList.remove("is-open");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { overlay.hidden = true; }, 220);
+  };
+  const openQuestsOverlay = () => {
+    if (!overlay) return;
+    overlay.hidden = false;
+    requestAnimationFrame(() => overlay.classList.add("is-open"));
+    overlay.setAttribute("aria-hidden", "false");
+    haptic("light");
+  };
+  document.getElementById("dailyQuestsBtn")?.addEventListener("click", openQuestsOverlay);
+  document.getElementById("dailyQuestsClose")?.addEventListener("click", closeQuestsOverlay);
+  document.getElementById("dailyQuestsBackdrop")?.addEventListener("click", closeQuestsOverlay);
 }
 
 function initHabitActions() {
