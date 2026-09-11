@@ -193,22 +193,19 @@
     if (!bar && !card) return;
     let scrollTimer = null;
     window.addEventListener("scroll", () => {
+      document.documentElement.classList.add("adam-scrolling");
       bar?.classList.add("is-scrolling");
       card?.classList.add("is-scrolling");
       clearTimeout(scrollTimer);
       scrollTimer = setTimeout(() => {
+        document.documentElement.classList.remove("adam-scrolling");
         bar?.classList.remove("is-scrolling");
         card?.classList.remove("is-scrolling");
-        // Видео от пользователя (05.09, второй заход) — целые секции
-        // (например "Привычки") на ~0.3-1с становятся полностью пустыми
-        // ЧЁРНЫМИ прямоугольниками именно там, куда только что доскроллили,
-        // а не только там, где что-то только что перерисовалось через
-        // innerHTML. Значит дело не только в моменте рендера (это уже
-        // лечит stabilizeFirstPaint() внутри renderAll()) — сам скролл
-        // тоже роняет paint произвольных секций. Переиспользуем ту же
-        // функцию на каждой остановке скролла, а не только после смены
-        // данных — она сама подхватит реально видимую сейчас вкладку.
-        if (typeof stabilizeFirstPaint === "function") stabilizeFirstPaint();
+        // ВАЖНО: не вызываем stabilizeFirstPaint() после каждого скролла.
+        // Эта функция специально делает две смены opacity через rAF и при
+        // частом листании сама могла создавать long_task/long_frame.
+        // Она уже вызывается после renderAll(), когда реально меняется DOM.
+        // На остановке скролла здесь достаточно снять временный guard.
       }, 150);
     }, { passive: true });
   })();

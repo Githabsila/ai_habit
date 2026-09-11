@@ -9873,3 +9873,70 @@ body{
     linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.025)),
     linear-gradient(145deg, rgba(30,27,42,.96), rgba(12,11,18,.96)) !important;
 }
+
+
+/* =========================================================
+   SCROLL STABILITY PATCH — 11.09.2026
+   Telegram Android WebView: during active touch scrolling we do not need
+   decorative motion. Running several infinite transforms/filters at the
+   same time as a large document is being painted can cause frame drops,
+   layer eviction and the temporary black/empty rectangles seen in screen
+   recordings. The scroll guard is temporary and is removed ~150ms after
+   scrolling stops, so the premium motion returns in idle state.
+   ========================================================= */
+html.adam-scrolling,
+html.adam-scrolling body {
+  scroll-behavior: auto !important;
+}
+
+/* Pause only visual motion during the scroll. Do not disable transitions
+   globally: inputs, active controls and overlays must remain responsive. */
+html.adam-scrolling .player-card::before,
+html.adam-scrolling .streak-widget--hero::before,
+html.adam-scrolling .streak-widget__spark,
+html.adam-scrolling .streak-widget__icon,
+html.adam-scrolling .streak-widget__mini-flame,
+html.adam-scrolling .streak-orbit,
+html.adam-scrolling .streak-widget__icon-ember,
+html.adam-scrolling .streak-profile-card--premium::before,
+html.adam-scrolling .streak-profile-card__particles i,
+html.adam-scrolling .streak-profile-ring,
+html.adam-scrolling .streak-profile-fire,
+html.adam-scrolling .rating-hero::after,
+html.adam-scrolling .rating-hero__glow,
+html.adam-scrolling .rating-live-dot,
+html.adam-scrolling .bg-particles span,
+html.adam-scrolling .pet-widget__emoji,
+html.adam-scrolling .plan-main__flame img,
+html.adam-scrolling .plan-main__flame-ring,
+html.adam-scrolling .plan-main__shine,
+html.adam-scrolling .tab-bar__item::before {
+  animation-play-state: paused !important;
+}
+
+/* Filters are especially expensive while the underlying document moves. */
+html.adam-scrolling .player-card,
+html.adam-scrolling .streak-widget--hero,
+html.adam-scrolling .streak-profile-card--premium,
+html.adam-scrolling .rating-hero,
+html.adam-scrolling .tab-bar {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* The dock gets a stable opaque-ish surface while moving so the WebView
+   never has to blur a changing page behind it. */
+html.adam-scrolling .tab-bar {
+  background: rgba(15,13,22,.94) !important;
+}
+
+:root[data-mode="light"].adam-scrolling .tab-bar {
+  background: rgba(255,255,255,.95) !important;
+}
+
+/* Low-power mode must really stop the level-card sweep. Earlier overrides
+   accidentally re-enabled this animation with !important. */
+.performance-lite .player-card::before {
+  animation: none !important;
+  opacity: 0 !important;
+}
