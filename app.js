@@ -1038,7 +1038,7 @@ function initTabs() {
         panel.classList.remove("tab-enter");
         requestAnimationFrame(() => {
           panel.classList.add("tab-enter");
-          setTimeout(() => panel.classList.remove("tab-enter"), 400);
+          setTimeout(() => panel.classList.remove("tab-enter"), 240);
         });
       }
     });
