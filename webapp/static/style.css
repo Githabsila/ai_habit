@@ -3405,14 +3405,27 @@ section[data-tab="home"] .plan-main::before{
   display:none !important;
 }
 
-/* Подиум: 1-е по центру выше, 2-е слева, 3-е справа ниже */
+/* Подиум: 1-е по центру выше, 2-е слева, 3-е справа ниже.
+   --rp-gap/--rp-pad-x зеркалят gap/padding ЭТОГО правила — ряд-оверлей
+   конвертиков (.rating-podium-reactions, дальше по файлу) читает их
+   через var(), вместо того чтобы держать свои отдельные числа. Раньше
+   числа держались отдельно и разъехались с реальными (тут в файле есть
+   ЕЩЁ два места ниже, где gap/padding подиума переопределяются с
+   !important — см. .rating-podium{gap:clamp(...)!important} и
+   @media(max-width:650px){gap:7px!important} — конвертики были подогнаны
+   под одно из них, а по факту на телефоне выигрывало другое). Теперь
+   зеркалим переменные в КАЖДОМ таком правиле — оверлей всегда получит
+   то же число, что и реальная карточка, каким бы ни было правило-
+   победитель. */
 .rating-podium{
+  --rp-gap:9px;
+  --rp-pad-x:4px;
   position:relative;
   display:grid;
   grid-template-columns:1fr 1.12fr 1fr;
   align-items:end;
-  gap:9px;
-  padding:18px 4px 8px;
+  gap:var(--rp-gap);
+  padding:18px var(--rp-pad-x) 8px;
   margin:0 0 16px;
 }
 .rating-podium::before{
@@ -3466,30 +3479,39 @@ section[data-tab="home"] .plan-main::before{
 .leaderboard-podium,
 .top-three,
 .rating-top-three {
+  --rp-gap: clamp(10px, 2vw, 24px);
+  --rp-pad-x: 10px;
   position: relative;
   display: grid !important;
   grid-template-columns: 1fr 1.12fr 1fr !important;
   /* stretch (было end): все три карточки одной высоты — тогда ряд-оверлей
      с конвертиками 💌 над подиумом ложится ровно по верхам всех трёх,
      а не пляшет из-за разной высоты карточек. Ступеньки пьедестала
-     остаются за счёт translateY/scale ниже. */
+     остаются за счёт translateY ниже. */
   align-items: stretch !important;
-  gap: clamp(10px, 2vw, 24px) !important;
+  gap: var(--rp-gap) !important;
   min-height: 250px;
-  padding: 22px 10px 8px;
+  padding: 22px var(--rp-pad-x) 8px;
 }
 
-/* Ступеньки пьедестала сделаны мягче (было -24/2/28): при большом
-   разбросе конвертики 💌 в углах карточек оказывались на очень разной
-   высоте (фидбек пользователя — «неровно»). Компенсацию положения самих
-   конвертиков см. ниже у .rating-podium-card__react-btn. */
+/* Ступеньки пьедестала — только translateY, БЕЗ scale. scale(1.03) на
+   1-м месте раньше сдвигал реальные края карточки относительно того,
+   что видит ряд-оверлей конвертиков (оверлей его не знает и не
+   масштабируется вместе с карточкой) — ещё один источник «неровно»
+   вдобавок к gap/padding (см. --rp-gap/--rp-pad-x выше и в .rating-podium
+   базовом правиле, и в @media(max-width:650px) ниже — ВСЕ ТРИ места,
+   где переопределяются gap/padding подиума, теперь пишут одни и те же
+   переменные, так что оверлею неоткуда взять другое число). Сами
+   конвертики — .rating-podium-reactions, отдельный ряд НАД подиумом со
+   своим фиксированным top, а не внутри карточек — вертикальная
+   компенсация под ступеньки ему не нужна в принципе. */
 .rating-podium > :nth-child(1),
 .leaderboard-podium > :nth-child(1),
 .top-three > :nth-child(1),
 .rating-top-three > :nth-child(1) {
   grid-column: 2;
   grid-row: 1;
-  transform: translateY(-5px) scale(1.03);
+  transform: translateY(-10px);
 }
 
 .rating-podium > :nth-child(2),
@@ -3498,7 +3520,7 @@ section[data-tab="home"] .plan-main::before{
 .rating-top-three > :nth-child(2) {
   grid-column: 1;
   grid-row: 1;
-  transform: translateY(4px);
+  transform: translateY(0);
 }
 
 .rating-podium > :nth-child(3),
@@ -3507,7 +3529,7 @@ section[data-tab="home"] .plan-main::before{
 .rating-top-three > :nth-child(3) {
   grid-column: 3;
   grid-row: 1;
-  transform: translateY(4px);
+  transform: translateY(10px);
 }
 
 .rating-podium > *,
@@ -3687,27 +3709,34 @@ section[data-tab="home"] .plan-main::before{
 }
 
 @media (max-width: 650px) {
+  /* Это и есть правило-победитель на реальных телефонах (Mini App
+     открывается только на узких экранах) — именно тут gap/padding
+     подиума был 7px/2px, а ряд конвертиков (.rating-podium-reactions)
+     был подогнан под другое число. Теперь оба читают --rp-gap/--rp-pad-x
+     отсюда. */
   .rating-podium,
   .leaderboard-podium,
   .top-three,
   .rating-top-three {
+    --rp-gap: 7px;
+    --rp-pad-x: 2px;
     min-height: 215px;
-    gap: 7px !important;
-    padding-inline: 2px;
+    gap: var(--rp-gap) !important;
+    padding-inline: var(--rp-pad-x);
   }
 
   .rating-podium > :nth-child(1),
   .leaderboard-podium > :nth-child(1),
   .top-three > :nth-child(1),
   .rating-top-three > :nth-child(1) {
-    transform: translateY(-5px) scale(1.03);
+    transform: translateY(-10px);
   }
 
   .rating-podium > :nth-child(3),
   .leaderboard-podium > :nth-child(3),
   .top-three > :nth-child(3),
   .rating-top-three > :nth-child(3) {
-    transform: translateY(4px);
+    transform: translateY(10px);
   }
 }
 
@@ -9456,6 +9485,16 @@ body{
    Карточки разной высоты и смещены ступеньками — в углах карточек
    конвертики висели на разной высоте. Оверлей — грид с ТЕМИ ЖЕ
    колонками, прибит к верху: все три ячейки СТРОГО на одной линии.
+   ВАЖНО: gap/padding здесь читаются через var(--rp-gap)/var(--rp-pad-x)
+   с .rating-podium (родитель — переменные наследуются автоматически),
+   а НЕ дублируются своими числами. У .rating-podium три места в файле
+   переопределяют его gap/padding с !important на разных брейкпоинтах —
+   раньше здесь были ПОДОГНАННЫЕ НА ГЛАЗ значения, которые совпадали
+   с одним из трёх правил, но не с тем, что реально побеждает на
+   телефоне (@media max-width:650px, gap:7px/padding-inline:2px) — от
+   этого конвертики были не по краю карточек ("неровно", фидбек). Теперь
+   оверлей физически не может разъехаться с настоящим подиумом, каким бы
+   ни было правило-победитель.
    Три состояния (одинаковый размер бокса, чтобы ряд был ровным):
    .rating-podium-react-btn           — активная 💌 (можно поддержать)
    .rating-podium-react-btn--sent     — ✓ (сегодня уже поддержал)
@@ -9467,8 +9506,8 @@ body{
   right: 0;
   display: grid;
   grid-template-columns: 1fr 1.12fr 1fr;
-  gap: clamp(10px, 2vw, 24px);
-  padding: 0 10px;
+  gap: var(--rp-gap, 9px);
+  padding: 0 var(--rp-pad-x, 4px);
   pointer-events: none;
   z-index: 4;
 }
