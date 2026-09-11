@@ -5632,10 +5632,18 @@ body::before{
 .player-card__aurora{
   position:absolute;inset:0;z-index:0;
   border-radius:inherit;overflow:hidden;pointer-events:none;
-  /* лёгкая маска, чтобы у краёв шапки пятна затухали и не было резкой
-     границы у скруглённого угла */
-  -webkit-mask:radial-gradient(120% 130% at 50% 20%,#000 55%,transparent 100%);
-          mask:radial-gradient(120% 130% at 50% 20%,#000 55%,transparent 100%);
+  /* Маска (mask/-webkit-mask) убрана: она стояла на элементе, который
+     виден на КАЖДОМ экране приложения всегда, поверх трёх постоянно
+     анимирующихся (transform) пятен под ней. mask заставляет движок
+     пересобирать этот composite-слой заново на каждый кадр анимации —
+     не только во время скролла, а вообще всегда, и конкурирует за тот
+     же бюджет, что и сам скролл (просьба «лаги при быстрой прокрутке»).
+     У этого проекта уже есть история именно с mask/filter/backdrop-filter
+     на WebView (см. комментарии у .tab-bar/.player-card про
+     backdrop-filter) — тот же класс проблемы. Мягкий край не нужен
+     отдельной маской: у каждого пятна и так мягкий переход в прозрачность
+     через сам radial-gradient (transparent на 68-72%), плюс overflow:hidden
+     уже даёт чистую границу по скруглению карточки. */
 }
 .player-card__aurora i{
   position:absolute;display:block;border-radius:50%;
