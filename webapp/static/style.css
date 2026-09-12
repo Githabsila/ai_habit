@@ -7075,7 +7075,27 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   border-color:rgba(139,108,255,.45);background:rgba(139,108,255,.16);color:#cfc6ff;
 }
 
-/* Roadmap #18 — лента активности друзей. */
+/* Roadmap #18 — лента активности друзей.
+   Свежих событий может стать много (уровни, серии, ачивки за недели) —
+   показываем всегда только последние ~3, остальное доступно внутренним
+   скроллом, чтобы карточка не растягивала весь Профиль вниз. */
+.activity-feed-scroll{
+  position:relative;
+  max-height:138px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  border-radius:12px;
+}
+.activity-feed-scroll::after{
+  content:"";
+  position:sticky;
+  display:block;
+  bottom:0;left:0;right:0;
+  height:22px;margin-top:-22px;
+  background:linear-gradient(to bottom, transparent, rgba(14,12,20,.95));
+  pointer-events:none;
+}
 .activity-feed{display:flex;flex-direction:column;gap:6px;padding:0 2px 14px}
 .activity-feed__row{
   display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;
