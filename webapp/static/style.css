@@ -8817,20 +8817,29 @@ body{
 .today-focus__quests-icon{font-size:19px;line-height:1}
 .today-focus__quests-btn:active{transform:scale(.9)}
 /* Есть квест с наградой к получению — обводка "дышит" ДО открытия, чтобы
-   было заметно (просьба пользователя). Только box-shadow на одном
-   маленьком элементе — дёшево, не тот класс анимаций, что роняет кадры
-   на больших контейнерах. */
+   было заметно (просьба пользователя). Только box-shadow + transform:scale
+   на одном маленьком элементе — дёшево (компоузит-слой без layout/paint
+   соседей), не тот класс анимаций, что роняет кадры на больших
+   контейнерах. Жалоба пользователя: на его устройстве анимация была почти
+   незаметна — виной была строка ниже, которая на ЛЮБОМ .performance-lite
+   устройстве (это очень широкий охват: сработает уже от
+   hardwareConcurrency<=4, что есть у массы обычных телефонов/планшетов,
+   не только слабых) молча ставила animation-play-state:paused, оставляя
+   только статичную жёлтую рамку — то есть именно ту категорию устройств,
+   где яркий движущийся сигнал нужнее всего, эта строка и глушила. Раз
+   анимация и так дешёвая, для .performance-lite её больше не выключаем —
+   пауза остаётся только для реально невидимой вкладки и по
+   prefers-reduced-motion (это сигнал доступности, а не производительности). */
 .today-focus__quests-btn.has-claimable{
   border-color:#FFD76A;
   background:rgba(255,209,102,.16);
-  animation: questBtnGlow 1.8s ease-in-out infinite;
+  animation: questBtnGlow 1.4s ease-in-out infinite;
 }
 @keyframes questBtnGlow{
-  0%,100%{ box-shadow:0 0 0 0 rgba(255,209,102,.5); }
-  50%{ box-shadow:0 0 0 7px rgba(255,209,102,0); }
+  0%,100%{ box-shadow:0 0 0 0 rgba(255,209,102,.6); transform:scale(1); }
+  50%{ box-shadow:0 0 0 9px rgba(255,209,102,0); transform:scale(1.08); }
 }
-.app-performance-paused .today-focus__quests-btn.has-claimable,
-.performance-lite .today-focus__quests-btn.has-claimable{
+.app-performance-paused .today-focus__quests-btn.has-claimable{
   animation-play-state:paused;
 }
 @media (prefers-reduced-motion:reduce){
