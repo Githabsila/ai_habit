@@ -649,7 +649,7 @@ function AiChat() {
                         } }, placeholder: "\u041D\u0430\u043F\u0438\u0448\u0438 ADAM...", disabled: loading || throttle, rows: "1" })),
                 React.createElement("button", { className: `voice-btn ${listening ? 'is-listening' : ''}`, onClick: startVoice, disabled: loading, title: "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434" }, listening ? '●' : '🎙'),
                 React.createElement("button", { className: "send-btn", onClick: sendMsg, disabled: !input.trim() || loading || throttle, "aria-label": "\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C" }, loading ? React.createElement("div", { className: "spinner" }) : '➤')),
-            React.createElement("div", { className: "composer-hint" }, "Enter \u2014 \u043E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u00B7 Shift+Enter \u2014 \u043D\u043E\u0432\u0430\u044F \u0441\u0442\u0440\u043E\u043A\u0430")),
+            ),
         toast && React.createElement("div", { className: "adam-toast show" }, toast));
 }
 const root = ReactDOM.createRoot(document.getElementById('root'));

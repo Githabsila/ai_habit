@@ -830,7 +830,7 @@ body{
 <body>
     <div id="root"></div>
 
-   <script src="/static/ai_coach.js?v=20260912_VOICEERR_V3"></script>
+   <script src="/static/ai_coach.js?v=20260912_VOICEERR_V4"></script>
 </body>
 </html>
 <style>
@@ -1691,4 +1691,26 @@ body{
 }
 .messages-container{ overflow-x:hidden !important; }
 
+
+/* =========================================================
+   FINAL INPUT BAR WIDTH FIX
+   The composer is a flex item inside .input-area. Without an
+   explicit width it can shrink to its content width on narrow
+   Telegram/WebView layouts. Keep the whole input row edge-to-edge.
+   ========================================================= */
+.input-area{
+  width:100% !important;
+  box-sizing:border-box !important;
+}
+.input-area > .composer-row{
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+  margin:0 !important;
+  box-sizing:border-box !important;
+  align-self:stretch !important;
+}
+.composer-hint{
+  display:none !important;
+}
 </style>
