@@ -201,6 +201,49 @@ def test_complete_habit_loyalty_bonus_is_capped(uid):
     assert result["loyalty_bonus"] == 5
 
 
+def test_complete_habit_x2_window_doubles_loyalty_bonus_too(uid):
+    """Жалоба пользователя: обычная привычка уже стоит 11 (10 база + 1 за
+    верность), а в открытом x2-окне давала 21 (только база 10 удваивалась,
+    а надбавка плашмя добавлялась уже после) вместо ожидаемых 22 — окно
+    должно удваивать "стоимость" привычки целиком (база + верность)."""
+    from datetime import datetime, timedelta, timezone
+    from db.streak import set_bonus_window
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Привычка")
+    habit_id = get_habits(uid)[0]["id"]
+
+    conn = connect()
+    conn.execute("UPDATE users SET streak=15 WHERE telegram_id=?", (uid,))  # loyalty_bonus == 1
+    conn.commit()
+    conn.close()
+    set_bonus_window(uid, datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30))
+
+    result = complete_habit(habit_id)
+    assert result["doubled"] is True
+    assert result["loyalty_bonus"] == 1
+    assert result["coins"] == 22  # (10 + 1) * 2, не 10*2 + 1 == 21
+
+
+def test_complete_habit_x2_window_scales_with_higher_loyalty_bonus(uid):
+    from datetime import datetime, timedelta, timezone
+    from db.streak import set_bonus_window
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Привычка")
+    habit_id = get_habits(uid)[0]["id"]
+
+    conn = connect()
+    conn.execute("UPDATE users SET streak=25 WHERE telegram_id=?", (uid,))  # loyalty_bonus == 2
+    conn.commit()
+    conn.close()
+    set_bonus_window(uid, datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30))
+
+    result = complete_habit(habit_id)
+    assert result["loyalty_bonus"] == 2
+    assert result["coins"] == 24  # (10 + 2) * 2
+
+
 # =====================================
 # API
 # =====================================

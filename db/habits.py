@@ -594,13 +594,6 @@ def complete_habit(habit_id):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     window_until = get_bonus_window(user_id)
     doubled = bool(window_until and now < window_until)
-    coins = BASE_HABIT_COINS * (2 if doubled else 1)
-
-    # Важная привычка (priority=2, звёздочка в интерфейсе) — плоская
-    # надбавка сверху, не умножается вместе с x2-окном (иначе экономика
-    # разгонялась бы слишком быстро при удачном стечении обоих бонусов).
-    priority = habit["priority"] if "priority" in habit.keys() and habit["priority"] else 1
-    priority_bonus = 5 if priority == 2 else 0
 
     # "Проценты за верность" — чем длиннее УЖЕ идущая серия на момент этой
     # отметки, тем чуть весомее каждая привычка. +1 монета за каждые
@@ -609,7 +602,20 @@ def complete_habit(habit_id):
     current_streak = int(user_row["streak"]) if user_row and "streak" in user_row.keys() and user_row["streak"] else 0
     loyalty_bonus = min(current_streak // LOYALTY_BONUS_PER_STREAK_DAYS, LOYALTY_BONUS_CAP)
 
-    coins += priority_bonus + loyalty_bonus
+    # loyalty_bonus — часть "стоимости" самой привычки (как и база), поэтому
+    # x2-окно удваивает их вместе: если обычная привычка уже стоит 11
+    # (10 + 1 за верность), удвоенная должна давать 22, а не 21 (было бы
+    # так, если бы удваивалась только база, а надбавка добавлялась плашмя
+    # уже после — жалоба пользователя).
+    coins = (BASE_HABIT_COINS + loyalty_bonus) * (2 if doubled else 1)
+
+    # Важная привычка (priority=2, звёздочка в интерфейсе) — плоская
+    # надбавка сверху, не умножается вместе с x2-окном (иначе экономика
+    # разгонялась бы слишком быстро при удачном стечении обоих бонусов).
+    priority = habit["priority"] if "priority" in habit.keys() and habit["priority"] else 1
+    priority_bonus = 5 if priority == 2 else 0
+
+    coins += priority_bonus
 
     # Roadmap #32 — разовый бустер x2 Adam Coin (куплен за Telegram Stars,
     # см. db/users.py::activate_xp_booster) — умножает ИТОГОВУЮ сумму
