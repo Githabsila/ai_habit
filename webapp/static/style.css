@@ -9960,3 +9960,277 @@ html.adam-scrolling .tab-bar {
   animation: none !important;
   opacity: 0 !important;
 }
+
+/* =========================================================
+   ADAM — GLOBAL SMOOTH MOTION PATCH 2026-09
+   Единая физика движения для Telegram WebApp.
+   Цель: убрать рывки, overshoot и "прыжки" при открытии модалок,
+   переключении вкладок и обновлении данных.
+   ========================================================= */
+:root{
+  --adam-motion-ease:cubic-bezier(.16,1,.3,1);
+  --adam-motion-ease-soft:cubic-bezier(.22,.8,.24,1);
+  --adam-motion-fast:180ms;
+  --adam-motion-base:300ms;
+  --adam-motion-slow:420ms;
+}
+
+html{scroll-behavior:smooth}
+
+/* Не заставляем WebView пересчитывать тяжёлые filter/box-shadow на каждом
+   кадре обычного hover/active состояния. */
+button:not(:disabled),
+.tab-bar__item,
+.habit-item,
+.plan-card,
+.streak-widget,
+.shop-item,
+.achievement-item,
+.rating-item,
+.cal-cell,
+.today-focus__quests-btn,
+.freeze-buy-btn,
+.plan-icon-btn,
+.btn{
+  -webkit-tap-highlight-color:transparent;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+}
+
+/* На сенсорных экранах :hover может "залипать" после касания. Именно это
+   часто выглядит как дёрганье карточки в Telegram WebView. */
+@media (hover:none), (pointer:coarse){
+  button:not(:disabled):hover,
+  .tab-bar__item:hover,
+  .habit-item:hover,
+  .shop-item:hover,
+  .rating-item:hover,
+  .achievement-item:hover,
+  .cal-cell:hover,
+  .freeze-buy-btn:not(:disabled):hover,
+  .rating-podium-card:hover{
+    transform:none !important;
+  }
+}
+
+/* Настоящий hover оставляем только мыши. Движение небольшое и без
+   пружины — интерфейс выглядит дороже и не "подскакивает". */
+@media (hover:hover) and (pointer:fine){
+  button:not(:disabled):hover,
+  .tab-bar__item:hover,
+  .habit-item:hover,
+  .shop-item:hover,
+  .rating-item:hover,
+  .achievement-item:hover,
+  .cal-cell:hover{
+    transform:translate3d(0,-2px,0);
+  }
+}
+
+/* Унифицированные press-состояния. transform-only хорошо композится GPU. */
+button:not(:disabled),
+.tab-bar__item,
+.habit-item__check,
+.habit-item__del,
+.btn,
+.today-focus__quests-btn,
+.freeze-buy-btn,
+.plan-icon-btn,
+.plan-toggle,
+.plan-add-form__btn,
+.freeze-purchase-actions button,
+.daily-quests-modal__close,
+.streak-continue,
+.impactday-start{
+  transition:
+    transform var(--adam-motion-fast) var(--adam-motion-ease),
+    opacity var(--adam-motion-fast) ease,
+    background-color var(--adam-motion-base) ease,
+    border-color var(--adam-motion-base) ease,
+    box-shadow var(--adam-motion-base) ease,
+    color var(--adam-motion-base) ease;
+}
+
+button:not(:disabled):active,
+.tab-bar__item:active,
+.habit-item__check:active,
+.habit-item__del:active,
+.btn:active,
+.today-focus__quests-btn:active,
+.freeze-buy-btn:not(:disabled):active,
+.plan-icon-btn:active,
+.plan-toggle:active,
+.plan-add-form__btn:active,
+.freeze-purchase-actions button:active,
+.daily-quests-modal__close:active,
+.streak-continue:active,
+.impactday-start:active{
+  transform:scale(.965) !important;
+  transition-duration:110ms;
+}
+
+/* ---------- Квесты дня: плавное открытие без резкого "скачка" ---------- */
+.daily-quests-overlay__backdrop{
+  opacity:0;
+  transition:opacity 360ms var(--adam-motion-ease-soft) !important;
+  will-change:opacity;
+}
+.daily-quests-modal{
+  opacity:0;
+  transform:translate3d(0,14px,0) scale(.985) !important;
+  transform-origin:50% 50%;
+  transition:
+    transform 420ms var(--adam-motion-ease) !important,
+    opacity 300ms ease !important;
+  will-change:transform,opacity;
+}
+.daily-quests-overlay.is-open .daily-quests-modal{
+  opacity:1;
+  transform:translate3d(0,0,0) scale(1) !important;
+}
+
+/* Список появляется после самой карточки, а не одновременно рывком. */
+.daily-quests-modal .daily-quest{
+  opacity:0;
+  transform:translate3d(0,5px,0);
+}
+.daily-quests-overlay.is-open .daily-quest{
+  animation:adamQuestItemIn 360ms var(--adam-motion-ease) both;
+}
+.daily-quests-overlay.is-open .daily-quest:nth-child(2){animation-delay:45ms}
+.daily-quests-overlay.is-open .daily-quest:nth-child(3){animation-delay:90ms}
+.daily-quests-overlay.is-open .daily-quest:nth-child(4){animation-delay:135ms}
+@keyframes adamQuestItemIn{
+  from{opacity:0;transform:translate3d(0,5px,0)}
+  to{opacity:1;transform:translate3d(0,0,0)}
+}
+
+/* ---------- Все большие overlay/sheet-переходы ---------- */
+.levelup-overlay,
+.impactday-overlay,
+.streak-celebration-overlay,
+.streak-onboarding-overlay,
+.streak-weekly-overlay,
+.achievement-share-overlay,
+.feedback-sheet__backdrop,
+.changelog-sheet__backdrop{
+  transition:opacity 360ms var(--adam-motion-ease-soft) !important;
+}
+
+.impactday-card,
+.freeze-purchase-card,
+.streak-onboarding-card,
+.streak-weekly-card,
+.achievement-share-card,
+.feedback-card{
+  transition:
+    transform 420ms var(--adam-motion-ease),
+    opacity 300ms ease !important;
+  will-change:transform,opacity;
+}
+
+.impactday-card{transform:translate3d(0,12px,0) scale(.985)}
+.impactday-overlay.show .impactday-card{transform:translate3d(0,0,0) scale(1)}
+
+.freeze-purchase-card{transform:translate3d(0,24px,0);opacity:0}
+.freeze-purchase-sheet.is-open .freeze-purchase-card{transform:translate3d(0,0,0);opacity:1}
+
+/* Убираем пружинящий overshoot у ключевых "premium" появлений. */
+@keyframes levelNumberPop{
+  0%{transform:translate3d(0,2px,0) scale(.86);opacity:.45}
+  68%{transform:translate3d(0,2px,0) scale(1.035);opacity:1}
+  100%{transform:translate3d(0,2px,0) scale(1);opacity:1}
+}
+.level-ring__badge.is-changing #levelNumber{
+  animation:levelNumberPop 460ms var(--adam-motion-ease) both !important;
+}
+
+@keyframes levelupPop{
+  0%{transform:translate3d(0,10px,0) scale(.9);opacity:0}
+  72%{transform:translate3d(0,0,0) scale(1.015);opacity:1}
+  100%{transform:translate3d(0,0,0) scale(1);opacity:1}
+}
+.levelup-card{animation:levelupPop 520ms var(--adam-motion-ease) both !important}
+
+@keyframes streakFireIn{
+  0%{transform:translate3d(0,-105px,0) scale(.72);opacity:0}
+  70%{transform:translate3d(0,-3px,0) scale(1.025);opacity:1}
+  100%{transform:translate3d(0,-8px,0) scale(1);opacity:1}
+}
+.streak-flame.ignite{
+  animation:
+    streakFireIn 820ms var(--adam-motion-ease) forwards,
+    streakFlameLife 2.4s var(--adam-motion-ease-soft) 820ms infinite !important;
+}
+
+/* Прогресс не должен менять геометрию — только ширину/штрих. */
+.xp-bar__fill{transition:width 780ms var(--adam-motion-ease) !important}
+.level-ring__fill{transition:stroke-dashoffset 760ms var(--adam-motion-ease),filter 300ms ease !important}
+
+/* Стабильный enter для вкладок: только opacity + очень маленький Y-shift. */
+.tab-panel.tab-enter{
+  animation:adamTabEnter 320ms var(--adam-motion-ease) both !important;
+}
+@keyframes adamTabEnter{
+  from{opacity:0;transform:translate3d(0,6px,0)}
+  to{opacity:1;transform:translate3d(0,0,0)}
+}
+
+/* Системные появления списков — мягче и без заметного scale-jump. */
+@keyframes contentReveal{
+  from{opacity:0;transform:translate3d(0,6px,0)}
+  to{opacity:1;transform:translate3d(0,0,0)}
+}
+@keyframes itemReveal{
+  from{opacity:0;transform:translate3d(0,7px,0) scale(.995)}
+  to{opacity:1;transform:translate3d(0,0,0) scale(1)}
+}
+.streak-widget,
+.plan-card,
+.habit-list,
+.add-form,
+.calendar-grid,
+.rating-list,
+.achievements-list,
+.shop-grid{
+  animation:contentReveal 380ms var(--adam-motion-ease) both !important;
+}
+.habit-item,
+.plan-list > li,
+.rating-item,
+.achievement-item,
+.shop-item,
+.cal-cell{
+  animation:itemReveal 340ms var(--adam-motion-ease) both !important;
+}
+
+/* Постоянные декоративные эффекты не должны тормозить основной UI. */
+.bg-particles span,
+.rating-hero::after,
+.rating-hero__glow,
+.rating-live-dot,
+.streak-widget__spark,
+.streak-widget__mini-flame,
+.streak-orbit,
+.fire-orbit,
+.loading-overlay__coin{
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+}
+
+/* Убираем motion, когда вкладка/приложение скрыты: после возврата ничего не
+   "догоняет" пользователя рывком. */
+.app-performance-paused *{
+  animation-play-state:paused !important;
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{
+    animation-duration:1ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:1ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+

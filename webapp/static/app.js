@@ -2528,7 +2528,9 @@ function initDailyQuestActions() {
     if (!overlay) return;
     overlay.classList.remove("is-open");
     overlay.setAttribute("aria-hidden", "true");
-    setTimeout(() => { overlay.hidden = true; }, 220);
+    // Держим overlay в DOM до окончания transform/opacity transition,
+    // чтобы закрытие не обрывалось последним кадром.
+    setTimeout(() => { overlay.hidden = true; }, 430);
   };
   const openQuestsOverlay = () => {
     if (!overlay) return;
