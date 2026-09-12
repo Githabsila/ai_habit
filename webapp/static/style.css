@@ -3978,14 +3978,10 @@ select:focus {
 }
 
 /* Tab switching animation. JS toggles this class for a real enter transition. */
-.tab-panel.tab-enter {
-  animation: tabEnter 300ms var(--motion-ease) both;
-}
-
-@keyframes tabEnter {
-  from { transform: translateY(10px); }
-  to { transform: translateY(0); }
-}
+/* Tab panels switch instantly. Animating a full, tall panel caused
+   Telegram WebView to jerk during tab changes. Small controls/cards can
+   animate independently without moving the whole page. */
+.tab-panel.tab-enter { animation: none !important; }
 
 /* More natural progress feedback. */
 .xp-bar {
@@ -5579,17 +5575,8 @@ body::before{
   padding:26px 28px 148px !important;
 }
 #content{position:relative;z-index:1}
-.tab-panel{
-  animation:adamPanelIn .32s cubic-bezier(.22,1,.36,1);
-}
-/* Было opacity:0 + scale(.992) на всей панели (высотой 2000px+ на
-   Профиле) — при переключении вкладки + скролле WebView не успевал и
-   показывал пустой экран (см. видео «апи.mp4», комментарий у
-   @keyframes tabEnter). Только лёгкий сдвиг, без opacity/scale. */
-@keyframes adamPanelIn{
-  from{transform:translateY(8px)}
-  to{transform:translateY(0)}
-}
+.tab-panel{ animation: none !important; }
+.tab-panel.tab-enter{ animation: none !important; }
 
 /* ====== HEADER / PLAYER ====== */
 .player-card{
@@ -10234,3 +10221,17 @@ button:not(:disabled):active,
   }
 }
 
+
+
+/* =========================================================
+   PROFILE / TAB JANK FINAL FIX — 12.09.2026
+   Do not animate or transform an entire tab panel. The Profile panel is a
+   long document; moving/fading the whole surface makes Telegram WebView
+   composite a huge layer and produces the visible "jerk" on tab switch.
+   ========================================================= */
+.tab-panel,
+.tab-panel.tab-enter {
+  animation: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}

@@ -194,13 +194,13 @@
     let scrollTimer = null;
     window.addEventListener("scroll", () => {
       document.documentElement.classList.add("adam-scrolling");
+      // The player card/tab bar are already configured without expensive blur
+      // in the premium layer. Avoid toggling visual properties every scroll frame.
       bar?.classList.add("is-scrolling");
-      card?.classList.add("is-scrolling");
       clearTimeout(scrollTimer);
       scrollTimer = setTimeout(() => {
         document.documentElement.classList.remove("adam-scrolling");
         bar?.classList.remove("is-scrolling");
-        card?.classList.remove("is-scrolling");
         // ВАЖНО: не вызываем stabilizeFirstPaint() после каждого скролла.
         // Эта функция специально делает две смены opacity через rAF и при
         // частом листании сама могла создавать long_task/long_frame.
@@ -671,6 +671,9 @@
     maybeShowAppTour();
     maybeShowStreakOnboarding();
     stabilizeFirstPaint();
+    // Warm the profile data in the background. This makes a later tap on
+    // "Профиль" instant without adding anything to the initial critical path.
+    scheduleProfilePrefetch();
 
     // Второстепенные вкладки дорисовываем после первого кадра, когда браузер
     // освободит основной поток. Качество UI не меняется — меняется только
@@ -683,6 +686,18 @@
   // всегда оставались undefined и вкладки выглядели постоянно пустыми.
   const secondaryPromises = new Map();
   const secondaryLoaded = new Set();
+  let profilePrefetchScheduled = false;
+
+  function scheduleProfilePrefetch() {
+    if (profilePrefetchScheduled || secondaryLoaded.has("profile")) return;
+    profilePrefetchScheduled = true;
+    const run = () => loadBootstrapSecondary("profile");
+    if ("requestIdleCallback" in window) {
+      requestIdleCallback(run, { timeout: 1800 });
+    } else {
+      setTimeout(run, 1200);
+    }
+  }
 
   function getTabPanel(key) {
     return document.querySelector(`.tab-panel[data-tab="${key}"]`);
@@ -750,7 +765,11 @@
     if (secondaryLoaded.has(key)) return state;
     if (secondaryPromises.has(key)) return secondaryPromises.get(key);
 
-    setTabLoading(key, true);
+    // Profile already has its critical content in the main bootstrap.
+    // Never hide the whole profile while shop/achievements are loading:
+    // on Telegram WebView the secondary request can take 1–3s and the old
+    // full-panel loader looked like a frozen/empty page.
+    if (key !== "profile") setTabLoading(key, true);
     const promise = (async () => {
       let lastError = null;
       // Один короткий повтор при временной сетевой заминке — так же, как
@@ -769,11 +788,16 @@
               renderThemePicker();
               renderAchievements();
               loadActivityFeed();
-              // Roadmap #26 — тепловая карта года живёт в Профиле, но
-              // данные общие с вкладкой "Календарь" — подгружаем их же,
-              // не дублируя на сервере (loadBootstrapSecondary дедуплицирует
-              // повторные вызовы сама, см. secondaryLoaded выше).
-              loadBootstrapSecondary("calendar");
+              // The profile must become interactive immediately. The year
+              // heatmap is secondary data; load it after the first profile
+              // paint instead of competing with shop/achievements for the
+              // same first WebView frame.
+              const loadCalendarLater = () => loadBootstrapSecondary("calendar");
+              if ("requestIdleCallback" in window) {
+                requestIdleCallback(loadCalendarLater, { timeout: 1200 });
+              } else {
+                setTimeout(loadCalendarLater, 900);
+              }
               stabilizeFirstPaint(["shopList", "achievementList", "achievementArchiveList", "petWidget"]);
             } else if (key === "rating") {
               state.leaderboard = data.leaderboard || [];
@@ -787,7 +811,7 @@
               stabilizeFirstPaint(["calendarGrid"]);
             }
             secondaryLoaded.add(key);
-            setTabLoading(key, false);
+            if (key !== "profile") setTabLoading(key, false);
           }
           return state;
         } catch (err) {
@@ -800,7 +824,15 @@
         }
       }
       console.error(`bootstrap-secondary(${key}) failed:`, lastError);
-      setTabLoading(key, false, friendlyError(lastError) || "Не удалось загрузить раздел", key);
+      if (key !== "profile") {
+        setTabLoading(key, false, friendlyError(lastError) || "Не удалось загрузить раздел", key);
+      } else {
+        // Keep the already-rendered profile usable even if optional data fails.
+        const shop = document.getElementById("shopList");
+        if (shop && !shop.children.length) {
+          shop.innerHTML = '<li class="empty-hint">Магазин временно недоступен</li>';
+        }
+      }
       showToast(friendlyError(lastError) || "Не удалось загрузить раздел", "error");
       return state;
     })().finally(() => secondaryPromises.delete(key));
@@ -2261,13 +2293,10 @@ function initTabs() {
     document.querySelectorAll(".tab-panel").forEach(panel => {
       const active = panel.dataset.tab === tab;
       panel.hidden = !active;
-      if (active) {
-        panel.classList.remove("tab-enter");
-        requestAnimationFrame(() => {
-          panel.classList.add("tab-enter");
-          setTimeout(() => panel.classList.remove("tab-enter"), 400);
-        });
-      }
+      // Do not animate the entire tab panel. Profile is a tall DOM tree;
+      // transform/opacity on the whole panel makes Telegram WebView
+      // recalculate/composite thousands of pixels and causes a visible jerk.
+      if (active) panel.classList.remove("tab-enter");
     });
     // Загружаем только открытый раздел. Никаких фоновых запросов к
     // календарю/рейтингу/профилю при нахождении на Главной.
