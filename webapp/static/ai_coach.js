@@ -466,25 +466,54 @@ function AiChat() {
         ['🌙', 'Итоги дня', 'Разберём результат и следующий шаг']
     ];
     const startVoice = () => {
+        // Это встроенное в браузер распознавание речи (Web Speech API) —
+        // ДРУГОЙ механизм, чем обычные голосовые сообщения Telegram (те
+        // пишет и распознаёт сам клиент Telegram на уровне ОС). На части
+        // WebView (особенно планшеты/устройства без нормального Google-движка
+        // распознавания речи) API либо сразу падает с ошибкой, либо тихо
+        // ничего не возвращает — раньше это никак не показывалось
+        // пользователю, выглядело как "ADAM меня не слышит". Теперь при
+        // реальной ошибке показываем причину вместо тихого молчания.
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) {
-            tg.showAlert('Голосовой ввод не поддерживается этим браузером.');
+            tg.showAlert('Голосовой ввод не поддерживается этим устройством/браузером. Можно просто напечатать текст.');
             return;
         }
         if (listening) {
             recognitionRef.current?.stop();
             return;
         }
+        let gotResult = false;
+        let alertShown = false;
         const r = new SR();
         recognitionRef.current = r;
         r.lang = 'ru-RU';
         r.interimResults = true;
         r.continuous = false;
         r.onstart = () => { setListening(true); vibrate('medium'); };
-        r.onresult = e => { let text = ''; for (let i = e.resultIndex; i < e.results.length; i++)
+        r.onresult = e => { gotResult = true; let text = ''; for (let i = e.resultIndex; i < e.results.length; i++)
             text += e.results[i][0].transcript; setInput(text); setTimeout(resizeInput, 0); };
-        r.onerror = () => setListening(false);
-        r.onend = () => setListening(false);
+        r.onerror = (e) => {
+            setListening(false);
+            const reasons = {
+                'not-allowed': 'Нет доступа к микрофону — разреши его в настройках Telegram (Настройки → Конфиденциальность → Микрофон) и попробуй снова.',
+                'service-not-allowed': 'Голосовой ввод недоступен на этом устройстве.',
+                'audio-capture': 'Не нашёл микрофон на этом устройстве.',
+                'network': 'Нет соединения для распознавания речи — проверь интернет.',
+            };
+            const msg = reasons[e && e.error];
+            if (msg) { alertShown = true; try { tg.showAlert(msg); } catch (_) { window.alert(msg); } }
+        };
+        r.onend = () => {
+            setListening(false);
+            // no-speech и обрыв без единого onresult — самый частый случай
+            // "тихого" сбоя: устройство ничего не распознало и не сообщило
+            // почему явной ошибкой. Хоть какая-то обратная связь лучше тишины
+            // (но не дублируем alert, если конкретную причину уже показал onerror).
+            if (!gotResult && !alertShown) {
+                try { tg.showAlert('Не удалось распознать речь. Попробуй ещё раз или напиши текстом.'); } catch (_) { }
+            }
+        };
         r.start();
     };
     return React.createElement("div", { className: "app-container" },

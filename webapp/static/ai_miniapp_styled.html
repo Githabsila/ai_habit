@@ -830,7 +830,7 @@ body{
 <body>
     <div id="root"></div>
 
-   <script src="/static/ai_coach.js?v=20260911_BUBBLEFIX_V2"></script>
+   <script src="/static/ai_coach.js?v=20260912_VOICEERR_V3"></script>
 </body>
 </html>
 <style>
@@ -1018,7 +1018,7 @@ body::before{
 .input-row{display:flex;align-items:flex-end;gap:7px}.voice-btn{flex:0 0 46px;width:46px;height:46px;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.045);color:#BDB8CA;font-size:17px}.voice-btn.is-listening{background:rgba(239,68,68,.13);border-color:rgba(239,68,68,.3);color:#FF8D8D;animation:micPulse 1.2s infinite}.voice-btn:disabled{opacity:.5}@keyframes micPulse{50%{box-shadow:0 0 0 7px rgba(239,68,68,.06)}}
 .composer-hint{font-size:9px;color:#666174;text-align:center;margin-top:6px}.thinking{display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:17px;width:max-content}.thinking-avatar{width:28px;height:28px;border-radius:10px;overflow:hidden;background:#6D4FE0}.thinking-avatar img{width:100%;height:100%;object-fit:cover}.thinking-title{font-size:10px;color:#A9A3B7;font-weight:700}.thinking-dots{display:flex;gap:3px;margin-top:4px}.thinking-dots i{width:4px;height:4px;border-radius:50%;background:#A78BFA;animation:dot 1s infinite}.thinking-dots i:nth-child(2){animation-delay:.15s}.thinking-dots i:nth-child(3){animation-delay:.3s}@keyframes dot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
 .header-title-icon img,.empty-icon img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}.header-title-icon img{padding:8px}.empty-icon img{padding:18px}
-@media(max-width:430px){.assistant-message-wrap{max-width:93%}.quick-prompts{grid-template-columns:1fr 1fr}.chat-toolbar{padding-left:11px;padding-right:11px}.composer-hint{display:none}.voice-btn{width:44px;height:44px;flex-basis:44px}.send-btn{width:46px;height:46px}}
+@media(max-width:430px){.assistant-message-wrap{max-width:93%}.quick-prompts{grid-template-columns:1fr 1fr}.chat-toolbar{padding-left:11px;padding-right:11px}.voice-btn{width:44px;height:44px;flex-basis:44px}.send-btn{width:46px;height:46px}}
 @media(prefers-reduced-motion:reduce){.quick-prompts,.voice-btn,.thinking-dots i{animation:none!important}}
 
 /* =========================================================
@@ -1234,7 +1234,6 @@ body{overscroll-behavior:none}
 @media(max-width:370px){
   .quick-grid{grid-template-columns:1fr!important}
   .quick-grid button{min-height:54px!important}
-  .composer-hint{display:none!important}
 }
 @media(prefers-reduced-motion:reduce){.quick-prompts,.quick-grid button,.emoji-launcher,.voice-btn,.send-btn{animation:none!important;transition:none!important}}
 
