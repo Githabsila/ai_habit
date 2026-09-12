@@ -25,6 +25,10 @@ def test_struggling_habit_detected_after_repeated_misses(uid):
     add_user(uid, "u", "Test")
     habit_id = 555001
     conn = connect()
+    conn.execute(
+        "INSERT INTO habits(id, user_id, title) VALUES (?,?,?)",
+        (habit_id, uid, "Медитация"),
+    )
     for i in range(4):
         conn.execute(
             "INSERT INTO habit_logs(user_id, habit_id, habit_title, day, completed, skipped) "
@@ -38,6 +42,23 @@ def test_struggling_habit_detected_after_repeated_misses(uid):
     assert len(struggling) == 1
     assert struggling[0]["title"] == "Медитация"
     assert struggling[0]["missed"] == 4
+
+
+def test_deleted_habit_not_flagged_as_struggling(uid):
+    """Привычку удалили (её больше нет в habits) — старые habit_logs не
+    должны продолжать всплывать в подсказке "может, снизить планку?"."""
+    add_user(uid, "u", "Test")
+    habit_id = 555004
+    conn = connect()
+    for i in range(4):
+        conn.execute(
+            "INSERT INTO habit_logs(user_id, habit_id, habit_title, day, completed, skipped) "
+            "VALUES (?,?,?,date('now', ?),0,0)",
+            (uid, habit_id, "Track expenses daily", f"-{i} days"),
+        )
+    conn.commit()
+    conn.close()
+    assert get_struggling_habits(uid) == []
 
 
 def test_skipped_days_dont_count_as_struggling(uid):

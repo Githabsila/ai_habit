@@ -25,15 +25,18 @@ MIN_COMPLETIONS_FOR_SUGGESTION = 3
 def get_struggling_habits(user_id, threshold=STRUGGLE_THRESHOLD, window_days=STRUGGLE_WINDOW_DAYS):
     """Привычки (id, title, missed) пользователя, проваленные >= threshold
     раз за последние window_days дней (по habit_logs, без учёта осознанных
-    пропусков) — источник для мягкой AI-подсказки "может, снизить планку?"."""
+    пропусков) — источник для мягкой AI-подсказки "может, снизить планку?".
+    JOIN на habits — если привычку уже удалили, её старые записи в
+    habit_logs не должны продолжать всплывать в подсказке."""
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT habit_id, habit_title,
-               SUM(CASE WHEN completed=0 AND skipped=0 THEN 1 ELSE 0 END) as missed
-        FROM habit_logs
-        WHERE user_id=? AND day >= date('now', ?)
-        GROUP BY habit_id, habit_title
+        SELECT hl.habit_id, hl.habit_title,
+               SUM(CASE WHEN hl.completed=0 AND hl.skipped=0 THEN 1 ELSE 0 END) as missed
+        FROM habit_logs hl
+        JOIN habits h ON h.id = hl.habit_id AND h.user_id = hl.user_id
+        WHERE hl.user_id=? AND hl.day >= date('now', ?)
+        GROUP BY hl.habit_id, hl.habit_title
         HAVING missed >= ?
         ORDER BY missed DESC
     """, (user_id, f"-{window_days} days", threshold))
