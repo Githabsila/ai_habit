@@ -408,6 +408,29 @@ def _strip_markdown(text: str) -> str:
     return text.strip()
 
 
+# Жалоба пользователя: ADAM в нумерованных списках/планах ставит "1." перед
+# КАЖДЫМ пунктом вместо последовательной нумерации (1, 2, 3...). Просьба
+# в промпте (см. BASE_PERSONA) это не вылечила до конца — модель (особенно
+# быстрый FAST_MODEL) не всегда надёжно считает пункты сама. Поэтому вместо
+# того чтобы полагаться только на инструкцию, чиним детерминированно:
+# перенумеровываем ЛЮБУЮ строку вида "N. " от начала строки по порядку —
+# это чистая подстраховка постобработкой, а не замена промпт-инструкции.
+_LIST_ITEM_RE = re.compile(r'^([ \t]*)(\d+)\.([ \t]+)', re.MULTILINE)
+
+
+def _renumber_numbered_lists(text: str) -> str:
+    if not text or "." not in text:
+        return text
+    counter = 0
+
+    def _renumber(match):
+        nonlocal counter
+        counter += 1
+        return f"{match.group(1)}{counter}.{match.group(3)}"
+
+    return _LIST_ITEM_RE.sub(_renumber, text)
+
+
 # Граница конца предложения: точка/!/?/… (с опциональной закрывающей кавычкой
 # или скобкой) и пробел после неё. Используется только как аварийная подрезка
 # ответа, который модель всё равно не смогла уместить в лимит токенов даже
@@ -614,7 +637,7 @@ async def _ask(
             for attempt in range(MAX_RETRIES + 1):
                 started = time.perf_counter()
                 try:
-                    result = await _groq_call()
+                    result = _renumber_numbered_lists(await _groq_call())
                     logger.info("AI response %.2fs via Groq (attempt %s)", time.perf_counter() - started, attempt + 1)
                     return result
                 except Exception as e:
@@ -627,7 +650,7 @@ async def _ask(
         if OPENAI_API_KEY:
             started = time.perf_counter()
             try:
-                result = await _openai_call()
+                result = _renumber_numbered_lists(await _openai_call())
                 logger.info("AI response %.2fs via OpenAI fallback", time.perf_counter() - started)
                 return result
             except Exception as e:
