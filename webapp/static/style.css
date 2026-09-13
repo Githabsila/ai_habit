@@ -5270,7 +5270,7 @@ section[data-tab="home"] .streak-widget__hero-row{
   stroke-width:7 !important;
   stroke-linecap:round !important;
   stroke-dasharray:326.7 !important;
-  stroke-dashoffset:326.7 !important;
+  stroke-dashoffset:326.726;
   filter:drop-shadow(0 0 5px rgba(255,205,73,.9)) drop-shadow(0 0 15px rgba(240,180,41,.32)) !important;
   transition:stroke-dashoffset 700ms var(--motion-ease),filter 350ms ease !important;
 }
@@ -5431,6 +5431,7 @@ section[data-tab="home"] .streak-widget__hero-row{
   stroke-width:8 !important;
   stroke-linecap:round !important;
   stroke-dasharray:326.726 !important;
+  stroke-dashoffset:326.726;
   filter:drop-shadow(0 0 5px rgba(255,211,80,.95)) drop-shadow(0 0 16px rgba(240,180,41,.38)) !important;
 }
 
@@ -8833,75 +8834,125 @@ body{
 .today-focus__quests-btn{
   flex:0 0 auto;
   position:relative;
-  width:42px;height:42px;
-  display:grid;place-items:center;
-  border-radius:14px;
-  border:1.5px solid rgba(255,209,102,.30);
-  background:rgba(255,209,102,.10);
+  min-width:82px;
+  height:46px;
+  padding:0 11px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  border-radius:15px;
+  border:1.5px solid rgba(255,215,106,.62);
+  background:
+    radial-gradient(circle at 30% 15%,rgba(255,235,160,.18),transparent 48%),
+    linear-gradient(145deg,rgba(75,56,25,.92),rgba(37,28,16,.98));
+  color:#FFE8A3;
   cursor:pointer;
-  transition:transform .14s ease, border-color .2s ease, background .2s ease;
-}
-.today-focus__quests-btn[hidden]{display:none !important}
-.today-focus__quests-icon{font-size:19px;line-height:1}
-.today-focus__quests-btn:active{transform:scale(.9)}
-/* Есть выполненный квест с наградой — кнопка должна заметно привлекать внимание
-   ещё ДО открытия модалки. Делаем основной сигнал отдельным слоем на самой
-   рамке: яркий сегмент непрерывно проходит по периметру. Важно: псевдоэлемент
-   больше НЕ уходит в z-index:-1 — на Telegram WebView такой слой мог оказаться
-   под фоном самой кнопки, из-за чего оставалась только статичная жёлтая рамка. */
-.today-focus__quests-btn.has-claimable{
-  border-color:#FFD76A;
-  background:rgba(255,209,102,.16);
-  animation:questBtnGlow 1.35s ease-in-out infinite;
+  box-shadow:
+    0 6px 18px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    0 0 0 1px rgba(255,209,102,.06);
+  transition:
+    transform .16s ease,
+    border-color .2s ease,
+    background .2s ease,
+    box-shadow .2s ease;
   isolation:isolate;
   overflow:visible;
 }
-.today-focus__quests-btn.has-claimable .today-focus__quests-icon{
-  position:relative;
-  z-index:3;
+.today-focus__quests-btn[hidden]{display:none !important}
+.today-focus__quests-btn::after{
+  content:"";
+  position:absolute;
+  inset:1px;
+  border-radius:13px;
+  background:linear-gradient(105deg,transparent 25%,rgba(255,255,255,.16) 48%,transparent 70%);
+  background-size:220% 100%;
+  opacity:.35;
+  pointer-events:none;
+  z-index:0;
+  animation:questBtnSheen 3.8s ease-in-out infinite;
 }
-/* Яркая движущаяся дорожка. Слой находится НАД фоном кнопки, а ::after
-   маскирует его центр, поэтому виден именно светящийся ободок. */
+.today-focus__quests-icon,
+.today-focus__quests-label{
+  position:relative;
+  z-index:2;
+}
+.today-focus__quests-icon{font-size:20px;line-height:1;filter:drop-shadow(0 2px 5px rgba(255,190,70,.28))}
+.today-focus__quests-label{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:11px;
+  line-height:1;
+  font-weight:900;
+  letter-spacing:.02em;
+  color:#FFF1BE;
+}
+.today-focus__quests-btn:hover{
+  transform:translateY(-1px);
+  border-color:#FFD76A;
+  box-shadow:
+    0 9px 22px rgba(0,0,0,.32),
+    inset 0 1px 0 rgba(255,255,255,.12),
+    0 0 16px rgba(255,209,102,.16);
+}
+.today-focus__quests-btn:active{transform:scale(.96)}
+.today-focus__quests-btn.has-claimable{
+  border-color:#FFE08A;
+  background:
+    radial-gradient(circle at 30% 15%,rgba(255,239,170,.26),transparent 48%),
+    linear-gradient(145deg,rgba(91,67,26,.98),rgba(45,32,14,.99));
+  animation:questBtnGlow 1.35s ease-in-out infinite;
+}
 .today-focus__quests-btn.has-claimable::before{
   content:"";
   position:absolute;
-  inset:-2.5px;
-  border-radius:16.5px;
+  inset:-3px;
+  border-radius:18px;
+  padding:2px;
   background:conic-gradient(
     from 0deg,
-    rgba(255,215,106,.12) 0deg,
-    rgba(255,215,106,.12) 220deg,
-    rgba(255,245,190,1) 258deg,
-    rgba(255,194,52,1) 292deg,
-    rgba(255,215,106,.12) 330deg,
-    rgba(255,215,106,.12) 360deg
+    rgba(255,215,106,.15) 0deg,
+    rgba(255,215,106,.15) 210deg,
+    #FFF4BE 250deg,
+    #FFC43D 292deg,
+    rgba(255,215,106,.15) 330deg,
+    rgba(255,215,106,.15) 360deg
   );
-  z-index:1;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
   animation:questBtnBorderSpin 1.05s linear infinite;
   pointer-events:none;
+  z-index:1;
   will-change:transform;
 }
-.today-focus__quests-btn.has-claimable::after{
-  content:"";
-  position:absolute;
-  inset:2px;
-  border-radius:12px;
-  background:rgba(24,21,32,.98);
-  z-index:2;
-  pointer-events:none;
-}
 @keyframes questBtnGlow{
-  0%,100%{ box-shadow:0 0 0 0 rgba(255,209,102,.42); }
-  50%{ box-shadow:0 0 0 7px rgba(255,209,102,0); }
+  0%,100%{box-shadow:0 6px 18px rgba(0,0,0,.28),0 0 0 0 rgba(255,209,102,.36),inset 0 1px 0 rgba(255,255,255,.10)}
+  50%{box-shadow:0 8px 24px rgba(0,0,0,.30),0 0 0 7px rgba(255,209,102,0),inset 0 1px 0 rgba(255,255,255,.12)}
 }
-@keyframes questBtnBorderSpin{
-  to{ transform:rotate(360deg); }
+@keyframes questBtnBorderSpin{to{transform:rotate(360deg)}}
+@keyframes questBtnSheen{
+  0%,55%{background-position:130% 0}
+  78%,100%{background-position:-30% 0}
 }
 @media (prefers-reduced-motion:reduce){
-  .today-focus__quests-btn.has-claimable{ animation:none; }
-  .today-focus__quests-btn.has-claimable::before{ animation:none; }
+  .today-focus__quests-btn,
+  .today-focus__quests-btn::after,
+  .today-focus__quests-btn.has-claimable,
+  .today-focus__quests-btn.has-claimable::before{animation:none}
 }
 
+/* Запрещаем жесты масштабирования внутри Mini App и убираем случайное
+   изменение размера текста на iOS/WebView. Сам обычный вертикальный скролл
+   при этом сохраняется. */
+html,body{
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
+  touch-action:pan-y;
+}
+body{
+  overscroll-behavior-y:none;
+}
 /* =========================================================
    МОДАЛКА "КВЕСТЫ ДНЯ" — по центру экрана, поверх всего (вне #app и
    .tab-panel, как и остальные шторки — см. комментарий у

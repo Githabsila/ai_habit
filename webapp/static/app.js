@@ -301,9 +301,20 @@
   
   // ===================== TELEGRAM WEBAPP INIT =====================
 
+  // Mini App не должен масштабироваться как обычный сайт. Viewport meta
+  // отключает pinch-zoom в поддерживаемых WebView, а эти обработчики
+  // закрывают оставшиеся жесты в iOS/Safari-подобных движках. Один палец
+  // продолжает нормально прокручивать страницу.
+  document.addEventListener("touchmove", (e) => {
+    if (e.touches && e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+  document.addEventListener("gesturestart", (e) => e.preventDefault(), { passive: false });
+  document.addEventListener("gesturechange", (e) => e.preventDefault(), { passive: false });
+  document.addEventListener("gestureend", (e) => e.preventDefault(), { passive: false });
+  document.addEventListener("wheel", (e) => {
+    if (e.ctrlKey) e.preventDefault();
+  }, { passive: false });
 
-
-  
   function initTelegram() {
     if (!tg) return;
     tg.ready();
@@ -1593,10 +1604,13 @@
     }
 
     if (ringFill) {
+      // ВАЖНО: не используем CSS !important для stroke-dashoffset.
+      // Иначе старое значение 326.7 перебивает inline-значение и кольцо
+      // визуально остаётся почти пустым даже при 98/100 XP.
       const offset = RING_CIRCUMFERENCE * (1 - xpIntoLevel / 100);
       ringFill.classList.add("is-progressing");
       requestAnimationFrame(() => {
-        ringFill.style.strokeDashoffset = offset;
+        ringFill.style.strokeDashoffset = String(offset);
       });
       clearTimeout(ringFill._progressTimer);
       ringFill._progressTimer = setTimeout(() => ringFill.classList.remove("is-progressing"), 760);
