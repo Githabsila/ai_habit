@@ -359,7 +359,7 @@
 
   async function api(path, options = {}) {
     const controller = new AbortController();
-    const timeoutMs = Number(options.timeoutMs || (path === "/api/bootstrap" ? 12000 : 15000));
+    const timeoutMs = Number(options.timeoutMs || (path === "/api/bootstrap" ? 20000 : 15000));
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const fetchOptions = { ...options, signal: controller.signal };
     delete fetchOptions.timeoutMs;

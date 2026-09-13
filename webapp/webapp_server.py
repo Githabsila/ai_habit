@@ -321,6 +321,17 @@ def _shape_user(telegram_id, user, is_admin=False):
     }
 
 
+def _safe_suggested_time(h, telegram_id):
+    """Необязательная подсказка времени не должна ломать /api/bootstrap."""
+    if h is None or (h["planned_time"] if "planned_time" in h.keys() else None):
+        return None
+    try:
+        return suggest_optimal_reminder_time(h["id"], telegram_id)
+    except Exception:
+        logger.warning("suggest_optimal_reminder_time failed for habit %s", h["id"], exc_info=True)
+        return None
+
+
 def _shape_habit(h, telegram_id):
     if h is None:
         return None
@@ -341,10 +352,7 @@ def _shape_habit(h, telegram_id):
             if "frequency_per_week" in h.keys() and h["frequency_per_week"] else None
         ),
         "chain_trigger_habit_id": h["chain_trigger_habit_id"] if "chain_trigger_habit_id" in h.keys() else None,
-        "suggested_time": (
-            suggest_optimal_reminder_time(h["id"], telegram_id)
-            if not (h["planned_time"] if "planned_time" in h.keys() else None) else None
-        ),
+        "suggested_time": _safe_suggested_time(h, telegram_id),
     }
 
 
@@ -395,7 +403,11 @@ async def bootstrap(request):
     bonus_until_dt = get_bonus_window(telegram_id)
     has_incomplete_habits = any(not h["completed"] for h in habits)
     bonus_active = bool(bonus_until_dt and bonus_until_dt > datetime.now(timezone.utc).replace(tzinfo=None) and has_incomplete_habits)
-    bot_username = await _get_bot_username(request.app.get("bot"))
+    # Не блокируем критический bootstrap внешним запросом к Telegram Bot API.
+    # После рестарта Railway get_me() мог подвиснуть на сетевом таймауте и из-за
+    # этого весь Mini App получал клиентский экран «Не получилось загрузить ADAM».
+    # Имя бота нужно только для шаринга и не должно блокировать первый экран.
+    bot_username = _BOT_USERNAME_CACHE["value"]
 
     return web.json_response({
         "bot_username": bot_username,
