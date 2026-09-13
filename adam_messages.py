@@ -148,7 +148,7 @@ def format_habit_final_motivation_message() -> str:
 
 
 PLAN_TASK_REMINDER_TEMPLATES = [
-    "Задача «{title}» ещё открыта. Если она важна сегодня — самое время вернуться к ней {emoji}",
+    "Задача «{title}» ещё открыта. Самое время вернуться к ней {emoji}",
     "«{title}» пока не закрыта. Выдели ей немного времени и доведи до конца {emoji}",
     "Я бы сейчас вернулся к задаче «{title}» — она всё ещё ждёт тебя {emoji}",
 ]
@@ -163,10 +163,10 @@ def format_plan_task_reminder_message(title: str) -> str:
 # =====================================
 
 DAY_PROGRESS_TEMPLATES = [
-    "Вечерняя сверка: готово {done} из {total} {total_gen}. Осталось {left} {left_word}: {open_items}. Ещё можно спокойно закрыть главное {emoji}",
-    "Проверил весь план: выполнено {done} из {total} {total_gen}, включая главную задачу. Осталось {left} {left_word}: {open_items} {emoji}",
+    "Вечерняя сверка: готово {done} из {total} {total_gen}. Осталось {left} {left_word}: {open_items}. Можно спокойно двигаться дальше {emoji}",
+    "Проверил весь план: выполнено {done} из {total} {total_gen}. Осталось {left} {left_word}: {open_items} {emoji}",
     "19:00 — время свериться с планом. Закрыто {done} из {total} {total_gen}. {left_phrase}: {open_items}. Выбери следующий пункт {emoji}",
-    "До финиша осталось {left} {left_word} из всего плана — {open_items}. Сначала закрой то, что важнее всего {emoji}",
+    "До финиша осталось {left} {left_word} из всего плана — {open_items}. Двигайся по своему порядку и закрой то, что ещё открыто {emoji}",
 ]
 
 
@@ -355,14 +355,36 @@ def format_secondary_task_praise(name, used_today, used_ever, strict_mode) -> tu
     return key, template.format(name=name)
 
 
-MAIN_GOAL_DONE_TEMPLATES = [
-    "Главная задача закрыта. Отлично — теперь можно переключиться на остальное без этого груза {emoji}",
-    "Ты выполнил главную задачу дня. Хороший ход — самое важное уже позади {emoji}",
-    "Главная цель сегодня закрыта. Так и строится нормальный темп: главное сначала {emoji}",
+FIRST_PLAN_ACTION_TEMPLATES = [
+    "Начало положено — первая задача дня уже закрыта {emoji}",
+    "День сдвинулся с места — первая отметка готова {emoji}",
+    "Первый шаг сделан. Продолжай в своём порядке {emoji}",
 ]
 
 
-def format_main_goal_done_message() -> str:
+def format_first_plan_action_message(kind: str = "задача") -> str:
+    return pick(FIRST_PLAN_ACTION_TEMPLATES)
+
+
+MAIN_GOAL_DONE_TEMPLATES = [
+    "Главная задача закрыта. Отлично — теперь можно переключиться на остальное без этого груза {emoji}",
+    "Главная задача дня выполнена. Один важный пункт уже закрыт {emoji}",
+    "Главная задача закрыта. Хороший ход — продолжаем по оставшемуся плану {emoji}",
+]
+
+
+def format_main_goal_done_message(remaining_count: int = 0) -> str:
+    remaining_count = max(0, int(remaining_count or 0))
+    if remaining_count == 1:
+        return pick([
+            "Главная задача закрыта. Осталась ещё одна задача — спокойно закрой её в своём темпе {emoji}",
+            "Главная задача выполнена. В плане осталась одна открытая задача {emoji}",
+        ])
+    if remaining_count > 1:
+        return pick([
+            "Главная задача закрыта. В плане осталось {} задач — двигайся по своему порядку {{emoji}}".format(remaining_count),
+            "Главная задача выполнена. Осталось {} открытых задач — выбери следующую {{emoji}}".format(remaining_count),
+        ])
     return pick(MAIN_GOAL_DONE_TEMPLATES)
 
 

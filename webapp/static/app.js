@@ -674,6 +674,7 @@
     // Warm the profile data in the background. This makes a later tap on
     // "Профиль" instant without adding anything to the initial critical path.
     scheduleProfilePrefetch();
+    scheduleRatingPrefetch();
 
     // Второстепенные вкладки дорисовываем после первого кадра, когда браузер
     // освободит основной поток. Качество UI не меняется — меняется только
@@ -687,6 +688,18 @@
   const secondaryPromises = new Map();
   const secondaryLoaded = new Set();
   let profilePrefetchScheduled = false;
+  let ratingPrefetchScheduled = false;
+
+  function scheduleRatingPrefetch() {
+    if (ratingPrefetchScheduled || secondaryLoaded.has("rating")) return;
+    ratingPrefetchScheduled = true;
+    const run = () => loadBootstrapSecondary("rating");
+    if ("requestIdleCallback" in window) {
+      requestIdleCallback(run, { timeout: 2200 });
+    } else {
+      setTimeout(run, 1600);
+    }
+  }
 
   function scheduleProfilePrefetch() {
     if (profilePrefetchScheduled || secondaryLoaded.has("profile")) return;
@@ -1574,6 +1587,17 @@
   // привычки после тапа по ней (id хранится тут, сбрасывается перезагрузкой
   // страницы — это чисто состояние отображения, не персистентные данные).
   const expandedHabitActionIds = new Set();
+  const expandedHabitTextIds = new Set();
+  const HABIT_TIME_SUGGESTION_DISMISS_PREFIX = "adam_habit_time_suggestion_dismissed_";
+  function isHabitTimeSuggestionDismissed(habitId) {
+    try { return localStorage.getItem(HABIT_TIME_SUGGESTION_DISMISS_PREFIX + habitId) === "1"; }
+    catch (_) { return false; }
+  }
+  function dismissHabitTimeSuggestion(habitId) {
+    try { localStorage.setItem(HABIT_TIME_SUGGESTION_DISMISS_PREFIX + habitId, "1"); } catch (_) {}
+    renderHabits();
+    haptic("light");
+  }
 
   function deleteHabitWithUndo(habitId) {
     pendingDeleteHabitIds.add(habitId);
@@ -1733,15 +1757,18 @@
         : "";
       // Roadmap #23/#36 — подсказка времени, только пока у привычки ещё
       // нет своего planned_time (иначе она и так уже видна как чип ⏰).
-      const suggestBtn = h.suggested_time
-        ? `<button class="habit-item__suggest-time" data-action="accept-suggested-time" data-time="${h.suggested_time}" title="AI заметил: обычно ты делаешь это в это время">🤖 ${h.suggested_time}?</button>`
+      const suggestBtn = h.suggested_time && !isHabitTimeSuggestionDismissed(h.id)
+        ? `<span class="habit-item__suggest-wrap">
+             <button class="habit-item__suggest-time" data-action="accept-suggested-time" data-time="${h.suggested_time}" title="AI заметил: обычно ты делаешь это в это время">🤖 ${h.suggested_time}?</button>
+             <button type="button" class="habit-item__suggest-dismiss" data-action="dismiss-suggested-time" aria-label="Не предлагать это время" title="Не предлагать">×</button>
+           </span>`
         : "";
 
       if (h.skip_reason) {
         return `
       <li class="habit-item is-skipped" data-id="${h.id}">
         <button class="habit-item__check" disabled>⏭</button>
-        ${badges}<span class="habit-item__title" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
+        ${badges}<span class="habit-item__title ${expandedHabitTextIds.has(h.id) ? "is-expanded" : ""}" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
         <div class="habit-item__skip-note">Пропущено: ${escapeHtml(h.skip_reason)} · <button type="button" data-action="unskip">вернуть</button></div>
       </li>`;
@@ -2751,6 +2778,11 @@ function initHabitActions() {
       return;
     }
 
+    if (action === "dismiss-suggested-time") {
+      dismissHabitTimeSuggestion(habitId);
+      return;
+    }
+
     if (action === "accept-suggested-time") {
       const titleEl = li.querySelector(".habit-item__title");
       try {
@@ -2810,6 +2842,35 @@ function initHabitActions() {
       await loadBootstrap();
     }
   });
+
+  let lastHabitTitleTap = { id: null, time: 0 };
+  list.addEventListener("dblclick", (e) => {
+    const title = e.target.closest(".habit-item__title");
+    if (!title) return;
+    const li = title.closest(".habit-item");
+    const habitId = Number(li?.dataset.id);
+    if (!habitId) return;
+    expandedHabitTextIds.has(habitId) ? expandedHabitTextIds.delete(habitId) : expandedHabitTextIds.add(habitId);
+    renderHabits();
+    haptic("light");
+  });
+  list.addEventListener("touchend", (e) => {
+    const title = e.target.closest(".habit-item__title");
+    if (!title) return;
+    const li = title.closest(".habit-item");
+    const habitId = Number(li?.dataset.id);
+    if (!habitId) return;
+    const now = Date.now();
+    if (lastHabitTitleTap.id === habitId && now - lastHabitTitleTap.time < 360) {
+      e.preventDefault();
+      expandedHabitTextIds.has(habitId) ? expandedHabitTextIds.delete(habitId) : expandedHabitTextIds.add(habitId);
+      lastHabitTitleTap = { id: null, time: 0 };
+      renderHabits();
+      haptic("light");
+    } else {
+      lastHabitTitleTap = { id: habitId, time: now };
+    }
+  }, { passive: false });
 
   addHabitForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -3088,7 +3149,9 @@ function initPlanActions() {
           openAddCollapse("addPlanTaskCollapse");
           taskInput.value = task.text;
           taskInput.dataset.editingTaskId = task.id;
-          document.getElementById("addPlanTaskBtn").textContent = "✓ Сохранить изменения";
+          const editBtn = document.getElementById("addPlanTaskBtn");
+          editBtn.textContent = "✓ Сохранить изменения";
+          editBtn.disabled = false;
           taskInput.focus();
           taskInput.select();
           taskInput.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -3480,18 +3543,19 @@ async function loadProgressStats() {
 
 // Roadmap #16/#9 — команда + сезонный рейтинг, оба живут на вкладке Рейтинг.
 async function loadTeamAndSeason() {
-  try {
-    const [teamData, seasonData] = await Promise.all([
-      api("/api/team"),
-      api("/api/season"),
-    ]);
-    state.team = teamData.team;
-    state.season = seasonData;
+  // Групповой челлендж и сезонный рейтинг независимы. Раньше Promise.all
+  // заставлял ждать ОБА запроса, и из-за этого командная карточка визуально
+  // появлялась последней и выглядела как лаг. Теперь каждый блок рисуется
+  // сразу после своего ответа.
+  const teamPromise = api("/api/team").then(data => {
+    state.team = data.team;
     renderTeamCard();
+  }).catch(err => console.error("loadTeam failed:", err));
+  const seasonPromise = api("/api/season").then(data => {
+    state.season = data;
     renderSeasonList();
-  } catch (err) {
-    console.error("loadTeamAndSeason failed:", err);
-  }
+  }).catch(err => console.error("loadSeason failed:", err));
+  await Promise.allSettled([teamPromise, seasonPromise]);
 }
 
 function renderTeamCard() {

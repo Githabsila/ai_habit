@@ -282,6 +282,27 @@ def rollover_user(user_id):
     previous_day = day_key(today - timedelta(days=1))
     c.execute("SELECT status FROM streak_days WHERE user_id=? AND day=?", (user_id, previous_day))
     prev = c.fetchone()
+
+    # Защита от старых/пропущенных rollover-записей: если вчера человек
+    # реально закрыл привычку, streak не должен обнуляться только потому,
+    # что scheduler не успел записать streak_days. Проверяем журнал привычек
+    # и события выполнения как резервные источники истины.
+    if not prev or prev["status"] not in ("completed", "freeze"):
+        c.execute(
+            "SELECT 1 FROM habit_logs WHERE user_id=? AND day=? AND completed=1 LIMIT 1",
+            (user_id, previous_day),
+        )
+        if c.fetchone():
+            prev = {"status": "completed"}
+        else:
+            c.execute(
+                """SELECT 1 FROM habit_completion_events
+                   WHERE user_id=? AND date(completed_at)=? LIMIT 1""",
+                (user_id, previous_day),
+            )
+            if c.fetchone():
+                prev = {"status": "completed"}
+
     c.execute("SELECT streak FROM users WHERE telegram_id=?", (user_id,))
     u = c.fetchone()
     streak = int(u["streak"] or 0) if u else 0

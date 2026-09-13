@@ -15,7 +15,7 @@ from config import BOT_TOKEN, ADMIN_IDS
 from webapp.telegram_auth import validate_init_data
 from webapp.services.ai_coach import ask_ai
 from adam_messages import (
-    format_all_tasks_done_message, format_main_goal_done_message,
+    format_all_tasks_done_message, format_main_goal_done_message, format_first_plan_action_message,
     format_secondary_task_praise, SECONDARY_TASK_PRAISE_STRICT_DAYS, SECONDARY_TASK_PRAISE_STRICT_COUNT,
     format_perfect_habit_streak_message, format_month_end_reward_message,
 )
@@ -610,7 +610,11 @@ async def bootstrap_secondary(request):
                 "badge": row["telegram_id"] in badge_owner_ids,
                 "avatar_id": row["avatar_id"] if "avatar_id" in row.keys() else "default",
                 "frame_id": row["frame_id"] if "frame_id" in row.keys() else "default",
-                "streak_status": get_streak_status(row["telegram_id"]),
+                "streak_status": {
+                    "temp_frame": row["temp_frame"] if "temp_frame" in row.keys() else None,
+                    "temp_status": row["temp_status"] if "temp_status" in row.keys() else None,
+                    "rewards": [],
+                },
                 "league_tier": get_league_tier(row["total_xp"] if "total_xp" in row.keys() else row["xp"]),
                 "can_react": (
                     row["telegram_id"] != telegram_id
@@ -1602,6 +1606,7 @@ async def toggle_plan_task_route(request):
     if task is None:
         raise web.HTTPNotFound()
     was_completed = bool(task["completed"])
+    done_before = sum(1 for t in plan["tasks"] if t["completed"]) + (1 if plan["main_goal"] and plan["main_goal_completed"] else 0)
 
     toggle_daily_task(task_id)
 
@@ -1612,28 +1617,31 @@ async def toggle_plan_task_route(request):
     if _plan_fully_complete(updated_plan):
         message = format_all_tasks_done_message()
     elif not was_completed:
-        # Промт п.7.1: короткая похвала за КАЖДУЮ отдельную второстепенную
-        # задачу (кроме случая выше, когда это была последняя — там уже
-        # общее поздравление). Не повторяется в течение дня; в первые
-        # 3 дня использования/15 показов — не повторяется вовсе.
-        user = get_user(telegram_id)
-        name = (user["first_name"] if user else "") or ""
-        praise_state = get_secondary_task_praise_state(telegram_id)
-        account_age_days = 0
-        created_at = user["created_at"] if user and "created_at" in user.keys() else None
-        if created_at:
-            try:
-                account_age_days = (datetime.now(timezone.utc).replace(tzinfo=None) - datetime.fromisoformat(str(created_at))).days
-            except ValueError:
-                account_age_days = 0
-        strict_mode = (
-            account_age_days < SECONDARY_TASK_PRAISE_STRICT_DAYS
-            and praise_state["total"] < SECONDARY_TASK_PRAISE_STRICT_COUNT
-        )
-        key, message = format_secondary_task_praise(
-            name, praise_state["used_today"], praise_state["used_ever"], strict_mode
-        )
-        record_secondary_task_praise(telegram_id, key)
+        if done_before == 0:
+            message = format_first_plan_action_message("задача")
+        else:
+            # Промт п.7.1: короткая похвала за КАЖДУЮ отдельную второстепенную
+            # задачу (кроме случая выше, когда это была последняя — там уже
+            # общее поздравление). Не повторяется в течение дня; в первые
+            # 3 дня использования/15 показов — не повторяется вовсе.
+            user = get_user(telegram_id)
+            name = (user["first_name"] if user else "") or ""
+            praise_state = get_secondary_task_praise_state(telegram_id)
+            account_age_days = 0
+            created_at = user["created_at"] if user and "created_at" in user.keys() else None
+            if created_at:
+                try:
+                    account_age_days = (datetime.now(timezone.utc).replace(tzinfo=None) - datetime.fromisoformat(str(created_at))).days
+                except ValueError:
+                    account_age_days = 0
+            strict_mode = (
+                account_age_days < SECONDARY_TASK_PRAISE_STRICT_DAYS
+                and praise_state["total"] < SECONDARY_TASK_PRAISE_STRICT_COUNT
+            )
+            key, message = format_secondary_task_praise(
+                name, praise_state["used_today"], praise_state["used_ever"], strict_mode
+            )
+            record_secondary_task_praise(telegram_id, key)
 
     # Тумблер задачи плана дня не трогает XP/монеты/streak/квесты — от
     # этого действия могло измениться только состояние самого плана дня.
@@ -1660,6 +1668,7 @@ async def toggle_main_goal_route(request):
         raise web.HTTPNotFound()
 
     was_completed = plan["main_goal_completed"]
+    done_before = sum(1 for t in plan["tasks"] if t["completed"]) + (1 if plan["main_goal"] and plan["main_goal_completed"] else 0)
     toggle_daily_main_goal(telegram_id)
 
     updated_plan = get_daily_plan(telegram_id)
@@ -1676,7 +1685,10 @@ async def toggle_main_goal_route(request):
         message = (
             format_all_tasks_done_message()
             if _plan_fully_complete(updated_plan)
-            else format_main_goal_done_message()
+            else format_first_plan_action_message("главная задача") if done_before == 0
+            else format_main_goal_done_message(
+                sum(1 for t in updated_plan["tasks"] if not t["completed"])
+            )
         )
 
     return web.json_response({

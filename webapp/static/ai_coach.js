@@ -248,12 +248,38 @@ function AiChat() {
     const [copiedId, setCopiedId] = useState(null);
     const [toast, setToast] = useState('');
     const [online, setOnline] = useState(navigator.onLine);
+    const [showScrollDown, setShowScrollDown] = useState(false);
     const messagesEnd = useRef(null);
+    const messagesContainerRef = useRef(null);
     const textareaRef = useRef(null);
     const recognitionRef = useRef(null);
-    const scroll = (behavior = 'smooth') => messagesEnd.current?.scrollIntoView({ behavior, block: 'end' });
-    useEffect(() => { scroll('auto'); }, []);
-    useEffect(() => { saveStoredMessages(messages); scroll(); }, [messages]);
+    const voiceSessionRef = useRef(0);
+    const scroll = (behavior = 'auto') => {
+        const el = messagesContainerRef.current;
+        if (el) el.scrollTo({ top: Math.max(0, el.scrollHeight - el.clientHeight), behavior });
+        else messagesEnd.current?.scrollIntoView({ behavior, block: 'end' });
+    };
+    const refreshScrollDown = () => {
+        const el = messagesContainerRef.current;
+        if (!el) return;
+        const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
+        setShowScrollDown(distance > 90);
+    };
+    useEffect(() => {
+        const el = messagesContainerRef.current;
+        if (!el) return;
+        const onScroll = () => refreshScrollDown();
+        el.addEventListener('scroll', onScroll, { passive: true });
+        refreshScrollDown();
+        return () => el.removeEventListener('scroll', onScroll);
+    }, []);
+    useEffect(() => {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            scroll('auto');
+            refreshScrollDown();
+        }));
+    }, [messages.length]);
+    useEffect(() => { saveStoredMessages(messages); }, [messages]);
     const loadHistory = useCallback(async () => {
         try {
             const res = await fetch('/api/ai/history?init_data=' + encodeURIComponent(tg.initData) + '&limit=80');
@@ -296,6 +322,10 @@ function AiChat() {
         if (!text || loading || throttle)
             return;
         vibrate('light');
+        voiceSessionRef.current += 1;
+        try { recognitionRef.current?.stop(); } catch (_) {}
+        recognitionRef.current = null;
+        setListening(false);
         setInput('');
         if (textareaRef.current)
             textareaRef.current.style.height = '40px';
@@ -485,14 +515,21 @@ function AiChat() {
         }
         let gotResult = false;
         let alertShown = false;
+        const sessionId = ++voiceSessionRef.current;
         const r = new SR();
         recognitionRef.current = r;
         r.lang = 'ru-RU';
         r.interimResults = true;
         r.continuous = false;
         r.onstart = () => { setListening(true); vibrate('medium'); };
-        r.onresult = e => { gotResult = true; let text = ''; for (let i = e.resultIndex; i < e.results.length; i++)
-            text += e.results[i][0].transcript; setInput(text); setTimeout(resizeInput, 0); };
+        r.onresult = e => {
+            if (sessionId !== voiceSessionRef.current) return;
+            gotResult = true;
+            let text = '';
+            for (let i = e.resultIndex; i < e.results.length; i++) text += e.results[i][0].transcript;
+            setInput(text);
+            setTimeout(resizeInput, 0);
+        };
         r.onerror = (e) => {
             setListening(false);
             const reasons = {
@@ -505,7 +542,9 @@ function AiChat() {
             if (msg) { alertShown = true; try { tg.showAlert(msg); } catch (_) { window.alert(msg); } }
         };
         r.onend = () => {
+            if (sessionId !== voiceSessionRef.current) return;
             setListening(false);
+            recognitionRef.current = null;
             // no-speech и обрыв без единого onresult — самый частый случай
             // "тихого" сбоя: устройство ничего не распознало и не сообщило
             // почему явной ошибкой. Хоть какая-то обратная связь лучше тишины
@@ -561,7 +600,7 @@ function AiChat() {
                     React.createElement("b", null, label),
                     React.createElement("small", null, desc)),
                 React.createElement("span", { className: "quick-arrow" }, "\u2192"))))),
-        React.createElement("div", { className: "messages-container" }, messages.length === 0 ? React.createElement("div", { className: "empty-state" },
+        React.createElement("div", { className: "messages-container", ref: messagesContainerRef }, messages.length === 0 ? React.createElement("div", { className: "empty-state" },
             React.createElement("div", { className: "empty-icon" },
                 React.createElement("img", { src: "/static/assets/adam-avatar.webp", alt: "ADAM" })),
             React.createElement("div", { className: "empty-title" }, "\u041F\u0440\u0438\u0432\u0435\u0442, \u044F ADAM \uD83D\uDC4B"),
@@ -614,6 +653,13 @@ function AiChat() {
                             React.createElement("i", null),
                             React.createElement("i", null))))),
             React.createElement("div", { ref: messagesEnd }))),
+        showScrollDown && React.createElement("button", {
+            type: "button",
+            className: "scroll-down-btn",
+            onClick: () => { scroll('smooth'); vibrate('light'); },
+            "aria-label": "Перейти к последнему сообщению",
+            title: "К последнему сообщению"
+        }, "↓"),
         throttle && React.createElement("div", { className: "throttle-warning" },
             "\u23F3 \u041F\u043E\u0434\u043E\u0436\u0434\u0438 ",
             throttle,

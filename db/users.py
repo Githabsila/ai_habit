@@ -615,10 +615,13 @@ def get_rating(limit=10):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT telegram_id, username, first_name, xp, level, streak, avatar_id, frame_id, total_xp
-        FROM users
-        WHERE banned=0
-        ORDER BY streak DESC, xp DESC
+        SELECT u.telegram_id, u.username, u.first_name, u.xp, u.level, u.streak,
+               u.avatar_id, u.frame_id, u.total_xp,
+               sm.temp_frame, sm.temp_status
+        FROM users u
+        LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id
+        WHERE u.banned=0
+        ORDER BY u.streak DESC, u.xp DESC
         LIMIT ?
     """, (limit,))
 

@@ -614,6 +614,12 @@ font-size:15px;
     line-height:1;
 }
 
+.habit-item__title.is-expanded{
+  display:block;
+  -webkit-line-clamp:unset;
+  overflow:visible;
+  white-space:normal;
+}
 .habit-item.is-done .habit-item__title{
 
     color:#8F8FA8;
@@ -5264,6 +5270,7 @@ section[data-tab="home"] .streak-widget__hero-row{
   stroke-width:7 !important;
   stroke-linecap:round !important;
   stroke-dasharray:326.7 !important;
+  stroke-dashoffset:326.7 !important;
   filter:drop-shadow(0 0 5px rgba(255,205,73,.9)) drop-shadow(0 0 15px rgba(240,180,41,.32)) !important;
   transition:stroke-dashoffset 700ms var(--motion-ease),filter 350ms ease !important;
 }
@@ -8534,6 +8541,12 @@ body{
 }
 
 /* Roadmap #23/#36 — чип "AI подобрал время". */
+.habit-item__suggest-wrap{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  flex:0 0 auto;
+}
 .habit-item__suggest-time{
   flex:0 0 auto;
   padding:0 10px;
@@ -8547,6 +8560,21 @@ body{
   white-space:nowrap;
   cursor:pointer;
 }
+.habit-item__suggest-dismiss{
+  width:20px;height:20px;
+  padding:0;
+  display:grid;place-items:center;
+  border-radius:7px;
+  border:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.035);
+  color:rgba(255,255,255,.48);
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
+  transition:transform .15s ease,color .15s ease,background .15s ease;
+}
+.habit-item__suggest-dismiss:active{transform:scale(.88)}
+.habit-item__suggest-dismiss:hover{color:#FFD76A;background:rgba(255,209,102,.08)}
 
 .habit-item__skip{
   flex:0 0 auto;
@@ -8838,9 +8866,6 @@ body{
 @keyframes questBtnGlow{
   0%,100%{ box-shadow:0 0 0 0 rgba(255,209,102,.6); transform:scale(1); }
   50%{ box-shadow:0 0 0 9px rgba(255,209,102,0); transform:scale(1.08); }
-}
-.app-performance-paused .today-focus__quests-btn.has-claimable{
-  animation-play-state:paused;
 }
 @media (prefers-reduced-motion:reduce){
   .today-focus__quests-btn.has-claimable{ animation:none; }
@@ -10244,3 +10269,23 @@ button:not(:disabled):active,
   transform: none !important;
   opacity: 1 !important;
 }
+
+/* ADAM chat: кнопка возврата к последнему сообщению. */
+.scroll-down-btn{
+  position:fixed;
+  right:16px;
+  bottom:82px;
+  z-index:30;
+  width:42px;height:42px;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(20,16,32,.88);
+  color:#F0ECFA;
+  display:grid;place-items:center;
+  font-size:21px;
+  line-height:1;
+  cursor:pointer;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+  backdrop-filter:blur(10px);
+}
+.scroll-down-btn:active{transform:scale(.92)}
