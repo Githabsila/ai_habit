@@ -11,8 +11,8 @@ def validate_init_data(init_data: str, bot_token: str):
         return None
 
     try:
-        parsed = dict(parse_qsl(init_data, strict_parsing=True))
-    except ValueError:
+        parsed = dict(parse_qsl(init_data, strict_parsing=True, keep_blank_values=True))
+    except (ValueError, TypeError):
         return None
 
     received_hash = parsed.pop("hash", None)
@@ -26,8 +26,12 @@ def validate_init_data(init_data: str, bot_token: str):
     if not hmac.compare_digest(calculated_hash, received_hash):
         return None
 
-    auth_date = int(parsed.get("auth_date", "0"))
-    if auth_date <= 0 or (time.time() - auth_date) > MAX_INIT_DATA_AGE_SECONDS:
+    try:
+        auth_date = int(parsed.get("auth_date", "0"))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    age = time.time() - auth_date
+    if auth_date <= 0 or age > MAX_INIT_DATA_AGE_SECONDS or age < -60:
         return None
 
     user_raw = parsed.get("user")

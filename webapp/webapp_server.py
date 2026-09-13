@@ -92,10 +92,22 @@ BADGE_ITEM_ID = 3
 # ====================== АВТОРИЗАЦИЯ ======================
 
 def _extract_init_data(request):
-    header = request.headers.get("Authorization", "")
-    if header.startswith("tma "):
-        return header[4:]
-    return request.headers.get("X-Telegram-Init-Data", "")
+    # Prefer a dedicated header; some embedded WebViews are picky about Authorization.
+    value = request.headers.get("X-Telegram-Init-Data", "").strip()
+    if value:
+        return value
+    authorization = request.headers.get("Authorization", "").strip()
+    if authorization.lower().startswith("tma "):
+        value = authorization[4:].strip()
+        if value:
+            return value
+    # Compatibility fallback: Telegram puts raw initData in tgWebAppData in the URL hash/query.
+    # It is still HMAC-validated by _authenticate, so no unsigned user data is trusted.
+    if request.method == "GET":
+        value = request.query.get("tgWebAppData", "").strip()
+        if value:
+            return value
+    return ""
 
 # ====================== RATE LIMITING ======================
 #
@@ -243,8 +255,11 @@ async def error_middleware(request, handler):
         response = await handler(request)
         # Статические файлы Mini App тоже не кэшируем: иначе Telegram/WebView
         # может оставить старый app.js/style.css после редеплоя.
-        if request.path == "/":
-            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        if request.path == "/" or request.path.startswith("/api/"):
+            # Never let a WebView/proxy cache a personalized API response.
+            # /api/bootstrap is user-specific and must be fetched with the
+            # current Telegram initData on every cold launch.
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
         elif request.path.startswith("/static/"):

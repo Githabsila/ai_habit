@@ -322,7 +322,32 @@
   }
 
   function initData() {
-    return tg ? tg.initData : "";
+    // Telegram normally exposes signed initData through WebApp.initData.
+    // Some embedded/alternative clients can expose it a moment later, or only
+    // leave the raw value in tgWebAppData. Never fall back to initDataUnsafe.
+    try {
+      const direct = (tg && typeof tg.initData === "string" ? tg.initData : "") ||
+        (window.Telegram?.WebApp && typeof window.Telegram.WebApp.initData === "string" ? window.Telegram.WebApp.initData : "");
+      if (direct) return direct;
+    } catch (_) {}
+    try {
+      const params = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : location.hash);
+      const hashData = params.get("tgWebAppData");
+      if (hashData) return hashData;
+      const queryData = new URLSearchParams(location.search).get("tgWebAppData");
+      if (queryData) return queryData;
+    } catch (_) {}
+    return "";
+  }
+
+  async function waitForInitData(timeoutMs = 3000) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const value = initData();
+      if (value) return value;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return initData();
   }
 
   function haptic(style) {
@@ -359,17 +384,21 @@
 
   async function api(path, options = {}) {
     const controller = new AbortController();
-    const timeoutMs = Number(options.timeoutMs || (path === "/api/bootstrap" ? 20000 : 15000));
+    const timeoutMs = Number(options.timeoutMs || (path === "/api/bootstrap" ? 45000 : 20000));
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const fetchOptions = { ...options, signal: controller.signal };
     delete fetchOptions.timeoutMs;
 
     try {
+      const rawInitData = initData();
       const res = await fetch(path, {
         ...fetchOptions,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "tma " + initData(),
+          // Send both headers: Authorization is the normal path; the X- header
+          // is a compatibility path for WebViews/proxies that treat Authorization specially.
+          "Authorization": "tma " + rawInitData,
+          "X-Telegram-Init-Data": rawInitData,
           ...(options.headers || {}),
         },
       });
@@ -407,7 +436,10 @@
 
     bootstrapPromise = (async () => {
       let lastError = null;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      // Give Telegram/embedded clients a short window to populate signed initData
+      // before the first API request. This avoids a false 401 on cold launch.
+      await waitForInitData(3000);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
           state = await api("/api/bootstrap");
           if (!state || !state.user) {
@@ -429,8 +461,8 @@
         } catch (err) {
           lastError = err;
           // Один короткий повтор только для временной сетевой/серверной ошибки.
-          if (attempt === 0 && (!err.status || err.status >= 500 || err.code === "timeout")) {
-            await new Promise(resolve => setTimeout(resolve, 350));
+          if (attempt < 2 && (!err.status || err.status >= 500 || err.code === "timeout")) {
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
             continue;
           }
           throw err;
@@ -829,8 +861,8 @@
           return state;
         } catch (err) {
           lastError = err;
-          if (attempt === 0 && (!err.status || err.status >= 500 || err.code === "timeout")) {
-            await new Promise(resolve => setTimeout(resolve, 350));
+          if (attempt < 2 && (!err.status || err.status >= 500 || err.code === "timeout")) {
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
             continue;
           }
           break;
@@ -4456,6 +4488,8 @@ async function boot() {
         // инициализации) — интерфейс уже отрисован, toast достаточно.
         if (!state) {
             const banner = document.getElementById("bootRetryBanner");
+            const bannerText = banner?.querySelector(".boot-retry-banner__text");
+            if (bannerText) bannerText.textContent = friendlyError(err) || "Не удалось загрузить данные";
             if (banner) banner.hidden = false;
         } else {
             showToast(friendlyError(err) || "Не удалось загрузить данные", "error");
