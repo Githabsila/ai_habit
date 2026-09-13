@@ -2876,7 +2876,7 @@ function initHabitActions() {
   });
 
   let lastHabitTitleTap = { id: null, time: 0 };
-  list.addEventListener("dblclick", (e) => {
+  habitList.addEventListener("dblclick", (e) => {
     const title = e.target.closest(".habit-item__title");
     if (!title) return;
     const li = title.closest(".habit-item");
@@ -2886,7 +2886,7 @@ function initHabitActions() {
     renderHabits();
     haptic("light");
   });
-  list.addEventListener("touchend", (e) => {
+  habitList.addEventListener("touchend", (e) => {
     const title = e.target.closest(".habit-item__title");
     if (!title) return;
     const li = title.closest(".habit-item");
