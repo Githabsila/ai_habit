@@ -10371,3 +10371,273 @@ button:not(:disabled):active,
   backdrop-filter:blur(10px);
 }
 .scroll-down-btn:active{transform:scale(.92)}
+
+/* =========================================================
+   ADAM PREMIUM UI — 2026-09-14 / DESIGN WAVE 3
+   Inspired by modern gamified learning products (Duolingo-like
+   principles: bold hierarchy, friendly cards, clear progress,
+   strong reward feedback). Original ADAM visual language preserved.
+   ========================================================= */
+:root{
+  --adam-violet:#7C3AED;
+  --adam-violet-2:#9B6BFF;
+  --adam-violet-soft:rgba(124,58,237,.16);
+  --adam-gold:#FFD95A;
+  --adam-gold-2:#FFB72C;
+  --adam-green:#34D399;
+  --adam-card:rgba(22,21,34,.92);
+  --adam-card-2:rgba(29,27,45,.92);
+  --adam-line:rgba(255,255,255,.085);
+  --adam-white-soft:rgba(255,255,255,.72);
+  --adam-radius:26px;
+}
+
+html,body{background:#08070e !important}
+body{
+  background:
+    radial-gradient(700px 420px at 50% -90px, rgba(124,58,237,.34), transparent 68%),
+    radial-gradient(520px 360px at -10% 32%, rgba(92,46,180,.18), transparent 70%),
+    radial-gradient(500px 360px at 110% 56%, rgba(255,190,70,.08), transparent 70%),
+    linear-gradient(180deg,#090711 0%,#0b0913 48%,#08070e 100%) !important;
+}
+#app{max-width:600px;padding-left:14px;padding-right:14px;padding-top:64px}
+#content{padding:14px 2px 12px}
+
+/* ---------- Header: compact game HUD ---------- */
+.player-card{
+  gap:16px;
+  padding:18px 18px 17px;
+  border-radius:30px;
+  border:1px solid rgba(255,255,255,.10);
+  background:
+    radial-gradient(260px 150px at 8% 0%,rgba(124,58,237,.23),transparent 72%),
+    radial-gradient(240px 140px at 100% 100%,rgba(255,194,65,.10),transparent 70%),
+    linear-gradient(145deg,rgba(31,28,49,.97),rgba(14,13,23,.98));
+  box-shadow:
+    0 22px 70px rgba(0,0,0,.48),
+    inset 0 1px 0 rgba(255,255,255,.08),
+    0 0 0 1px rgba(124,58,237,.06);
+}
+.player-card::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(120deg,transparent 0 42%,rgba(255,255,255,.035) 50%,transparent 58% 100%);
+  opacity:.75;
+}
+.player-card__ring-wrap{width:92px;height:92px;flex-basis:92px}
+.level-ring,.level-ring svg{width:92px;height:92px}
+.level-ring__track{stroke:rgba(255,255,255,.075);stroke-width:8.5}
+.level-ring__fill{stroke-width:8.5;filter:drop-shadow(0 0 5px rgba(255,207,73,.78)) drop-shadow(0 0 15px rgba(255,178,31,.28))}
+.level-ring__badge span{font-size:30px;font-weight:800}
+.level-ring__badge small{font-size:9px;color:rgba(255,255,255,.56);font-weight:800;letter-spacing:.16em}
+.player-card__name{font-size:20px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-card__stats{gap:10px;margin-bottom:10px}
+.stat{
+  min-height:29px;padding:4px 9px;border-radius:999px;
+  background:rgba(255,255,255,.055);
+  border:1px solid rgba(255,255,255,.055);
+  font-size:13px;
+}
+.stat--coin{background:rgba(255,207,73,.08);border-color:rgba(255,207,73,.13)}
+.stat--streak{background:rgba(255,122,24,.08);border-color:rgba(255,122,24,.14)}
+.xp-bar{height:10px;background:rgba(255,255,255,.065);box-shadow:inset 0 1px 2px rgba(0,0,0,.28)}
+.xp-bar__fill{background:linear-gradient(90deg,#FFE68B,#FFD04C 55%,#FF9F1C);box-shadow:0 0 12px rgba(255,196,55,.42)}
+.xp-bar__label{font-size:10px;font-weight:700;letter-spacing:.03em;color:rgba(255,255,255,.48);margin-top:5px}
+
+/* ---------- Section rhythm ---------- */
+.section-heading{margin:22px 4px 10px;align-items:center}
+.section-heading h2{font-size:20px;font-weight:800;letter-spacing:-.03em}
+.section-heading__sub{font-weight:800;font-size:11px;color:rgba(255,255,255,.48)}
+
+/* ---------- Today focus: a clear mission strip ---------- */
+.today-focus{
+  position:relative;
+  gap:12px;
+  margin:4px 0 12px;
+  padding:13px 13px 13px 14px;
+  border-radius:22px !important;
+  border:1px solid rgba(255,211,93,.24) !important;
+  background:
+    linear-gradient(145deg,rgba(54,42,20,.88),rgba(23,19,13,.96));
+  box-shadow:0 12px 30px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.07);
+}
+.today-focus::before{
+  content:"";position:absolute;left:0;top:11px;bottom:11px;width:3px;border-radius:999px;
+  background:linear-gradient(180deg,#FFE58B,#FFB21F);
+  box-shadow:0 0 14px rgba(255,195,49,.45)
+}
+.today-focus__icon{width:42px;height:42px;border-radius:14px;background:rgba(255,214,91,.13);box-shadow:inset 0 1px rgba(255,255,255,.06)}
+.today-focus__title{font-size:15px;font-weight:850}
+.today-focus__sub{font-size:11px;color:rgba(255,255,255,.52)}
+
+/* Quest button becomes a real CTA instead of a decorative map icon. */
+.today-focus__quests-btn{
+  min-width:106px;height:50px;padding:0 13px;
+  border-radius:17px;
+  border:1px solid rgba(255,220,116,.58);
+  background:
+    radial-gradient(circle at 30% 15%,rgba(255,244,188,.28),transparent 44%),
+    linear-gradient(145deg,#6a4d1e,#33240f);
+  box-shadow:0 7px 18px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.14),0 0 0 1px rgba(255,201,65,.07);
+}
+.today-focus__quests-icon{font-size:22px;filter:drop-shadow(0 2px 5px rgba(255,195,60,.35))}
+.today-focus__quests-label{font-size:12px;letter-spacing:.01em;color:#FFF5CF}
+.today-focus__quests-btn::after{border-radius:15px}
+.today-focus__quests-btn.has-claimable{animation:adamQuestPulse 1.7s ease-in-out infinite}
+.today-focus__quests-btn.has-claimable::before{inset:-4px;border-radius:20px;filter:drop-shadow(0 0 7px rgba(255,203,66,.32))}
+@keyframes adamQuestPulse{0%,100%{box-shadow:0 7px 18px rgba(0,0,0,.30),0 0 0 0 rgba(255,211,79,.28),inset 0 1px rgba(255,255,255,.14)}50%{box-shadow:0 9px 25px rgba(0,0,0,.34),0 0 0 6px rgba(255,211,79,0),inset 0 1px rgba(255,255,255,.18)}}
+
+/* ---------- Streak hero: the main daily reward surface ---------- */
+.streak-widget--hero{
+  border-radius:30px !important;
+  border:1px solid rgba(255,139,43,.28) !important;
+  padding:20px !important;
+  background:
+    radial-gradient(260px 170px at 92% 4%,rgba(255,129,24,.17),transparent 72%),
+    radial-gradient(300px 190px at 8% 100%,rgba(124,58,237,.16),transparent 72%),
+    linear-gradient(145deg,#1d1420,#100d16 72%);
+  box-shadow:0 18px 48px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.065);
+}
+.streak-widget__hero-row{min-height:86px}
+.streak-widget__count strong{font-size:29px;letter-spacing:-.04em}
+.streak-widget__count span{font-size:11px;color:rgba(255,255,255,.53)}
+.streak-widget__week-head{margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.07)}
+.streak-widget__week-head span:first-child{font-size:9px;font-weight:900;letter-spacing:.16em;color:rgba(255,255,255,.52)}
+.streak-widget__week-head span:last-child{font-size:10px;color:rgba(255,255,255,.35)}
+.streak-days{gap:8px;margin-top:12px}
+.streak-day{min-height:43px;border-radius:14px}
+.streak-widget__bottom{margin-top:14px}
+.freeze-balance-btn{border-radius:999px !important;background:rgba(255,255,255,.055) !important;border:1px solid rgba(255,255,255,.07) !important;padding:8px 11px !important;font-size:10px !important}
+.streak-widget__status{font-size:10px !important;color:rgba(255,255,255,.48) !important}
+
+/* ---------- Plan + habits: tactile, easy-to-scan cards ---------- */
+.plan-card,
+.habit-item,
+.pet-widget,
+.settings-card,
+.shop-item,
+.data-support-card,
+.progress-stats-card{
+  border-radius:22px !important;
+  border:1px solid rgba(255,255,255,.085) !important;
+  background:linear-gradient(145deg,rgba(29,27,43,.96),rgba(16,15,24,.98)) !important;
+  box-shadow:0 10px 28px rgba(0,0,0,.23),inset 0 1px 0 rgba(255,255,255,.045) !important;
+}
+.plan-card{padding:16px !important}
+.plan-main{border-radius:18px !important;background:linear-gradient(145deg,rgba(124,58,237,.13),rgba(255,255,255,.025)) !important;border:1px solid rgba(139,92,246,.20) !important}
+.plan-item{min-height:52px !important;border-color:rgba(255,255,255,.055) !important}
+.plan-item__text{font-size:14px !important;font-weight:700 !important}
+.plan-toggle{width:25px !important;height:25px !important;border-radius:8px !important}
+
+.habit-list{gap:9px;margin-bottom:12px}
+.habit-item{
+  min-height:72px;
+  margin-bottom:0 !important;
+  padding:12px !important;
+  gap:12px !important;
+  transform:none !important;
+}
+.habit-item::before{width:3px !important;border-radius:0 5px 5px 0 !important;opacity:.55}
+.habit-item__check{
+  width:48px !important;height:48px !important;flex:0 0 48px !important;border-radius:15px !important;
+  background:rgba(255,255,255,.055) !important;border:1px solid rgba(255,255,255,.08) !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.04) !important;
+}
+.habit-item__title{font-size:15px !important;font-weight:750 !important;line-height:1.25 !important}
+.habit-item__del{opacity:.35 !important}
+.habit-item.is-done{
+  background:linear-gradient(145deg,rgba(52,211,153,.13),rgba(16,24,22,.98)) !important;
+  border-color:rgba(52,211,153,.28) !important;
+}
+.habit-item.is-done .habit-item__check{background:linear-gradient(145deg,#34D399,#16A36D) !important;box-shadow:0 7px 18px rgba(52,211,153,.24) !important}
+
+/* ---------- Primary buttons: game-like, not generic website controls ---------- */
+.btn--accent,.plan-add-form__btn,.streak-continue,.impactday-start{
+  border-radius:15px !important;
+  min-height:46px;
+  font-weight:850 !important;
+  letter-spacing:-.01em;
+  box-shadow:0 8px 20px rgba(124,58,237,.20),inset 0 1px rgba(255,255,255,.12) !important;
+}
+.btn--accent{background:linear-gradient(180deg,#9465FF,#7135D7) !important;border-color:rgba(255,255,255,.12) !important}
+
+/* ---------- Bottom dock: floating game navigation ---------- */
+.tab-bar{
+  left:50% !important;
+  right:auto !important;
+  width:min(570px,calc(100% - 22px)) !important;
+  transform:translateX(-50%);
+  bottom:max(10px,env(safe-area-inset-bottom)) !important;
+  padding:7px !important;
+  border:1px solid rgba(255,255,255,.09) !important;
+  border-radius:23px !important;
+  background:rgba(15,13,23,.91) !important;
+  box-shadow:0 18px 45px rgba(0,0,0,.48),inset 0 1px rgba(255,255,255,.07) !important;
+}
+.tab-bar__item{
+  min-height:52px !important;
+  border-radius:17px !important;
+  color:rgba(255,255,255,.44) !important;
+  font-size:10px !important;
+  font-weight:800 !important;
+}
+.tab-bar__item.is-active{
+  background:linear-gradient(145deg,#8B5CF6,#6D35D5) !important;
+  box-shadow:0 7px 18px rgba(124,58,237,.28),inset 0 1px rgba(255,255,255,.14) !important;
+  color:#fff !important;
+}
+.tab-bar__item.is-active::after{display:none !important}
+.tab-bar__icon{font-size:23px !important}
+
+/* ---------- Friendly empty/loading states ---------- */
+.tab-loading-state{color:rgba(255,255,255,.52) !important}
+.tab-loading-state__spinner{width:30px;height:30px;border-width:3px;border-color:rgba(255,255,255,.10);border-top-color:#A98BFF}
+
+/* ---------- Modals: reward-first visual language ---------- */
+.daily-quests-modal,
+.streak-onboarding-card,
+.streak-weekly-card,
+.streak-celebration,
+.levelup-card,
+.app-tour-card{
+  border-radius:30px !important;
+  border:1px solid rgba(255,255,255,.10) !important;
+  background:
+    radial-gradient(320px 180px at 50% 0%,rgba(124,58,237,.18),transparent 70%),
+    linear-gradient(145deg,#211c31,#0e0c15) !important;
+  box-shadow:0 35px 100px rgba(0,0,0,.58),inset 0 1px rgba(255,255,255,.07) !important;
+}
+.daily-quest{border-radius:18px !important;border:1px solid rgba(255,255,255,.07) !important;background:rgba(255,255,255,.035) !important;padding:12px !important}
+.daily-quest.is-ready{border-color:rgba(255,213,79,.32) !important;background:rgba(255,213,79,.065) !important}
+.daily-quest__bar{height:7px !important;border-radius:999px !important;background:rgba(255,255,255,.07) !important}
+.daily-quest__bar-fill{background:linear-gradient(90deg,#FFE17B,#FFAE20) !important;box-shadow:0 0 10px rgba(255,191,43,.32)}
+.daily-quest__claim{border-radius:12px !important;background:linear-gradient(180deg,#FFE47C,#EFB72C) !important;color:#3a2600 !important;font-weight:900 !important}
+
+/* ---------- Settings / profile polish ---------- */
+.profile-section-title,.settings-section-title{font-weight:850 !important;letter-spacing:-.025em}
+.color-mode-btn,.ai-style-btn,.rating-scope-btn,.habit-add-form__freq-chip{min-height:40px !important}
+
+/* ---------- Micro-interaction: card lift only on real mouse ---------- */
+@media (hover:hover) and (pointer:fine){
+  .habit-item:hover,.plan-card:hover,.shop-item:hover,.pet-widget:hover,.settings-card:hover,.data-support-card:hover,.progress-stats-card:hover{
+    transform:translateY(-2px) !important;
+    border-color:rgba(139,92,246,.24) !important;
+    box-shadow:0 16px 36px rgba(0,0,0,.28),0 0 0 1px rgba(139,92,246,.05) !important;
+  }
+  .today-focus__quests-btn:hover{transform:translateY(-2px) !important}
+}
+
+/* ---------- Accessibility + performance ---------- */
+@media (prefers-reduced-motion:reduce){
+  .today-focus__quests-btn.has-claimable{animation:none !important}
+}
+@media (max-width:390px){
+  #app{padding-left:10px;padding-right:10px}
+  .player-card{gap:12px;padding:15px}
+  .player-card__ring-wrap,.level-ring,.level-ring svg{width:82px;height:82px}
+  .today-focus__quests-btn{min-width:94px;padding:0 10px}
+  .today-focus__quests-label{font-size:11px}
+  .streak-widget--hero{padding:16px !important}
+}
