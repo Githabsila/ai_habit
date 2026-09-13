@@ -1,8 +1,7 @@
-# Кнопка «Квесты дня» — заметная анимация
+# Quest button motion fix — 2026-09-13
 
-Если есть выполненный квест с неполученной наградой, кнопка получает:
-- мягкое увеличение/свечение;
-- движущийся световой сегмент по жёлтой обводке;
-- анимация отключается только при `prefers-reduced-motion`.
-
-CSS cache-busting обновлён до `QUESTGLOW_V18`.
+- Fixed the moving quest-button border being hidden behind the button background in Telegram WebView.
+- The bright conic-gradient segment now renders above the button background and is masked in the center, so a visible light trail continuously travels around the yellow border.
+- Kept the soft outer pulse, but removed the scale transform from that pulse so touch/hover rules cannot suppress the attention animation.
+- Bumped the stylesheet cache version to `QUESTGLOW_V19`.
+- `prefers-reduced-motion` still disables the animation for accessibility.
