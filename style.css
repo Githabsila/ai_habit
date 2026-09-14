@@ -11095,3 +11095,49 @@ body{
 .telegram-webapp #app{
   padding-top:156px !important;
 }
+
+/* =========================================================
+   V25 — LEVEL RING / BADGE SINGLE CENTER POINT
+   The SVG ring and the LVL text must use the exact same geometric center.
+   ========================================================= */
+.player-card__ring-wrap{
+  position:relative !important;
+  display:block !important;
+  flex:0 0 auto !important;
+  flex-shrink:0 !important;
+  overflow:visible !important;
+}
+.player-card__ring-wrap > .level-ring{
+  position:absolute !important;
+  left:50% !important;
+  top:50% !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:100% !important;
+  height:100% !important;
+  margin:0 !important;
+  transform:translate(-50%,-50%) rotate(-90deg) !important;
+  transform-origin:50% 50% !important;
+}
+.player-card__ring-wrap > .level-ring__badge{
+  position:absolute !important;
+  left:50% !important;
+  top:50% !important;
+  right:auto !important;
+  bottom:auto !important;
+  inset:auto !important;
+  width:100% !important;
+  height:100% !important;
+  margin:0 !important;
+  padding:0 !important;
+  transform:translate(-50%,-50%) !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  flex-direction:column !important;
+}
+.player-card__ring-wrap > .level-ring__badge::before{
+  left:50% !important;
+  top:50% !important;
+  transform:translate(-50%,-50%) !important;
+}
