@@ -10,6 +10,7 @@ from keyboards import admin_keyboard, pending_keyboard, back_menu_keyboard, broa
 
 from db import (
     get_users_count,
+    get_user,
     get_all_users,
     get_all_users_info,
     give_premium_admin,
@@ -26,6 +27,7 @@ from db import (
     search_users_by_tag,
     get_users_by_tags,
     add_changelog_entry,
+    get_bug_report, get_recent_bug_reports, update_bug_status, get_recent_user_events,
 )
 
 from handlers.onboarding import notify_approved
@@ -489,6 +491,58 @@ async def admin_pending(callback: CallbackQuery):
     await callback.answer()
 
 
+@router.callback_query(F.data.startswith("admin_quick_approve_"))
+async def admin_quick_approve(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    user_id = int(callback.data.removeprefix("admin_quick_approve_"))
+    current = get_user(user_id)
+    if not current:
+        await callback.answer("Пользователь не найден", show_alert=True)
+        return
+    if current["access_status"] == "approved":
+        await callback.answer("Доступ уже открыт", show_alert=True)
+        return
+    set_access_status(user_id, "approved")
+    await notify_approved(callback.bot, user_id)
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except TelegramBadRequest:
+        pass
+    await callback.message.answer(f"✅ <b>Заявка одобрена</b> — <code>{user_id}</code>\nДоступ открыт автоматически.", parse_mode="HTML")
+    await callback.answer("Доступ открыт 🚀")
+
+
+@router.callback_query(F.data.startswith("admin_quick_reject_"))
+async def admin_quick_reject(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    user_id = int(callback.data.removeprefix("admin_quick_reject_"))
+    current = get_user(user_id)
+    if not current:
+        await callback.answer("Пользователь не найден", show_alert=True)
+        return
+    from db import reject_user
+    reject_user(user_id)
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except TelegramBadRequest:
+        pass
+    try:
+        await callback.bot.send_message(
+            user_id,
+            "❌ В этот раз доступ к <b>Project ADAM</b> не был открыт.\n\n"
+            "Если считаешь, что это ошибка, можешь написать нам ещё раз.",
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+    await callback.message.answer(f"❌ <b>Заявка отклонена</b> — <code>{user_id}</code>", parse_mode="HTML")
+    await callback.answer("Заявка отклонена")
+
+
 @router.callback_query(F.data.startswith("admin_approve_"))
 async def admin_approve(callback: CallbackQuery):
 
@@ -532,6 +586,66 @@ async def admin_approve(callback: CallbackQuery):
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
+
+
+# =====================================
+# БАГИ / EARLY TEST SUPPORT
+# =====================================
+
+@router.callback_query(F.data.startswith("bug_status_"))
+async def bug_status_callback(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    parts = callback.data.split("_")
+    if len(parts) < 4:
+        await callback.answer("Некорректный баг", show_alert=True)
+        return
+    try:
+        bug_id = int(parts[2])
+    except ValueError:
+        await callback.answer("Некорректный ID", show_alert=True)
+        return
+    status = "_".join(parts[3:])
+    if not update_bug_status(bug_id, status):
+        await callback.answer("Баг не найден", show_alert=True)
+        return
+    labels = {"in_progress": "🔧 В работе", "fixed": "✅ Исправлен", "wont_fix": "⏭ Не будем исправлять", "new": "🆕 Новый"}
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except TelegramBadRequest:
+        pass
+    await callback.answer(labels.get(status, status))
+
+
+@router.callback_query(F.data.in_({"admin_bugs", "admin_bugs_10m"}))
+async def admin_bugs(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    minutes = 10 if callback.data == "admin_bugs_10m" else 60
+    bugs = get_recent_bug_reports(minutes=minutes, limit=20)
+    if not bugs:
+        await callback.message.answer(f"🐛 За последние {minutes} минут новых багов нет.")
+        await callback.answer()
+        return
+    for bug in bugs:
+        status_labels = {"new": "🆕 Новый", "in_progress": "🔧 В работе", "fixed": "✅ Исправлен", "wont_fix": "⏭ Не будем исправлять"}
+        text = (
+            f"🐛 <b>Баг #{bug['id']}</b> · {status_labels.get(bug['status'], bug['status'])}\n"
+            f"👤 <code>{bug['user_id']}</code> · {bug['tab'] or '—'}\n"
+            f"⚠️ {bug['severity']}\n"
+            f"🕐 {bug['created_at']}\n\n"
+            f"<b>Проблема:</b> {bug['description']}\n"
+            f"<b>Ожидалось:</b> {bug['expected'] or '—'}"
+        )
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="🔧 В работу", callback_data=f"bug_status_{bug['id']}_in_progress"),
+            InlineKeyboardButton(text="✅ Исправлен", callback_data=f"bug_status_{bug['id']}_fixed"),
+        ]])
+        await callback.message.answer(text[:3900], parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
 
 
 # =====================================

@@ -142,6 +142,12 @@ def create_tables():
     # всё время использования аккаунта, показывает весь Mini App целиком.
     if "app_tour_seen" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN app_tour_seen INTEGER DEFAULT 0")
+    if "first_win_push_sent" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN first_win_push_sent INTEGER DEFAULT 0")
+    if "first_habit_completed_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN first_habit_completed_at TIMESTAMP")
+    if "first_task_completed_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN first_task_completed_at TIMESTAMP")
 
     # ---------------- ПОДПИСКА: триал → оплата → закрытый канал (пром 13) ----------------
     # Отдельно от "Premium" (косметический тариф выше) — это доступ к
@@ -646,6 +652,37 @@ def create_tables():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+
+    # ---------------- ПРОДУКТОВАЯ ТЕЛЕМЕТРИЯ / EARLY TEST ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS product_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        payload TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_product_events_user_created ON product_events(user_id, created_at)")
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS bug_reports(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        expected TEXT,
+        severity TEXT DEFAULT 'medium',
+        tab TEXT,
+        path TEXT,
+        screenshot_data_url TEXT,
+        context TEXT,
+        status TEXT DEFAULT 'new',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_bug_reports_created ON bug_reports(created_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_bug_reports_user_created ON bug_reports(user_id, created_at)")
 
     # ---------------- ACHIEVEMENTS ----------------
     cursor.execute("""

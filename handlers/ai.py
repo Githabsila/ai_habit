@@ -43,6 +43,7 @@ from db import (
     touch_last_ai_message,
     claim_ai_first_message,
     has_premium, get_ai_quota, consume_ai_answer,
+    log_product_event,
 )
 
 from keyboards import (
@@ -243,6 +244,7 @@ async def ai_chat(message: Message, state: FSMContext):
         return
 
     first_message = claim_ai_first_message(user_id)
+    log_product_event(user_id, "adam_first_message" if first_message else "adam_message", {})
 
     await message.bot.send_chat_action(
         chat_id=message.chat.id,

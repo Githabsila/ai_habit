@@ -44,10 +44,24 @@ def add_user(telegram_id, username, first_name):
 
 
 def should_show_app_tour(user_id):
+    """Первичное обучение показываем только действительно новым аккаунтам.
+    Это не должно внезапно всплывать у старых пользователей после релиза
+    нового onboarding-сценария."""
     user = get_user(user_id)
     if not user or "app_tour_seen" not in user.keys():
         return False
-    return not bool(user["app_tour_seen"])
+    if user["app_tour_seen"]:
+        return False
+    created_at = user["created_at"] if "created_at" in user.keys() else None
+    if not created_at:
+        return False
+    try:
+        from datetime import datetime, timezone
+        created = datetime.fromisoformat(str(created_at))
+        age_hours = (datetime.now(timezone.utc).replace(tzinfo=None) - created).total_seconds() / 3600
+        return age_hours <= 48
+    except (TypeError, ValueError):
+        return False
 
 
 def mark_app_tour_seen(user_id):

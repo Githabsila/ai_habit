@@ -1,4 +1,5 @@
 import gzip
+import html
 import json
 import logging
 import os
@@ -74,6 +75,8 @@ from db import (
     export_full_account_data, request_account_deletion,
     get_unseen_changelog_entries, mark_changelog_seen,
     add_perf_event,
+    log_product_event, get_recent_user_events, claim_first_win_push,
+    create_bug_report, get_bug_report, get_recent_bug_reports, update_bug_status,
 )
 
 from datetime import date, datetime, timezone
@@ -232,6 +235,44 @@ async def _push(app, telegram_id, text):
     except Exception:
         logger.warning(f"Не удалось отправить push-уведомление {telegram_id}", exc_info=True)
 
+async def _push_first_result(app, telegram_id, result_type):
+    """Первый реальный результат пользователя → отдельное сообщение ADAM.
+    Отправляется максимум один раз за весь ранний onboarding-путь.
+    """
+    if not claim_first_win_push(telegram_id, result_type):
+        return False
+    bot = app.get("bot")
+    if not bot:
+        return False
+
+    user = get_user(telegram_id)
+    name = (user["first_name"] if user and "first_name" in user.keys() else "") or ""
+    noun = "привычку" if result_type == "habit" else "задачу"
+    try:
+        username = await _get_bot_username(bot)
+    except Exception:
+        username = None
+    markup = None
+    if username:
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="🤖 Поговорить с ADAM", url=f"https://t.me/{username}")
+        ]])
+    text = (
+        f"🔥 <b>{name + ', ' if name else ''}вижу, ты не теряешь времени зря!</b>\n\n"
+        f"Ты уже закрыл первую {noun}. Именно с таких маленьких действий и начинается настоящий ударный день.\n\n"
+        "Хочешь прокачать навыки, разобрать цель или задать любой вопрос своему наставнику? "
+        "Тогда жду тебя в чате 👇\n\n"
+        "И не останавливайся: продолжай сегодняшний ударный день, а завтра я жду тебя снова. 🔥"
+    )
+    try:
+        await bot.send_message(telegram_id, text, parse_mode="HTML", reply_markup=markup)
+        log_product_event(telegram_id, "first_result_push_sent", {"result_type": result_type})
+        return True
+    except Exception:
+        logger.warning("Не удалось отправить first-result push %s", telegram_id, exc_info=True)
+        return False
+
 # ====================== MIDDLEWARE ======================
 
 # /api/bootstrap и т.п. отдают JSON без сжатия — раньше gzip был только
@@ -318,6 +359,7 @@ def _shape_user(telegram_id, user, is_admin=False):
     return {
         "telegram_id": telegram_id,
         "first_name": user["first_name"] if user else "",
+        "created_at": str(user["created_at"]) if user and "created_at" in user.keys() and user["created_at"] else None,
         "xp": user["xp"] if user else 0,
         "total_xp": user["total_xp"] if user else 0,
         "level": user["level"] if user else 1,
@@ -729,6 +771,8 @@ async def create_habit(request):
     # Возвращаем созданную запись, чтобы Mini App мог показать её сразу,
     # даже если повторная загрузка bootstrap временно задержалась.
     created = next((h for h in get_habits(telegram_id) if h["title"] == title), None)
+    if created:
+        log_product_event(telegram_id, "first_habit_created" if first_habit else "habit_created", {"habit_id": created["id"]})
     return web.json_response({
         "ok": True,
         "first_habit": first_habit,
@@ -866,6 +910,9 @@ async def complete_habit_route(request):
         format_perfect_habit_streak_message(success["total_habits"])
         if success.get("perfect_day") else None
     )
+    log_product_event(telegram_id, "habit_completed", {"habit_id": habit_id})
+    await _push_first_result(request.app, telegram_id, "habit")
+
     month_reward_event = consume_month_end_reward_event(telegram_id)
     month_reward_message = None
     if month_reward_event:
@@ -1465,6 +1512,117 @@ async def feedback_route(request):
     return web.json_response({"ok": True})
 
 
+_VALID_PRODUCT_EVENTS = {
+    "app_opened", "onboarding_started", "tour_started", "tour_completed",
+    "hint_shown", "hint_dismissed", "tab_opened", "habit_add_started",
+    "first_habit_created", "first_task_created", "first_result_push_sent",
+    "adam_chat_opened", "adam_first_message", "calendar_opened", "rating_opened",
+    "profile_opened", "bug_form_opened", "bug_report_submitted",
+}
+
+
+@routes.post("/api/product-event")
+async def product_event_route(request):
+    """Лёгкая продуктовая телеметрия. Только allow-list событий, без
+    Telegram initData, токенов и полного текста AI-чата."""
+    try:
+        telegram_id, _ = await _authenticate(request)
+    except web.HTTPException:
+        return web.Response(status=204)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.Response(status=204)
+    event_type = str(body.get("event_type") or "").strip()
+    if event_type not in _VALID_PRODUCT_EVENTS:
+        return web.Response(status=204)
+    payload = body.get("payload")
+    try:
+        log_product_event(telegram_id, event_type, payload)
+    except Exception:
+        logger.warning("Не удалось сохранить product_event для %s", telegram_id)
+    return web.Response(status=204)
+
+
+@routes.post("/api/bug-report")
+async def bug_report_route(request):
+    """Полноценный баг-репорт: описание + ожидание + severity + скриншот +
+    автоматически собранные последние 10 минут действий/ошибок/перф."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    description = (body.get("description") or "").strip()
+    if len(description) < 5:
+        return web.json_response({"error": "description_too_short"}, status=400)
+    if len(description) > 2000:
+        return web.json_response({"error": "description_too_long"}, status=400)
+    expected = (body.get("expected") or "").strip()[:1000]
+    severity = str(body.get("severity") or "medium").lower()
+    if severity not in {"critical", "high", "medium", "low"}:
+        severity = "medium"
+    screenshot = body.get("screenshot_data_url") or None
+    if screenshot and (not isinstance(screenshot, str) or len(screenshot) > 1_500_000 or not screenshot.startswith("data:image/")):
+        return web.json_response({"error": "invalid_screenshot"}, status=400)
+    tab = (body.get("tab") or "unknown")[:50]
+    path = (body.get("path") or "")[:300]
+    events = get_recent_user_events(telegram_id, minutes=10, limit=100)
+    context = {
+        "reported_at": datetime.now(timezone.utc).isoformat(),
+        "tab": tab,
+        "path": path,
+        "recent_events": events,
+        "client_error": body.get("last_error"),
+        "device": body.get("device") or {},
+    }
+    bug_id = create_bug_report(telegram_id, description, expected, severity, tab, path, screenshot, context)
+    log_product_event(telegram_id, "bug_report_submitted", {"bug_id": bug_id, "severity": severity})
+
+    bot = request.app.get("bot")
+    user = get_user(telegram_id)
+    who = f"@{user['username']}" if user and user["username"] else (user["first_name"] if user else str(telegram_id))
+    status_emoji = {"critical":"🔴", "high":"🟠", "medium":"🟡", "low":"🟢"}[severity]
+    safe_description = html.escape(description)
+    safe_expected = html.escape(expected or "—")
+    safe_who = html.escape(str(who))
+    safe_tab = html.escape(str(tab))
+    admin_text = (
+        f"🐛 <b>НОВЫЙ БАГ #{bug_id}</b> {status_emoji}\n\n"
+        f"👤 {safe_who} · <code>{telegram_id}</code>\n"
+        f"📍 {safe_tab}\n"
+        f"🕐 {context['reported_at']}\n\n"
+        f"<b>Проблема:</b> {safe_description}\n"
+        f"<b>Ожидалось:</b> {safe_expected}\n\n"
+        "🧭 <b>Последние 10 минут:</b>\n"
+        + "\n".join(
+            f"• {html.escape(str(e['created_at']))} — {html.escape(str(e['event_type']))}" + (f" — {html.escape(str(e['payload']))}" if e.get('payload') else "")
+            for e in events[:25]
+        )
+    )
+    if bot:
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="🔧 В работу", callback_data=f"bug_status_{bug_id}_in_progress"),
+            InlineKeyboardButton(text="✅ Исправлен", callback_data=f"bug_status_{bug_id}_fixed"),
+        ]])
+        for admin_id in ADMIN_IDS:
+            try:
+                if screenshot and "," in screenshot:
+                    import base64
+                    raw = base64.b64decode(screenshot.split(",", 1)[1], validate=False)
+                    await bot.send_photo(
+                        admin_id,
+                        BufferedInputFile(raw, filename=f"bug_{bug_id}.jpg"),
+                        caption=f"🐛 <b>Баг #{bug_id}</b> · {status_emoji} {severity} · {safe_who}",
+                        parse_mode="HTML",
+                    )
+                await bot.send_message(admin_id, admin_text[:3900], parse_mode="HTML", reply_markup=kb)
+            except Exception:
+                logger.warning("Не удалось отправить bug #%s админу %s", bug_id, admin_id, exc_info=True)
+    return web.json_response({"ok": True, "bug_id": bug_id})
+
+
 @routes.post("/api/client-error")
 async def client_error_route(request):
     """Улучшение #70: window.onerror/unhandledrejection на фронте шлют сюда
@@ -1670,6 +1828,10 @@ async def toggle_plan_task_route(request):
             )
             record_secondary_task_praise(telegram_id, key)
 
+    if not was_completed and updated_plan:
+        log_product_event(telegram_id, "task_completed", {"task_id": task_id})
+        await _push_first_result(request.app, telegram_id, "task")
+
     # Тумблер задачи плана дня не трогает XP/монеты/streak/квесты — от
     # этого действия могло измениться только состояние самого плана дня.
     # Отдаём его целиком (та же форма, что и в /api/bootstrap) — фронт
@@ -1699,6 +1861,9 @@ async def toggle_main_goal_route(request):
     toggle_daily_main_goal(telegram_id)
 
     updated_plan = get_daily_plan(telegram_id)
+    if not was_completed:
+        log_product_event(telegram_id, "task_completed", {"task_id": "main"})
+        await _push_first_result(request.app, telegram_id, "task")
 
     # Промт п.7: поощрение показываем только когда цель ПЕРЕХОДИТ в
     # выполненное состояние (не при повторном снятии галочки). Отдаём
@@ -1743,7 +1908,10 @@ async def add_plan_task_route(request):
         if str(exc) == "task_limit":
             return web.json_response({"error": "task_limit"}, status=400)
         raise
-    return web.json_response({"ok": True, "task_id": task_id})
+    plan_after = get_daily_plan(telegram_id)
+    is_first_task = len(plan_after.get("tasks", [])) == 1
+    log_product_event(telegram_id, "first_task_created" if is_first_task else "task_created", {"task_id": task_id})
+    return web.json_response({"ok": True, "task_id": task_id, "first_task": is_first_task})
 
 @routes.put("/api/plan/task/{task_id}")
 async def edit_plan_task_route(request):

@@ -76,6 +76,11 @@ from .admin_support import (
 
 from .client_errors import log_client_error, get_recent_client_errors
 
+from .product_experience import (
+    log_product_event, get_recent_user_events, claim_first_win_push, get_first_win_state,
+    create_bug_report, get_bug_report, get_recent_bug_reports, update_bug_status,
+)
+
 from .quests import get_daily_quests, claim_daily_quest, QUEST_DEFINITIONS
 
 from .leagues import get_league_tier, get_league_progress, LEAGUE_TIERS
@@ -295,6 +300,8 @@ __all__ = [
     "get_users_by_segment", "SEGMENT_LABELS",
     "get_user_support_card",
     "log_client_error", "get_recent_client_errors",
+    "log_product_event", "get_recent_user_events", "claim_first_win_push", "get_first_win_state",
+    "create_bug_report", "get_bug_report", "get_recent_bug_reports", "update_bug_status",
     "get_daily_quests", "claim_daily_quest", "QUEST_DEFINITIONS",
     "get_league_tier", "get_league_progress", "LEAGUE_TIERS",
     "set_public_profile_enabled", "get_public_profile",
