@@ -10932,3 +10932,23 @@ body{
   .today-focus__quests-label{font-size:11px!important;}
   .streak-widget--hero{padding:15px!important;}
 }
+
+/* =========================================================
+   STABILITY FIX — XP LEVEL LINE
+   The progress line is a state indicator, not a long animation.
+   Immediate width updates prevent visible catch-up when the HUD rerenders.
+   ========================================================= */
+.xp-bar__fill{transition:none !important;animation:none !important;}
+
+/* =========================================================
+   STABILITY FIX — LEVEL RING GEOMETRY
+   Keep the SVG on one exact square coordinate system.
+   ========================================================= */
+.player-card__ring-wrap{aspect-ratio:1 / 1 !important;align-self:center !important;flex-shrink:0 !important;}
+.level-ring{aspect-ratio:1 / 1 !important;left:0 !important;top:0 !important;right:auto !important;bottom:auto !important;}
+
+/* =========================================================
+   TELEGRAM CHROME SAFE TOP
+   Our UI starts below Telegram's native top controls on phones.
+   ========================================================= */
+.telegram-webapp #app{padding-top:156px !important;}

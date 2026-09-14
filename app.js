@@ -319,6 +319,11 @@
     if (!tg) return;
     tg.ready();
     tg.expand();
+    // Telegram's native close/menu chrome floats above the WebApp content.
+    // Mark the document so the layout can reserve a real top band for it
+    // even on large Android/tablet viewports where max-width media queries
+    // do not match.
+    try { document.documentElement.classList.add("telegram-webapp"); } catch (_) {}
     try {
       tg.setHeaderColor("#0E0B14");
       tg.setBackgroundColor("#0E0B14");
@@ -1850,7 +1855,7 @@
       return `
       <li class="habit-item ${h.completed ? "is-done" : ""}" data-id="${h.id}">
         <button class="${checkClass}" data-action="${isCounter && !h.completed ? "progress" : "complete"}" ${h.completed ? "disabled" : ""}>${checkLabel}</button>
-        ${badges}<span class="habit-item__title" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
+        ${badges}<span class="habit-item__title ${isExpanded ? "is-expanded" : ""}" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
         ${suggestBtn}
         ${rowActions}
       </li>`;

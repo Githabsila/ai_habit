@@ -10991,6 +10991,17 @@ body{
 }
 
 /* =========================================================
+   STABILITY FIX — XP LEVEL LINE
+   The progress line is a state indicator, not a long animation.
+   Immediate width updates prevent the visible "lag"/catch-up when the
+   player card is rerendered after bootstrap or an action patch.
+   ========================================================= */
+.xp-bar__fill{
+  transition:none !important;
+  animation:none !important;
+}
+
+/* =========================================================
    PLAYER HUD MOBILE FIX — 2026-09-14
    Prevent the profile/level card from being clipped on narrow devices.
    The ring remains prominent, but the information column is always allowed
@@ -11056,4 +11067,31 @@ body{
   .level-ring__badge span{font-size:28px !important;}
   .player-card__stats{gap:4px !important;}
   .stat{font-size:10px !important;padding:4px 6px !important;}
+}
+
+/* =========================================================
+   STABILITY FIX — LEVEL RING GEOMETRY
+   Keep the SVG on one exact square coordinate system so the ring cannot
+   visually drift when the header content changes width.
+   ========================================================= */
+.player-card__ring-wrap{
+  aspect-ratio:1 / 1 !important;
+  align-self:center !important;
+  flex-shrink:0 !important;
+}
+.level-ring{
+  aspect-ratio:1 / 1 !important;
+  left:0 !important;
+  top:0 !important;
+  right:auto !important;
+  bottom:auto !important;
+}
+
+/* =========================================================
+   TELEGRAM CHROME SAFE TOP
+   Keep Telegram's native close/menu controls visually above our UI instead
+   of letting the player card slide underneath them.
+   ========================================================= */
+.telegram-webapp #app{
+  padding-top:156px !important;
 }

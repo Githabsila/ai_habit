@@ -35,6 +35,7 @@ from db import (
     claim_notification, release_notification, notification_scope, in_time_window,
     get_habits, mark_habit_reminder_sent,
     reminder_category_enabled, in_quiet_hours,
+    get_streak_reengagement_state, has_completed_today,
 )
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from adam_messages import (
@@ -332,6 +333,27 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
             # а не точность попадания в тик планировщика.
             if not in_time_window(now, hour=target_hour, minute=0):
                 continue
+
+            # Если пользователь реально выпал из режима (последний
+            # закрытый день был раньше сегодняшнего), в этот слот должен
+            # говорить именно сценарий возврата в ударный режим. Иначе в 10:00
+            # параллельно может прийти сухая "контрольная точка привычек",
+            # которая по смыслу хуже подходит человеку, который сегодня ещё
+            # вообще не заходил. run_streak_reengagement_notifications()
+            # отправляет персональное сообщение в 10:00/16:00/21:00.
+            try:
+                reengage_state = get_streak_reengagement_state(telegram_id)
+                if (
+                    reminder_category_enabled(settings, "streak")
+                    and reengage_state.get("has_history")
+                    and int(reengage_state.get("inactive_days") or 0) > 0
+                    and not has_completed_today(telegram_id)
+                ):
+                    continue
+            except Exception:
+                # Не блокируем обычное напоминание, если дополнительная
+                # проверка состояния возврата временно недоступна.
+                pass
 
             incomplete = get_incomplete_habits(telegram_id)
             if not incomplete:
