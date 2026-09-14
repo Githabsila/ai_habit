@@ -9,21 +9,14 @@
 <meta name="theme-color" content="#090711">
 <meta name="color-scheme" content="dark">
 <title>Project ADAM — ADAM</title>
-<link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260914_EARLY_TEST_V23">
+<link rel="stylesheet" href="/static/style.css?v=20260914_WOW_V22">
 </head>
 <body>
 
 <div id="app">
 
 <header class="player-card">
-
-<div class="player-card__aurora" aria-hidden="true"><i></i><i></i><i></i></div>
-
-<button class="player-card__admin-btn" id="adminPanelBtn" type="button" hidden aria-label="Админ-панель">
-  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.5 19 5.5v5c0 5-3 8.3-7 9.5-4-1.2-7-4.5-7-9.5v-5L12 2.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12.2l2 2 4-4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-</button>
 
 <div class="player-card__ring-wrap">
 
@@ -111,30 +104,10 @@ style="width:0%">
 
 </header>
 
-<div class="booster-banner" id="boosterBanner" hidden>⚡ Бустер x2 Adam Coin активен<span id="boosterBannerUntil"></span></div>
-
 <main id="content">
 
 <!-- ===================== HOME ===================== -->
 <section class="tab-panel" data-tab="home">
-
-<div class="today-focus" id="todayFocus" hidden>
-  <div class="today-focus__icon" id="todayFocusIcon" aria-hidden="true">☀️</div>
-  <div class="today-focus__body">
-    <div class="today-focus__title" id="todayFocusTitle">Сегодня осталось: 0</div>
-    <div class="today-focus__sub" id="todayFocusSub"></div>
-  </div>
-  <!-- Промт: раньше "Квесты дня" были отдельной карточкой на всю ширину —
-       перегружали главный экран. Теперь маленькая кнопка тут же, справа
-       от "Сегодня" — открывает модалку (см. #dailyQuestsOverlay внизу
-       страницы). Класс .has-claimable добавляет app.js::renderDailyQuests,
-       когда есть квест с наградой к получению — обводка "дышит", чтобы
-       было заметно ещё до открытия. -->
-  <button type="button" class="today-focus__quests-btn" id="dailyQuestsBtn" aria-label="Квесты дня" hidden>
-    <span class="today-focus__quests-icon" aria-hidden="true">🗺️</span>
-    <span class="today-focus__quests-label">Квесты</span>
-  </button>
-</div>
 
 <div class="streak-widget streak-widget--hero" id="streakWidget">
   <div class="streak-widget__glow streak-widget__glow--orange"></div>
@@ -143,6 +116,33 @@ style="width:0%">
   <div class="streak-widget__spark streak-widget__spark--2"></div>
   <div class="streak-widget__spark streak-widget__spark--3"></div>
   <div class="streak-widget__spark streak-widget__spark--4"></div>
+  <div class="streak-widget__top">
+    <div class="streak-widget__brand">
+      <div class="streak-widget__icon-wrap" aria-hidden="true">
+        <span class="streak-widget__icon-flare"></span>
+        <span class="streak-widget__icon-ember streak-widget__icon-ember--a"></span>
+        <span class="streak-widget__icon-ember streak-widget__icon-ember--b"></span>
+        <span class="streak-widget__icon">🔥</span>
+      </div>
+      <div>
+        <div class="streak-widget__eyebrow"><span class="streak-live-dot"></span> УДАРНЫЙ РЕЖИМ</div>
+        <div class="streak-widget__title">Твоя серия <span>в огне</span></div>
+      </div>
+    </div>
+    <button class="freeze-buy-btn" id="freezeBuyBtn" type="button"><span>❄️</span><b>Заморозка</b><em>200 <svg class="freeze-buy-btn__coin" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="adamCoinGradFreeze" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#FFEDA6"/>
+          <stop offset="0.5" stop-color="#FFC93C"/>
+          <stop offset="1" stop-color="#E08E00"/>
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="10.4" fill="#B8720A"/>
+      <circle cx="12" cy="12" r="9.3" fill="url(#adamCoinGradFreeze)"/>
+      <circle cx="12" cy="12" r="7.1" fill="none" stroke="#FFF3C4" stroke-width="0.9" opacity="0.55"/>
+      <path d="M6.3 6.8c1-1.4 2.5-2.3 3.8-2.6" stroke="#FFF8E4" stroke-width="1.5" stroke-linecap="round" opacity="0.7" fill="none"/>
+    </svg></em></button>
+  </div>
 
   <div class="streak-widget__hero-row">
     <div class="streak-widget__count">
@@ -154,7 +154,7 @@ style="width:0%">
       <div class="streak-orbit orbit-2"></div>
       <span class="streak-widget__flame-halo"></span>
       <span class="streak-widget__flame-base"></span>
-      <div class="streak-widget__mini-flame">🔥</div>
+      <div class="streak-widget__mini-flame"><img src="/static/assets/adam-impact-flame.svg" alt=""></div>
     </div>
   </div>
 
@@ -165,25 +165,16 @@ style="width:0%">
   <div class="streak-days" id="streakDays"></div>
 
   <div class="streak-widget__bottom">
-    <button class="freeze-balance-btn" id="freezeBuyBtn" type="button">
-      <span class="streak-bottom-icon">❄</span><span id="freezeBalanceLabel">Заморозки: 0/2</span>
-    </button>
+    <div class="streak-widget__balance"><span class="streak-bottom-icon">❄</span><span id="freezeBalanceLabel">Заморозки: 0/2</span></div>
     <div class="streak-widget__status"><span class="streak-status-dot"></span><span id="streakStatusLabel">Не дай огню погаснуть.</span></div>
   </div>
-  <div class="streak-widget__monthly" id="monthlyProgressRow" hidden>
-    <span class="streak-bottom-icon">💎</span>
-    <span>Идеальных дней месяца: <b id="monthlyProgressLabel">0/30</b></span>
-  </div>
-  <button class="free-restore-btn" id="freeRestoreBtn" type="button" hidden>
-    🎁 Восстановить серию бесплатно (<span id="freeRestoreDays">0</span> дн.)
-  </button>
 </div>
 
 <div class="plan-card">
 
   <div class="section-heading">
 
-    <h2 data-i18n="plan_title">План дня</h2>
+    <h2>План дня</h2>
 
     <span class="section-heading__sub" id="planProgressLabel">
 
@@ -208,142 +199,52 @@ style="width:0%">
 
   <ul class="plan-list" id="planList"></ul>
 
-  <div class="add-collapse" id="addPlanTaskCollapse">
+  <form class="add-form plan-add-form" id="addPlanTaskForm">
 
-    <button type="button" class="add-collapse__trigger" id="addPlanTaskTrigger">
-      <span class="add-collapse__icon" aria-hidden="true">+</span>
-      <span>Добавить задачу</span>
+    <input
+      type="text"
+      id="newPlanTaskInput"
+      placeholder="Новая задача..."
+      autocomplete="off"
+    >
+
+    <button
+      type="submit"
+      class="btn btn--accent plan-add-form__btn"
+      id="addPlanTaskBtn"
+    >
+      Добавить новую задачу
     </button>
 
-    <form class="add-form plan-add-form" id="addPlanTaskForm" hidden>
-
-      <input
-        type="text"
-        id="newPlanTaskInput"
-        placeholder="Новая задача..."
-        autocomplete="off"
-      >
-
-      <button
-        type="submit"
-        class="btn btn--accent plan-add-form__btn"
-        id="addPlanTaskBtn"
-      >
-        Добавить новую задачу
-      </button>
-
-    </form>
-
-  </div>
+  </form>
 
 </div>
-
-
-
-
-
-<div class="habits-panel">
 
 <div class="habits-section-head" aria-label="Привычки">
   <div class="habits-section-title">Привычки</div>
   <div class="habits-section-count" id="habitsProgressLabel">0/0</div>
 </div>
-<div class="double-bonus-badge" id="doubleBonusBadge" hidden aria-live="polite">
-  <span class="double-bonus-badge__icon">⚡️</span>
-  <span>x2 коины ещё <span id="doubleBonusTimer">30:00</span></span>
-</div>
 <div class="habits-section-divider" aria-hidden="true"></div>
-<div class="struggling-habit-banner" id="strugglingHabitBanner" hidden></div>
-<div class="habit-filter-row" id="habitFilterRow" hidden></div>
 <ul class="habit-list" id="habitList">
 </ul>
 
-<div class="add-collapse" id="addHabitCollapse">
-
-<button type="button" class="add-collapse__trigger" id="addHabitTrigger">
-<span class="add-collapse__icon" aria-hidden="true">+</span>
-<span>Добавить привычку</span>
-</button>
-
-<form class="add-form habit-add-form" id="addHabitForm" hidden>
+<form class="add-form" id="addHabitForm">
 
 <input
 type="text"
 id="newHabitInput"
-class="habit-add-form__text"
 placeholder="Новая привычка..."
 >
 
-<div class="habit-add-form__row1b">
-<select id="newHabitCategory" class="habit-add-form__category" aria-label="Категория привычки">
-<option value="">Без категории</option>
-<option value="health">🩺 Здоровье</option>
-<option value="work">💼 Работа</option>
-<option value="study">📚 Учёба</option>
-<option value="mind">🧘 Разум</option>
-<option value="other">✨ Другое</option>
-</select>
-<button type="button" class="habit-add-form__priority" id="newHabitPriorityBtn" aria-pressed="false" title="Отметить как важную — приносит больше Adam Coin">
-<span aria-hidden="true" id="newHabitPriorityIcon">☆</span> Важная
-</button>
-</div>
-
-<button type="button" class="habit-add-form__advanced-toggle" id="newHabitAdvancedToggle">⚙️ Ещё настройки (счётчик, периодичность, цепочка)</button>
-
-<div class="habit-add-form__advanced" id="newHabitAdvanced" hidden>
-
-<div class="habit-add-form__advanced-row">
-<span class="habit-add-form__advanced-label">Сколько раз в день</span>
-<div class="habit-add-form__stepper" id="newHabitTargetStepper">
-<button type="button" class="habit-add-form__stepper-btn" data-step="-1" aria-label="Меньше">−</button>
-<span class="habit-add-form__stepper-value" id="newHabitTargetValue">1</span>
-<button type="button" class="habit-add-form__stepper-btn" data-step="1" aria-label="Больше">+</button>
-</div>
-</div>
-
-<div class="habit-add-form__advanced-row">
-<span class="habit-add-form__advanced-label">Периодичность</span>
-<div class="habit-add-form__freq-chips" id="newHabitFreqChips">
-<button type="button" class="habit-add-form__freq-chip is-active" data-freq="0">Каждый день</button>
-<button type="button" class="habit-add-form__freq-chip" data-freq="2">2×/нед</button>
-<button type="button" class="habit-add-form__freq-chip" data-freq="3">3×/нед</button>
-<button type="button" class="habit-add-form__freq-chip" data-freq="5">5×/нед</button>
-</div>
-</div>
-
-<div class="habit-add-form__advanced-row">
-<span class="habit-add-form__advanced-label">После какой привычки предложить</span>
-<select id="newHabitChainTrigger" class="habit-add-form__chain-select" aria-label="Привычка-триггер">
-<option value="">Не связывать</option>
-</select>
-</div>
-
-</div>
-
-<div class="habit-add-form__row2">
-
-<label class="habit-add-form__time" title="Своё время напоминания (необязательно)">
-<span class="habit-add-form__time-icon" aria-hidden="true">⏰</span>
-<input
-type="time"
-id="newHabitTime"
-aria-label="Время напоминания">
-</label>
-
 <button
 type="submit"
-class="habit-add-form__submit">
-<span class="habit-add-form__submit-icon" aria-hidden="true">+</span>
-<span>Добавить</span>
+class="btn btn--accent">
+
++
+
 </button>
 
-</div>
-
 </form>
-
-</div>
-
-</div>
 
 </section>
 
@@ -352,7 +253,7 @@ class="habit-add-form__submit">
 
 <div class="section-heading">
 
-<h2 data-i18n="calendar_title">Календарь</h2>
+<h2>Календарь</h2>
 
 </div>
 
@@ -368,7 +269,7 @@ class="habit-add-form__submit">
   <div class="rating-hero__glow rating-hero__glow--one"></div>
   <div class="rating-hero__glow rating-hero__glow--two"></div>
   <div class="rating-hero__eyebrow"><span class="rating-live-dot"></span> ADAM LEAGUE · LIVE</div>
-  <h2 data-i18n="rating_title">Рейтинг</h2>
+  <h2>Рейтинг</h2>
   <p>Кто держит темп — тот поднимается выше.</p>
   <div class="rating-hero__stats">
     <span><b id="ratingPlayerCount">0</b> <span id="ratingPlayerCountLabel">игроков</span></span>
@@ -376,18 +277,9 @@ class="habit-add-form__submit">
   </div>
 </div>
 
-<div class="team-card" id="teamCard" hidden></div>
-
-<div class="rating-scope-switch" id="ratingScopeSwitch">
-  <button type="button" class="rating-scope-btn is-active" data-scope="alltime">Всё время</button>
-  <button type="button" class="rating-scope-btn" data-scope="season">🗓️ Сезон</button>
-</div>
-
 <div class="rating-podium" id="ratingPodium"></div>
 <div class="rating-rest-head"><span>Лидерборд</span><span>Серия · XP</span></div>
 <ul class="rating-list" id="ratingList"></ul>
-
-<ul class="rating-list" id="seasonRatingList" hidden></ul>
 
 </section>
 
@@ -404,7 +296,7 @@ class="habit-add-form__submit">
     <div class="streak-profile-kicker">ТВОЯ УДАРНАЯ СЕРИЯ</div>
     <div class="streak-profile-status" id="profileStreakStatus">Серия не начата</div>
     <div class="streak-profile-days"><strong id="profileStreakDays">0</strong><span id="profileStreakDaysLabel">дней подряд</span></div>
-    <div class="streak-profile-frame" id="profileStreakFrame" hidden></div>
+    <div class="streak-profile-frame" id="profileStreakFrame">Твоя ударная серия!</div>
     <button class="share-achievement-btn" id="shareAchievementBtn" type="button">↗ Поделиться прогрессом</button>
   </div>
   <div class="streak-profile-fire" aria-hidden="true">🔥</div>
@@ -416,37 +308,23 @@ class="habit-add-form__submit">
   <div class="streak-metric"><span>🏆</span><b id="profileMetricReward">—</b><small>статус</small></div>
 </div>
 
-<!-- Промт: питомец (прогресс по привычкам) переехал сюда с главного
-     экрана — вся "прогрессная" информация теперь собрана в Профиле,
-     Главная осталась только с "Сегодня" / ударным днём / планом.
-     Разметка и id не менялись — app.js::renderPetWidget их не знает,
-     откуда он рендерится. -->
-<div class="pet-widget" id="petWidget" hidden>
-  <div class="pet-widget__emoji" id="petWidgetEmoji">🥚</div>
-  <div class="pet-widget__body">
-    <div class="pet-widget__name" id="petWidgetName">Яйцо</div>
-    <div class="pet-widget__bar"><div class="pet-widget__bar-fill" id="petWidgetBarFill"></div></div>
-    <div class="pet-widget__hint" id="petWidgetHint"></div>
-  </div>
-</div>
-
-<div class="profile-cosmetics-panel">
-  <div class="profile-cosmetics-head">
-    <div><b>Аватар</b><small>Фото будет видно в профиле и рейтинге</small></div>
-    <button class="profile-photo-btn" id="profilePhotoBtn" type="button">Изменить фото</button>
-    <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
-  </div>
-  <div class="profile-frame-head"><b>Рамка аватарки</b><small id="profileFrameHint">Выбери доступную рамку</small></div>
-  <div class="profile-frame-picker" id="profileFramePicker"></div>
-</div>
 
 <div class="shop-head">
-  <div>
+  <div class="shop-head__copy">
     <div class="shop-eyebrow">ADAM STORE</div>
-    <h2 data-i18n="shop_title">Магазин ADAM</h2>
-    <p>Прокачай своего ADAM — ответы, стиль и возможности.</p>
+    <h2>Магазин ADAM</h2>
+    <p>Прокачивай ADAM: ответы, стиль и полезные возможности.</p>
   </div>
-  <div class="shop-balance" id="shopBalance"><span class="shop-balance__coin">A</span><span id="shopBalanceValue">0</span></div>
+  <div class="shop-balance" id="shopBalance" aria-label="Баланс ADAM">
+    <span class="shop-balance__coin">A</span>
+    <span class="shop-balance__body"><small>Баланс</small><strong id="shopBalanceValue">0</strong></span>
+  </div>
+</div>
+
+<div class="shop-toolbar" id="shopToolbar" role="tablist" aria-label="Категории магазина">
+  <button class="shop-filter is-active" type="button" data-shop-filter="all" role="tab" aria-selected="true">Все</button>
+  <button class="shop-filter" type="button" data-shop-filter="answers" role="tab" aria-selected="false">Ответы</button>
+  <button class="shop-filter" type="button" data-shop-filter="cosmetic" role="tab" aria-selected="false">Оформление</button>
 </div>
 
 <ul class="shop-list shop-list--grid" id="shopList">
@@ -454,37 +332,17 @@ class="habit-add-form__submit">
 
 <div class="section-heading">
 
-<h2 data-i18n="theme_title">Тема оформления</h2>
+<h2>Тема оформления</h2>
 
 </div>
 
 <div class="theme-picker" id="themePicker"></div>
 <div class="theme-picker__hint" id="themeHint"></div>
 
-<div class="color-mode-picker" id="colorModePicker">
-<button type="button" class="color-mode-btn" data-mode="dark">🌙 Тёмная</button>
-<button type="button" class="color-mode-btn" data-mode="light">☀️ Светлая</button>
-</div>
-
-<!-- Фидбек: переключатель языка убран из интерфейса — перевод на английский
-     был частичным и выглядел незаконченным. Бэкенд (db.users.set_language/
-     get_language, тесты в tests/test_language.py) не тронут — язык всех
-     пользователей просто остаётся на дефолте 'ru', саму фичу можно будет
-     вернуть в интерфейс, когда перевод будет доделан полностью. -->
-
-<div class="section-heading">
-<h2>Как к тебе обращаться</h2>
-</div>
-<p class="theme-picker__hint" id="genderHint">Нужно, чтобы Адам правильно согласовывал "Ты" в напоминаниях — "сделал" или "сделала".</p>
-<div class="color-mode-picker" id="genderPicker">
-<button type="button" class="color-mode-btn" data-gender="m">Он</button>
-<button type="button" class="color-mode-btn" data-gender="f">Она</button>
-</div>
-
 <div class="section-heading achievements-heading">
 
   <div>
-    <h2 data-i18n="achievements_title">Достижения</h2>
+    <h2>Достижения</h2>
     <p class="achievements-heading__hint">Последние награды — сразу перед глазами</p>
   </div>
 
@@ -506,143 +364,7 @@ class="habit-add-form__submit">
   </div>
 </div>
 
-<div class="section-heading">
-  <h2><span data-i18n="progress_title">📊 Прогресс</span></h2>
-</div>
 
-<div class="progress-stats-card" id="progressStatsCard">
-  <div class="progress-stat"><b id="progressStatCompleted">0</b><small>выполнено за неделю</small></div>
-  <div class="progress-stat"><b id="progressStatActiveDays">0/7</b><small>активных дней</small></div>
-  <div class="progress-stat"><b id="progressStatXp">0</b><small>Adam Coin за неделю</small></div>
-</div>
-
-<div class="progress-insight" id="leagueInfo" hidden></div>
-<div class="progress-insight" id="progressComparison" hidden></div>
-<div class="progress-insight" id="progressForecast" hidden></div>
-<div class="progress-insight progress-insight--correlation" id="progressCorrelations" hidden></div>
-
-<div class="year-heatmap" id="yearHeatmap" hidden>
-  <div class="year-heatmap__title">🗓️ Год активности</div>
-  <div class="year-heatmap__grid" id="yearHeatmapGrid"></div>
-</div>
-
-<button type="button" class="pdf-report-btn" id="pdfReportBtn">📄 Скачать PDF-отчёт</button>
-
-<button type="button" class="progress-ai-btn" id="progressAiBtn">🤖 AI-анализ прогресса</button>
-<div class="progress-ai-result" id="progressAiResult" hidden></div>
-
-<div class="section-heading">
-  <h2><span data-i18n="settings_title">⚙️ Настройки</span></h2>
-</div>
-
-<div class="settings-card">
-
-  <div class="settings-row">
-    <span>🎭 Стиль AI-наставника</span>
-  </div>
-  <div class="ai-style-picker" id="aiStylePicker">
-    <button type="button" class="ai-style-btn" data-style="soft">🌿 Мягкий</button>
-    <button type="button" class="ai-style-btn" data-style="neutral">⚖️ Нейтральный</button>
-    <button type="button" class="ai-style-btn" data-style="strict">🔥 Жёсткий тренер</button>
-  </div>
-
-  <div class="settings-row">
-    <span>🌙 Тихие часы</span>
-    <button type="button" class="settings-quiet-toggle" id="quietHoursToggle" aria-pressed="false">Выкл</button>
-  </div>
-  <div class="quiet-hours-row" id="quietHoursRow" hidden>
-    <span>Не напоминать с</span>
-    <select id="quietHoursStart" class="quiet-hours-select" aria-label="Начало тихих часов"></select>
-    <span>до</span>
-    <select id="quietHoursEnd" class="quiet-hours-select" aria-label="Конец тихих часов"></select>
-  </div>
-
-  <div class="settings-row">
-    <span>🧬 Архетип личности</span>
-    <button type="button" class="settings-quiet-toggle" id="archetypeQuizBtn">Пройти тест</button>
-  </div>
-
-  <div class="settings-row">
-    <span>🧭 Твои долгосрочные цели</span>
-  </div>
-  <div class="goals-row">
-    <textarea id="longTermGoalsInput" class="goals-textarea" maxlength="500" placeholder="Например: пробежать марафон к декабрю, выучить испанский... AI-наставник будет держать это в уме."></textarea>
-    <button type="button" class="goals-save-btn" id="longTermGoalsSaveBtn">Сохранить</button>
-  </div>
-
-  <div class="settings-row">
-    <span>🌐 Публичный профиль</span>
-    <button type="button" class="settings-quiet-toggle" id="publicProfileToggle" aria-pressed="false">Выкл</button>
-  </div>
-  <div class="public-profile-row" id="publicProfileRow" hidden>
-    <span>Ссылкой можно поделиться вне Telegram</span>
-    <button type="button" class="public-profile-share-btn" id="publicProfileShareBtn">🔗 Скопировать ссылку</button>
-  </div>
-
-  <div class="settings-row">
-    <span>💌 Поддержка от друзей</span>
-  </div>
-  <div class="reactions-feed" id="reactionsFeed"></div>
-
-  <div class="settings-row">
-    <span>📰 Лента друзей</span>
-  </div>
-  <div class="activity-feed-scroll" id="activityFeedScroll">
-    <div class="activity-feed" id="activityFeed"></div>
-  </div>
-
-  <div class="settings-row settings-row--danger">
-    <span>Сбросить весь прогресс (Adam Coin, уровень, серию, привычки)</span>
-    <button type="button" class="settings-danger-btn" id="resetProgressBtn">🗑 Сбросить</button>
-  </div>
-
-  <div class="settings-row settings-row--danger">
-    <span>Удалить аккаунт безвозвратно (профиль, привычки, переписка с ADAM)</span>
-    <button type="button" class="settings-danger-btn" id="deleteAccountBtn">⚠️ Удалить аккаунт</button>
-  </div>
-
-</div>
-
-<div class="section-heading">
-  <h2 data-i18n="data_support_title">Данные и поддержка</h2>
-</div>
-
-<div class="settings-card data-support-card">
-  <button type="button" class="data-support-btn" id="shareWeeklyBtn">
-    <span class="data-support-btn__icon">📈</span>
-    <span class="data-support-btn__text"><b>Поделиться итогом недели</b><small>Красивая карточка с результатами за 7 дней</small></span>
-  </button>
-  <button type="button" class="data-support-btn" id="exportDataBtn">
-    <span class="data-support-btn__icon">📤</span>
-    <span class="data-support-btn__text"><b>Скачать мои данные</b><small>Вся история привычек в CSV</small></span>
-  </button>
-  <button type="button" class="data-support-btn" id="exportFullDataBtn">
-    <span class="data-support-btn__icon">🗂️</span>
-    <span class="data-support-btn__text"><b>Скачать все данные (JSON)</b><small>Профиль, привычки, анкета, переписка с ADAM</small></span>
-  </button>
-  <label class="data-support-btn" id="importCsvLabel">
-    <span class="data-support-btn__icon">📥</span>
-    <span class="data-support-btn__text"><b>Импортировать привычки</b><small>Из CSV — одна привычка на строку</small></span>
-    <input type="file" accept=".csv,text/csv" id="importCsvInput" hidden>
-  </label>
-  <button type="button" class="data-support-btn" id="notificationHistoryBtn">
-    <span class="data-support-btn__icon">🔔</span>
-    <span class="data-support-btn__text"><b>История уведомлений</b><small>Что и когда бот тебе отправлял</small></span>
-  </button>
-  <div class="notification-history" id="notificationHistoryBox" hidden></div>
-  <button type="button" class="data-support-btn" id="openFeedbackBtn">
-    <span class="data-support-btn__icon">💬</span>
-    <span class="data-support-btn__text"><b>Сообщить о проблеме</b><small>Напрямую разработчику, с контекстом</small></span>
-  </button>
-  <button type="button" class="data-support-btn" id="openPrivacyBtn">
-    <span class="data-support-btn__icon">🔒</span>
-    <span class="data-support-btn__text"><b>Политика конфиденциальности</b><small>Какие данные собираются и зачем</small></span>
-  </button>
-  <button type="button" class="data-support-btn" id="openTermsBtn">
-    <span class="data-support-btn__icon">📄</span>
-    <span class="data-support-btn__text"><b>Пользовательское соглашение</b><small>Условия использования сервиса</small></span>
-  </button>
-</div>
 
 </section>
 
@@ -652,28 +374,28 @@ class="habit-add-form__submit">
     <nav class="tab-bar" id="tabBar">
 
     <button class="tab-bar__item is-active" data-tab="home">
-        <span class="tab-bar__icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 11.5 12 4l8 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10v8.5a1 1 0 0 0 1 1h3.2v-5.2h3.6V19.5h3.2a1 1 0 0 0 1-1V10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span data-i18n="tab_home">Главная</span>
+        <span class="material-symbols-rounded tab-bar__icon">home</span>
+        <span>Главная</span>
     </button>
 
     <button class="tab-bar__item" data-tab="calendar">
-        <span class="tab-bar__icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="5.5" width="16" height="15" rx="3.2" stroke="currentColor" stroke-width="2"/><path d="M4 10h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 3.5v3.5M16 3.5v3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8.3" cy="14.2" r="1.15" fill="currentColor"/><circle cx="12" cy="14.2" r="1.15" fill="currentColor"/><circle cx="15.7" cy="14.2" r="1.15" fill="currentColor"/></svg></span>
-        <span data-i18n="tab_calendar">Календарь</span>
+        <span class="material-symbols-rounded tab-bar__icon">calendar_month</span>
+        <span>Календарь</span>
     </button>
 
     <button class="tab-bar__item" id="aiCoachBtn">
-    <span class="tab-bar__icon"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.3c.45 3.55 1.35 5.95 2.95 7.55 1.6 1.6 4 2.5 7.55 2.95-3.55.45-5.95 1.35-7.55 2.95-1.6 1.6-2.5 4-2.95 7.55-.45-3.55-1.35-5.95-2.95-7.55C7.45 14.15 5.05 13.25 1.5 12.8c3.55-.45 5.95-1.35 7.55-2.95C10.65 8.25 11.55 5.85 12 2.3Z" fill="currentColor"/></svg></span>
-    <span data-i18n="tab_ai">ИИ</span>
+    <span class="material-symbols-rounded tab-bar__icon">smart_toy</span>
+    <span>ИИ</span>
 </button>
 
     <button class="tab-bar__item" data-tab="rating">
-        <span class="tab-bar__icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 4h10v4.2c0 3.4-2.2 6.1-5 6.1s-5-2.7-5-6.1V4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M7 5.2H4.6a1 1 0 0 0-1 1.2c.4 2.1 1.8 3.6 3.6 3.9M17 5.2h2.4a1 1 0 0 1 1 1.2c-.4 2.1-1.8 3.6-3.6 3.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 14.3V17M9 20.5h6M9.6 20.5c0-1.9.9-3 2.4-3s2.4 1.1 2.4 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span data-i18n="tab_rating">Рейтинг</span>
+        <span class="material-symbols-rounded tab-bar__icon">emoji_events</span>
+        <span>Рейтинг</span>
     </button>
 
     <button class="tab-bar__item" data-tab="profile">
-        <span class="tab-bar__icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="3.4" stroke="currentColor" stroke-width="2"/><path d="M5 19.5c.7-3.6 3.3-5.6 7-5.6s6.3 2 7 5.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span data-i18n="tab_profile">Профиль</span>
+        <span class="material-symbols-rounded tab-bar__icon">person</span>
+        <span>Профиль</span>
     </button>
 
 </nav>
@@ -684,145 +406,15 @@ class="habit-add-form__submit">
 
 <div class="toast" id="toast"></div>
 
-<!-- Промт: заморозка раньше жила ВНУТРИ .tab-panel[data-tab="home"], у
-     которого contain:layout paint (CSS) — это создавало новый containing
-     block для position:fixed, и "фиксированная" шторка на самом деле
-     привязывалась к низу длинной панели вкладки, а не к экрану, поэтому
-     приходилось листать страницу вниз, чтобы её увидеть. Все остальные
-     fixed-оверлеи уже жили здесь, вне #app — теперь и эта тоже. -->
-<div class="feedback-sheet" id="feedbackSheet" hidden aria-hidden="true">
-  <div class="feedback-sheet__backdrop" id="feedbackBackdrop"></div>
-  <section class="feedback-card" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
-    <div class="freeze-purchase-card__handle"></div>
-    <div class="feedback-card__icon">🐛</div>
-    <h3 id="feedbackTitle">Сообщить о проблеме</h3>
-    <p>Чем точнее опишешь ситуацию, тем быстрее мы её найдём. ADAM автоматически приложит последние действия за 10 минут.</p>
-    <textarea id="feedbackText" class="feedback-textarea" placeholder="Что произошло? Например: нажал «Выполнить», но привычка не закрылась…" maxlength="2000"></textarea>
-    <input id="feedbackExpected" class="feedback-input" type="text" maxlength="1000" placeholder="Что ты ожидал увидеть? (необязательно)">
-    <div class="feedback-meta-row">
-      <select id="feedbackSeverity" class="feedback-select" aria-label="Важность проблемы">
-        <option value="medium">🟡 Мешает, но пользоваться можно</option>
-        <option value="high">🟠 Сильно мешает</option>
-        <option value="critical">🔴 Не могу пользоваться</option>
-        <option value="low">🟢 Небольшая ошибка / косметика</option>
-      </select>
-      <label class="feedback-file-btn">📸 Скриншот<input id="feedbackScreenshot" type="file" accept="image/*" hidden></label>
-    </div>
-    <img id="feedbackScreenshotPreview" class="feedback-screenshot-preview" alt="Предпросмотр скриншота" hidden>
-    <div class="feedback-actions">
-      <button type="button" class="freeze-purchase-back" id="feedbackCancel">Отмена</button>
-      <button type="button" class="feedback-send-btn" id="feedbackSend">Отправить</button>
-    </div>
-  </section>
-</div>
-
-
-<div class="feedback-sheet" id="changelogSheet" hidden aria-hidden="true">
-  <div class="feedback-sheet__backdrop" id="changelogBackdrop"></div>
-  <section class="feedback-card" role="dialog" aria-modal="true" aria-labelledby="changelogTitle">
-    <div class="freeze-purchase-card__handle"></div>
-    <div class="feedback-card__icon">✨</div>
-    <h3 id="changelogTitle">Что нового</h3>
-    <div class="changelog-list" id="changelogList"></div>
-    <div class="feedback-actions">
-      <button type="button" class="feedback-send-btn" id="changelogClose" style="width:100%">Понятно</button>
-    </div>
-  </section>
-</div>
-
-<div class="freeze-purchase-sheet" id="freezePurchaseSheet" hidden aria-hidden="true">
-  <div class="freeze-purchase-sheet__backdrop" id="freezePurchaseBackdrop"></div>
-  <section class="freeze-purchase-card" role="dialog" aria-modal="true" aria-labelledby="freezePurchaseTitle">
-    <div class="freeze-purchase-card__handle"></div>
-    <div class="freeze-purchase-card__icon">❄</div>
-    <h3 id="freezePurchaseTitle">Взять 1 заморозку?</h3>
-    <p>Заморозка сохранит твою серию, если один день будет пропущен.</p>
-    <div class="freeze-purchase-actions">
-      <button type="button" class="freeze-purchase-back" id="freezePurchaseBack">Назад</button>
-      <button type="button" class="freeze-purchase-buy" id="freezePurchaseConfirm"><span>200</span><svg class="freeze-modal-coin" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <defs><linearGradient id="adamCoinGradFreezeModal" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stop-color="#FFEDA6"/><stop offset=".5" stop-color="#FFC93C"/><stop offset="1" stop-color="#E08E00"/>
-      </linearGradient></defs>
-      <circle cx="12" cy="12" r="10.4" fill="#B8720A"/><circle cx="12" cy="12" r="9.3" fill="url(#adamCoinGradFreezeModal)"/>
-      <circle cx="12" cy="12" r="7.1" fill="none" stroke="#FFF3C4" stroke-width=".9" opacity=".55"/>
-      <path d="M6.3 6.8c1-1.4 2.5-2.3 3.8-2.6" stroke="#FFF8E4" stroke-width="1.5" stroke-linecap="round" opacity=".7" fill="none"/>
-    </svg></button>
-    </div>
-  </section>
-</div>
-
-<!-- Промт: "Квесты дня" были карточкой прямо на главном экране — теперь
-     маленькая кнопка в "Сегодня" (#dailyQuestsBtn) открывает эту модалку
-     по центру экрана. Оформление списка (.daily-quest, #dailyQuestsList)
-     не менялось — просто живёт внутри модалки, а не в карточке на весь
-     экран. contain:layout — модалка вне #app и .tab-panel (см. похожий
-     комментарий у .freeze-purchase-sheet про position:fixed). -->
-<div class="daily-quests-overlay" id="dailyQuestsOverlay" hidden aria-hidden="true">
-  <div class="daily-quests-overlay__backdrop" id="dailyQuestsBackdrop"></div>
-  <section class="daily-quests-modal" role="dialog" aria-modal="true" aria-labelledby="dailyQuestsModalTitle">
-    <button type="button" class="daily-quests-modal__close" id="dailyQuestsClose" aria-label="Закрыть">✕</button>
-    <div class="daily-quests-modal__title" id="dailyQuestsModalTitle">🗺️ Квесты дня</div>
-    <ul class="daily-quests__list" id="dailyQuestsList"></ul>
-  </section>
-</div>
-
 <div class="achievement-share-overlay" id="achievementShareOverlay" hidden aria-hidden="true">
   <div class="achievement-share-card">
-    <span class="as-orb as-orb--1" aria-hidden="true"></span>
-    <span class="as-orb as-orb--2" aria-hidden="true"></span>
-    <span class="as-spark as-spark--1" aria-hidden="true"></span>
-    <span class="as-spark as-spark--2" aria-hidden="true"></span>
-    <span class="as-spark as-spark--3" aria-hidden="true"></span>
-    <span class="as-spark as-spark--4" aria-hidden="true"></span>
-    <div class="as-scroll">
-    <div class="as-brand"><span class="as-brand-mark">A</span>PROJECT ADAM</div>
-
-    <div class="as-medal">
-      <span class="as-medal-tail as-medal-tail--l" aria-hidden="true"></span>
-      <span class="as-medal-tail as-medal-tail--r" aria-hidden="true"></span>
-      <div class="as-medal-disc achievement-share-fire">
-        <span class="as-fire-corona" aria-hidden="true"></span>
-        <span class="as-fire-ring as-fire-ring--a" aria-hidden="true"></span>
-        <span class="as-fire-ring as-fire-ring--b" aria-hidden="true"></span>
-        <span class="as-ember as-ember--1" aria-hidden="true"></span>
-        <span class="as-ember as-ember--2" aria-hidden="true"></span>
-        <span class="as-ember as-ember--3" aria-hidden="true"></span>
-        <img src="/static/assets/adam-impact-flame.svg" alt="">
-      </div>
-    </div>
-
-    <div class="achievement-share-title" id="achievementShareTitle">Ударный режим</div>
+    <div class="achievement-share-fire"><img src="/static/assets/adam-impact-flame.svg" alt=""></div>
+    <div class="achievement-share-kicker">Мой результат в Project ADAM</div>
+    <div class="achievement-share-title">Ударный режим</div>
     <div class="achievement-share-days" id="achievementShareDays">1 день</div>
     <div class="achievement-share-status" id="achievementShareStatus">Ударный режим</div>
-
-    <div class="as-divider" aria-hidden="true"></div>
-
-    <div class="as-stat-strip">
-      <div class="as-stat"><span class="as-stat-icon">🏆</span><b id="achievementShareLevel">1</b><small>Уровень</small></div>
-      <span class="as-stat-sep" aria-hidden="true"></span>
-      <div class="as-stat">
-        <svg class="as-stat-icon as-stat-icon--coin" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <defs><linearGradient id="adamCoinGradShare" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stop-color="#FFEDA6"/><stop offset=".5" stop-color="#FFC93C"/><stop offset="1" stop-color="#E08E00"/>
-          </linearGradient></defs>
-          <circle cx="12" cy="12" r="10.4" fill="#B8720A"/><circle cx="12" cy="12" r="9.3" fill="url(#adamCoinGradShare)"/>
-          <circle cx="12" cy="12" r="7.1" fill="none" stroke="#FFF3C4" stroke-width=".9" opacity=".55"/>
-          <path d="M6.3 6.8c1-1.4 2.5-2.3 3.8-2.6" stroke="#FFF8E4" stroke-width="1.5" stroke-linecap="round" opacity=".7" fill="none"/>
-        </svg>
-        <b id="achievementShareCoins">0</b><small>Adam Coin</small>
-      </div>
-    </div>
-
     <div class="achievement-share-note">Я не жду идеальных дней. Я просто продолжаю.</div>
-    <button class="achievement-share-actions__share" id="achievementShareSend" type="button">
-      <span>Поделиться</span>
-      <span class="as-close-emoji">📤</span>
-    </button>
-    <button class="achievement-share-close" id="achievementShareClose" type="button">
-      <span>Классно, так держать</span>
-      <span class="as-close-emoji">💪</span>
-    </button>
-    </div>
+    <button class="achievement-share-close" id="achievementShareClose" type="button">Классно, так держать 💪</button>
   </div>
 </div>
 
@@ -830,29 +422,14 @@ class="habit-add-form__submit">
   <div class="loading-overlay__coin">🪙</div>
 </div>
 
-<div class="boot-retry-banner" id="bootRetryBanner" hidden>
-  <div class="boot-retry-banner__icon">📡</div>
-  <div class="boot-retry-banner__title">Не получилось загрузить ADAM</div>
-  <div class="boot-retry-banner__text">Проверь интернет-соединение и попробуй ещё раз.</div>
-  <button type="button" class="boot-retry-banner__btn" id="bootRetryBtn">↻ Повторить</button>
-</div>
-
 
 
 
 <div class="streak-celebration-overlay" id="streakCelebrationOverlay" hidden aria-hidden="true">
   <div class="streak-celebration">
-    <span class="cc-ember cc-ember--1"></span>
-    <span class="cc-ember cc-ember--2"></span>
-    <span class="cc-ember cc-ember--3"></span>
-    <span class="cc-ember cc-ember--4"></span>
-    <div class="cc-flame-orbit" aria-hidden="true">
-      <div class="cc-orbit cc-orbit--a"></div>
-      <div class="cc-orbit cc-orbit--b"></div>
-      <span class="cc-flame-halo"></span>
-      <span class="cc-flame-base"></span>
-      <div class="streak-flame" id="streakCelebrationFire">🔥</div>
-    </div>
+    <div class="fire-orbit fire-orbit--1"></div>
+    <div class="fire-orbit fire-orbit--2"></div>
+    <div class="streak-flame" id="streakCelebrationFire" aria-hidden="true"><img src="/static/assets/adam-impact-flame.svg" alt="" /></div>
     <div class="streak-flash"></div>
     <div class="streak-celebration__kicker">УДАРНЫЙ РЕЖИМ</div>
     <div class="streak-celebration__title">+1 день ударного режима!</div>
@@ -873,24 +450,6 @@ class="habit-add-form__submit">
     </div>
     <div class="streak-onboarding__coach" id="streakOnboardingCoach"></div>
     <button class="streak-continue" id="streakOnboardingContinue" type="button">Я в игре</button>
-  </div>
-</div>
-
-<div class="streak-onboarding-overlay double-bonus-overlay" id="doubleBonusOverlay" hidden aria-hidden="true">
-  <div class="streak-onboarding-card double-bonus-card">
-    <div class="streak-onboarding-fire double-bonus-icon">⚡️</div>
-    <div class="streak-onboarding__eyebrow">ДВОЙНЫЕ ADAM COIN</div>
-    <h2>Удвоение очков активно 30 минут!</h2>
-    <p>Успевай выполнить и отметить ещё одну привычку, пока действует бонус — каждая отметка в этом окне приносит вдвое больше Adam Coin.</p>
-    <button class="streak-continue" id="doubleBonusContinue" type="button">Погнали!</button>
-  </div>
-</div>
-
-<div class="archetype-quiz-overlay" id="archetypeQuizOverlay" hidden aria-hidden="true">
-  <div class="archetype-quiz-card">
-    <button type="button" class="archetype-quiz-close" id="archetypeQuizClose" aria-label="Закрыть">✕</button>
-    <div class="archetype-quiz-eyebrow">ТЕСТ НА АРХЕТИП</div>
-    <div id="archetypeQuizBody"></div>
   </div>
 </div>
 
@@ -915,35 +474,6 @@ class="habit-add-form__submit">
   </div>
 </div>
 
-<div class="app-tour-overlay" id="appTourOverlay" hidden aria-hidden="true">
-  <div class="app-tour-card" role="dialog" aria-modal="true" aria-labelledby="appTourTitle">
-    <button class="app-tour-skip" id="appTourSkip" type="button">Пропустить</button>
-    <div class="app-tour-icon-wrap">
-      <span class="app-tour-icon-glow"></span>
-      <div class="app-tour-icon" id="appTourIcon">👋</div>
-    </div>
-    <div class="app-tour-body" id="appTourBody">
-      <h2 class="app-tour-title" id="appTourTitle"></h2>
-      <p class="app-tour-text" id="appTourText"></p>
-    </div>
-    <div class="app-tour-dots" id="appTourDots"></div>
-    <div class="app-tour-actions">
-      <button class="app-tour-back" id="appTourBack" type="button">Назад</button>
-      <button class="app-tour-next" id="appTourNext" type="button">Далее</button>
-    </div>
-  </div>
-</div>
-
-<div class="adam-context-hint" id="adamContextHint" hidden aria-live="polite">
-  <div class="adam-context-hint__glow"></div>
-  <div class="adam-context-hint__icon">A</div>
-  <div class="adam-context-hint__body">
-    <strong id="adamContextHintTitle">Твой первый шаг</strong>
-    <span id="adamContextHintText"></span>
-  </div>
-  <button type="button" id="adamContextHintClose" aria-label="Понятно">Понятно</button>
-</div>
-
 <div class="bg-particles">
   <span></span>
   <span></span>
@@ -953,7 +483,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260914_EARLY_TEST_V23"></script>
+<script type="module" src="/static/app.js?v=20260914_WOW_V22"></script>
 
 </body>
 </html>

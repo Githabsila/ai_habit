@@ -10932,28 +10932,3 @@ body{
   .today-focus__quests-label{font-size:11px!important;}
   .streak-widget--hero{padding:15px!important;}
 }
-
-/* ==========================================================
-   EARLY TEST / FIRST 15 MIN — мягкие подсказки и bug report
-   Не добавляем тяжёлые blur-анимации в основной контент: подсказка
-   живёт отдельным fixed-слоем и не влияет на layout страницы.
-   ========================================================== */
-.adam-context-hint{position:fixed;z-index:1200;left:12px;right:12px;bottom:calc(78px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:11px;padding:13px 13px 13px 12px;border:1px solid rgba(255,255,255,.10);border-radius:20px;background:linear-gradient(145deg,rgba(27,23,38,.97),rgba(13,13,20,.98));box-shadow:0 20px 55px rgba(0,0,0,.45),0 0 0 1px rgba(255,166,72,.05) inset;transform:translateY(18px);opacity:0;pointer-events:none;transition:transform .22s ease,opacity .22s ease;overflow:hidden}
-.adam-context-hint[hidden]{display:none}
-.adam-context-hint.is-visible{transform:translateY(0);opacity:1;pointer-events:auto}
-.adam-context-hint__glow{position:absolute;width:100px;height:100px;left:-35px;top:-45px;background:radial-gradient(circle,rgba(255,145,50,.18),transparent 70%);pointer-events:none}
-.adam-context-hint__icon{position:relative;flex:0 0 38px;width:38px;height:38px;border-radius:13px;display:grid;place-items:center;font:900 16px 'Space Grotesk',sans-serif;color:#fff;background:linear-gradient(145deg,#ffb14b,#ff6b24);box-shadow:0 7px 22px rgba(255,110,35,.24)}
-.adam-context-hint__body{position:relative;min-width:0;display:flex;flex-direction:column;gap:2px;flex:1}
-.adam-context-hint__body strong{font:800 13px 'Space Grotesk',sans-serif;color:#fff}
-.adam-context-hint__body span{font-size:11px;line-height:1.4;color:#b8b4c8}
-.adam-context-hint>button{position:relative;flex:0 0 auto;border:0;border-radius:12px;padding:9px 10px;background:rgba(255,255,255,.07);color:#fff;font:700 11px 'Inter',sans-serif}
-.adam-context-hint>button:active{transform:scale(.97)}
-
-.feedback-input{width:100%;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:rgba(255,255,255,.045);color:#f5f6fb;padding:12px 13px;font:500 12px 'Inter',sans-serif;outline:none;margin-top:9px}
-.feedback-input:focus{border-color:rgba(255,170,80,.42);box-shadow:0 0 0 3px rgba(255,150,50,.08)}
-.feedback-meta-row{display:flex;gap:8px;margin-top:9px}
-.feedback-select{min-width:0;flex:1;border:1px solid rgba(255,255,255,.09);border-radius:13px;background:#17151f;color:#dfe3ef;padding:10px;font:600 10px 'Inter',sans-serif;outline:none}
-.feedback-file-btn{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border:1px solid rgba(255,255,255,.09);border-radius:13px;background:rgba(255,255,255,.045);color:#fff;padding:0 12px;font:700 10px 'Inter',sans-serif;cursor:pointer}
-.feedback-screenshot-preview{display:block;width:100%;max-height:180px;object-fit:contain;border-radius:14px;margin-top:9px;border:1px solid rgba(255,255,255,.08);background:#0d0c12}
-
-@media(max-width:380px){.adam-context-hint{left:9px;right:9px;padding:11px}.adam-context-hint__body span{font-size:10px}.adam-context-hint>button{padding:8px}.feedback-meta-row{flex-direction:column}.feedback-file-btn{min-height:38px}}

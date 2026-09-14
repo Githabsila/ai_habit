@@ -10933,27 +10933,127 @@ body{
   .streak-widget--hero{padding:15px!important;}
 }
 
-/* ==========================================================
-   EARLY TEST / FIRST 15 MIN — мягкие подсказки и bug report
-   Не добавляем тяжёлые blur-анимации в основной контент: подсказка
-   живёт отдельным fixed-слоем и не влияет на layout страницы.
-   ========================================================== */
-.adam-context-hint{position:fixed;z-index:1200;left:12px;right:12px;bottom:calc(78px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:11px;padding:13px 13px 13px 12px;border:1px solid rgba(255,255,255,.10);border-radius:20px;background:linear-gradient(145deg,rgba(27,23,38,.97),rgba(13,13,20,.98));box-shadow:0 20px 55px rgba(0,0,0,.45),0 0 0 1px rgba(255,166,72,.05) inset;transform:translateY(18px);opacity:0;pointer-events:none;transition:transform .22s ease,opacity .22s ease;overflow:hidden}
-.adam-context-hint[hidden]{display:none}
-.adam-context-hint.is-visible{transform:translateY(0);opacity:1;pointer-events:auto}
-.adam-context-hint__glow{position:absolute;width:100px;height:100px;left:-35px;top:-45px;background:radial-gradient(circle,rgba(255,145,50,.18),transparent 70%);pointer-events:none}
-.adam-context-hint__icon{position:relative;flex:0 0 38px;width:38px;height:38px;border-radius:13px;display:grid;place-items:center;font:900 16px 'Space Grotesk',sans-serif;color:#fff;background:linear-gradient(145deg,#ffb14b,#ff6b24);box-shadow:0 7px 22px rgba(255,110,35,.24)}
-.adam-context-hint__body{position:relative;min-width:0;display:flex;flex-direction:column;gap:2px;flex:1}
-.adam-context-hint__body strong{font:800 13px 'Space Grotesk',sans-serif;color:#fff}
-.adam-context-hint__body span{font-size:11px;line-height:1.4;color:#b8b4c8}
-.adam-context-hint>button{position:relative;flex:0 0 auto;border:0;border-radius:12px;padding:9px 10px;background:rgba(255,255,255,.07);color:#fff;font:700 11px 'Inter',sans-serif}
-.adam-context-hint>button:active{transform:scale(.97)}
+/* =========================================================
+   CALENDAR COMPLETED-DAY FIX — 2026-09-14
+   Completed habit days must read as completed, not as empty black cells.
+   Keep the dark premium palette, but give progress and full completion a
+   clear visual hierarchy and glow. This block intentionally comes last so
+   earlier WOW/Duolingo overrides cannot flatten the calendar states.
+   ========================================================= */
+.cal-cell{
+  color:#F5F1FF !important;
+  overflow:hidden !important;
+}
+.cal-cell--0{
+  background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(255,255,255,.018)) !important;
+  border-color:rgba(255,255,255,.065) !important;
+}
+.cal-cell--1{
+  background:linear-gradient(145deg,rgba(255,194,63,.12),rgba(255,153,24,.055)) !important;
+  border-color:rgba(255,196,67,.20) !important;
+}
+.cal-cell--2{
+  background:linear-gradient(145deg,rgba(255,204,73,.24),rgba(255,137,24,.10)) !important;
+  border-color:rgba(255,211,91,.34) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 16px rgba(255,174,38,.07) !important;
+}
+.cal-cell--3,
+.cal-cell.is-complete{
+  background:
+    radial-gradient(circle at 50% 25%,rgba(255,238,164,.30),transparent 42%),
+    linear-gradient(145deg,rgba(255,215,90,.92),rgba(239,159,25,.88)) !important;
+  border-color:rgba(255,229,137,.88) !important;
+  color:#1B1407 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.34),
+    0 0 0 1px rgba(255,215,90,.08),
+    0 7px 20px rgba(245,166,33,.18) !important;
+}
+.cal-cell.is-complete .cal-cell__day{
+  color:#1B1407 !important;
+  text-shadow:none !important;
+}
+.cal-cell.is-complete .cal-cell__progress{
+  color:#3B2808 !important;
+  opacity:.82 !important;
+  font-weight:900 !important;
+}
+.cal-cell.has-progress .cal-cell__progress{
+  color:#FFE7A0 !important;
+  font-weight:800 !important;
+}
+.cal-cell.is-today{
+  outline:2px solid rgba(167,139,250,.88) !important;
+  outline-offset:2px !important;
+}
+.cal-cell.is-today.is-complete{
+  outline-color:rgba(255,230,126,.95) !important;
+}
 
-.feedback-input{width:100%;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:rgba(255,255,255,.045);color:#f5f6fb;padding:12px 13px;font:500 12px 'Inter',sans-serif;outline:none;margin-top:9px}
-.feedback-input:focus{border-color:rgba(255,170,80,.42);box-shadow:0 0 0 3px rgba(255,150,50,.08)}
-.feedback-meta-row{display:flex;gap:8px;margin-top:9px}
-.feedback-select{min-width:0;flex:1;border:1px solid rgba(255,255,255,.09);border-radius:13px;background:#17151f;color:#dfe3ef;padding:10px;font:600 10px 'Inter',sans-serif;outline:none}
-.feedback-file-btn{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border:1px solid rgba(255,255,255,.09);border-radius:13px;background:rgba(255,255,255,.045);color:#fff;padding:0 12px;font:700 10px 'Inter',sans-serif;cursor:pointer}
-.feedback-screenshot-preview{display:block;width:100%;max-height:180px;object-fit:contain;border-radius:14px;margin-top:9px;border:1px solid rgba(255,255,255,.08);background:#0d0c12}
-
-@media(max-width:380px){.adam-context-hint{left:9px;right:9px;padding:11px}.adam-context-hint__body span{font-size:10px}.adam-context-hint>button{padding:8px}.feedback-meta-row{flex-direction:column}.feedback-file-btn{min-height:38px}}
+/* =========================================================
+   PLAYER HUD MOBILE FIX — 2026-09-14
+   Prevent the profile/level card from being clipped on narrow devices.
+   The ring remains prominent, but the information column is always allowed
+   to shrink instead of pushing the card beyond the viewport.
+   ========================================================= */
+#app{
+  width:100% !important;
+  max-width:600px !important;
+  min-width:0 !important;
+  box-sizing:border-box !important;
+  overflow-x:hidden !important;
+}
+.player-card{
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+  box-sizing:border-box !important;
+}
+.player-card__ring-wrap{
+  flex-shrink:1 !important;
+}
+.player-card__info{
+  min-width:0 !important;
+  max-width:100% !important;
+  overflow:hidden !important;
+}
+.player-card__stats{
+  min-width:0 !important;
+  flex-wrap:wrap !important;
+}
+.stat{
+  min-width:0 !important;
+}
+@media (max-width:430px){
+  .player-card{
+    padding:14px 13px !important;
+    gap:10px !important;
+  }
+  .player-card__ring-wrap{
+    width:86px !important;
+    height:86px !important;
+    min-width:86px !important;
+    flex-basis:86px !important;
+  }
+  .level-ring__badge::before{
+    width:66px !important;
+    height:66px !important;
+  }
+  .level-ring__badge span{font-size:31px !important;}
+  .level-ring__badge small{font-size:8px !important;margin-top:5px !important;}
+  .player-card__name{font-size:18px !important;}
+  #playerName{font-size:clamp(12px,6.2cqw,18px) !important;}
+  .player-card__stats{gap:6px !important;margin-bottom:8px !important;}
+  .stat{font-size:11px !important;padding:5px 7px !important;}
+  svg.stat-icon,.stat-icon{width:18px !important;height:18px !important;font-size:18px !important;}
+  .xp-bar{height:8px !important;}
+  .xp-bar__label{font-size:8px !important;margin-top:4px !important;}
+}
+@media (max-width:360px){
+  .player-card{padding:12px 11px !important;gap:8px !important;}
+  .player-card__ring-wrap{width:76px !important;height:76px !important;min-width:76px !important;flex-basis:76px !important;}
+  .level-ring__badge::before{width:58px !important;height:58px !important;}
+  .level-ring__badge span{font-size:28px !important;}
+  .player-card__stats{gap:4px !important;}
+  .stat{font-size:10px !important;padding:4px 6px !important;}
+}

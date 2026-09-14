@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260914_EARLY_TEST_V23">
+<link rel="stylesheet" href="/static/style.css?v=20260914_WOW_V22">
 </head>
 <body>
 
@@ -694,21 +694,10 @@ class="habit-add-form__submit">
   <div class="feedback-sheet__backdrop" id="feedbackBackdrop"></div>
   <section class="feedback-card" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
     <div class="freeze-purchase-card__handle"></div>
-    <div class="feedback-card__icon">🐛</div>
+    <div class="feedback-card__icon">💬</div>
     <h3 id="feedbackTitle">Сообщить о проблеме</h3>
-    <p>Чем точнее опишешь ситуацию, тем быстрее мы её найдём. ADAM автоматически приложит последние действия за 10 минут.</p>
-    <textarea id="feedbackText" class="feedback-textarea" placeholder="Что произошло? Например: нажал «Выполнить», но привычка не закрылась…" maxlength="2000"></textarea>
-    <input id="feedbackExpected" class="feedback-input" type="text" maxlength="1000" placeholder="Что ты ожидал увидеть? (необязательно)">
-    <div class="feedback-meta-row">
-      <select id="feedbackSeverity" class="feedback-select" aria-label="Важность проблемы">
-        <option value="medium">🟡 Мешает, но пользоваться можно</option>
-        <option value="high">🟠 Сильно мешает</option>
-        <option value="critical">🔴 Не могу пользоваться</option>
-        <option value="low">🟢 Небольшая ошибка / косметика</option>
-      </select>
-      <label class="feedback-file-btn">📸 Скриншот<input id="feedbackScreenshot" type="file" accept="image/*" hidden></label>
-    </div>
-    <img id="feedbackScreenshotPreview" class="feedback-screenshot-preview" alt="Предпросмотр скриншота" hidden>
+    <p>Опиши, что пошло не так — сообщение уйдёт разработчику вместе с тем, на какой ты сейчас вкладке.</p>
+    <textarea id="feedbackText" class="feedback-textarea" placeholder="Например: не начисляются Adam Coin за привычку…" maxlength="2000"></textarea>
     <div class="feedback-actions">
       <button type="button" class="freeze-purchase-back" id="feedbackCancel">Отмена</button>
       <button type="button" class="feedback-send-btn" id="feedbackSend">Отправить</button>
@@ -934,16 +923,6 @@ class="habit-add-form__submit">
   </div>
 </div>
 
-<div class="adam-context-hint" id="adamContextHint" hidden aria-live="polite">
-  <div class="adam-context-hint__glow"></div>
-  <div class="adam-context-hint__icon">A</div>
-  <div class="adam-context-hint__body">
-    <strong id="adamContextHintTitle">Твой первый шаг</strong>
-    <span id="adamContextHintText"></span>
-  </div>
-  <button type="button" id="adamContextHintClose" aria-label="Понятно">Понятно</button>
-</div>
-
 <div class="bg-particles">
   <span></span>
   <span></span>
@@ -953,7 +932,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260914_EARLY_TEST_V23"></script>
+<script type="module" src="/static/app.js?v=20260914_WOW_V22"></script>
 
 </body>
 </html>

@@ -1,12 +1,11 @@
 import logging
-import html
 
 from aiogram import Router
 from aiogram.types import Message
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
-from keyboards import main_menu, new_application_keyboard
+from keyboards import main_menu
 from config import ADMIN_IDS
 
 from db import (
@@ -22,7 +21,6 @@ from db import (
 
 from multi_agent import analyze_onboarding_survey, suggest_first_step
 from alerts import notify_admins
-from db import log_product_event
 
 router = Router()
 logger = logging.getLogger("handlers.onboarding")
@@ -69,7 +67,6 @@ SURVEY_INTRO_VARIANTS = {
 
 
 async def begin_survey(message: Message, state: FSMContext):
-    log_product_event(message.from_user.id, "onboarding_started", {"variant": survey_variant(message.from_user.id)})
     await state.set_state(Onboarding.business)
     variant = survey_variant(message.from_user.id)
     await message.answer(SURVEY_INTRO_VARIANTS[variant], parse_mode="HTML")
@@ -118,7 +115,6 @@ async def survey_bot_goal(message: Message, state: FSMContext):
     user_id = message.from_user.id
 
     save_survey_answers(user_id, business, hobbies, life_goal, bot_goal)
-    log_product_event(user_id, "onboarding_completed", {})
 
     await message.answer("⏳ Обрабатываю анкету...")
 
@@ -153,31 +149,15 @@ async def survey_bot_goal(message: Message, state: FSMContext):
     # анкете, поэтому пользователь никогда не видел подтверждение
     # "Анкета получена", а админ вообще не узнавал о новой заявке.
     username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.full_name
-    survey = get_survey(user_id)
-    summary = (survey["ai_summary"] if survey and "ai_summary" in survey.keys() else None) or "—"
-    tags = (survey["ai_tags"] if survey and "ai_tags" in survey.keys() else None) or "—"
-    application_text = (
-        "🆕 <b>НОВАЯ АНКЕТА ADAM</b>\n\n"
-        f"👤 <b>{html.escape(str(username))}</b>\n"
-        f"🆔 <code>{user_id}</code>\n\n"
-        f"💼 <b>Занимается:</b> {html.escape(str(business or '—'))}\n"
-        f"🎨 <b>Увлечения:</b> {html.escape(str(hobbies or '—'))}\n"
-        f"🎯 <b>Главная цель:</b> {html.escape(str(life_goal or '—'))}\n"
-        f"🤖 <b>Что ждёт от ADAM:</b> {html.escape(str(bot_goal or '—'))}\n\n"
-        f"🧠 <b>AI-разбор:</b> {html.escape(str(summary))}\n"
-        f"🏷 <b>Теги:</b> {html.escape(str(tags))}\n\n"
-        "Выбери решение прямо здесь 👇"
-    )
-    for admin_id in ADMIN_IDS:
-        try:
-            await message.bot.send_message(
-                chat_id=admin_id,
-                text=application_text[:3900],
-                parse_mode="HTML",
-                reply_markup=new_application_keyboard(user_id),
-            )
-        except Exception as e:
-            logger.warning(f"Не удалось уведомить админа {admin_id} о заявке {user_id}: {e}")
+    try:
+        await notify_admins(
+            message.bot,
+            f"Новая заявка на доступ: {username} (id {user_id}).\nПосмотреть — «🕓 Заявки на доступ» в /admin.",
+        )
+    except Exception as e:
+        logger.exception(f"Не удалось уведомить админов о новой заявке {user_id}")
+        log_error("notify_admins_pending", e, user_id)
+
     await message.answer(
         "✅ Анкета получена.\n\n"
         "🕓 Идёт проверка модератором — скоро вы получите открытый "

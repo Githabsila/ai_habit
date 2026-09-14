@@ -34,7 +34,6 @@ from db import (
     get_all_flags, set_feature_flag, delete_feature_flag,
     get_recent_client_errors,
     get_recent_perf_events, get_perf_summary,
-    get_recent_bug_reports, get_bug_report, update_bug_status, get_recent_user_events,
 )
 from db.core import DB_PATH
 from admin_digest_scheduler import build_stats_report
@@ -202,45 +201,6 @@ async def admin_perf_events_route(request):
         "summary": get_perf_summary(),
         "events": get_recent_perf_events(limit=limit),
     })
-
-
-@routes.get("/api/admin/bugs")
-async def admin_bugs_route(request):
-    await _authenticate_admin(request)
-    try:
-        minutes = min(max(int(request.query.get("minutes", 60)), 1), 1440)
-    except (TypeError, ValueError):
-        minutes = 60
-    try:
-        limit = min(max(int(request.query.get("limit", 50)), 1), 200)
-    except (TypeError, ValueError):
-        limit = 50
-    return web.json_response({"bugs": get_recent_bug_reports(minutes=minutes, limit=limit)})
-
-
-@routes.get("/api/admin/bugs/{bug_id}")
-async def admin_bug_detail_route(request):
-    await _authenticate_admin(request)
-    bug = get_bug_report(int(request.match_info["bug_id"]))
-    if not bug:
-        return web.json_response({"error": "not_found"}, status=404)
-    return web.json_response({
-        "bug": bug,
-        "recent_events": get_recent_user_events(bug["user_id"], minutes=10, limit=120),
-    })
-
-
-@routes.post("/api/admin/bugs/{bug_id}/status")
-async def admin_bug_status_route(request):
-    await _authenticate_admin(request)
-    try:
-        body = await request.json()
-    except json.JSONDecodeError:
-        return web.json_response({"error": "invalid_json"}, status=400)
-    status = body.get("status")
-    if not update_bug_status(int(request.match_info["bug_id"]), status):
-        return web.json_response({"error": "invalid_status"}, status=400)
-    return web.json_response({"ok": True, "status": status})
 
 
 @routes.post("/api/admin/user/{telegram_id}/ban")

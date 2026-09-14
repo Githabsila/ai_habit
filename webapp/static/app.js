@@ -42,21 +42,11 @@
       }).catch(() => {});
     } catch (_) {}
   }
-  window.__adamLastClientError = null;
-
   window.addEventListener("error", (e) => {
-    window.__adamLastClientError = {
-      message: String(e.message || "Unknown error").slice(0, 500),
-      stack: e.error && e.error.stack ? String(e.error.stack).slice(0, 4000) : null,
-    };
     reportClientError(e.message, e.error && e.error.stack);
   });
   window.addEventListener("unhandledrejection", (e) => {
     const reason = e.reason;
-    window.__adamLastClientError = {
-      message: String(reason && reason.message ? reason.message : reason).slice(0, 500),
-      stack: reason && reason.stack ? String(reason.stack).slice(0, 4000) : null,
-    };
     reportClientError(
       reason && reason.message ? reason.message : String(reason),
       reason && reason.stack
@@ -450,79 +440,6 @@
     }
   }
 
-  // ===================== PRODUCT EXPERIENCE / EARLY TEST =====================
-  // Лёгкая телеметрия: только ключевые действия, без текста AI-чата и без
-  // Telegram initData. События нужны, чтобы видеть, где человек отваливается
-  // в первые 15 минут и восстановить последние 10 минут перед багом.
-  const PRODUCT_SESSION_STARTED_AT = Date.now();
-  const PRODUCT_EVENT_LOCAL_KEY = "adam_product_events_sent";
-  const PRODUCT_EVENT_DEDUPE = new Set();
-
-  function trackProductEvent(eventType, payload = null, dedupeKey = null) {
-    const key = dedupeKey || `${eventType}:${payload?.tab || ""}:${payload?.key || ""}`;
-    if (PRODUCT_EVENT_DEDUPE.has(key)) return;
-    PRODUCT_EVENT_DEDUPE.add(key);
-    try {
-      fetch("/api/product-event", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "tma " + initData(),
-          "X-Telegram-Init-Data": initData(),
-        },
-        body: JSON.stringify({
-          event_type: eventType,
-          payload: payload ? { ...payload, session_seconds: Math.round((Date.now() - PRODUCT_SESSION_STARTED_AT) / 1000) } : { session_seconds: Math.round((Date.now() - PRODUCT_SESSION_STARTED_AT) / 1000) },
-        }),
-        keepalive: true,
-      }).catch(() => {});
-    } catch (_) {}
-  }
-
-  function markLocalExperience(key) {
-    try { localStorage.setItem(`adam_experience_${key}`, "1"); } catch (_) {}
-  }
-  function hasLocalExperience(key) {
-    try { return localStorage.getItem(`adam_experience_${key}`) === "1"; } catch (_) { return false; }
-  }
-
-  function showContextHint(key, title, text, buttonText = "Понятно") {
-    if (hasLocalExperience(key)) return;
-    const createdAt = state?.user?.created_at ? new Date(String(state.user.created_at).replace(" ", "T") + "Z") : null;
-    if (!createdAt || Number.isNaN(createdAt.getTime()) || (Date.now() - createdAt.getTime()) > 48 * 60 * 60 * 1000) return;
-    const el = document.getElementById("adamContextHint");
-    if (!el) return;
-    const titleEl = document.getElementById("adamContextHintTitle");
-    const textEl = document.getElementById("adamContextHintText");
-    const btn = document.getElementById("adamContextHintClose");
-    if (titleEl) titleEl.textContent = title;
-    if (textEl) textEl.textContent = text;
-    if (btn) btn.textContent = buttonText;
-    el.hidden = false;
-    requestAnimationFrame(() => el.classList.add("is-visible"));
-    trackProductEvent("hint_shown", { key, title }, `hint_shown:${key}`);
-    const close = () => {
-      el.classList.remove("is-visible");
-      setTimeout(() => { el.hidden = true; }, 220);
-      markLocalExperience(key);
-      trackProductEvent("hint_dismissed", { key }, `hint_dismissed:${key}`);
-      btn?.removeEventListener("click", close);
-    };
-    btn?.addEventListener("click", close, { once: true });
-    setTimeout(() => { if (!hasLocalExperience(key)) close(); }, 7000);
-  }
-
-  function showFirstMinuteHint() {
-    if (!state || hasLocalExperience("home_intro")) return;
-    setTimeout(() => {
-      if (state.habits?.length) {
-        showContextHint("home_intro", "Начнём без перегруза", "Сегодня тебе не нужно делать всё сразу. Выбери одну привычку и одну задачу — этого достаточно для первого результата.");
-      } else {
-        showContextHint("home_intro", "Твой первый шаг", "Начни с одной простой привычки. ADAM поможет не распыляться и довести её до выполнения.");
-      }
-    }, 900);
-  }
-
   async function loadBootstrap() {
     // Не допускаем несколько тяжёлых /api/bootstrap одновременно: это могло
     // происходить при быстрых кликах/обновлениях и давать гонки перерисовки.
@@ -795,7 +712,6 @@
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
     maybeShowAppTour();
-    showFirstMinuteHint();
     maybeShowStreakOnboarding();
     stabilizeFirstPaint();
     // Warm the profile data in the background. This makes a later tap on
@@ -1232,18 +1148,36 @@
   const APP_TOUR_STEPS = [
     {
       icon: "👋",
-      title: "Добро пожаловать в ADAM",
-      text: "Не будем перегружать тебя обучением. Сначала сделаем одну привычку и одну задачу — остальное покажу постепенно по ходу использования.",
-    },
-    {
-      icon: "🔥",
-      title: "Один маленький результат",
-      text: "Закрой хотя бы одну привычку сегодня — это уже запустит твой ударный день и даст первый ощутимый результат.",
+      title: "Добро пожаловать в Project ADAM",
+      text: "Я — твой личный ИИ-наставник по привычкам. Покажу за минуту, что тут где и зачем.",
     },
     {
       icon: "🎯",
-      title: "А затем — одна задача",
-      text: "Добавь главное дело дня и закрой его. После первой победы я отдельно приглашу тебя познакомиться с ADAM в Telegram.",
+      title: "Привычки держат серию",
+      text: "Отмечай хотя бы одну привычку в день, чтобы не терять ударный режим. Вторая подряд в течение 30 минут — уже двойные Adam Coin.",
+    },
+    {
+      icon: "✦",
+      title: "План дня — отдельно от привычек",
+      text: "Одна главная задача и до 5 обычных. Своя логика, свой темп — не смешивается с привычками.",
+    },
+    {
+      // Эмодзи монеты (U+1FA99) не везде рендерится — вместо него та же
+      // SVG-иконка Adam Coin, что используется по всему приложению
+      // (профиль, магазин, рейтинг), гарантированно отрисовывается всегда.
+      icon: ADAM_COIN_ICON,
+      title: "Adam Coin открывают вещи",
+      text: "Зарабатывай монеты за привычки и задачи — трать их в магазине на рамки, темы и заморозки серии.",
+    },
+    {
+      icon: "🤖",
+      title: "Спроси у ADAM",
+      text: "Обсуди цель, разбери день или просто спроси совет — отвечаю прямо во вкладке «ИИ».",
+    },
+    {
+      icon: "🏆",
+      title: "Сравнивай и настраивай",
+      text: "Смотри своё место в рейтинге, собирай рамки за серию, настраивай профиль. Погнали!",
     },
   ];
   let appTourStep = 0;
@@ -2445,17 +2379,6 @@ function initTabs() {
     if (tab === "profile") {
       loadProgressStats();
     }
-    trackProductEvent("tab_opened", { tab }, `tab_opened:${tab}`);
-    if (tab === "calendar") {
-      trackProductEvent("calendar_opened", {}, "calendar_opened");
-      setTimeout(() => showContextHint("calendar_intro", "Календарь — твоя история", "Здесь позже будет видно, как складывается серия и сколько дней ты реально держал темп."), 500);
-    } else if (tab === "rating") {
-      trackProductEvent("rating_opened", {}, "rating_opened");
-      setTimeout(() => showContextHint("rating_intro", "Рейтинг — не цель", "Он нужен для лёгкой конкуренции и мотивации. Сначала важнее твой собственный прогресс."), 500);
-    } else if (tab === "profile") {
-      trackProductEvent("profile_opened", {}, "profile_opened");
-      setTimeout(() => showContextHint("profile_intro", "Профиль — потом", "Здесь собраны награды, оформление и статистика. Сейчас можешь спокойно вернуться к сегодняшним действиям."), 500);
-    }
     haptic("light");
     scheduleDecorSettle();
   });
@@ -3056,10 +2979,6 @@ function initHabitActions() {
       if (advPanelAfterSubmit) advPanelAfterSubmit.hidden = true;
       haptic("light");
       showToast("Привычка добавлена", "success");
-      trackProductEvent(result.first_habit ? "first_habit_created" : "habit_created", { habit_id: result.habit?.id || null }, result.first_habit ? "first_habit_created" : null);
-      if (result.first_habit) {
-        setTimeout(() => showContextHint("after_first_habit", "Теперь добавим одну задачу", "Привычка есть. Следующий маленький шаг — одно главное дело дня. Не больше.", "Понятно"), 450);
-      }
 
       // Синхронизируем остальные данные (XP, серию, календарь и т.д.).
       try {
@@ -3253,11 +3172,6 @@ function initPlanActions() {
       }
       resetPlanTaskEditor();
       haptic("light");
-      const wasFirstTask = !state?.daily_plan?.tasks?.length;
-      trackProductEvent(wasFirstTask ? "first_task_created" : "task_created", {}, wasFirstTask ? "first_task_created" : null);
-      if (wasFirstTask) {
-        setTimeout(() => showContextHint("after_first_task", "Осталось главное", "Теперь просто закрой эту задачу. После первой выполненной вещи ADAM даст тебе отдельный знак, что ты начал день правильно."), 450);
-      }
       await loadBootstrap();
     } catch (err) {
       showToast(friendlyError(err), "error");
@@ -4457,56 +4371,6 @@ function initDataSupportActions() {
 
   const feedbackSheet = document.getElementById("feedbackSheet");
   const feedbackText = document.getElementById("feedbackText");
-  const feedbackExpected = document.getElementById("feedbackExpected");
-  const feedbackSeverity = document.getElementById("feedbackSeverity");
-  const feedbackScreenshot = document.getElementById("feedbackScreenshot");
-  const feedbackScreenshotPreview = document.getElementById("feedbackScreenshotPreview");
-  let feedbackScreenshotDataUrl = null;
-
-  function compressBugScreenshot(file) {
-    return new Promise((resolve, reject) => {
-      if (!file) return resolve(null);
-      const reader = new FileReader();
-      reader.onerror = reject;
-      reader.onload = () => {
-        const img = new Image();
-        img.onerror = reject;
-        img.onload = () => {
-          const maxSide = 1500;
-          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.max(1, Math.round(img.width * scale));
-          canvas.height = Math.max(1, Math.round(img.height * scale));
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          let quality = 0.78;
-          let out = canvas.toDataURL("image/jpeg", quality);
-          while (out.length > 1_300_000 && quality > 0.45) {
-            quality -= 0.08;
-            out = canvas.toDataURL("image/jpeg", quality);
-          }
-          resolve(out);
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  feedbackScreenshot?.addEventListener("change", async () => {
-    const file = feedbackScreenshot.files?.[0];
-    if (!file) { feedbackScreenshotDataUrl = null; if (feedbackScreenshotPreview) feedbackScreenshotPreview.hidden = true; return; }
-    try {
-      feedbackScreenshotDataUrl = await compressBugScreenshot(file);
-      if (feedbackScreenshotPreview) {
-        feedbackScreenshotPreview.src = feedbackScreenshotDataUrl || "";
-        feedbackScreenshotPreview.hidden = !feedbackScreenshotDataUrl;
-      }
-    } catch (_) {
-      feedbackScreenshotDataUrl = null;
-      showToast("Не получилось обработать скриншот", "error");
-    }
-  });
   const closeFeedback = () => {
     if (!feedbackSheet) return;
     feedbackSheet.classList.remove("is-open");
@@ -4515,7 +4379,6 @@ function initDataSupportActions() {
   };
   document.getElementById("openFeedbackBtn")?.addEventListener("click", () => {
     if (!feedbackSheet) return;
-    trackProductEvent("bug_form_opened", {}, "bug_form_opened");
     feedbackSheet.hidden = false;
     requestAnimationFrame(() => feedbackSheet.classList.add("is-open"));
     feedbackSheet.setAttribute("aria-hidden", "false");
@@ -4549,46 +4412,20 @@ function initDataSupportActions() {
     if (sendBtn) sendBtn.disabled = true;
     try {
       const activeTab = document.querySelector(".tab-bar__item.is-active")?.dataset.tab || "неизвестно";
-      const lastError = window.__adamLastClientError || null;
-      const device = {
-        ua: (navigator.userAgent || "").slice(0, 300),
-        platform: navigator.platform || "",
-        language: navigator.language || "",
-        viewport: `${window.innerWidth}x${window.innerHeight}`,
-        dpr: window.devicePixelRatio || 1,
-        memory: navigator.deviceMemory || null,
-        cores: navigator.hardwareConcurrency || null,
-      };
-      await api("/api/bug-report", {
+      await api("/api/feedback", {
         method: "POST",
-        timeoutMs: 30000,
-        body: JSON.stringify({
-          description: text,
-          expected: (feedbackExpected?.value || "").trim(),
-          severity: feedbackSeverity?.value || "medium",
-          tab: activeTab,
-          path: location.pathname,
-          screenshot_data_url: feedbackScreenshotDataUrl,
-          last_error: lastError,
-          device,
-        }),
+        body: JSON.stringify({ text, tab: activeTab }),
       });
       haptic("medium");
-      showToast("Баг # отправлен — контекст уже у разработчика", "success");
-      trackProductEvent("bug_report_submitted", { tab: activeTab }, null);
+      showToast("Спасибо! Уже читаем", "success");
       if (feedbackText) feedbackText.value = "";
-      if (feedbackExpected) feedbackExpected.value = "";
-      if (feedbackSeverity) feedbackSeverity.value = "medium";
-      if (feedbackScreenshot) feedbackScreenshot.value = "";
-      feedbackScreenshotDataUrl = null;
-      if (feedbackScreenshotPreview) feedbackScreenshotPreview.hidden = true;
       closeFeedback();
     } catch (err) {
       showToast(friendlyError(err), "error");
     } finally {
       if (sendBtn) sendBtn.disabled = false;
     }
-  });;
+  });
 }
 
 // Улучшение #60: кнопка "Повторить" в bootRetryBanner вызывает boot() ещё
@@ -4625,7 +4462,6 @@ async function boot() {
         // Критический экран готов сразу после bootstrap. Часовой пояс не должен
         // удерживать loading-overlay и мешать первому paint (особенно в Telegram WebView).
         await loadBootstrap();
-        trackProductEvent("app_opened", { first_run: !!state?.show_app_tour }, "app_opened");
         if (!postBootstrapInitDone) {
             initSettingsActions();
             initDataSupportActions();
@@ -4690,7 +4526,6 @@ document.getElementById("bootRetryBtn")?.addEventListener("click", () => {
 document.addEventListener("DOMContentLoaded", boot);
 
 document.getElementById("aiCoachBtn").addEventListener("click", () => {
-    trackProductEvent("adam_chat_opened", {}, "adam_chat_opened");
     haptic("light");
     const overlay = document.getElementById("loadingOverlay");
     if (overlay) overlay.hidden = false;

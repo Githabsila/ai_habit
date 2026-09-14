@@ -82,20 +82,6 @@ def admin_keyboard():
 
             [
                 InlineKeyboardButton(
-                    text="🐛 Последние баги",
-                    callback_data="admin_bugs"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
-                    text="⚡ Баги за 10 минут",
-                    callback_data="admin_bugs_10m"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
                     text="⬅️ Главное меню",
                     callback_data="back_menu"
                 )
@@ -130,18 +116,6 @@ def tag_search_results_keyboard(users):
 # =====================================
 # ЗАЯВКИ НА ДОСТУП (pending)
 # =====================================
-
-def new_application_keyboard(user_id):
-    """Кнопки прямо под уведомлением о новой анкете. Админ может открыть
-    заявку/карточку или принять решение, не заходя в админ-панель."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ Одобрить", callback_data=f"admin_quick_approve_{user_id}"),
-            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"admin_quick_reject_{user_id}"),
-        ],
-        [InlineKeyboardButton(text="👤 Карточка", callback_data=f"admin_card_{user_id}")],
-    ])
-
 
 def pending_keyboard(users):
     """users — список sqlite3.Row с telegram_id/username, статус 'pending'."""
