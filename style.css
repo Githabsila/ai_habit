@@ -11141,3 +11141,63 @@ body{
   top:50% !important;
   transform:translate(-50%,-50%) !important;
 }
+
+/* LEVEL RING V26 — fix shifted progress arc on all screen sizes */
+.player-card__ring-wrap {
+  position: relative !important;
+  width: 112px !important;
+  height: 112px !important;
+  min-width: 112px !important;
+  flex: 0 0 112px !important;
+  display: grid !important;
+  place-items: center !important;
+  overflow: visible !important;
+}
+
+.level-ring {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  transform: none !important;
+  transform-origin: 50% 50% !important;
+  display: block !important;
+}
+
+.level-ring svg {
+  width: 100% !important;
+  height: 100% !important;
+  transform: rotate(-90deg) !important;
+  transform-origin: 50% 50% !important;
+  display: block !important;
+}
+
+.level-ring__badge {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  transform: none !important;
+  display: grid !important;
+  place-items: center !important;
+  align-content: center !important;
+  text-align: center !important;
+  z-index: 2 !important;
+}
+
+.level-ring__badge span,
+.level-ring__badge small {
+  grid-column: 1 !important;
+  justify-self: center !important;
+}
+
+@media (max-width: 420px) {
+  .player-card__ring-wrap {
+    width: 104px !important;
+    height: 104px !important;
+    min-width: 104px !important;
+    flex-basis: 104px !important;
+  }
+}
