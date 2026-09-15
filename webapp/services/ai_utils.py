@@ -97,18 +97,18 @@ def build_user_context(user_id: int, max_chars: int = 2800) -> str:
         lines.append("План пользователя на сегодня:")
 
         if plan["main_goal"]:
-            # ✅ Проблема №2: раньше сюда не попадал статус главной задачи
-            # (plan["main_goal_completed"] из БД просто игнорировался), из-за
-            # чего ИИ не мог узнать, что пользователь её уже отметил
-            # выполненной, и советовал сделать то, что уже сделано.
             status = "выполнена" if plan.get("main_goal_completed") else "НЕ выполнена"
-            lines.append(f"• Главная задача дня: {plan['main_goal']} — {status}")
+            lines.append(f"• Главная: {plan['main_goal']} — {status}")
 
+        secondary_lines = []
         for task in plan["tasks"]:
             if not task["text"]:
                 continue
             status = "выполнено" if task["completed"] else "не выполнено"
-            lines.append(f"• Задача: {task['text']} — {status}")
+            secondary_lines.append(f"{task['text']} — {status}")
+        if secondary_lines:
+            lines.append("• Второстепенные:")
+            lines.extend(f"  - {text}" for text in secondary_lines)
     else:
         lines.append("")
         lines.append("План на сегодня пока не составлен.")

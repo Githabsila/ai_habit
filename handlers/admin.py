@@ -498,6 +498,17 @@ async def admin_approve(callback: CallbackQuery):
 
     user_id = int(callback.data.removeprefix("admin_approve_"))
 
+    # Кнопка из старого уведомления не должна случайно повторно менять
+    # уже обработанную заявку.
+    from db import get_access_status
+    if get_access_status(user_id) != "pending":
+        await callback.answer("ℹ️ Заявка уже обработана", show_alert=True)
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        return
+
     set_access_status(user_id, "approved")
     await notify_approved(callback.bot, user_id)
 

@@ -11345,3 +11345,215 @@ body{
     height:58px !important;
   }
 }
+
+/* ================= PRODUCT ONBOARDING — первые 15 минут ================= */
+.product-onboarding-hint{
+  position:fixed;left:14px;right:14px;bottom:88px;z-index:1800;
+  display:flex;align-items:flex-start;gap:11px;padding:13px 13px 13px 14px;
+  border:1px solid rgba(255,255,255,.10);border-radius:16px;
+  background:rgba(20,18,28,.96);box-shadow:0 14px 40px rgba(0,0,0,.34),0 0 0 1px rgba(255,138,0,.05);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  transform:translateY(12px);opacity:0;transition:opacity .22s ease,transform .22s ease;
+}
+.product-onboarding-hint.show{opacity:1;transform:translateY(0)}
+.product-onboarding-hint[hidden]{display:none}
+.product-onboarding-hint__accent{width:4px;min-width:4px;align-self:stretch;border-radius:99px;background:linear-gradient(180deg,#FFB347,#EF4444)}
+.product-onboarding-hint__content{min-width:0;flex:1}
+.product-onboarding-hint__title{font-weight:800;font-size:14px;color:#fff;margin-bottom:3px}
+.product-onboarding-hint__text{font-size:12.5px;line-height:1.42;color:#B8B4C8}
+.product-onboarding-hint__close{border:0;background:none;color:#777487;font-size:15px;padding:1px 0 0 4px;cursor:pointer}
+.product-onboarding-target{position:relative!important;z-index:1701!important;box-shadow:0 0 0 2px rgba(255,157,52,.78),0 0 0 7px rgba(255,157,52,.10),0 12px 35px rgba(0,0,0,.20)!important;border-radius:16px!important}
+
+/* Двойное касание карточки привычки раскрывает полный текст. */
+/* По умолчанию длинное название всегда остаётся компактным, даже когда
+   справа раскрыты действия по карандашу. Полный текст — только через
+   двойной тап по самому названию (.is-expanded). */
+.habit-item__title:not(.is-expanded){
+  max-height:calc(1.4em * 2);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+}
+.habit-item__title.is-expanded{
+  min-width:0;
+  max-width:none;
+  max-height:none;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+  -webkit-line-clamp:unset;
+}
+
+
+/* =========================================================
+   V29 — LEVEL RING PERFECT CIRCLE / FINAL GEOMETRY FIX
+   The ring uses one square coordinate system and no extra pseudo-circle.
+   This prevents visual drift/oval distortion in Telegram WebView after
+   habit completion or header re-render.
+   ========================================================= */
+.player-card__ring-wrap{
+  position:relative !important;
+  width:112px !important;
+  height:112px !important;
+  min-width:112px !important;
+  min-height:112px !important;
+  max-width:112px !important;
+  max-height:112px !important;
+  flex:0 0 112px !important;
+  display:block !important;
+  box-sizing:border-box !important;
+  aspect-ratio:1 / 1 !important;
+  margin:0 !important;
+  padding:0 !important;
+  overflow:visible !important;
+  transform:none !important;
+  isolation:isolate !important;
+}
+
+/* Remove the decorative pseudo-circle that could visually compete with the SVG. */
+.player-card__ring-wrap::before,
+.player-card__ring-wrap::after,
+.player-card__ring-wrap > .level-ring__badge::before,
+.player-card__ring-wrap > .level-ring__badge::after{
+  content:none !important;
+  display:none !important;
+}
+
+.player-card__ring-wrap > svg.level-ring{
+  position:absolute !important;
+  left:0 !important;
+  top:0 !important;
+  width:112px !important;
+  height:112px !important;
+  min-width:112px !important;
+  min-height:112px !important;
+  max-width:112px !important;
+  max-height:112px !important;
+  margin:0 !important;
+  padding:0 !important;
+  display:block !important;
+  box-sizing:border-box !important;
+  aspect-ratio:1 / 1 !important;
+  transform:rotate(-90deg) !important;
+  transform-origin:60px 60px !important;
+  overflow:visible !important;
+  z-index:1 !important;
+}
+
+.player-card__ring-wrap > svg.level-ring > circle.level-ring__track,
+.player-card__ring-wrap > svg.level-ring > circle.level-ring__fill{
+  cx:60px;
+  cy:60px;
+  r:50px;
+  vector-effect:non-scaling-stroke !important;
+  transform:none !important;
+  transform-origin:60px 60px !important;
+}
+
+.player-card__ring-wrap > svg.level-ring > circle.level-ring__track{
+  fill:none !important;
+  stroke:rgba(255,255,255,.09) !important;
+  stroke-width:7px !important;
+  stroke-linecap:round !important;
+}
+
+.player-card__ring-wrap > svg.level-ring > circle.level-ring__fill{
+  fill:none !important;
+  stroke-width:7px !important;
+  stroke-linecap:round !important;
+  stroke-dasharray:314.159265 !important;
+  stroke-dashoffset:314.159265;
+  transition:stroke-dashoffset 760ms var(--adam-motion-ease),filter 300ms ease !important;
+}
+
+.player-card__ring-wrap > .level-ring__badge{
+  position:absolute !important;
+  left:0 !important;
+  top:0 !important;
+  width:112px !important;
+  height:112px !important;
+  min-width:112px !important;
+  min-height:112px !important;
+  margin:0 !important;
+  padding:0 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  justify-content:center !important;
+  box-sizing:border-box !important;
+  text-align:center !important;
+  transform:none !important;
+  z-index:2 !important;
+  pointer-events:none !important;
+}
+
+.player-card__ring-wrap > .level-ring__badge span{
+  position:relative !important;
+  display:block !important;
+  margin:0 !important;
+  padding:0 !important;
+  left:auto !important;
+  top:auto !important;
+  transform:none !important;
+  line-height:1 !important;
+}
+
+.player-card__ring-wrap > .level-ring__badge small{
+  position:relative !important;
+  display:block !important;
+  margin:6px 0 0 !important;
+  padding:0 !important;
+  left:auto !important;
+  top:auto !important;
+  transform:none !important;
+  line-height:1 !important;
+}
+
+@media (max-width:430px){
+  .player-card__ring-wrap{
+    width:104px !important;
+    height:104px !important;
+    min-width:104px !important;
+    min-height:104px !important;
+    max-width:104px !important;
+    max-height:104px !important;
+    flex-basis:104px !important;
+  }
+  .player-card__ring-wrap > svg.level-ring{
+    width:104px !important;
+    height:104px !important;
+    max-width:104px !important;
+    max-height:104px !important;
+  }
+  .player-card__ring-wrap > .level-ring__badge{
+    width:104px !important;
+    height:104px !important;
+    min-width:104px !important;
+    min-height:104px !important;
+  }
+}
+
+@media (max-width:360px){
+  .player-card__ring-wrap{
+    width:88px !important;
+    height:88px !important;
+    min-width:88px !important;
+    min-height:88px !important;
+    max-width:88px !important;
+    max-height:88px !important;
+    flex-basis:88px !important;
+  }
+  .player-card__ring-wrap > svg.level-ring{
+    width:88px !important;
+    height:88px !important;
+    max-width:88px !important;
+    max-height:88px !important;
+  }
+  .player-card__ring-wrap > .level-ring__badge{
+    width:88px !important;
+    height:88px !important;
+    min-width:88px !important;
+    min-height:88px !important;
+  }
+}

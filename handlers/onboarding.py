@@ -1,12 +1,12 @@
 import logging
 
 from aiogram import Router
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
 from keyboards import main_menu
-from config import ADMIN_IDS
+from config import ADMIN_IDS, WEBAPP_URL
 
 from db import (
     save_survey_answers,
@@ -15,6 +15,7 @@ from db import (
     save_milestones,
     log_error,
     get_user,
+    get_survey,
     add_habit,
     survey_variant,
 )
@@ -150,10 +151,39 @@ async def survey_bot_goal(message: Message, state: FSMContext):
     # "Анкета получена", а админ вообще не узнавал о новой заявке.
     username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.full_name
     try:
-        await notify_admins(
-            message.bot,
-            f"Новая заявка на доступ: {username} (id {user_id}).\nПосмотреть — «🕓 Заявки на доступ» в /admin.",
+        # Уведомление приходит сразу и содержит inline-кнопку одобрения —
+        # админу не нужно отдельно открывать админ-панель.
+        approval_markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text="✅ Быстро одобрить",
+                callback_data=f"admin_approve_{user_id}",
+            ),
+            InlineKeyboardButton(
+                text="👀 Открыть заявки",
+                callback_data="admin_pending",
+            ),
+        ]])
+        survey = get_survey(user_id) or {}
+        def _short(value, limit=220):
+            value = str(value or "—").strip().replace("\n", " ")
+            return value if len(value) <= limit else value[:limit - 1] + "…"
+        admin_text = (
+            f"🆕 <b>Новая анкета</b>\n\n"
+            f"👤 {username}\n"
+            f"🆔 <code>{user_id}</code>\n\n"
+            f"💼 {_short(survey.get('business'))}\n"
+            f"🎯 {_short(survey.get('life_goal'))}\n"
+            f"🤖 {_short(survey.get('bot_goal'))}\n\n"
+            "Можно одобрить прямо здесь одной кнопкой."
         )
+        for admin_id in ADMIN_IDS:
+            try:
+                await message.bot.send_message(
+                    chat_id=admin_id, text=admin_text, parse_mode="HTML", reply_markup=approval_markup
+                )
+            except Exception as e:
+                logger.exception("Не удалось уведомить админа %s о заявке %s", admin_id, user_id)
+                log_error("notify_admin_pending_inline", e, user_id)
     except Exception as e:
         logger.exception(f"Не удалось уведомить админов о новой заявке {user_id}")
         log_error("notify_admins_pending", e, user_id)

@@ -30,6 +30,16 @@ def test_renumber_handles_indented_items():
     assert multi_agent._renumber_numbered_lists(text) == "План:\n  1. Шаг раз\n  2. Шаг два"
 
 
+def test_renumber_handles_parenthesis_format():
+    text = "1) Первое\n1) Второе\n1) Третье"
+    assert multi_agent._renumber_numbered_lists(text) == "1) Первое\n2) Второе\n3) Третье"
+
+
+def test_renumber_restarts_after_new_list():
+    text = "План 1:\n1. Первый шаг\n1. Второй шаг\n\n\nПлан 2:\n1. Первый шаг\n1. Второй шаг"
+    assert multi_agent._renumber_numbered_lists(text) == "План 1:\n1. Первый шаг\n2. Второй шаг\n\n\nПлан 2:\n1. Первый шаг\n2. Второй шаг"
+
+
 def test_renumber_empty_and_plain_text_untouched():
     assert multi_agent._renumber_numbered_lists("") == ""
     assert multi_agent._renumber_numbered_lists("Просто текст без списка") == "Просто текст без списка"

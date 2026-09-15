@@ -79,3 +79,32 @@ async def test_last_secondary_with_main_goal_done_gives_all_done(client, uid):
     r = await client.post("/api/plan/task/toggle", headers=headers, json={"task_id": t2})
     msg = (await r.json())["message"]
     assert _is_all_done(msg), msg
+
+
+async def test_main_goal_first_uses_first_order_wording(client, uid):
+    add_user(uid, "u", "Test")
+    set_daily_main_goal(uid, "Главная цель")
+    add_daily_task(uid, "Ещё открытая задача")
+    headers = await _headers(uid)
+
+    r = await client.post("/api/plan/main/toggle", headers=headers)
+    msg = (await r.json())["message"]
+    assert msg
+    assert any(word in msg.lower() for word in ("сначала", "первой", "начал с")), msg
+
+
+async def test_main_goal_last_does_not_use_first_order_wording(client, uid):
+    add_user(uid, "u", "Test")
+    set_daily_main_goal(uid, "Главная цель")
+    task_id = add_daily_task(uid, "Обычная задача")
+    headers = await _headers(uid)
+
+    # Сначала закрываем обычную задачу — главная становится последней.
+    await client.post("/api/plan/task/toggle", headers=headers, json={"task_id": task_id})
+    r = await client.post("/api/plan/main/toggle", headers=headers)
+    msg = (await r.json())["message"]
+    assert msg
+    assert "сначала" not in msg.lower()
+    assert "первой" not in msg.lower()
+    assert "начал с" not in msg.lower()
+    assert _is_all_done(msg), msg

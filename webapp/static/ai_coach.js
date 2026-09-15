@@ -254,10 +254,34 @@ function AiChat() {
     const textareaRef = useRef(null);
     const recognitionRef = useRef(null);
     const voiceSessionRef = useRef(0);
-    const scroll = (behavior = 'auto') => {
+    // Моментальная блокировка поздних voice onresult при тапе по отправке.
+    // SpeechRecognition иногда отдаёт финальный/interim результат уже после
+    // pointerdown/click; без отдельного флага он мог вернуть расшифровку в
+    // очищенное поле ввода после того, как запрос уже ушёл к ADAM.
+    const voiceSendLockRef = useRef(false);
+    const scroll = (behavior = 'auto', force = false) => {
         const el = messagesContainerRef.current;
-        if (el) el.scrollTo({ top: Math.max(0, el.scrollHeight - el.clientHeight), behavior });
-        else messagesEnd.current?.scrollIntoView({ behavior, block: 'end' });
+        if (el) {
+            const top = Math.max(0, el.scrollHeight - el.clientHeight);
+            if (force) {
+                // In Telegram/WebView scrollHeight can settle a few frames after
+                // history/typewriter rendering. Use the real maximum, not an
+                // approximate position near the last 2–3 messages.
+                el.scrollTop = top;
+                if (behavior !== 'auto') el.scrollTo({ top, behavior });
+            } else {
+                el.scrollTo({ top, behavior });
+            }
+        } else {
+            messagesEnd.current?.scrollIntoView({ behavior, block: 'end' });
+        }
+    };
+    const scrollToAbsoluteBottom = (behavior = 'auto') => {
+        const run = () => scroll(behavior, true);
+        run();
+        requestAnimationFrame(run);
+        setTimeout(run, 60);
+        setTimeout(run, 180);
     };
     const refreshScrollDown = () => {
         const el = messagesContainerRef.current;
@@ -274,11 +298,33 @@ function AiChat() {
         return () => el.removeEventListener('scroll', onScroll);
     }, []);
     useEffect(() => {
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            scroll('auto');
-            refreshScrollDown();
-        }));
+        // Every time the AI tab is mounted/re-entered, land on the actual end.
+        // Multiple delayed passes cover async history + typewriter/layout shifts.
+        scrollToAbsoluteBottom('auto');
+        refreshScrollDown();
     }, [messages.length]);
+
+    useEffect(() => {
+        const el = messagesContainerRef.current;
+        if (!el) return;
+        // Keep the viewport pinned while a newly opened conversation is being
+        // laid out. Once the user deliberately scrolls up, do not fight them.
+        let userMovedAway = false;
+        const onUserScroll = () => {
+            const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
+            userMovedAway = distance > 90;
+        };
+        el.addEventListener('scroll', onUserScroll, { passive: true });
+        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
+            if (!userMovedAway) scroll('auto', true);
+            refreshScrollDown();
+        }) : null;
+        ro?.observe(el);
+        return () => {
+            el.removeEventListener('scroll', onUserScroll);
+            ro?.disconnect();
+        };
+    }, []);
     useEffect(() => { saveStoredMessages(messages); }, [messages]);
     const loadHistory = useCallback(async () => {
         try {
@@ -317,15 +363,22 @@ function AiChat() {
         el.style.height = 'auto';
         el.style.height = Math.min(el.scrollHeight, 132) + 'px';
     };
+    const cancelVoiceForSend = () => {
+        // Сначала инвалидируем текущую сессию, потом останавливаем recognition.
+        // Так даже уже поставленный в очередь onresult не сможет снова записать
+        // расшифровку в textarea после отправки.
+        voiceSendLockRef.current = true;
+        voiceSessionRef.current += 1;
+        try { recognitionRef.current?.stop(); } catch (_) {}
+        recognitionRef.current = null;
+        setListening(false);
+    };
     const sendText = useCallback(async (rawText) => {
         const text = fixBrokenText((rawText || '').trim());
         if (!text || loading || throttle)
             return;
         vibrate('light');
-        voiceSessionRef.current += 1;
-        try { recognitionRef.current?.stop(); } catch (_) {}
-        recognitionRef.current = null;
-        setListening(false);
+        cancelVoiceForSend();
         setInput('');
         if (textareaRef.current)
             textareaRef.current.style.height = '40px';
@@ -361,7 +414,13 @@ function AiChat() {
             setLoading(false);
         }
     }, [loading, throttle, online]);
-    const sendMsg = () => sendText(input);
+    const sendMsg = () => {
+        // Отдельный путь именно для кнопки отправки: cancelVoiceForSend()
+        // вызывается до sendText(), поэтому быстрый тап в последние мгновения
+        // записи никогда не оставит позднюю расшифровку в поле.
+        cancelVoiceForSend();
+        sendText(input);
+    };
     const EMOJIS = {
         smile: '😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😛 😜 🤪 🤨 🧐 🤓 😎 🤩 🥳 😏 😭 😂 😤 😱 😴 🤔 🤗 🤭 🤫 🤠 🫡',
         hearts: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💕 💞 💓 💗 💖 💘 💝 💟 ❣️ 💔 ❤️‍🔥 ❤️‍🩹',
@@ -510,9 +569,11 @@ function AiChat() {
             return;
         }
         if (listening) {
+            voiceSendLockRef.current = false;
             recognitionRef.current?.stop();
             return;
         }
+        voiceSendLockRef.current = false;
         let gotResult = false;
         let alertShown = false;
         const sessionId = ++voiceSessionRef.current;
@@ -523,7 +584,7 @@ function AiChat() {
         r.continuous = false;
         r.onstart = () => { setListening(true); vibrate('medium'); };
         r.onresult = e => {
-            if (sessionId !== voiceSessionRef.current) return;
+            if (sessionId !== voiceSessionRef.current || voiceSendLockRef.current) return;
             gotResult = true;
             let text = '';
             for (let i = e.resultIndex; i < e.results.length; i++) text += e.results[i][0].transcript;
@@ -656,7 +717,7 @@ function AiChat() {
         showScrollDown && React.createElement("button", {
             type: "button",
             className: "scroll-down-btn",
-            onClick: () => { scroll('smooth'); vibrate('light'); },
+            onClick: () => { scrollToAbsoluteBottom('smooth'); vibrate('light'); },
             "aria-label": "Перейти к последнему сообщению",
             title: "К последнему сообщению"
         }, "↓"),

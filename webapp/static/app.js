@@ -210,7 +210,7 @@
     }, { passive: true });
   })();
 
-  const RING_CIRCUMFERENCE = 326.7; // 2 * PI * 52
+  const RING_CIRCUMFERENCE = 314.159265; // 2 * PI * 50
 
   function pluralRu(n, one, few, many) {
     n = Math.abs(Number(n) || 0);
@@ -737,15 +737,25 @@
   const secondaryLoaded = new Set();
   let profilePrefetchScheduled = false;
   let ratingPrefetchScheduled = false;
+  let teamSeasonPromise = null;
 
   function scheduleRatingPrefetch() {
     if (ratingPrefetchScheduled || secondaryLoaded.has("rating")) return;
     ratingPrefetchScheduled = true;
-    const run = () => loadBootstrapSecondary("rating");
-    if ("requestIdleCallback" in window) {
-      requestIdleCallback(run, { timeout: 2200 });
+    // Рейтинг — единственная вторичная вкладка, которую пользователь
+    // действительно часто открывает сразу после запуска. Раньше он ждал
+    // requestIdleCallback до ~2.2 с, поэтому даже быстрый сервер ощущался
+    // медленным. Запускаем после первого кадра и ПАРАЛЛЕЛЬНО прогружаем
+    // групповой челлендж + сезонный рейтинг, чтобы команда не появлялась
+    // последней.
+    const run = () => {
+      loadBootstrapSecondary("rating");
+      loadTeamAndSeason();
+    };
+    if ("requestAnimationFrame" in window) {
+      requestAnimationFrame(() => setTimeout(run, 80));
     } else {
-      setTimeout(run, 1600);
+      setTimeout(run, 120);
     }
   }
 
@@ -863,7 +873,9 @@
             } else if (key === "rating") {
               state.leaderboard = data.leaderboard || [];
               renderRating();
-              loadTeamAndSeason();
+              // Team + season are already prefetched in parallel from boot.
+              // Не запускаем второй комплект запросов при ответе рейтинга.
+              if (!teamSeasonPromise) loadTeamAndSeason();
               stabilizeFirstPaint(["ratingList"]);
             } else if (key === "calendar") {
               state.calendar_events = data.calendar_events || [];
@@ -1237,10 +1249,71 @@
   }
 
   let appTourShownThisSession = false;
+
+  // Новый onboarding вместо длинного модального тура: первые 15 минут
+  // пользователь получает маленькие подсказки только в нужном контексте.
+  // Старый appTour оставляем в коде для совместимости, но новым пользователям
+  // его больше не показываем.
+  let productOnboardingTimers = [];
+  let productHintTarget = null;
+  let productOnboardingLocalStage = 0;
+
+  const PRODUCT_ONBOARDING_STEPS = {
+    1: { target: '#habitList', title: 'Начни с одного простого шага', text: 'Здесь будут твои привычки. Закрой хотя бы одну сегодня — ADAM сразу покажет результат.' },
+    2: { target: '#newPlanTaskInput', title: 'Теперь — одна задача', text: 'Добавь небольшую задачу, которую реально закрыть сегодня. Не нужно заполнять всё сразу.' },
+    3: { target: '#aiCoachBtn', title: 'А здесь живёт ADAM', text: 'В любой момент открой чат: можно спросить совет, разобрать цель или попросить помочь с привычками.' },
+    4: { target: '[data-tab="calendar"]', title: 'История появится сама', text: 'Календарь пригодится позже — сначала сделай первые два маленьких результата.' },
+    5: { target: '[data-tab="profile"]', title: 'Профиль — для настройки', text: 'Здесь позже можно настроить профиль, внешний вид и посмотреть личный прогресс.' },
+  };
+
+  function clearProductOnboardingTarget() {
+    if (productHintTarget) productHintTarget.classList.remove('product-onboarding-target');
+    productHintTarget = null;
+  }
+
+  function hideProductHint() {
+    const el = document.getElementById('productOnboardingHint');
+    if (!el) return;
+    clearProductOnboardingTarget();
+    el.classList.remove('show');
+    setTimeout(() => { if (!el.classList.contains('show')) el.hidden = true; }, 220);
+  }
+
+  function showProductHint(stage) {
+    const step = PRODUCT_ONBOARDING_STEPS[stage];
+    const el = document.getElementById('productOnboardingHint');
+    if (!step || !el) return;
+    const target = document.querySelector(step.target);
+    if (!target || target.offsetParent === null) return;
+    clearProductOnboardingTarget();
+    productHintTarget = target;
+    target.classList.add('product-onboarding-target');
+    document.getElementById('productOnboardingHintTitle').textContent = step.title;
+    document.getElementById('productOnboardingHintText').textContent = step.text;
+    el.hidden = false;
+    requestAnimationFrame(() => el.classList.add('show'));
+    productOnboardingLocalStage = Math.max(productOnboardingLocalStage, stage);
+    api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage }) }).catch(() => {});
+  }
+
+  function scheduleProductOnboarding() {
+    if (!state?.show_app_tour) return;
+    api('/api/onboarding/start', { method: 'POST' }).catch(() => {});
+    // Никакого экрана из 6 слайдов сразу: сначала даём человеку освоиться.
+    productOnboardingTimers.forEach(clearTimeout);
+    productOnboardingTimers = [
+      setTimeout(() => showProductHint(1), 1800),
+      setTimeout(() => {
+        const plan = state?.daily_plan;
+        if (plan && (!plan.main_goal || !(plan.tasks || []).length)) showProductHint(2);
+      }, 7000),
+    ];
+  }
+
   function maybeShowAppTour() {
     if (!state?.show_app_tour || appTourShownThisSession) return;
     appTourShownThisSession = true;
-    openAppTour();
+    scheduleProductOnboarding();
   }
 
   function initAppTour() {
@@ -1260,6 +1333,17 @@
       haptic("light");
     });
     document.getElementById("appTourSkip")?.addEventListener("click", closeAppTour);
+    document.getElementById('productOnboardingHintClose')?.addEventListener('click', hideProductHint);
+
+    // Переходы в разделы открывают подсказку именно тогда, когда она полезна.
+    document.getElementById('tabBar')?.addEventListener('click', (e) => {
+      if (!state?.show_app_tour) return;
+      const btn = e.target.closest('.tab-bar__item');
+      if (!btn) return;
+      const tab = btn.dataset.tab;
+      if (tab === 'calendar') setTimeout(() => showProductHint(4), 180);
+      if (tab === 'profile') setTimeout(() => showProductHint(5), 180);
+    });
   }
 
   function maybeShowStreakOnboarding() {
@@ -1829,7 +1913,7 @@
         return `
       <li class="habit-item" data-id="${h.id}">
         <button class="habit-item__check" data-action="complete"></button>
-        ${badges}<span class="habit-item__title" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
+        ${badges}<span class="habit-item__title ${expandedHabitTextIds.has(h.id) ? "is-expanded" : ""}" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
         <div class="habit-skip-reasons">
           ${SKIP_REASONS.map(r => `<button type="button" class="habit-skip-reason-chip" data-reason="${escapeHtml(r)}">${escapeHtml(r)}</button>`).join("")}
@@ -2894,32 +2978,53 @@ function initHabitActions() {
     }
   });
 
-  let lastHabitTitleTap = { id: null, time: 0 };
-  habitList.addEventListener("dblclick", (e) => {
-    const title = e.target.closest(".habit-item__title");
-    if (!title) return;
-    const li = title.closest(".habit-item");
+  // Полный текст привычки: двойное нажатие/касание по самой карточке
+  // раскрывает название. Интерактивные кнопки внутри карточки не участвуют,
+  // чтобы двойной тап по чекбоксу, удалению и т.п. никогда не выполнял
+  // действие повторно.
+  let lastHabitTextTap = { id: null, time: 0 };
+  const toggleHabitFullText = (li) => {
     const habitId = Number(li?.dataset.id);
     if (!habitId) return;
-    expandedHabitTextIds.has(habitId) ? expandedHabitTextIds.delete(habitId) : expandedHabitTextIds.add(habitId);
+    if (expandedHabitTextIds.has(habitId)) {
+      expandedHabitTextIds.delete(habitId);
+    } else {
+      expandedHabitTextIds.add(habitId);
+    }
     renderHabits();
     haptic("light");
+  };
+
+  // Полный текст раскрывается ТОЛЬКО двойным тапом именно по названию.
+  // Двойной тап по карандашу/чекбоксу/другим действиям ничего не раскрывает.
+  habitList.addEventListener("dblclick", (e) => {
+    const titleEl = e.target.closest(".habit-item__title");
+    if (!titleEl || !habitList.contains(titleEl)) return;
+    const li = titleEl.closest(".habit-item");
+    if (!li) return;
+    e.preventDefault();
+    toggleHabitFullText(li);
   });
+
+  // На телефонах dblclick может не срабатывать одинаково во всех WebView,
+  // поэтому отдельно поддерживаем двойное касание самого названия.
   habitList.addEventListener("touchend", (e) => {
-    const title = e.target.closest(".habit-item__title");
-    if (!title) return;
-    const li = title.closest(".habit-item");
-    const habitId = Number(li?.dataset.id);
-    if (!habitId) return;
+    const titleEl = e.target.closest(".habit-item__title");
+    if (!titleEl || !habitList.contains(titleEl)) {
+      lastHabitTextTap = { id: null, time: 0 };
+      return;
+    }
+    const li = titleEl.closest(".habit-item");
+    if (!li) return;
     const now = Date.now();
-    if (lastHabitTitleTap.id === habitId && now - lastHabitTitleTap.time < 360) {
+    const habitId = Number(li.dataset.id);
+    if (!habitId) return;
+    if (lastHabitTextTap.id === habitId && now - lastHabitTextTap.time < 420) {
       e.preventDefault();
-      expandedHabitTextIds.has(habitId) ? expandedHabitTextIds.delete(habitId) : expandedHabitTextIds.add(habitId);
-      lastHabitTitleTap = { id: null, time: 0 };
-      renderHabits();
-      haptic("light");
+      lastHabitTextTap = { id: null, time: 0 };
+      toggleHabitFullText(li);
     } else {
-      lastHabitTitleTap = { id: habitId, time: now };
+      lastHabitTextTap = { id: habitId, time: now };
     }
   }, { passive: false });
 
@@ -3164,17 +3269,30 @@ function initPlanActions() {
 
     try {
       if (editingId) {
-        await api(`/api/plan/task/${editingId}`, {
+        // Редактирование уже существующей задачи не должно зависеть от
+        // лимита в 5 второстепенных задач: лимит относится только к ДОБАВЛЕНИЮ.
+        // Получаем свежий план прямо из ответа, чтобы при пяти заполненных
+        // задачах не было гонки с /api/bootstrap и редактирование точно
+        // отображалось после сохранения.
+        const res = await api(`/api/plan/task/${editingId}`, {
           method: "PUT",
           body: JSON.stringify({ text })
         });
         showToast("Задача обновлена", "success");
-      } else {
-        await api("/api/plan/task", {
-          method: "POST",
-          body: JSON.stringify({ text })
-        });
+        resetPlanTaskEditor();
+        haptic("light");
+        if (res && res.daily_plan) {
+          applyPlanPatch(res);
+        } else {
+          await loadBootstrap();
+        }
+        return;
       }
+
+      await api("/api/plan/task", {
+        method: "POST",
+        body: JSON.stringify({ text })
+      });
       resetPlanTaskEditor();
       haptic("light");
       await loadBootstrap();
@@ -3594,19 +3712,30 @@ async function loadProgressStats() {
 
 // Roadmap #16/#9 — команда + сезонный рейтинг, оба живут на вкладке Рейтинг.
 async function loadTeamAndSeason() {
-  // Групповой челлендж и сезонный рейтинг независимы. Раньше Promise.all
-  // заставлял ждать ОБА запроса, и из-за этого командная карточка визуально
-  // появлялась последней и выглядела как лаг. Теперь каждый блок рисуется
-  // сразу после своего ответа.
-  const teamPromise = api("/api/team").then(data => {
-    state.team = data.team;
-    renderTeamCard();
-  }).catch(err => console.error("loadTeam failed:", err));
-  const seasonPromise = api("/api/season").then(data => {
-    state.season = data;
-    renderSeasonList();
-  }).catch(err => console.error("loadSeason failed:", err));
-  await Promise.allSettled([teamPromise, seasonPromise]);
+  // Один общий promise защищает от дублей: boot-предзагрузка и открытие
+  // вкладки рейтинга могут происходить почти одновременно. Каждый блок
+  // рисуется сразу после своего ответа — команда больше не ждёт сезонный
+  // рейтинг и наоборот.
+  if (teamSeasonPromise) return teamSeasonPromise;
+  teamSeasonPromise = (async () => {
+    const teamPromise = api("/api/team", { timeoutMs: 8000 }).then(data => {
+      state.team = data.team;
+      renderTeamCard();
+    }).catch(err => console.error("loadTeam failed:", err));
+    const seasonPromise = api("/api/season", { timeoutMs: 8000 }).then(data => {
+      state.season = data;
+      renderSeasonList();
+    }).catch(err => console.error("loadSeason failed:", err));
+    await Promise.allSettled([teamPromise, seasonPromise]);
+    return state;
+  })();
+  try {
+    return await teamSeasonPromise;
+  } finally {
+    // Оставляем уже полученные данные на экране; promise нужен только для
+    // защиты от параллельных стартов во время текущей загрузки.
+    teamSeasonPromise = null;
+  }
 }
 
 function renderTeamCard() {
@@ -4531,6 +4660,8 @@ document.getElementById("bootRetryBtn")?.addEventListener("click", () => {
 document.addEventListener("DOMContentLoaded", boot);
 
 document.getElementById("aiCoachBtn").addEventListener("click", () => {
+    hideProductHint();
+    api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage: 3 }) }).catch(() => {});
     haptic("light");
     const overlay = document.getElementById("loadingOverlay");
     if (overlay) overlay.hidden = false;

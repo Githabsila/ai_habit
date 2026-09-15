@@ -178,6 +178,20 @@ def create_tables():
     if "long_term_goals" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN long_term_goals TEXT")
 
+    # Product onboarding: фиксируем прогресс первых 15 минут серверно, чтобы
+    # подсказки не сбрасывались при перезагрузке Mini App и были доступны
+    # для продуктовой аналитики ранних тестеров.
+    if "onboarding_started_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN onboarding_started_at TIMESTAMP")
+    if "onboarding_stage" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN onboarding_stage INTEGER DEFAULT 0")
+    if "first_habit_completed_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN first_habit_completed_at TIMESTAMP")
+    if "first_task_completed_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN first_task_completed_at TIMESTAMP")
+    if "first_win_push_sent" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN first_win_push_sent INTEGER DEFAULT 0")
+
     # ---------------- SETTINGS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS settings(

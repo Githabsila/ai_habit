@@ -90,21 +90,29 @@ def get_my_team(user_id):
         conn.close()
         return None
 
-    # habit_logs — ночной снимок ЗАКОНЧЕННЫХ дней (см. db/habits.py::
-    # log_daily_habits, пишется в scheduler.new_day() ДО reset_habits()),
-    # сегодняшний день туда попадёт только завтра ночью — поэтому для
-    # "сегодня" считаем напрямую из habits.completed, тот же приём, что и
-    # get_weekly_progress() для гибкой периодичности (roadmap #2).
+    # Быстрый расчёт недельного прогресса команды. Старый вариант запускал
+    # по два коррелированных подзапроса на КАЖДОГО участника. При 12 игроках
+    # это превращалось в заметную серию SQL-операций на холодном открытии
+    # рейтинга. Сначала агрегируем старые логи и сегодняшние completed один
+    # раз, затем присоединяем результаты к участникам команды.
     cursor.execute("""
+        WITH log_week AS (
+            SELECT user_id, COALESCE(SUM(completed), 0) AS done
+            FROM habit_logs
+            WHERE day >= date('now','-7 days') AND day < date('now')
+            GROUP BY user_id
+        ), today_done AS (
+            SELECT user_id, COUNT(*) AS done
+            FROM habits
+            WHERE completed=1
+            GROUP BY user_id
+        )
         SELECT u.telegram_id, u.first_name, u.avatar_id, u.frame_id,
-               COALESCE((
-                   SELECT SUM(hl.completed) FROM habit_logs hl
-                   WHERE hl.user_id = u.telegram_id AND hl.day >= date('now','-7 days') AND hl.day < date('now')
-               ), 0) + COALESCE((
-                   SELECT COUNT(*) FROM habits h WHERE h.user_id = u.telegram_id AND h.completed=1
-               ), 0) as week_completions
+               COALESCE(lw.done, 0) + COALESCE(td.done, 0) AS week_completions
         FROM team_members m
         JOIN users u ON u.telegram_id = m.user_id
+        LEFT JOIN log_week lw ON lw.user_id = u.telegram_id
+        LEFT JOIN today_done td ON td.user_id = u.telegram_id
         WHERE m.team_id=?
         ORDER BY week_completions DESC
     """, (team["id"],))

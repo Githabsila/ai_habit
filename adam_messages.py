@@ -55,32 +55,28 @@ def streak_phrase(n: int) -> str:
 # =====================================
 
 HABIT_CHECKPOINT_TEMPLATES = [
-    "⏱️ Контрольная точка дня: {status_phrase}: {habits}. Посмотри, что хочешь сделать сейчас {emoji}",
-    "🎯 {time}:00 — сверка курса. {verb_cap} {habit_word}: {habits}. Дальше просто двигайся по одной привычке, без спешки {emoji}",
-    "☀️ Проверка на {time}:00: осталось {left} {habit_word} — {habits}. Если часть уже сделал, отлично: сосредоточься только на оставшемся {emoji}",
-    "📍 Точка дня: {left} {habit_word} пока открыты — {habits}. Выбери следующую и продолжай свой темп {emoji}",
-    "⚡️ Сейчас вижу {left} {habit_word}: {habits}. Хороший момент определить ближайший шаг и закрыть его {emoji}",
+    "⏱️ Контрольная точка дня: уже закрыто {completed} из {total}. Сейчас остаётся {left_phrase}: {habits}. Начни с ближайшей — и продолжай двигаться по плану {emoji}",
+    "🎯 {time}:00 — сверка курса. Ты уже выполнил {completed} из {total}. В фокусе сейчас {left_phrase}: {habits}. Закрой следующий пункт и продолжай день {emoji}",
+    "☀️ На {time}:00 вижу реальный прогресс: {completed} из {total} уже выполнено. Остаётся {left_phrase}: {habits}. Следующий шаг — закрыть один из этих пунктов {emoji}",
+    "📍 Точка дня: {completed} из {total} уже закрыто. Сейчас в плане {left_phrase}: {habits}. Двигайся дальше с ближайшего пункта {emoji}",
+    "⚡️ Уже есть результат: {completed} из {total} привычек выполнено. Осталось {left_phrase}: {habits}. Закрой следующую и сохрани темп {emoji}",
 ]
 
-def format_habit_checkpoint_message(incomplete_habits, hour: int) -> str:
+def format_habit_checkpoint_message(incomplete_habits, hour: int, completed: int | None = None, total: int | None = None) -> str:
     titles = [str(h["title"]) for h in incomplete_habits]
     left = len(titles)
+    if total is None:
+        total = left + max(0, int(completed or 0))
+    if completed is None:
+        completed = max(0, int(total) - left)
+    completed = max(0, int(completed))
+    total = max(left, int(total))
     habits = ", ".join(f"«{t}»" for t in titles)
-    habit_word = plural_ru(left, "привычка", "привычки", "привычек")
-    status_phrase = (
-        f"осталась {left} {habit_word}" if left == 1
-        else f"остались {left} {habit_word}"
-    )
-    return pick(
-        HABIT_CHECKPOINT_TEMPLATES,
-        pool=SOFT_EMOJIS,
-        time=hour,
-        left=left,
-        habit_word=habit_word,
-        habits=habits,
-        status_phrase=status_phrase,
-        verb_cap="осталась" if left == 1 else "остались",
-    )
+    left_word = plural_ru(left, "привычка", "привычки", "привычек")
+    left_phrase = f"одна {left_word}" if left == 1 else f"{left} {left_word}"
+    return pick(HABIT_CHECKPOINT_TEMPLATES, pool=SOFT_EMOJIS, time=hour,
+                completed=completed, total=total, left=left, habits=habits,
+                left_phrase=left_phrase)
 
 
 # =====================================
@@ -106,12 +102,12 @@ def format_habit_checkpoint_10_message(incomplete_habits) -> str:
 # Совместимость со старыми вызовами. Теперь это не «утренний» текст и не
 # утверждает, что привычку нужно сделать с утра.
 HABIT_REMINDER_TEMPLATES = [
-    "Привычка «{title}» ещё не отмечена. Если её время уже пришло — самое время закрыть её {emoji}",
+    "Привычка «{title}» ещё не отмечена. Её время пришло — закрой её и освободи место в плане {emoji}",
     "«{title}» пока открыта. Найди для неё несколько минут и доведи до конца {emoji}",
     "Я вижу, что «{title}» ещё ждёт отметки. Сделай её, когда будет удобный момент {emoji}",
     "Проверка по привычке «{title}»: пока без отметки. Один небольшой шаг — и она закрыта {emoji}",
     "«{title}» ещё в списке на сегодня. Не обязательно спешить — просто не потеряй её из фокуса {emoji}",
-    "На сегодня осталась привычка «{title}». Если можешь — закрой её сейчас и освободи голову {emoji}",
+    "На сегодня осталась привычка «{title}». Закрой её сейчас и освободи голову от ещё одного пункта {emoji}",
 ]
 
 
@@ -163,10 +159,10 @@ def format_plan_task_reminder_message(title: str) -> str:
 # =====================================
 
 DAY_PROGRESS_TEMPLATES = [
-    "Вечерняя сверка: готово {done} из {total} {total_gen}. Осталось {left} {left_word}: {open_items}. Можно спокойно двигаться дальше {emoji}",
-    "Проверил весь план: выполнено {done} из {total} {total_gen}. Осталось {left} {left_word}: {open_items} {emoji}",
-    "19:00 — время свериться с планом. Закрыто {done} из {total} {total_gen}. {left_phrase}: {open_items}. Выбери следующий пункт {emoji}",
-    "До финиша осталось {left} {left_word} из всего плана — {open_items}. Двигайся по своему порядку и закрой то, что ещё открыто {emoji}",
+    "Вечерняя сверка: готово {done} из {total} {total_gen}. {remaining_block} Можно спокойно двигаться дальше {emoji}",
+    "Проверил весь план: выполнено {done} из {total} {total_gen}. {remaining_block} {emoji}",
+    "19:00 — время свериться с планом. Закрыто {done} из {total} {total_gen}. {remaining_block} Выбери следующий пункт {emoji}",
+    "До финиша осталось {left} {left_word}. {remaining_block} Двигайся по своему порядку и закрой оставшееся {emoji}",
 ]
 
 
@@ -175,16 +171,42 @@ def task_genitive(n: int) -> str:
     return "задачи" if abs(int(n)) == 1 else "задач"
 
 
+def _format_named_items(items: list[str]) -> str:
+    return ", ".join(f"«{x}»" for x in items[:6]) + (f" и ещё {len(items) - 6}" if len(items) > 6 else "")
+
+
+def format_remaining_plan_block(open_items=None) -> str:
+    """Группирует главную и второстепенные задачи, не повторяя слово
+    «второстепенная» перед каждым пунктом."""
+    if isinstance(open_items, dict):
+        main = [str(x).strip() for x in open_items.get("main", []) if str(x).strip()]
+        secondary = [str(x).strip() for x in open_items.get("secondary", []) if str(x).strip()]
+    else:
+        # Совместимость со старым форматом списка строк.
+        main, secondary = [], []
+        for item in (open_items or []):
+            text = str(item).strip()
+            if text.startswith("главная:"):
+                main.append(text.split(":", 1)[1].strip().strip("«»"))
+            elif text.startswith("второстепенная:"):
+                secondary.append(text.split(":", 1)[1].strip().strip("«»"))
+            else:
+                secondary.append(text.strip("«»"))
+
+    parts = []
+    if main:
+        parts.append(f"Главная: {_format_named_items(main)}")
+    if secondary:
+        parts.append(f"Второстепенные: {_format_named_items(secondary)}")
+    return " ".join(parts)
+
+
 def format_day_progress_message(done: int, total: int, open_items=None) -> str:
     left = max(0, total - done)
-    open_items = open_items or []
-    listed = ", ".join(open_items[:6])
-    if len(open_items) > 6:
-        listed += f" и ещё {len(open_items) - 6}"
-
+    remaining_block = format_remaining_plan_block(open_items)
     left_phrase = (
-        f"Осталась {left} {task_word(left)}" if left == 1
-        else f"Остались {left} {task_word(left)}"
+        "Осталась одна задача" if left == 1
+        else f"Осталось {left} задач"
     )
 
     return pick(
@@ -196,7 +218,7 @@ def format_day_progress_message(done: int, total: int, open_items=None) -> str:
         total_gen=task_genitive(total),
         left_word=task_word(left),
         left_phrase=left_phrase,
-        open_items=listed,
+        remaining_block=remaining_block,
     )
 
 
@@ -205,10 +227,9 @@ def format_day_progress_message(done: int, total: int, open_items=None) -> str:
 # =====================================
 
 EVENING_PROGRESS_TEMPLATES = [
-    "Вечерняя сверка: {left_verb} {left} {left_word}, {relative}. {task_list}. Если это важно сегодня — закрой приоритет и спокойно заверши день {emoji}",
-    "Финишная проверка: {left} {left_word}, {relative}: {task_list}. Не распыляйся — выбери главное и доведи до конца {emoji}",
-    "День подходит к концу. В плане ещё {left} {left_word}, {relative}: {task_list}. Посмотри, что можешь закрыть сегодня {emoji}",
-    "Проверил весь план, включая главную задачу: {left} {left_word}, {relative}. {task_list}. Ещё есть время закончить главное {emoji}",
+    "Вечерняя сверка: готово {done} из {total} {total_gen}. {left_phrase}: {task_list}. {action_phrase} {emoji}",
+    "Финишная проверка: выполнено {done} из {total} {total_gen}. {left_phrase}: {task_list}. {action_phrase} {emoji}",
+    "Проверил весь план. {left_phrase}: {task_list}. {action_phrase} {emoji}",
 ]
 
 
@@ -232,6 +253,14 @@ def format_evening_progress_message(done: int, total: int, task_list=None, main_
     if len(names) > 6:
         listed += f" и ещё {len(names) - 6}"
 
+    left_phrase = (
+        "Осталась одна задача" if left == 1
+        else f"Осталось {left} задач"
+    )
+    action_phrase = (
+        "Закрой её — это последний пункт плана" if left == 1
+        else "Начни с одной из них и последовательно закрой оставшееся"
+    )
     return pick(
         EVENING_PROGRESS_TEMPLATES,
         pool=TASK_EMOJIS,
@@ -240,6 +269,8 @@ def format_evening_progress_message(done: int, total: int, task_list=None, main_
         left_verb=left_verb,
         relative=relative,
         task_list=listed,
+        left_phrase=left_phrase,
+        action_phrase=action_phrase,
     )
 
 
@@ -262,7 +293,7 @@ def format_all_tasks_done_message() -> str:
 GOAL_REMINDER_TEMPLATES = [
     "По цели «{goal}» пока нет движения. Сделай сегодня хотя бы один небольшой шаг {emoji}",
     "Я бы не откладывал цель «{goal}» до вечера. Даже 10 минут уже считаются движением {emoji}",
-    "Цель «{goal}» ещё ждёт первого шага сегодня. Не обязательно делать много — начни с малого {emoji}",
+    "Цель «{goal}» ещё ждёт первого шага сегодня. Сделай небольшой конкретный шаг и запусти движение {emoji}",
 ]
 
 
@@ -355,15 +386,31 @@ def format_secondary_task_praise(name, used_today, used_ever, strict_mode) -> tu
     return key, template.format(name=name)
 
 
-FIRST_PLAN_ACTION_TEMPLATES = [
-    "Начало положено — первая задача дня уже закрыта {emoji}",
-    "День сдвинулся с места — первая отметка готова {emoji}",
-    "Первый шаг сделан. Продолжай в своём порядке {emoji}",
-]
+FIRST_PLAN_ACTION_TEMPLATES = {
+    "главная задача": [
+        "Сначала закрыл главную задачу — день уже сдвинулся с места {emoji}",
+        "Первой закрыта главная задача — хороший старт дня {emoji}",
+        "Начал с главной задачи — важный пункт уже готов {emoji}",
+    ],
+    "задача": [
+        "Сначала закрыл первую задачу — день уже сдвинулся с места {emoji}",
+        "Первой закрыта обычная задача — хороший старт дня {emoji}",
+        "Начал с первой задачи — движение пошло {emoji}",
+    ],
+}
 
 
 def format_first_plan_action_message(kind: str = "задача") -> str:
-    return pick(FIRST_PLAN_ACTION_TEMPLATES)
+    """Сообщение только для РЕАЛЬНО ПЕРВОЙ отметки задачи дня.
+
+    Важно: эта функция вызывается роутами только при done_before == 0.
+    Поэтому слово «сначала»/«первой» здесь всегда означает фактический
+    порядок выполнения, а не важность задачи. Если главная задача закрыта
+    последней, сюда попадание невозможно — сработает сообщение о завершении
+    всего плана или о главной задаче с учётом оставшихся пунктов.
+    """
+    pool = FIRST_PLAN_ACTION_TEMPLATES.get(kind, FIRST_PLAN_ACTION_TEMPLATES["задача"])
+    return pick(pool, pool=TASK_EMOJIS)
 
 
 MAIN_GOAL_DONE_TEMPLATES = [

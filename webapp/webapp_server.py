@@ -11,7 +11,7 @@ from aiohttp.web import Application
 from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 
-from config import BOT_TOKEN, ADMIN_IDS
+from config import BOT_TOKEN, ADMIN_IDS, WEBAPP_URL
 from webapp.telegram_auth import validate_init_data
 from webapp.services.ai_coach import ask_ai
 from adam_messages import (
@@ -21,6 +21,7 @@ from adam_messages import (
 )
 
 from db.core import DATA_DIR
+from db.product_experience import start_onboarding, get_onboarding_state, advance_onboarding, claim_first_win_push, mark_first_win_push_sent
 
 from db import (
     get_user, add_user, is_banned, get_access_status, set_access_status,
@@ -442,6 +443,7 @@ async def bootstrap(request):
             "message": onboarding_message(telegram_id) if habits and should_show_onboarding(telegram_id) else None,
         },
         "show_app_tour": should_show_app_tour(telegram_id),
+        "product_onboarding": get_onboarding_state(telegram_id),
         "settings": {
             "reminders": bool(settings_row["reminders"]) if settings_row else True,
             "reminder_hour": settings_row["reminder_hour"] if settings_row else 9,
@@ -814,6 +816,53 @@ async def unskip_habit_route(request):
     unskip_habit(habit_id)
     return web.json_response({"ok": True})
 
+async def _maybe_push_first_win(app, telegram_id, result_type):
+    """После первого закрытого результата отправляет один отдельный push от ADAM.
+    Сообщение специально ведёт в живой чат наставника, а не просто в Mini App.
+    """
+    claimed = claim_first_win_push(telegram_id, result_type)
+    # Onboarding считается завершённым после двух первых реальных побед:
+    # хотя бы одна привычка + хотя бы одна задача. Это не требует закрывать
+    # весь план и не заставляет пользователя проходить длинный tutorial.
+    onboarding = get_onboarding_state(telegram_id)
+    if onboarding and onboarding.get("first_habit_completed_at") and onboarding.get("first_task_completed_at"):
+        mark_app_tour_seen(telegram_id)
+    if not claimed:
+        return
+    if result_type == "habit":
+        text = (
+            "🔥 <b>Красиво. Первый результат закрыт.</b> Ты не просто настроил ADAM — ты уже начал действовать."
+            "\n\n"
+            "Продолжай Ударный день — сегодня можно сделать ещё один небольшой шаг. А завтра я жду тебя снова. Не пропадай."
+            "\n\n"
+            "Вижу, ты не теряешь времени зря! Хочешь прокачать навыки или задать любой вопрос своему наставнику?"
+            " Тогда жду тебя в чате 👇"
+        )
+    else:
+        text = (
+            "⚡ <b>Красиво. Первая задача закрыта.</b> Вот так и начинается Ударный день."
+            "\n\n"
+            "Молодец. Продолжай Ударный день сегодня, а завтра я жду тебя снова — важно не потерять этот старт."
+            "\n\n"
+            "Вижу, ты не теряешь времени зря! Хочешь прокачать навыки или задать любой вопрос своему наставнику?"
+            " Тогда жду тебя в чате 👇"
+        )
+    markup = None
+    if WEBAPP_URL:
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+        markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="🤖 Открыть чат с Адамом", web_app=WebAppInfo(url=f"{WEBAPP_URL.rstrip('/')}/coach"))
+        ]])
+    bot = app.get("bot")
+    if bot is None:
+        return
+    try:
+        await bot.send_message(telegram_id, text, parse_mode="HTML", reply_markup=markup)
+        mark_first_win_push_sent(telegram_id)
+    except Exception:
+        logger.warning("Не удалось отправить first-win push пользователю %s", telegram_id, exc_info=True)
+
+
 @routes.post("/api/habits/{habit_id}/complete")
 async def complete_habit_route(request):
     telegram_id, is_admin = await _authenticate(request)
@@ -823,6 +872,7 @@ async def complete_habit_route(request):
     if not success:
         return web.json_response({"error": "already_completed"}, status=409)
 
+    await _maybe_push_first_win(request.app, telegram_id, "habit")
     event = consume_completion_event(telegram_id)
     # Если событие уже было доставлено в боте, Mini App всё равно получает
     # состояние streak, но не показывает повторное сообщение.
@@ -948,6 +998,7 @@ async def habit_progress_route(request):
     # Цель достигнута этим нажатием — привычка только что выполнена целиком,
     # дальше то же самое, что и в complete_habit_route (streak-событие,
     # доступ в канал, окно удвоения, идеальный день).
+    await _maybe_push_first_win(request.app, telegram_id, "habit")
     event = consume_completion_event(telegram_id)
     streak = get_streak_status(telegram_id)
     if event:
@@ -1065,6 +1116,26 @@ async def streak_onboarding_seen(request):
     telegram_id, _ = await _authenticate(request)
     mark_onboarding_seen(telegram_id)
     return web.json_response({"ok": True})
+
+@routes.post("/api/onboarding/start")
+async def onboarding_start_route(request):
+    telegram_id, _ = await _authenticate(request)
+    start_onboarding(telegram_id)
+    return web.json_response({"ok": True, "onboarding": get_onboarding_state(telegram_id)})
+
+@routes.post("/api/onboarding/stage")
+async def onboarding_stage_route(request):
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        stage = int(body.get("stage", 0))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_stage"}, status=400)
+    advance_onboarding(telegram_id, stage)
+    return web.json_response({"ok": True, "onboarding": get_onboarding_state(telegram_id)})
 
 @routes.post("/api/tour/seen")
 async def app_tour_seen(request):
@@ -1637,6 +1708,9 @@ async def toggle_plan_task_route(request):
 
     toggle_daily_task(task_id)
 
+    if not was_completed:
+        await _maybe_push_first_win(request.app, telegram_id, "task")
+
     # Промт п.3: поздравление сразу после того, как отмечена ПОСЛЕДНЯЯ
     # незакрытая задача плана дня (а не при каждой отдельной задаче).
     updated_plan = get_daily_plan(telegram_id)
@@ -1695,8 +1769,15 @@ async def toggle_main_goal_route(request):
         raise web.HTTPNotFound()
 
     was_completed = plan["main_goal_completed"]
+    # Порядок выполнения фиксируем ДО переключения: done_before == 0 означает,
+    # что главная задача действительно отмечается первой. Это не связано с её
+    # важностью: пользователь мог оставить главную задачу на самый конец.
     done_before = sum(1 for t in plan["tasks"] if t["completed"]) + (1 if plan["main_goal"] and plan["main_goal_completed"] else 0)
+    is_first_completion = (not was_completed and done_before == 0)
     toggle_daily_main_goal(telegram_id)
+
+    if not was_completed:
+        await _maybe_push_first_win(request.app, telegram_id, "task")
 
     updated_plan = get_daily_plan(telegram_id)
 
@@ -1712,7 +1793,7 @@ async def toggle_main_goal_route(request):
         message = (
             format_all_tasks_done_message()
             if _plan_fully_complete(updated_plan)
-            else format_first_plan_action_message("главная задача") if done_before == 0
+            else format_first_plan_action_message("главная задача") if is_first_completion
             else format_main_goal_done_message(
                 sum(1 for t in updated_plan["tasks"] if not t["completed"])
             )
@@ -1758,7 +1839,15 @@ async def edit_plan_task_route(request):
         return web.json_response({"error": "empty_text"}, status=400)
     if not update_daily_plan_task(telegram_id, task_id, text):
         raise web.HTTPNotFound()
-    return web.json_response({"ok": True})
+
+    # Возвращаем актуальный план сразу. Это важно и при заполненных пяти
+    # второстепенных задачах: редактирование не является добавлением и не
+    # должно проходить через проверку лимита/повторный bootstrap.
+    updated_plan = get_daily_plan(telegram_id)
+    return web.json_response({
+        "ok": True,
+        "daily_plan": _shape_daily_plan(updated_plan),
+    })
 
 @routes.delete("/api/plan/task/{task_id}")
 async def delete_plan_task_route(request):

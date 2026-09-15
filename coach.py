@@ -358,6 +358,11 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
             incomplete = get_incomplete_habits(telegram_id)
             if not incomplete:
                 continue
+            # Передаём точную статистику, чтобы сообщение прямо отражало
+            # текущий прогресс пользователя, без условных формулировок.
+            progress = get_progress(telegram_id)
+            completed_count = int(progress.get("completed") or 0)
+            total_count = int(progress.get("total") or (completed_count + len(incomplete)))
 
             day = now.date().isoformat()
             scope = notification_scope(bot)
@@ -372,7 +377,7 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
             try:
                 await bot.send_message(
                     telegram_id,
-                    format_habit_checkpoint_message(incomplete, target_hour),
+                    format_habit_checkpoint_message(incomplete, target_hour, completed=completed_count, total=total_count),
                     parse_mode="HTML"
                 )
             except Exception:

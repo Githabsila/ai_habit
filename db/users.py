@@ -610,7 +610,19 @@ def get_referred_users(user_id):
 # РЕЙТИНГ (menu.py / rating.py)
 # =====================================
 
+_RATING_CACHE = {"at": 0.0, "data": None}
+_RATING_CACHE_TTL_SECONDS = 5
+
+
 def get_rating(limit=10):
+    # Рейтинг меняется часто, поэтому кэш короткий. Он особенно помогает
+    # при холодном открытии Mini App и при повторных заходах на вкладку.
+    import time
+    now = time.monotonic()
+    cached = _RATING_CACHE.get("data")
+    if cached is not None and now - _RATING_CACHE["at"] <= _RATING_CACHE_TTL_SECONDS:
+        return cached[:limit]
+
     conn = connect()
     cursor = conn.cursor()
 
@@ -627,7 +639,9 @@ def get_rating(limit=10):
 
     data = cursor.fetchall()
     conn.close()
-    return data
+    _RATING_CACHE["data"] = data
+    _RATING_CACHE["at"] = now
+    return data[:limit]
 
 
 def get_user_rank(user_id):

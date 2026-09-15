@@ -83,15 +83,6 @@ def claim_first_win_push(user_id, result_type):
             (int(user_id),),
         )
         claimed = cur.rowcount > 0
-        if claimed:
-            cur.execute(
-                "UPDATE users SET first_win_push_sent=1 "
-                "WHERE telegram_id=? AND first_win_push_sent=0",
-                (int(user_id),),
-            )
-            # Если push уже был отправлен за другое первое действие, право
-            # повторно отправлять сообщение не выдаём.
-            claimed = cur.rowcount > 0
         conn.commit()
         return claimed
     finally:
@@ -187,6 +178,60 @@ def update_bug_status(bug_id, status):
             "UPDATE bug_reports SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (status, int(bug_id)),
         )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def start_onboarding(user_id):
+    """Начинает 15-минутный onboarding один раз."""
+    conn = connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE users SET onboarding_started_at=COALESCE(onboarding_started_at,CURRENT_TIMESTAMP), "
+            "onboarding_stage=COALESCE(onboarding_stage,0) WHERE telegram_id=?",
+            (int(user_id),),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_onboarding_state(user_id):
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT onboarding_started_at,onboarding_stage,first_habit_completed_at,first_task_completed_at,first_win_push_sent "
+            "FROM users WHERE telegram_id=?", (int(user_id),)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def advance_onboarding(user_id, stage):
+    stage = max(0, min(int(stage), 5))
+    conn = connect()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE users SET onboarding_started_at=COALESCE(onboarding_started_at,CURRENT_TIMESTAMP), "
+            "onboarding_stage=MAX(COALESCE(onboarding_stage,0),?) WHERE telegram_id=?",
+            (stage, int(user_id)),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def mark_first_win_push_sent(user_id):
+    conn = connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET first_win_push_sent=1 WHERE telegram_id=? AND first_win_push_sent=0", (int(user_id),))
         conn.commit()
         return cur.rowcount > 0
     finally:
