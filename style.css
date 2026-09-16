@@ -11774,3 +11774,21 @@ body{
   .player-card__ring-wrap > .level-ring__badge span{font-size:28px !important}
   .player-card__ring-wrap > .level-ring__badge small{font-size:8px !important;margin-top:5px !important}
 }
+
+/* =========================================================
+   V34 — MINIMAL GAP BELOW TELEGRAM NATIVE HEADER
+   The native Telegram/Swiftgram header already occupies the top area.
+   Do not create a second large top spacer inside the Mini App.
+   ========================================================= */
+#app{
+  padding-top:4px !important;
+}
+
+#content{
+  padding-top:4px !important;
+}
+
+@media (max-width:430px){
+  #app{padding-top:3px !important;}
+  #content{padding-top:3px !important;}
+}
