@@ -11093,7 +11093,9 @@ body{
    of letting the player card slide underneath them.
    ========================================================= */
 .telegram-webapp #app{
-  padding-top:156px !important;
+  /* Telegram already reserves the native top chrome ("Закрыть" / menu).
+     Keep only a compact visual breathing room below it. */
+  padding-top:18px !important;
 }
 
 /* =========================================================
