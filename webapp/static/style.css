@@ -82,7 +82,7 @@ h1, h2, h3, .display {
     margin:auto;
     min-height:100vh;
     padding:16px;             /* меньше боковые отступы */
-    padding-top:72px;         /* карточка ниже кнопки Закрыть */
+    padding-top:64px;         /* компактный зазор под кнопкой «Закрыть» */
     padding-bottom:130px;
 }
 
@@ -11093,7 +11093,7 @@ body{
    of letting the player card slide underneath them.
    ========================================================= */
 .telegram-webapp #app{
-  padding-top:156px !important;
+  padding-top:64px !important;
 }
 
 /* =========================================================

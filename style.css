@@ -82,7 +82,7 @@ h1, h2, h3, .display {
     margin:auto;
     min-height:100vh;
     padding:16px;             /* меньше боковые отступы */
-    padding-top:8px;         /* карточка ниже кнопки Закрыть */
+    padding-top:64px;         /* компактный зазор под кнопкой «Закрыть» */
     padding-bottom:130px;
 }
 
@@ -11781,7 +11781,7 @@ body{
    Do not create a second large top spacer inside the Mini App.
    ========================================================= */
 #app{
-  padding-top:4px !important;
+  padding-top:64px !important;
 }
 
 #content{
@@ -11789,6 +11789,6 @@ body{
 }
 
 @media (max-width:430px){
-  #app{padding-top:3px !important;}
-  #content{padding-top:3px !important;}
+  #app{padding-top:64px !important;}
+  #content{padding-top:4px !important;}
 }
