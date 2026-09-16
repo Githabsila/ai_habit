@@ -210,7 +210,7 @@
     }, { passive: true });
   })();
 
-  const RING_CIRCUMFERENCE = 314.159265; // 2 * PI * 50
+  const RING_CIRCUMFERENCE = 2 * Math.PI * 50; // exact circumference for r=50
 
   function pluralRu(n, one, few, many) {
     n = Math.abs(Number(n) || 0);

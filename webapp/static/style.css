@@ -11557,3 +11557,97 @@ body{
     min-height:88px !important;
   }
 }
+
+
+/* =========================================================
+   LEVEL RING — FINAL STABILITY/CENTERING FIX
+   The ring and level number use one fixed 112x112 coordinate
+   system. No percentage sizing/flex positioning on the SVG,
+   so the stroke cannot visually drift from the number.
+   ========================================================= */
+.player-card__ring-wrap{
+  position:relative;
+  width:112px;
+  height:112px;
+  min-width:112px;
+  min-height:112px;
+  flex:0 0 112px;
+  display:block;
+  overflow:visible;
+  contain:layout paint;
+  isolation:isolate;
+}
+
+.player-card__ring-wrap .level-ring{
+  position:absolute;
+  left:0;
+  top:0;
+  width:112px;
+  height:112px;
+  margin:0;
+  padding:0;
+  display:block;
+  overflow:visible;
+  transform:rotate(-90deg);
+  transform-origin:56px 56px;
+  z-index:0;
+}
+
+.player-card__ring-wrap .level-ring__track,
+.player-card__ring-wrap .level-ring__fill{
+  vector-effect:non-scaling-stroke;
+  transform-box:fill-box;
+  transform-origin:center;
+}
+
+.player-card__ring-wrap .level-ring__track{
+  fill:none;
+  stroke-width:8;
+}
+
+.player-card__ring-wrap .level-ring__fill{
+  fill:none;
+  stroke-width:8;
+  stroke-linecap:round;
+  stroke-dasharray:314.159265 314.159265;
+  transition:stroke-dashoffset 260ms cubic-bezier(.22,1,.36,1);
+  will-change:stroke-dashoffset;
+}
+
+.player-card__ring-wrap .level-ring__badge{
+  position:absolute;
+  left:0;
+  top:0;
+  width:112px;
+  height:112px;
+  margin:0;
+  padding:0;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  transform:none;
+  z-index:2;
+  pointer-events:none;
+}
+
+.player-card__ring-wrap .level-ring__badge span{
+  margin:0;
+  line-height:1;
+  transform:none;
+}
+
+.player-card__ring-wrap .level-ring__badge small{
+  margin-top:5px;
+  line-height:1;
+}
+
+/* During level changes the number stays on the same center point. */
+.player-card__ring-wrap .level-ring__badge.is-changing #levelNumber{
+  animation:levelNumberPopStable 360ms cubic-bezier(.22,1,.36,1);
+}
+
+@keyframes levelNumberPopStable{
+  0%{transform:scale(.92);opacity:.55}
+  60%{transform:scale(1.04);opacity:1}
+  100%{transform:scale(1);opacity:1}
+}
