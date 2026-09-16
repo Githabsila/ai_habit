@@ -210,7 +210,7 @@
     }, { passive: true });
   })();
 
-  const RING_CIRCUMFERENCE = 2 * Math.PI * 44; // exact circumference for SVG r=44
+  const RING_CIRCUMFERENCE = 2 * Math.PI * 49; // exact circumference for the 112px SVG ring (r=49)
 
   function pluralRu(n, one, few, many) {
     n = Math.abs(Number(n) || 0);
