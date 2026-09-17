@@ -11805,3 +11805,108 @@ body{
   #app{padding-top:64px !important;}
   #content{padding-top:4px !important;}
 }
+
+/* =========================================================
+   V35 — SMOOTH MOTION PASS
+   Unified, calm motion: no springy overshoot, no abrupt jumps,
+   and no layout animation. Keeps the premium glass UI responsive.
+   ========================================================= */
+:root{
+  --motion-ease:cubic-bezier(.22,.8,.22,1);
+  --motion-ease-soft:cubic-bezier(.25,.75,.2,1);
+  --motion-fast:180ms;
+  --motion-base:260ms;
+  --motion-slow:380ms;
+}
+
+html{scroll-behavior:smooth}
+
+/* Interactive surfaces */
+button,
+a,
+[role="button"],
+input,
+textarea,
+select,
+.habit-item,
+.shop-item,
+.cal-cell,
+.tab-bar__item,
+.rating-item,
+.rating-podium-card,
+.plan-icon-btn,
+.plan-toggle,
+.plan-add-form__btn,
+.habit-add-form__freq-chip{
+  transition-property:transform, opacity, background-color, border-color, box-shadow, color, filter;
+  transition-duration:var(--motion-base);
+  transition-timing-function:var(--motion-ease);
+}
+
+button:hover,
+a:hover,
+[role="button"]:hover{
+  transition-duration:var(--motion-fast);
+}
+
+/* Replace the old elastic/spring feel with a controlled lift. */
+.tab-loading-state__retry,
+.habit-item,
+.shop-item,
+.cal-cell,
+.plan-icon-btn,
+.plan-toggle,
+.plan-add-form__btn{
+  transition-timing-function:var(--motion-ease-soft) !important;
+}
+
+/* Press feedback: quick and subtle, never a hard snap. */
+button:active,
+a:active,
+[role="button"]:active{
+  transition-duration:120ms !important;
+}
+
+/* Sheets / overlays */
+.impactday-overlay,
+.overlay,
+.modal-overlay,
+.sheet-overlay,
+.freeze-overlay,
+.feedback-overlay{
+  transition-timing-function:var(--motion-ease) !important;
+}
+
+.impactday-card,
+.sheet,
+.modal,
+.bottom-sheet,
+.freeze-sheet,
+.feedback-sheet{
+  transition-timing-function:var(--motion-ease) !important;
+}
+
+/* Calm entrance animations. */
+@keyframes adamSmoothFadeUp{
+  from{opacity:0;transform:translate3d(0,8px,0)}
+  to{opacity:1;transform:translate3d(0,0,0)}
+}
+
+/* Avoid accidental animation of layout dimensions, which can look like lag. */
+.messages,
+.chat-messages,
+.ai-chat-messages,
+.adam-chat-messages{
+  overflow-anchor:auto;
+}
+
+/* Respect accessibility and low-power devices. */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
