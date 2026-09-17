@@ -1693,16 +1693,28 @@
     }
 
     if (ringFill) {
-      // ВАЖНО: не используем CSS !important для stroke-dashoffset.
-      // Иначе старое значение 326.7 перебивает inline-значение и кольцо
-      // визуально остаётся почти пустым даже при 98/100 XP.
+      // Первый рендер не должен анимировать кольцо из пустого состояния.
+      // Иначе Telegram WebView успевает показать дугу в промежуточной
+      // позиции, из-за чего кажется, что уровень слева "съезжает".
+      // Анимация остаётся только для реального изменения XP.
       const offset = RING_CIRCUMFERENCE * (1 - xpIntoLevel / 100);
-      ringFill.classList.add("is-progressing");
-      requestAnimationFrame(() => {
+      const initialized = ringFill.dataset.ringInitialized === "1";
+
+      if (!initialized) {
+        ringFill.style.transition = "none";
         ringFill.style.strokeDashoffset = String(offset);
-      });
-      clearTimeout(ringFill._progressTimer);
-      ringFill._progressTimer = setTimeout(() => ringFill.classList.remove("is-progressing"), 760);
+        ringFill.dataset.ringInitialized = "1";
+        void ringFill.getBoundingClientRect();
+        ringFill.style.transition = "";
+        ringFill.classList.remove("is-progressing");
+      } else {
+        ringFill.classList.add("is-progressing");
+        requestAnimationFrame(() => {
+          ringFill.style.strokeDashoffset = String(offset);
+        });
+        clearTimeout(ringFill._progressTimer);
+        ringFill._progressTimer = setTimeout(() => ringFill.classList.remove("is-progressing"), 760);
+      }
     }
   }
 

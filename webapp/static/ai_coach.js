@@ -182,50 +182,22 @@ function renderMarkdown(text) {
         out.push(`</${listType}>`);
     return out.join('\n');
 }
-// Имитация печатающегося ответа — раньше текст появлялся одним куском
-// сразу после "Формирую ответ", теперь проявляется постепенно, что
-// ощущается быстрее и живее. НЕ настоящий стриминг токенов от модели
-// (сервер по-прежнему отдаёт готовый ответ целиком одним запросом —
-// для реального стриминга пришлось бы переписывать весь AI-пайплайн
-// см. multi_agent.py, включая подсчёт квоты и обрезку по finish_reason,
-// которые сейчас требуют полного текста) — чисто визуальный эффект на
-// уже полученном тексте. Во время анимации показываем экранированный
-// голый текст (частичная markdown-разметка выглядела бы криво —
-// незакрытый "**" на середине слова), полное форматирование "проявляется"
-// только по завершении анимации.
-function TypewriterText({ id, text, active }) {
-    const [shown, setShown] = useState(active ? '' : text);
-    useEffect(() => {
-        if (!active) {
-            setShown(text);
-            return;
-        }
-        const reduceMotion = document.documentElement.classList.contains('performance-lite')
-            || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-        if (reduceMotion) {
-            setShown(text);
-            return;
-        }
-        let i = 0;
-        const step = Math.max(1, Math.ceil(text.length / 40));
-        const timer = setInterval(() => {
-            i += step;
-            if (i >= text.length) {
-                setShown(text);
-                clearInterval(timer);
-            }
-            else {
-                setShown(text.slice(0, i));
-            }
-        }, 18);
-        return () => clearInterval(timer);
-        // Намеренно только [id] — при смене текста того же сообщения (не
-        // бывает в реальности) не хотим перезапускать анимацию заново.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id]);
-    const complete = shown.length >= text.length;
-    const html = complete ? renderMarkdown(text) : escapeHtml(shown);
-    return React.createElement("div", { style: { whiteSpace: 'pre-line', overflowWrap: 'break-word' }, dangerouslySetInnerHTML: { __html: html } });
+// Ответ от API приходит целиком. Раньше здесь был визуальный typewriter:
+// текст показывался по кусочкам каждые 18 мс, из-за чего пузырь ответа
+// постоянно менял высоту и выглядел как лаг/растягивание интерфейса. Теперь
+// ответ сразу рендерится в финальном размере; CSS оставляет только короткий
+// fade без изменения геометрии блока.
+function TypewriterText({ text }) {
+    // ADAM receives the complete answer from /api/ai/chat (the endpoint is not
+    // streaming). Render the final DOM in one pass: no character-by-character
+    // reveal, no width/height interpolation and no second layout pass caused
+    // by progressively inserting text.
+    const html = renderMarkdown(text);
+    return React.createElement("div", {
+        className: "adam-answer-static",
+        style: { whiteSpace: 'pre-line', overflowWrap: 'break-word' },
+        dangerouslySetInnerHTML: { __html: html },
+    });
 }
 // См. _FEEDBACK_REASONS в handlers/ai.py — те же формулировки, чтобы
 // причины дизлайка из бота и из Mini App попадали в одну и ту же

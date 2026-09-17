@@ -603,6 +603,7 @@ font-size:15px;
        текст остаётся доступен через title (нативная подсказка). */
     display:-webkit-box;
     -webkit-line-clamp:2;
+    line-clamp:2;
     -webkit-box-orient:vertical;
     overflow:hidden;
 
@@ -617,6 +618,7 @@ font-size:15px;
 .habit-item__title.is-expanded{
   display:block;
   -webkit-line-clamp:unset;
+  line-clamp:unset;
   overflow:visible;
   white-space:normal;
 }
@@ -3164,6 +3166,7 @@ body[data-theme="violet"] .player-card{
   line-height: 1.2;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -3173,6 +3176,7 @@ body[data-theme="violet"] .player-card{
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -3244,6 +3248,7 @@ body[data-theme="violet"] .player-card{
   line-height: 1.2;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -3253,6 +3258,7 @@ body[data-theme="violet"] .player-card{
   line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -4269,12 +4275,14 @@ section[data-tab="home"] .streak-widget--hero:hover{
 .achievement-list--latest .achievement-item__title{
   display:block;
   -webkit-line-clamp:unset;
+  line-clamp:unset;
   overflow:visible;
   word-break:normal;
 }
 .achievement-list--latest .achievement-item__desc{
   display:block;
   -webkit-line-clamp:2;
+  line-clamp:2;
 }
 .achievement-list--archive{
   grid-template-rows:minmax(72px,auto);
@@ -8919,6 +8927,7 @@ body{
     rgba(255,215,106,.15) 360deg
   );
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
   -webkit-mask-composite:xor;
   mask-composite:exclude;
   animation:questBtnBorderSpin 1.05s linear infinite;
@@ -10148,11 +10157,12 @@ button:not(:disabled),
   transition:
     transform var(--adam-motion-fast) var(--adam-motion-ease),
     opacity var(--adam-motion-fast) ease,
-    background-color var(--adam-motion-base) ease,
-    border-color var(--adam-motion-base) ease,
-    box-shadow var(--adam-motion-base) ease,
-    color var(--adam-motion-base) ease;
-}
+    transition:
+      background-color var(--adam-motion-base) ease,
+      border-color var(--adam-motion-base) ease,
+      box-shadow var(--adam-motion-base) ease,
+      color var(--adam-motion-base) ease;
+  }
 
 button:not(:disabled):active,
 .tab-bar__item:active,
@@ -10168,28 +10178,29 @@ button:not(:disabled):active,
 .daily-quests-modal__close:active,
 .streak-continue:active,
 .impactday-start:active{
-  transform:scale(.965) !important;
-  transition-duration:110ms;
+  transform: scale(.965) !important;
+  transition-duration: 110ms;
 }
 
 /* ---------- Квесты дня: плавное открытие без резкого "скачка" ---------- */
 .daily-quests-overlay__backdrop{
-  opacity:0;
-  transition:opacity 360ms var(--adam-motion-ease-soft) !important;
-  will-change:opacity;
+  opacity: 0;
+  transition: opacity 360ms var(--adam-motion-ease-soft) !important;
+  will-change: opacity;
 }
-.daily-quests-modal{
-  opacity:0;
-  transform:translate3d(0,14px,0) scale(.985) !important;
-  transform-origin:50% 50%;
+.daily-quests-modal {
+  opacity: 0;
+  transform: translate3d(0, 14px, 0) scale(.985) !important;
+  transform-origin: 50% 50%;
   transition:
     transform 420ms var(--adam-motion-ease) !important,
     opacity 300ms ease !important;
-  will-change:transform,opacity;
+  will-change: transform, opacity;
 }
-.daily-quests-overlay.is-open .daily-quests-modal{
-  opacity:1;
-  transform:translate3d(0,0,0) scale(1) !important;
+
+.daily-quests-overlay.is-open .daily-quests-modal {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1) !important;
 }
 
 /* Список появляется после самой карточки, а не одновременно рывком. */
@@ -11375,6 +11386,7 @@ body{
   overflow:hidden;
   text-overflow:ellipsis;
   -webkit-line-clamp:2;
+  line-clamp:2;
   -webkit-box-orient:vertical;
 }
 .habit-item__title.is-expanded{
@@ -11385,6 +11397,7 @@ body{
   overflow:visible;
   text-overflow:clip;
   -webkit-line-clamp:unset;
+  line-clamp:unset;
 }
 
 

@@ -684,6 +684,15 @@ window.onerror = function(msg, url, line, col, error) {
 .performance-lite .message-bubble{box-shadow:0 8px 22px rgba(0,0,0,.14)!important}
 .performance-lite .header,.performance-lite .input-area{box-shadow:0 10px 28px rgba(0,0,0,.18)!important}
 
+
+/* ADAM RESPONSE STABILITY PATCH — final geometry is fixed on first paint. */
+.message.assistant .message-bubble,
+.message.user .message-bubble{
+  transform:none!important;
+  animation:none!important;
+}
+.adam-answer-static{display:block;min-width:0;width:100%;}
+.message.assistant .assistant-message-wrap{min-width:0;box-sizing:border-box;}
 </style>
     <link rel="stylesheet" href="/static/adam_premium_overrides.css?v=20260824-premium">
 <style>
@@ -831,11 +840,15 @@ body{
 .scroll-down-btn:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.38),0 0 18px rgba(143,114,255,.14)}
 .scroll-down-btn:active{transform:scale(.92)}
 </style>
+
+
+
+
 </head>
 <body>
     <div id="root"></div>
 
-   <script src="/static/ai_coach.js?v=20260916_AI_SCROLL_V1"></script>
+   <script src="/static/ai_coach.js?v=20260917_UI_STABILITY_V3"></script>
 </body>
 </html>
 <style>
@@ -882,8 +895,12 @@ body::before{
   gap:16px;
   background:radial-gradient(circle at 50% 30%,rgba(124,92,252,.045),transparent 45%);
 }
-.message{animation:adamMessageIn .38s cubic-bezier(.2,.8,.2,1);}
-@keyframes adamMessageIn{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+.message{animation:adamMessageIn .20s ease-out both;}
+@keyframes adamMessageIn{from{opacity:0}to{opacity:1}}
+/* Keep message geometry stable on first paint. The old scale() made a new
+   answer visibly start narrower/shorter and then expand, which looked like
+   an API/UI lag in Telegram WebView. */
+.message.assistant,.message.user{transform:none!important;}
 .message-bubble{
   position:relative;
   padding:14px 16px;
@@ -1717,5 +1734,75 @@ body{
 }
 .composer-hint{
   display:none !important;
+}
+</style>
+
+
+<style id="adam-ui-stability-v2-final">
+/* ADAM final stability overrides — must be last because this file contains
+   several legacy style blocks appended after </html>. */
+.app-container{
+  height:100vh !important;
+  height:100dvh !important;
+  min-height:0 !important;
+}
+.messages-container{
+  padding:16px 12px 14px !important;
+  min-height:0 !important;
+  overflow-x:hidden !important;
+}
+.input-area{
+  flex:0 0 auto !important;
+  width:100% !important;
+  box-sizing:border-box !important;
+  padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Remove decorative pseudo-element divider lines; structural borders stay. */
+.header::after,
+.chat-toolbar::after,
+.input-area::before,
+.composer-row::after{
+  display:none !important;
+  content:none !important;
+}
+
+/* Center the jump-to-latest button above the composer, like ChatGPT. */
+.scroll-down-btn{
+  left:50% !important;
+  right:auto !important;
+  bottom:84px !important;
+  transform:translateX(-50%) !important;
+  z-index:50 !important;
+}
+.scroll-down-btn:hover{
+  transform:translateX(-50%) translateY(-2px) !important;
+}
+.scroll-down-btn:active{
+  transform:translateX(-50%) scale(.92) !important;
+}
+
+/* Reduce needless WebView work from the infinite glow on every assistant bubble. */
+.message.assistant .message-bubble{
+  animation:none !important;
+}
+
+/* Full answer is rendered immediately: only opacity changes, so bubble height
+   no longer grows progressively after the API result arrives. */
+.adam-answer-in{
+  animation:adamAnswerIn .12s ease-out both;
+}
+@keyframes adamAnswerIn{
+  from{opacity:.72}
+  to{opacity:1}
+}
+
+@media(max-width:560px){
+  .messages-container{
+    padding-left:10px !important;
+    padding-right:10px !important;
+    padding-bottom:12px !important;
+  }
+  .scroll-down-btn{bottom:82px !important}
 }
 </style>
