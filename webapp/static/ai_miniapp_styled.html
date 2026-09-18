@@ -836,7 +836,7 @@ body{
 
 </style>
 <style>
-.scroll-down-btn{position:fixed;right:16px;bottom:92px;z-index:30;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(24,19,38,.94);color:#F4F0FF;display:grid;place-items:center;font-size:22px;font-weight:700;line-height:1;cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.32),0 0 0 1px rgba(143,114,255,.08);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:opacity .18s ease,transform .18s ease,box-shadow .18s ease}
+.scroll-down-btn{position:fixed;right:16px;bottom:92px;z-index:30;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(20,16,32,.98);color:#F4F0FF;display:grid;place-items:center;font-size:22px;font-weight:700;line-height:1;cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.32),0 0 0 1px rgba(143,114,255,.08);transition:opacity .18s ease,transform .18s ease,box-shadow .18s ease}
 .scroll-down-btn:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.38),0 0 18px rgba(143,114,255,.14)}
 .scroll-down-btn:active{transform:scale(.92)}
 </style>
@@ -1732,9 +1732,6 @@ body{
   box-sizing:border-box !important;
   align-self:stretch !important;
 }
-.composer-hint{
-  display:none !important;
-}
 </style>
 
 
@@ -1774,6 +1771,15 @@ body{
   bottom:84px !important;
   transform:translateX(-50%) !important;
   z-index:50 !important;
+  /* Жалоба пользователя: лишняя тонкая "линия"/артефакт рядом с кнопкой на
+     реальном устройстве. Кнопка постоянно видна (появляется при любой
+     прокрутке вверх), а backdrop-filter:blur на persistent-элементе — уже
+     известный по этому проекту источник шва/артефакта при композитинге в
+     WebView поверх скроллящегося контента (см. аналогичный фикс для
+     .player-card__aurora). Фон и так почти непрозрачный (rgba(20,16,32,.98)
+     в базовом правиле) — blur здесь не нужен для читаемости.*/
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
 }
 .scroll-down-btn:hover{
   transform:translateX(-50%) translateY(-2px) !important;
