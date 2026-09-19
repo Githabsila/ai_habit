@@ -286,31 +286,23 @@ function AiChat() {
     useEffect(() => {
         const el = messagesContainerRef.current;
         if (!el) return;
-        // Keep the viewport pinned while a newly opened conversation is being
-        // laid out. Once the user deliberately scrolls up, do not fight them.
         let userMovedAway = false;
         const onUserScroll = () => {
             const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
             userMovedAway = distance > 90;
         };
         el.addEventListener('scroll', onUserScroll, { passive: true });
-        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
-            if (scrollRafRef.current) return;
-            scrollRafRef.current = requestAnimationFrame(() => {
-                scrollRafRef.current = 0;
-                const height = el.scrollHeight;
-                const width = el.clientWidth;
-                const previous = lastScrollSizeRef.current;
-                const changed = height !== previous.height || width !== previous.width;
-                lastScrollSizeRef.current = { height, width };
-                if (changed && !userMovedAway) scroll('auto', true);
-                refreshScrollDown();
-            });
-        }) : null;
-        ro?.observe(el);
+        // ResizeObserver on the whole message viewport caused frequent layout
+        // callbacks in Telegram WebView while the keyboard/composer resized.
+        // Re-pin only on real viewport resize, not on every internal paint.
+        const onResize = () => {
+            if (!userMovedAway) requestAnimationFrame(() => scroll('auto', true));
+            refreshScrollDown();
+        };
+        window.addEventListener('resize', onResize, { passive: true });
         return () => {
             el.removeEventListener('scroll', onUserScroll);
-            ro?.disconnect();
+            window.removeEventListener('resize', onResize);
             if (scrollRafRef.current) {
                 cancelAnimationFrame(scrollRafRef.current);
                 scrollRafRef.current = 0;
@@ -320,7 +312,7 @@ function AiChat() {
     useEffect(() => { saveStoredMessages(messages); }, [messages]);
     const loadHistory = useCallback(async () => {
         try {
-            const res = await fetch('/api/ai/history?init_data=' + encodeURIComponent(tg.initData) + '&limit=80');
+            const res = await fetch('/api/ai/history?init_data=' + encodeURIComponent(tg.initData) + '&limit=50');
             if (!res.ok)
                 return;
             const data = await res.json();

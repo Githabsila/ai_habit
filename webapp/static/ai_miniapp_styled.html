@@ -848,7 +848,7 @@ body{
 <body>
     <div id="root"></div>
 
-   <script src="/static/ai_coach.js?v=20260919_V36"></script>
+   <script src="/static/ai_coach.js?v=20260919_V37"></script>
 </body>
 </html>
 <style>
@@ -1878,4 +1878,31 @@ body:after{
 .empty-icon img{
   content-visibility:visible !important;
 }
+</style>
+
+<style id="adam-chat-ultra-v37">
+/* V37 ULTRA — premium look without compositor-heavy glass effects.
+   Telegram WebView prioritizes stable scrolling over blur on every bubble. */
+.header,.input-area,.composer-row,.chat-toolbar,.quick-prompts,.emoji-panel,
+.quota-panel,.habit-suggestion,.thinking,.message-bubble,.welcome-prompts button,
+.quick-grid button,.emoji-launcher,.send-btn,.icon-btn{
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+.header{background:rgba(10,8,17,.96)!important;box-shadow:0 10px 28px rgba(0,0,0,.28)!important}
+.input-area{background:rgba(9,7,15,.97)!important;box-shadow:0 -10px 30px rgba(0,0,0,.30)!important}
+.composer-row{background:linear-gradient(145deg,rgba(36,30,55,.98),rgba(17,14,25,.98))!important;box-shadow:inset 0 1px rgba(255,255,255,.10),0 12px 32px rgba(0,0,0,.28)!important}
+.message-bubble{background:linear-gradient(145deg,rgba(39,33,55,.98),rgba(17,14,24,.98))!important;box-shadow:0 10px 28px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.07)!important}
+.message.user .message-bubble{background:linear-gradient(145deg,#9074f7,#6947d7)!important;box-shadow:0 10px 28px rgba(82,53,190,.28),inset 0 1px rgba(255,255,255,.20)!important}
+.message-bubble::after{display:none!important}
+.message.assistant .message-bubble{animation:none!important;transform:none!important}
+.message.assistant .message-bubble:hover{transform:none!important}
+.message,.message-bubble{will-change:auto!important}
+.msg-avatar img,.header-title-icon img,.empty-icon img{display:block;object-fit:cover}
+/* Keep the readable area clear of the composer and keep the jump button low. */
+.messages-container{padding-bottom:8px!important;scroll-padding-bottom:8px!important;gap:14px!important}
+.scroll-down-btn{bottom:62px!important;width:38px!important;height:38px!important;border-radius:50%!important;box-shadow:0 8px 22px rgba(0,0,0,.34)!important}
+@media(max-width:560px){.scroll-down-btn{bottom:60px!important}.messages-container{padding-left:10px!important;padding-right:10px!important}}
+/* Disable decorative infinite work while preserving interaction feedback. */
+.status-dot,.typing-shimmer{animation:none!important}
 </style>
