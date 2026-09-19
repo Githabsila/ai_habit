@@ -89,6 +89,11 @@ try {
     tg.onEvent('backButtonClicked', goHome);
 }
 catch (e) { }
+try {
+    const adamAvatar = new Image();
+    adamAvatar.decoding = 'async';
+    adamAvatar.src = '/static/assets/adam-avatar.webp';
+} catch (e) {}
 const CHAT_STORAGE_KEY = 'adam_chat_history';
 // Чинит "кривые" сообщения — перенос строки, случайно воткнутый прямо
 // в середину слова (некоторые мобильные клавиатуры вставляют его вместо
@@ -151,13 +156,6 @@ function escapeHtml(text) {
         .replace(/>/g, '&gt;');
 }
 function renderMarkdown(text) {
-    // Жалоба пользователя: внутри одного пузыря ответа иногда виден большой
-    // пустой промежуток (после списка, перед последним предложением) — сама
-    // модель иногда кладёт подряд 3+ переноса строки между абзацами, а
-    // white-space:pre-line на пузыре честно рисует КАЖДЫЙ из них как пустую
-    // строку. Схлопываем такие цепочки до одной пустой строки максимум —
-    // как обычный визуальный отступ между абзацами, а не дыру в вёрстке.
-    text = text.replace(/\n{3,}/g, '\n\n');
     let html = escapeHtml(text);
     html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
     html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
@@ -230,6 +228,8 @@ function AiChat() {
     const [showScrollDown, setShowScrollDown] = useState(false);
     const messagesEnd = useRef(null);
     const messagesContainerRef = useRef(null);
+    const scrollRafRef = useRef(0);
+    const lastScrollSizeRef = useRef({ height: 0, width: 0 });
     const textareaRef = useRef(null);
     const recognitionRef = useRef(null);
     const voiceSessionRef = useRef(0);
@@ -295,13 +295,26 @@ function AiChat() {
         };
         el.addEventListener('scroll', onUserScroll, { passive: true });
         const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
-            if (!userMovedAway) scroll('auto', true);
-            refreshScrollDown();
+            if (scrollRafRef.current) return;
+            scrollRafRef.current = requestAnimationFrame(() => {
+                scrollRafRef.current = 0;
+                const height = el.scrollHeight;
+                const width = el.clientWidth;
+                const previous = lastScrollSizeRef.current;
+                const changed = height !== previous.height || width !== previous.width;
+                lastScrollSizeRef.current = { height, width };
+                if (changed && !userMovedAway) scroll('auto', true);
+                refreshScrollDown();
+            });
         }) : null;
         ro?.observe(el);
         return () => {
             el.removeEventListener('scroll', onUserScroll);
             ro?.disconnect();
+            if (scrollRafRef.current) {
+                cancelAnimationFrame(scrollRafRef.current);
+                scrollRafRef.current = 0;
+            }
         };
     }, []);
     useEffect(() => { saveStoredMessages(messages); }, [messages]);

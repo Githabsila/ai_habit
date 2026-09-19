@@ -582,6 +582,38 @@ async def changelog_seen_route(request):
     return web.json_response({"ok": True})
 
 
+@routes.get("/api/share-link")
+async def share_link(request):
+    """Возвращает корректную ссылку для Telegram-share.
+
+    Раньше фронт получал bot_username только из процесса bootstrap, но кэш
+    имени бота нигде не заполнялся. В итоге share/url получал fallback
+    https://t.me, из-за чего Telegram показывал превью «https://t.me».
+    Получаем username только по нажатию «Поделиться» и не замедляем первый
+    экран Mini App.
+    """
+    telegram_id, _ = await _authenticate(request)
+    bot = request.app.get("bot")
+    username = await _get_bot_username(bot)
+
+    if username:
+        return web.json_response({
+            "ok": True,
+            "bot_username": username,
+            "url": f"https://t.me/{username}?start={telegram_id}",
+        })
+
+    # Без username не отправляем пользователя на голый https://t.me:
+    # это и было причиной некрасивого превью. Публичный URL Mini App
+    # остаётся безопасным запасным вариантом.
+    fallback = (WEBAPP_URL or "").strip().rstrip("/") or request.url.origin()
+    return web.json_response({
+        "ok": False,
+        "bot_username": None,
+        "url": fallback,
+    })
+
+
 @routes.get("/api/bootstrap-secondary")
 async def bootstrap_secondary(request):
     """Лениво отдаёт данные только для открытого раздела Mini App.

@@ -1417,12 +1417,29 @@
     // шаринга не было. t.me/share/url — официальный способ Telegram открыть
     // выбор чата для пересылки текста, работает без версионных ограничений
     // Bot API (в отличие от shareToStory) и без генерации картинки на сервере.
-    document.getElementById("achievementShareSend")?.addEventListener("click", () => {
+    document.getElementById("achievementShareSend")?.addEventListener("click", async () => {
       const card = lastShareCard || {};
-      const botUsername = state?.bot_username;
-      const refLink = botUsername
-        ? `https://t.me/${botUsername}?start=${state?.user?.telegram_id || ""}`
-        : "https://t.me";
+      let refLink = "";
+
+      // Обычно username уже есть в bootstrap. Если Mini App открылся сразу
+      // после рестарта Railway, он мог ещё не быть заполнен в кэше backend.
+      // В таком случае один раз получаем его именно в момент шаринга.
+      if (state?.bot_username) {
+        refLink = `https://t.me/${state.bot_username}?start=${state?.user?.telegram_id || ""}`;
+      } else {
+        try {
+          const shareMeta = await api("/api/share-link", { timeoutMs: 10000 });
+          if (shareMeta?.url) refLink = shareMeta.url;
+        } catch (_) {
+          // Не показываем голый https://t.me: Telegram превращает его
+          // в уродливое превью «https://t.me». Остаёмся на публичном URL ADAM.
+        }
+      }
+
+      if (!refLink) {
+        refLink = window.location.origin || window.location.href;
+      }
+
       const text = `${card.title || "Мой прогресс"} в Project ADAM: ${card.big || ""} 🔥\n\nПрисоединяйся — трекер привычек с AI-коучем:`;
       const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(text)}`;
       if (tg && typeof tg.openTelegramLink === "function") {

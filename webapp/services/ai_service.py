@@ -19,7 +19,7 @@ from webapp.services.ai_utils import (
 #     _cache_key,
 # )
 
-from multi_agent import solve_task_multiagent
+from multi_agent import solve_task_multiagent, _renumber_numbered_lists
 
 
 async def chat(user_id: int, message: str, first_message: bool = False):
@@ -61,6 +61,10 @@ async def chat(user_id: int, message: str, first_message: bool = False):
     cached = cache_get(cache_key)
 
     if cached is not None:
+        # Старый кэш мог быть создан до фикса нумерации. Пропускаем даже
+        # кэшированный ответ через ту же детерминированную постобработку,
+        # чтобы ADAM не возвращал сохранённые варианты вида 1., 1., 1.
+        cached = _renumber_numbered_lists(cached)
         return {
             "answer": cached,
             "is_crisis": False,
