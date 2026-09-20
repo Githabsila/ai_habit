@@ -19,7 +19,8 @@ from streak_scheduler import run_streak_rollover, run_streak_risk_notifications,
 from coach import (
     run_weekly_report,
     run_weekly_habit_analysis, run_monthly_habit_analysis, run_task_reminder_check,
-    run_habit_checkpoint_10, run_habit_checkpoint_12, run_day_progress_check,
+    run_habit_checkpoint_10, run_habit_checkpoint_12, run_habit_checkpoint_17, run_habit_checkpoint_22,
+    run_day_progress_check,
     run_week_start_ping, run_week_end_ping, run_month_start_ping, run_month_end_ping,
     run_planned_time_reminders,
 )
@@ -151,6 +152,10 @@ async def main():
     # 12:00 — дневная проверка привычек. Отдельные 2-часовые пинги по привычкам
     # отключены: здесь одно сводное сообщение только по невыполненным привычкам.
     scheduler.add_job(run_habit_checkpoint_12, "interval", minutes=1, args=[bot])
+    # 17:00 и 22:00 — закрывают дыру между 12:00 и 23:00 risk-уведомлением:
+    # то молчит, если за день закрыта хотя бы одна привычка из нескольких.
+    scheduler.add_job(run_habit_checkpoint_17, "interval", minutes=1, args=[bot])
+    scheduler.add_job(run_habit_checkpoint_22, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_day_progress_check, "interval", minutes=1, args=[bot])
     # 19:00 — единая сверка главной + второстепенных задач.
 
