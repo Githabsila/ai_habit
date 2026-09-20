@@ -176,11 +176,11 @@ def edit_habit(habit_id, new_title, planned_time=None, time_window_minutes=None,
     # поэтому отличаем "не передали" (_UNSET, оставить как было) от
     # "передали None" (снять периодичность) через отдельный сентинел.
     if frequency_per_week is _UNSET:
-        freq_clause, freq_val = "frequency_per_week", None
         use_coalesce = True
+        freq_val = None
     else:
-        freq_clause, freq_val = "?", _clamp_frequency_per_week(frequency_per_week)
         use_coalesce = False
+        freq_val = _clamp_frequency_per_week(frequency_per_week)
     conn = connect()
     cursor = conn.cursor()
     if use_coalesce:

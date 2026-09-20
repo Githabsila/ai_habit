@@ -174,6 +174,7 @@ def test_add_habit_note_rejects_oversized_photo(uid):
     habit_id = get_habits(uid)[0]["id"]
     huge = "data:image/png;base64," + ("A" * 200_000)
     ok = add_habit_note(uid, habit_id, note="ok", photo_data_url=huge)
+    assert ok is True  # заметка с текстом сохраняется, отклоняется только само фото
     row = get_recent_habit_notes(uid)[0]
     assert row["note"] == "ok"
     assert row["photo_data_url"] is None

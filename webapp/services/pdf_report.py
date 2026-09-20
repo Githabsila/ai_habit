@@ -21,7 +21,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from db import (
-    get_user, get_progress, get_habits, get_weekly_habit_breakdown,
+    get_user, get_progress, get_weekly_habit_breakdown,
     get_progress_comparison, get_achievements, get_league_tier,
 )
 
@@ -60,7 +60,6 @@ def generate_progress_pdf(user_id):
     if user is None:
         return None
     progress = get_progress(user_id) or {}
-    habits = get_habits(user_id)
     breakdown = get_weekly_habit_breakdown(user_id)
     comparison = get_progress_comparison(user_id)
     achievements = get_achievements(user_id)

@@ -309,7 +309,7 @@ def rollover_user(user_id):
 
     if streak > 0 and (not prev or prev["status"] not in ("completed", "freeze")):
         wk = week_key(today)
-        purchased_count = _ensure_week(c, user_id, wk)
+        _ensure_week(c, user_id, wk)
         c.execute("SELECT freeze_balance FROM streak_meta WHERE user_id=?", (user_id,))
         bal = int(c.fetchone()["freeze_balance"] or 0)
         if bal > 0:
