@@ -958,7 +958,16 @@ def get_streak_reengagement_state(user_id):
     except ValueError:
         return {"has_history": False, "last_completed": None, "inactive_days": 0, "streak": 0}
 
-    inactive_days = max(0, (today - last_date).days)
+    # Жалоба пользователя: в 10 утра пришло "один пропуск не решает, кем ты
+    # будешь дальше" при полностью активной серии — пропуска не было, просто
+    # СЕГОДНЯШНИЙ день ещё не закончился, а вчера всё было закрыто как обычно.
+    # (today - last_date).days БЕЗ поправки даёт 1 уже в момент полуночи —
+    # то есть "не закончившийся сегодняшний день" сам по себе засчитывался
+    # как первый день простоя, хотя докстринг выше прямо обещает обратное.
+    # -1 возвращает смысл к тому, что обещано: inactive_days — это число
+    # ПОЛНОСТЬЮ прошедших дней без единой отметки, не считая текущий, ещё
+    # идущий день.
+    inactive_days = max(0, (today - last_date).days - 1)
     return {
         "has_history": True,
         "last_completed": last_day,

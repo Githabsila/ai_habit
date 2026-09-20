@@ -10157,11 +10157,10 @@ button:not(:disabled),
   transition:
     transform var(--adam-motion-fast) var(--adam-motion-ease),
     opacity var(--adam-motion-fast) ease,
-    transition:
-      background-color var(--adam-motion-base) ease,
-      border-color var(--adam-motion-base) ease,
-      box-shadow var(--adam-motion-base) ease,
-      color var(--adam-motion-base) ease;
+    background-color var(--adam-motion-base) ease,
+    border-color var(--adam-motion-base) ease,
+    box-shadow var(--adam-motion-base) ease,
+    color var(--adam-motion-base) ease;
   }
 
 button:not(:disabled):active,
@@ -10192,9 +10191,7 @@ button:not(:disabled):active,
   opacity: 0;
   transform: translate3d(0, 14px, 0) scale(.985) !important;
   transform-origin: 50% 50%;
-  transition:
-    transform 420ms var(--adam-motion-ease) !important,
-    opacity 300ms ease !important;
+  transition: transform 420ms var(--adam-motion-ease) !important, opacity 300ms ease !important;
   will-change: transform, opacity;
 }
 
@@ -10207,6 +10204,7 @@ button:not(:disabled):active,
 .daily-quests-modal .daily-quest{
   opacity:0;
   transform:translate3d(0,5px,0);
+}
 }
 .daily-quests-overlay.is-open .daily-quest{
   animation:adamQuestItemIn 360ms var(--adam-motion-ease) both;

@@ -1905,4 +1905,26 @@ body:after{
 @media(max-width:560px){.scroll-down-btn{bottom:60px!important}.messages-container{padding-left:10px!important;padding-right:10px!important}}
 /* Disable decorative infinite work while preserving interaction feedback. */
 .status-dot,.typing-shimmer{animation:none!important}
+/* Жалоба пользователя: лишняя "линия"/артефакт рядом с кнопкой прокрутки на
+   реальном устройстве — кнопка постоянно видна поверх скроллящегося списка
+   сообщений, а backdrop-filter:blur на persistent-элементе поверх активно
+   скроллящегося контента уже known источник шва при композитинге в WebView
+   (см. .tab-bar/.player-card в style.css главного приложения). Базовое
+   правило (.scroll-down-btn, самое начало этого файла) держит
+   backdrop-filter:blur(14px) — здесь добиваем его до none, это последний
+   style-блок в файле, значит выигрывает при любой специфичности.*/
+.scroll-down-btn{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+/* Жалоба пользователя (видео с реального устройства): короткие строки
+   пунктов списка рендерились с большими неравномерными пробелами между
+   словами — при этом обычный текст-абзац рядом выглядел нормально. Не
+   удалось воспроизвести в этой среде (десктопный Chromium не даёт то же
+   самое, что реальный Android WebView) — жёстко фиксируем нормальные
+   интервалы прямо на <li>, чтобы это в принципе не могло сработать,
+   независимо от источника. */
+.message-bubble li{
+  text-align:left !important;
+  text-align-last:left !important;
+  word-spacing:normal !important;
+  letter-spacing:normal !important;
+}
 </style>
