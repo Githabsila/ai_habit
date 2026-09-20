@@ -1131,5 +1131,25 @@ def create_tables():
         "CREATE INDEX IF NOT EXISTS idx_perf_events_created ON perf_events(created_at)"
     )
 
+    # habits.user_id — фильтр почти в каждой per-user джобе напоминаний
+    # (get_habits/get_incomplete_habits/get_progress), индекса не было.
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_habits_user ON habits(user_id)"
+    )
+
     conn.commit()
     conn.close()
+
+    # db/streak.py::ensure_tables() создаёт свои таблицы отдельным
+    # подключением и раньше нигде централизованно не вызывалась — вместо
+    # этого 16 разных функций в streak.py вызывали её сами на каждый вызов
+    # "на всякий случай". Из-за этого каждый per-user проход в джобах
+    # напоминаний (контрольные точки привычек, реэнгеймент и т.д.), которые
+    # тикают каждую минуту, делал лишний CREATE TABLE/PRAGMA/CREATE INDEX
+    # проход на КАЖДОГО пользователя — то есть бот синхронно "подвисал" на
+    # это в общем event loop (тот же луп, что обрабатывает сообщения
+    # пользователей). Вызываем один раз при старте, как остальные таблицы;
+    # локальный импорт — чтобы не завести цикл core->streak->core, streak.py
+    # сам делает "from .core import connect" на уровне модуля.
+    from .streak import ensure_tables as _ensure_streak_tables
+    _ensure_streak_tables()

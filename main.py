@@ -12,6 +12,7 @@ from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 
 from config import BOT_TOKEN, WEBAPP_URL, PORT, ADMIN_IDS
 from db import create_tables, get_user, give_premium_admin, award_season_rewards
+from bot_middlewares import retry_flood_control
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
 from scheduler import scheduler
@@ -78,6 +79,11 @@ async def main():
         token=BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
+    # Рассылки напоминаний (coach.py/streak_scheduler.py) проходят циклом по
+    # всем пользователям — при flood control (429) от Telegram один повтор
+    # с ожиданием retry_after надёжнее, чем терять сообщение и ждать
+    # следующего тика планировщика. Работает для всех методов Bot API сразу.
+    bot.session.middleware(retry_flood_control)
 
     # --- ДИСПЕТЧЕР ---
     dp = Dispatcher()

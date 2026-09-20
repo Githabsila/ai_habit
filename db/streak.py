@@ -198,7 +198,6 @@ def should_show_onboarding(user_id):
 
 def register_completion(user_id):
     """Засчитать первый completion за локальный день. Возвращает событие."""
-    ensure_tables()
     today = local_today(user_id)
     today_s = day_key(today)
     conn = connect()
@@ -260,7 +259,6 @@ def register_completion(user_id):
 
 def rollover_user(user_id):
     """Перевести привычки и streak на новый локальный день. Идемпотентно."""
-    ensure_tables()
     today = local_today(user_id)
     today_s = day_key(today)
     conn = connect()
@@ -357,7 +355,6 @@ def reset_habits_for_user(user_id):
     conn.close()
 
 def rollover_all_users():
-    ensure_tables()
     conn = connect()
     c = conn.cursor()
     c.execute("SELECT telegram_id FROM users")
@@ -390,7 +387,6 @@ def rollover_all_users():
     return changed
 
 def get_last7(user_id):
-    ensure_tables()
     today = local_today(user_id)
     start = today - timedelta(days=6)
     conn = connect()
@@ -419,7 +415,6 @@ def has_streak_frame(user_id, frame_code):
     milestone = mapping.get(str(frame_code))
     if not milestone:
         return False
-    ensure_tables()
     conn = connect(); c = conn.cursor()
     c.execute("SELECT 1 FROM streak_rewards WHERE user_id=? AND milestone=? LIMIT 1", (user_id, milestone))
     ok = c.fetchone() is not None
@@ -449,7 +444,6 @@ def get_streak_forecast(user_id):
 
 
 def get_streak_status(user_id):
-    ensure_tables()
     today = local_today(user_id)
     conn = connect()
     c = conn.cursor()
@@ -494,7 +488,6 @@ def get_free_restore_status(user_id):
     (см. FREE_RESTORE_GRACE_DAYS) — иначе это превратилось бы в способ
     восстановить любую серию когда угодно, что обесценивает платную
     заморозку (db.streak.buy_freeze)."""
-    ensure_tables()
     today = local_today(user_id)
     conn = connect()
     c = conn.cursor()
@@ -522,7 +515,6 @@ def restore_streak_free(user_id):
     """Улучшение #50: реально восстанавливает серию — переписывает
     пропущенный день на "freeze" (тот же статус, что и платная заморозка,
     чтобы следующий rollover его не тронул) и возвращает users.streak."""
-    ensure_tables()
     status = get_free_restore_status(user_id)
     if not status["available"]:
         return {"ok": False, "error": "not_available"}
@@ -558,7 +550,6 @@ def restore_streak_free(user_id):
 
 
 def buy_freeze(user_id):
-    ensure_tables()
     today = local_today(user_id)
     wk = week_key(today)
     conn = connect()
@@ -588,7 +579,6 @@ def buy_freeze(user_id):
     return {"ok": True, "balance": bal + 1, "cost": 200}
 
 def claim_weekly_reward(user_id, reward_type):
-    ensure_tables()
     if reward_type not in ("coins", "frame"):
         return {"ok": False, "error": "invalid_reward"}
     today = local_today(user_id)
@@ -822,7 +812,6 @@ def get_notification_delivery_stats(hours=24):
 def get_bonus_window(user_id):
     """Возвращает datetime окончания окна удвоения или None, если оно не
     открыто (либо ещё не было отметок, либо уже явно очищено)."""
-    ensure_tables()
     row = _meta(user_id)
     until = row["bonus_window_until"] if row else None
     if not until:
@@ -836,7 +825,6 @@ def get_bonus_window(user_id):
 def set_bonus_window(user_id, until_dt):
     """until_dt: datetime окончания окна, либо None, чтобы закрыть окно
     (например, когда незакрытых привычек больше не осталось)."""
-    ensure_tables()
     conn = connect()
     conn.execute(
         "UPDATE streak_meta SET bonus_window_until=? WHERE user_id=?",
@@ -902,7 +890,6 @@ def get_streak_users():
 
 
 def consume_completion_event(user_id):
-    ensure_tables()
     today_s = day_key(local_today(user_id))
     conn = connect()
     c = conn.cursor()
@@ -931,7 +918,6 @@ def get_streak_reengagement_state(user_id):
     поэтому человек может вернуться даже после 3 дней, недели или месяца
     простоя. Текущий день не считается новым пропуском, пока он не закончился.
     """
-    ensure_tables()
     today = local_today(user_id)
     conn = connect()
     c = conn.cursor()
@@ -976,7 +962,6 @@ def get_streak_reengagement_state(user_id):
     }
 
 def get_recent_streak_message_keys(user_id, limit=12):
-    ensure_tables()
     conn = connect()
     c = conn.cursor()
     c.execute(
@@ -988,7 +973,6 @@ def get_recent_streak_message_keys(user_id, limit=12):
     return keys
 
 def record_streak_message_key(user_id, message_key):
-    ensure_tables()
     conn = connect()
     conn.execute(
         "INSERT INTO streak_message_history(user_id,message_key) VALUES(?,?)",
