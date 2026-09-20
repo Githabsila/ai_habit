@@ -5694,7 +5694,16 @@ body::before{
 @media (prefers-reduced-motion:reduce){
   .player-card__aurora i{animation:none!important}
 }
-.player-card__ring-wrap{filter:drop-shadow(0 18px 34px rgba(118,80,255,.25))}
+/* Жалоба пользователя: еле заметный квадрат вокруг кольца уровня.
+   Раньше здесь стоял filter:drop-shadow на самом .player-card__ring-wrap —
+   контейнере со смешанным содержимым (SVG-кольцо + текстовый бейдж) и
+   isolation:isolate. В части WebView (в т.ч. Telegram на iOS) такой фильтр
+   растеризуется по прямоугольному bounding box контейнера, а не по
+   реальному альфа-контуру круга — получается полупрозрачный квадратный
+   ореол вместо кольца. Просто убираем декоративную тень с контейнера:
+   у самого кольца уже есть свои glow-эффекты через .level-ring__fill
+   (см. ниже по файлу), они безопасны, т.к. накладываются на SVG-элемент
+   с точным контуром, а не на прямоугольный div. */
 .player-card__name{
   font-family:'Space Grotesk',sans-serif !important;
   font-weight:700 !important;
@@ -9043,7 +9052,12 @@ body{
    модалке .daily-quests-modal, см. выше; .daily-quests__list и
    .daily-quest* ниже не менялись, просто сменили "дом".)
    ========================================================= */
-.daily-quests__list{display:flex;flex-direction:column;gap:10px}
+/* Жалоба пользователя: пункты квестов дня выглядели сильно сдвинутыми
+   вправо. .daily-quests__list — это <ul>, а браузерный UA-стиль по
+   умолчанию даёт спискам padding-left:40px — display:flex это не убирает
+   (влияет только на display, не на padding), так что 40px "молчаливо"
+   добавлялись перед иконкой квеста поверх собственных отступов модалки. */
+.daily-quests__list{display:flex;flex-direction:column;gap:10px;padding:0;list-style:none}
 .daily-quest{
   display:flex;align-items:center;gap:10px;
   /* См. .habit-item — тот же приём (contain:layout style) для
@@ -10856,7 +10870,12 @@ body{
 /* ---------- calendar ---------- */
 .calendar-card{border-radius:26px!important;background:linear-gradient(145deg,rgba(28,25,42,.96),rgba(14,12,21,.98))!important;overflow:hidden!important;}
 .calendar-grid{gap:7px!important;}
-.cal-cell{min-height:70px!important;border-radius:17px!important;border:1px solid rgba(255,255,255,.055)!important;background:rgba(255,255,255,.03)!important;transition:transform .18s var(--wow-ease),border-color .18s ease!important;}
+/* Жалоба пользователя: календарь выглядит "вытянутым, будто непоразмеру" —
+   min-height:70px здесь никак не связан с реальной шириной ячейки в сетке
+   7 колонок на телефоне (~42px), поэтому ячейка получалась почти в 1.7 раза
+   выше своей ширины, вытянутой "таблеткой". 48px даёт пропорцию, близкую к
+   квадрату, и текста (11px день + 7px прогресс) там по-прежнему достаточно. */
+.cal-cell{min-height:48px!important;border-radius:17px!important;border:1px solid rgba(255,255,255,.055)!important;background:rgba(255,255,255,.03)!important;transition:transform .18s var(--wow-ease),border-color .18s ease!important;}
 .cal-cell.is-today{border-color:rgba(255,215,90,.42)!important;background:rgba(255,204,65,.08)!important;box-shadow:0 0 22px rgba(255,190,44,.08)!important;}
 .cal-cell.is-complete{background:rgba(55,217,150,.075)!important;border-color:rgba(55,217,150,.18)!important;}
 
