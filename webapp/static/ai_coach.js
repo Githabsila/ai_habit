@@ -253,7 +253,18 @@ function AiChat() {
                 // In Telegram/WebView scrollHeight can settle a few frames after
                 // history/typewriter rendering. Use the real maximum, not an
                 // approximate position near the last 2–3 messages.
+                //
+                // Жалоба пользователя: "прыжок" в самый низ при открытии чата на
+                // деле растягивался почти на секунду, и всё это время видимость
+                // стрелочки/отступа под ней скакала. Причина — .messages-container
+                // имеет CSS scroll-behavior:smooth, а он анимирует ЛЮБое
+                // программное изменение scrollTop, включая обычное присваивание
+                // el.scrollTop = top ниже, а не только scrollTo({behavior:'smooth'}).
+                // На время принудительного прыжка отключаем smooth инлайн-стилем.
+                const prevBehavior = el.style.scrollBehavior;
+                el.style.scrollBehavior = 'auto';
                 el.scrollTop = top;
+                el.style.scrollBehavior = prevBehavior;
                 if (behavior !== 'auto') el.scrollTo({ top, behavior });
             } else {
                 el.scrollTo({ top, behavior });
@@ -262,18 +273,31 @@ function AiChat() {
             messagesEnd.current?.scrollIntoView({ behavior, block: 'end' });
         }
     };
-    const scrollToAbsoluteBottom = (behavior = 'auto') => {
-        const run = () => scroll(behavior, true);
-        run();
-        requestAnimationFrame(run);
-        setTimeout(run, 60);
-        setTimeout(run, 180);
-    };
     const refreshScrollDown = () => {
         const el = messagesContainerRef.current;
         if (!el) return;
         const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
         setShowScrollDown(distance > 90);
+    };
+    const scrollToAbsoluteBottom = (behavior = 'auto') => {
+        // Жалоба пользователя: стрелочка/зарезервированное под неё место
+        // "зависало" внизу даже когда чат реально был докручен до конца, и
+        // пропадало только после того, как человек САМ чуть скроллил (это
+        // вызывало настоящее scroll-событие, которое и пересчитывало
+        // showScrollDown). Причина — refreshScrollDown() раньше вызывался
+        // один раз сразу после ПЕРВОГО прохода run(), а scrollHeight в
+        // Telegram WebView ещё "устаканивается" несколько кадров после
+        // рендера истории/typewriter — тот самый первый замер часто был
+        // неточным. Пересчитываем видимость кнопки на каждом отложенном
+        // проходе, а не только на первом.
+        const run = () => { scroll(behavior, true); refreshScrollDown(); };
+        run();
+        requestAnimationFrame(run);
+        setTimeout(run, 60);
+        setTimeout(run, 180);
+        // Аватарки сообщений грузятся асинхронно и могут сдвинуть высоту
+        // списка позже 180мс — последний проход подстраховывает именно этот случай.
+        setTimeout(run, 450);
     };
     useEffect(() => {
         const el = messagesContainerRef.current;
@@ -287,7 +311,6 @@ function AiChat() {
         // Every time the AI tab is mounted/re-entered, land on the actual end.
         // Multiple delayed passes cover async history + typewriter/layout shifts.
         scrollToAbsoluteBottom('auto');
-        refreshScrollDown();
     }, [messages.length]);
 
     useEffect(() => {
