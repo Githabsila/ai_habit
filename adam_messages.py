@@ -62,6 +62,16 @@ HABIT_CHECKPOINT_TEMPLATES = [
     "⚡️ Уже есть результат: {completed} из {total} привычек выполнено. Осталось {left_phrase}: {habits}. Закрой следующую и сохрани темп {emoji}",
 ]
 
+# Когда completed == 0, формулировки выше звучат как противоречие ("уже
+# закрыто 0 из 6", "уже есть результат: 0 из 6") — отдельный пул без
+# рамки "уже что-то сделано" для случая, когда за день пока ничего не
+# отмечено.
+HABIT_CHECKPOINT_ZERO_TEMPLATES = [
+    "⏱️ Контрольная точка дня: из {total} пока не закрыто ни одной. В плане {left_phrase}: {habits}. Начни с ближайшей — и сдвинь день с места {emoji}",
+    "🎯 {time}:00 — сверка курса. Пока 0 из {total}. В фокусе {left_phrase}: {habits}. Закрой первый пункт — и наберёшь темп {emoji}",
+    "📍 Точка дня: из {total} пока ничего не отмечено. В плане {left_phrase}: {habits}. Начни с ближайшего пункта {emoji}",
+]
+
 def format_habit_checkpoint_message(incomplete_habits, hour: int, completed: int | None = None, total: int | None = None) -> str:
     titles = [str(h["title"]) for h in incomplete_habits]
     left = len(titles)
@@ -74,7 +84,8 @@ def format_habit_checkpoint_message(incomplete_habits, hour: int, completed: int
     habits = ", ".join(f"«{t}»" for t in titles)
     left_word = plural_ru(left, "привычка", "привычки", "привычек")
     left_phrase = f"одна {left_word}" if left == 1 else f"{left} {left_word}"
-    return pick(HABIT_CHECKPOINT_TEMPLATES, pool=SOFT_EMOJIS, time=hour,
+    templates = HABIT_CHECKPOINT_TEMPLATES if completed > 0 else HABIT_CHECKPOINT_ZERO_TEMPLATES
+    return pick(templates, pool=SOFT_EMOJIS, time=hour,
                 completed=completed, total=total, left=left, habits=habits,
                 left_phrase=left_phrase)
 
@@ -451,6 +462,12 @@ WEEK_END_TEMPLATES = [
     "Неделя подходит к концу. Оглянись на результат и добей то, что действительно важно {emoji}",
     "Финиш недели близко. Не нужен идеальный рывок — нужен ещё один хороший шаг {emoji}",
 ]
+# Если сегодняшние привычки уже все закрыты, призыв "сделать ещё шаг"
+# звучит так, будто прогресс не заметили — отдельные тексты для этого случая.
+WEEK_END_ALL_DONE_TEMPLATES = [
+    "Отличный результат к концу недели — сегодня уже всё закрыто. Держи этот темп {emoji}",
+    "Неделя подходит к концу, а сегодня у тебя чисто. Сильный финиш {emoji}",
+]
 MONTH_START_TEMPLATES = [
     "Новый месяц — хороший момент выбрать один ритм, который ты реально сможешь удержать {emoji}",
     "Месяц только начался. Не разгоняйся слишком резко — лучше стабильность, чем быстрый срыв {emoji}",
@@ -465,8 +482,8 @@ def format_week_start_message() -> str:
     return pick(WEEK_START_TEMPLATES)
 
 
-def format_week_end_message() -> str:
-    return pick(WEEK_END_TEMPLATES)
+def format_week_end_message(all_done_today: bool = False) -> str:
+    return pick(WEEK_END_ALL_DONE_TEMPLATES if all_done_today else WEEK_END_TEMPLATES)
 
 
 def format_month_start_message() -> str:

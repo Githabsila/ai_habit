@@ -554,8 +554,37 @@ async def run_week_start_ping(bot):
 
 
 async def run_week_end_ping(bot):
+    """Конец недели — персонализируем по сегодняшнему прогрессу: если все
+    привычки за день уже закрыты, хвалим за финиш, а не подгоняем "сделать
+    ещё шаг" (см. format_week_end_message)."""
     week_key = datetime.now().strftime("%G-W%V")
-    await _broadcast(bot, format_week_end_message, "week_end_ping", week_key)
+    users = get_all_users()
+    sent = 0
+    scope = notification_scope(bot)
+
+    for user in users:
+        telegram_id = user["telegram_id"]
+
+        settings = get_settings(telegram_id)
+        if not reminder_category_enabled(settings, "digests"):
+            continue
+
+        if not claim_notification(telegram_id, week_key, "week_end_ping", scope):
+            continue
+
+        try:
+            all_done_today = not get_incomplete_habits(telegram_id)
+            await bot.send_message(
+                telegram_id,
+                format_week_end_message(all_done_today=all_done_today),
+                parse_mode="HTML",
+            )
+            sent += 1
+        except Exception as e:
+            release_notification(telegram_id, week_key, "week_end_ping", scope)
+            log_error("week_end_ping", e, telegram_id)
+
+    logger.info(f"week_end_ping: отправлено {sent} сообщений")
 
 
 async def run_month_start_ping(bot):

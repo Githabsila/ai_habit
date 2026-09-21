@@ -109,6 +109,45 @@ async def test_broadcast_skips_users_with_reminders_disabled(monkeypatch, uid):
 
 
 # =====================================
+# coach.run_week_end_ping — раньше слал одинаковый текст всем, даже если
+# сегодняшние привычки уже все закрыты (см. adam_messages.WEEK_END_ALL_DONE_TEMPLATES)
+# =====================================
+
+async def test_week_end_ping_praises_when_all_habits_done_today(monkeypatch, uid):
+    import coach
+    from adam_messages import WEEK_END_ALL_DONE_TEMPLATES, MOTIVATION_EMOJIS
+
+    add_user(uid, "u", "Test")
+    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
+    monkeypatch.setattr(coach, "get_incomplete_habits", lambda _uid: [])
+
+    bot = FakeBot()
+    await coach.run_week_end_ping(bot)
+
+    assert len(bot.sent) == 1
+    text = bot.sent[0][1]
+    assert text in {t.format(emoji=e) for t in WEEK_END_ALL_DONE_TEMPLATES for e in MOTIVATION_EMOJIS}
+
+
+async def test_week_end_ping_uses_default_wording_when_habits_left(monkeypatch, uid):
+    import coach
+    from adam_messages import WEEK_END_TEMPLATES, MOTIVATION_EMOJIS
+
+    add_user(uid, "u", "Test")
+    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
+    monkeypatch.setattr(coach, "get_incomplete_habits", lambda _uid: [{"title": "Разминка"}])
+
+    bot = FakeBot()
+    await coach.run_week_end_ping(bot)
+
+    assert len(bot.sent) == 1
+    text = bot.sent[0][1]
+    assert text in {t.format(emoji=e) for t in WEEK_END_TEMPLATES for e in MOTIVATION_EMOJIS}
+
+
+# =====================================
 # coach.run_weekly_report — раньше не было ни проверки reminders, ни дедупа
 # =====================================
 
