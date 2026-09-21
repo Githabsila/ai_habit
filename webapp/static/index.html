@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260921_STREAKCARD_V42">
+<link rel="stylesheet" href="/static/style.css?v=20260921_DARKONLY_RATINGFIX_V43">
 </head>
 <body>
 
@@ -461,10 +461,10 @@ class="habit-add-form__submit">
 <div class="theme-picker" id="themePicker"></div>
 <div class="theme-picker__hint" id="themeHint"></div>
 
-<div class="color-mode-picker" id="colorModePicker">
-<button type="button" class="color-mode-btn" data-mode="dark">🌙 Тёмная</button>
-<button type="button" class="color-mode-btn" data-mode="light">☀️ Светлая</button>
-</div>
+<!-- Роадмап #48 (светлая/тёмная тема) убран по решению пользователя:
+     приложение развивается только в тёмных тонах — светлая тема больше
+     не предлагается. См. app.js::applyColorMode(), которая теперь всегда
+     форсирует dark. -->
 
 <!-- Фидбек: переключатель языка убран из интерфейса — перевод на английский
      был частичным и выглядел незаконченным. Бэкенд (db.users.set_language/
@@ -942,7 +942,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260921_STREAKCARD_V1"></script>
+<script type="module" src="/static/app.js?v=20260921_DARKONLY_RATINGFIX_V2"></script>
 
 </body>
 </html>

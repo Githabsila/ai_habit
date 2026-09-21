@@ -685,12 +685,11 @@
     });
   }
 
+  // Светлая тема убрана по решению пользователя — приложение развивается
+  // только в тёмных тонах, независимо от того, что сохранено на сервере
+  // (в т.ч. у тех, кто успел включить светлую тему раньше).
   function applyColorMode() {
-    const mode = state?.settings?.color_mode === "light" ? "light" : "dark";
-    document.documentElement.setAttribute("data-mode", mode);
-    document.querySelectorAll(".color-mode-btn").forEach(btn => {
-      btn.classList.toggle("is-active", btn.dataset.mode === mode);
-    });
+    document.documentElement.setAttribute("data-mode", "dark");
   }
 
   // Фидбек #4: подсвечиваем кнопку пола, только если он реально известен
@@ -2232,7 +2231,7 @@
           <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? "🏅" : ""}</div>
           ${r.league_tier ? `<div class="rating-podium-card__league">${escapeHtml(r.league_tier)}</div>` : ""}
           ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
-          <div class="rating-podium-card__stats"><span>🔥 ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
+          <div class="rating-podium-card__stats"><span><i class="stat-icon">🔥</i> ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
         </div>`;
       }).join("");
       const reactionsHtml = `<div class="rating-podium-reactions" aria-hidden="false">` + rows.slice(0, 3).map((r, idx) => {
@@ -4281,28 +4280,6 @@ function initGenderActions() {
   });
 }
 
-// Roadmap #48 — переключатель светлой/тёмной темы.
-function initColorModeActions() {
-  const picker = document.getElementById("colorModePicker");
-  if (!picker) return;
-  picker.addEventListener("click", async (e) => {
-    const btn = e.target.closest(".color-mode-btn");
-    if (!btn) return;
-    const mode = btn.dataset.mode;
-    if (state.settings.color_mode === mode) return;
-    document.documentElement.setAttribute("data-mode", mode); // мгновенно, не ждём ответ сервера
-    picker.querySelectorAll(".color-mode-btn").forEach(b => b.classList.toggle("is-active", b === btn));
-    try {
-      await api("/api/settings/color-mode", { method: "POST", body: JSON.stringify({ mode }) });
-      state.settings.color_mode = mode;
-      haptic("light");
-    } catch (err) {
-      applyColorMode(); // откатываем визуально, если сервер отказал
-      showToast(friendlyError(err), "error");
-    }
-  });
-}
-
 // Roadmap #25 — долгосрочные цели пользователя для AI-наставника.
 function initGoalsActions() {
   const input = document.getElementById("longTermGoalsInput");
@@ -4653,7 +4630,6 @@ async function boot() {
             // инициализация после падения просто не происходит.
             initPublicProfileActions();
             initGoalsActions();
-            initColorModeActions();
             initLanguageActions();
             initGenderActions();
             postBootstrapInitDone = true;
