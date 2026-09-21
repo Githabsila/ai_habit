@@ -1273,12 +1273,12 @@ opacity:.35;
   font-size:8px;
 }
 .calendar-legend .cal-cell{
-  width:12px;
-  min-width:12px;
-  min-height:12px;
-  height:12px;
-  padding:0;
-  border-radius:4px;
+  width:12px!important;
+  min-width:12px!important;
+  min-height:12px!important;
+  height:12px!important;
+  padding:0!important;
+  border-radius:4px!important;
   aspect-ratio:unset;
   cursor:default;
 }
