@@ -10930,10 +10930,28 @@ body{
   backdrop-filter:blur(22px) saturate(1.25)!important;
   -webkit-backdrop-filter:blur(22px) saturate(1.25)!important;
 }
-.tab-bar__item{min-height:51px!important;border-radius:18px!important;color:rgba(255,255,255,.40)!important;font-size:9px!important;font-weight:900!important;gap:3px!important;}
+/* Жалоба пользователя: у неактивных вкладок иконки собраны из нескольких
+   <path stroke="currentColor"> (см. index.html, например у домика — отдельно
+   крыша, отдельно стены). Полупрозрачность через rgba() в color красит
+   каждый path отдельно тем же полупрозрачным цветом — там, где обводки
+   пересекаются (крыша/стены, линии календаря, кубок в "Рейтинге"), альфа
+   складывается и место становится заметно темнее/плотнее остального
+   значка. У активной вкладки цвет непрозрачный (#fff), поэтому там
+   артефакта не видно — ровно как пользователь и описал. opacity на самом
+   элементе (а не rgba в цвете) сначала рисует всю иконку как единый слой
+   при полной непрозрачности (пересечения корректно сливаются), и только
+   потом применяет прозрачность целиком — без двойного счёта на стыках. */
+.tab-bar__item{min-height:51px!important;border-radius:18px!important;color:#fff!important;opacity:.40!important;font-size:9px!important;font-weight:900!important;gap:3px!important;}
 .tab-bar__icon{font-size:22px!important;}
-.tab-bar__item.is-active{color:#fff!important;background:linear-gradient(145deg,#8f62f8,#6834d3)!important;box-shadow:0 8px 20px rgba(108,55,211,.30),inset 0 1px rgba(255,255,255,.15)!important;}
+.tab-bar__item.is-active{color:#fff!important;opacity:1!important;background:linear-gradient(145deg,#8f62f8,#6834d3)!important;box-shadow:0 8px 20px rgba(108,55,211,.30),inset 0 1px rgba(255,255,255,.15)!important;}
 .tab-bar__item:active{transform:scale(.95)!important;}
+/* Кнопка ИИ красит свой фиолетовый градиент на дочернем .tab-bar__icon
+   (см. #aiCoachBtn .tab-bar__icon выше), а не на самой кнопке — но opacity
+   родителя всё равно приглушает весь поддерево при композитинге, поэтому
+   без этого явного сброса значок ИИ тоже стал бы полупрозрачным 40%
+   вместе с остальными неактивными вкладками. Кнопка задумана как всегда
+   заметная (не участвует в обычном active/inactive переключении вкладок). */
+#aiCoachBtn{opacity:1!important;}
 
 /* ---------- overlays / rewards ---------- */
 .daily-quests-modal,.streak-onboarding-card,.streak-weekly-card,.streak-celebration,.levelup-card,.app-tour-card,.achievement-share-card{
