@@ -928,22 +928,16 @@
     );
   });
 
-  // Чисто атмосферные бесконечные эффекты (искры, блики) нужны только в первые
-  // секунды после открытия — дальше это просто лишняя нагрузка на GPU и повод
-  // для перегрева. Через паузу "успокаиваем" их классом decor-settled, а при
-  // возврате в приложение/смене вкладки даём короткое "оживление" заново.
-  let decorSettleTimer = null;
-  function scheduleDecorSettle(delayMs = 3500) {
-    if (decorSettleTimer) clearTimeout(decorSettleTimer);
-    document.documentElement.classList.remove("decor-settled");
-    decorSettleTimer = window.setTimeout(() => {
-      document.documentElement.classList.add("decor-settled");
-    }, delayMs);
+  // Раньше чисто атмосферные эффекты (искры, блики) играли первые 3.5с
+  // после каждого открытия/обновления/смены вкладки, потом сами гасли
+  // классом decor-settled. По фидбеку пользователя это ощущалось как лаг
+  // в первые секунды при каждом входе — убрали "всплеск" совсем: decor-settled
+  // включается сразу и никогда не снимается (все call site'ы ниже дергают
+  // эту же функцию, поэтому один общий "always settled" здесь достаточно).
+  function scheduleDecorSettle() {
+    document.documentElement.classList.add("decor-settled");
   }
   scheduleDecorSettle();
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) scheduleDecorSettle();
-  });
 
   // ===================== УДАРНЫЙ РЕЖИМ =====================
   let streakCelebrationTimer = null;
@@ -4638,9 +4632,9 @@ async function boot() {
           document.getElementById("archetypeQuizBtn").textContent = state.user.archetype;
         }
         requestAnimationFrame(() => {
-            document.documentElement.classList.remove("decor-settled");
             // Принудительно отдаём браузеру один чистый кадр для компоновки
             // верхней карточки + Ударного режима после тяжёлого bootstrap.
+            // decor-settled здесь больше не снимается — см. scheduleDecorSettle().
             void document.getElementById("content")?.offsetHeight;
         });
         // Некритичная синхронизация — только после первого интерактивного кадра.
