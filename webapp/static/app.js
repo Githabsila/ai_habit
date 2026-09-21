@@ -240,7 +240,13 @@
     const coinsEl = document.getElementById("achievementShareCoins");
     if (titleEl) titleEl.textContent = title;
     if (daysEl) daysEl.textContent = big;
-    if (statusEl) statusEl.textContent = status;
+    // status пустой/не передан — например у "Ударного режима" он дублировал
+    // бы big ("21 день" сверху и "В ударе 21 дн." строкой ниже); скрываем
+    // строку вместо показа дубликата.
+    if (statusEl) {
+      statusEl.textContent = status || "";
+      statusEl.hidden = !status;
+    }
     if (levelEl) levelEl.textContent = state?.user?.level || 1;
     if (coinsEl) coinsEl.textContent = state?.user?.xp || 0;
     if (overlay) {
@@ -1016,7 +1022,18 @@
     }
     const streakDays = Number(streak.days || 0);
     const reward = (streak.rewards || [])[0];
-    if (profileStatus) profileStatus.textContent = streakStatus || (streakDays ? "В ударе" : "Серия не начата");
+    // "В ударе N дн." (или голое "В ударе") просто повторяет число, которое
+    // и так показано крупно в .streak-profile-days ниже — показываем эту
+    // строку, только если там что-то содержательное (например название
+    // вехи "Месяц в ударе" при достижении рамки).
+    const isRedundantStreakLabel = /^В ударе(\s+\d+\s+дн\.?)?$/i.test(streakStatus.trim());
+    const statusText = (streakStatus && !isRedundantStreakLabel)
+      ? streakStatus
+      : (streakDays ? "" : "Серия не начата");
+    if (profileStatus) {
+      profileStatus.textContent = statusText;
+      profileStatus.hidden = !statusText;
+    }
     if (profileFrame) {
       if (reward) {
         profileFrame.textContent = `🏆 ${reward.frame}`;
@@ -1403,7 +1420,6 @@
       openAchievementShare({
         title: "Ударный режим",
         big: formatDays(days),
-        status: state?.streak?.temp_status || "Ударный режим",
       });
     });
     document.getElementById("achievementShareClose")?.addEventListener("click", () => {

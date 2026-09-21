@@ -7278,7 +7278,7 @@ section[data-tab="profile"] .section-heading h2::first-letter{
    so this always wins regardless of what's above it. ====== */
 .streak-profile-card--premium{
   display:grid !important;
-  grid-template-columns:48px minmax(0,1fr) !important;
+  grid-template-columns:54px minmax(0,1fr) !important;
   grid-template-rows:none !important;
   align-items:center !important;
   justify-items:stretch !important;
@@ -7289,19 +7289,23 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   border-radius:22px !important;
 }
 .streak-profile-avatar-wrap{
-  width:48px !important;
-  height:48px !important;
-  margin:0 !important;
+  width:54px !important;
+  height:54px !important;
+  margin:0 0 0 -3px !important;
   grid-column:1 !important;
 }
 .streak-profile-ring{
   inset:-2px !important;
 }
 .streak-profile-avatar{
-  width:40px !important;
-  height:40px !important;
-  border-radius:14px !important;
-  font-size:16px !important;
+  width:46px !important;
+  height:46px !important;
+  /* Жалоба пользователя: рамка (кольцо) круглая, а фото внутри — со
+     скруглёнными углами квадрата, видны "уголки" между ними. .avatar-photo
+     наследует border-radius отсюда (border-radius:inherit) — 50% делает
+     круглыми и контейнер, и само фото. */
+  border-radius:50% !important;
+  font-size:18px !important;
 }
 .streak-profile-info{
   grid-column:2 !important;
@@ -7310,7 +7314,7 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   min-width:0 !important;
 }
 .streak-profile-kicker{
-  font-size:8px !important;
+  font-size:11px !important;
   margin-bottom:2px !important;
   text-align:left !important;
 }
