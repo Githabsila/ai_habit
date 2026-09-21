@@ -4735,7 +4735,11 @@ document.getElementById("aiCoachBtn").addEventListener("click", () => {
     const overlay = document.getElementById("loadingOverlay");
     if (overlay) overlay.hidden = false;
     // небольшая пауза, чтобы браузер успел отрисовать монетку до ухода со страницы
-    setTimeout(() => { window.location.href = "/coach"; }, 60);
+    // ?v=Date.now() — Telegram WebView у части пользователей продолжает
+    // показывать старую версию /coach даже при no-cache заголовках сервера
+    // (см. комментарии в ai_miniapp_styled.html про агрессивный кэш Mini App).
+    // Раз URL меняется при каждом открытии, кэшировать по факту нечего.
+    setTimeout(() => { window.location.href = "/coach?v=" + Date.now(); }, 60);
 });
 
 document.getElementById("adminPanelBtn")?.addEventListener("click", () => {
