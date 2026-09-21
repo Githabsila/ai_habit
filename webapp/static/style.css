@@ -5611,8 +5611,8 @@ body::before{
      нечего, мигание уходит. Дизайн-градиент сохранён 1:1, просто без
      альфы. */
   background:
-    radial-gradient(500px 240px at 5% 0%,rgba(139,108,255,.16),transparent 65%),
-    radial-gradient(380px 220px at 100% 100%,rgba(255,215,106,.07),transparent 65%),
+    radial-gradient(500px 240px at 5% 0%,rgba(139,108,255,.16),rgba(139,108,255,0) 65%),
+    radial-gradient(380px 220px at 100% 100%,rgba(255,215,106,.07),rgba(255,215,106,0) 65%),
     linear-gradient(145deg,#1e1b2a,#0c0b12) !important;
   box-shadow:0 30px 90px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.11) !important;
   backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
@@ -7665,6 +7665,13 @@ body{
   box-shadow:0 8px 20px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.10);
   transition:transform .16s cubic-bezier(.34,1.56,.64,1),filter .16s ease;
 }
+/* Жалоба пользователя: кнопку админки видно всем аккаунтам. Причина —
+   display:grid выше объявлен в авторской таблице стилей, а она по
+   происхождению каскада ВСЕГДА перебивает правило [hidden]{display:none}
+   из UA-стиля браузера, даже без !important и при равной специфичности —
+   поэтому adminBtn.hidden=true в app.js визуально ничего не менял.
+   Явно возвращаем display:none для [hidden] здесь. */
+.player-card__admin-btn[hidden]{display:none!important}
 .player-card__admin-btn svg{width:17px;height:17px;display:block}
 .player-card__admin-btn:active{transform:scale(.88);filter:brightness(1.1)}
 .performance-lite .player-card__admin-btn{transition:none !important}
@@ -10441,8 +10448,8 @@ body{
   border-radius:30px;
   border:1px solid rgba(255,255,255,.10);
   background:
-    radial-gradient(260px 150px at 8% 0%,rgba(124,58,237,.23),transparent 72%),
-    radial-gradient(240px 140px at 100% 100%,rgba(255,194,65,.10),transparent 70%),
+    radial-gradient(260px 150px at 8% 0%,rgba(124,58,237,.23),rgba(124,58,237,0) 72%),
+    radial-gradient(240px 140px at 100% 100%,rgba(255,194,65,.10),rgba(255,194,65,0) 70%),
     linear-gradient(145deg,rgba(31,28,49,.97),rgba(14,13,23,.98));
   box-shadow:
     0 22px 70px rgba(0,0,0,.48),
@@ -10750,9 +10757,16 @@ body{
   padding:17px 17px 16px!important;
   gap:15px!important;
   border-radius:30px!important;
+  /* Жалоба пользователя: прямоугольное пятно у нижнего правого угла
+     карточки. Причина — фейд в голый "transparent": часть WebView
+     интерполирует его как прозрачный ЧЁРНЫЙ (все RGB-каналы к 0), а не
+     как прозрачную версию цвета стопа, и рядом с транзишном заметна
+     мутная/тёмная полоса вместо плавного растворения. У авроры (см.
+     .player-card__aurora i выше) уже используется правильная форма
+     rgba(цвет,0) — здесь та же замена. */
   background:
-    radial-gradient(240px 150px at 5% 0%,rgba(139,92,246,.20),transparent 72%),
-    radial-gradient(230px 150px at 100% 100%,rgba(255,188,52,.095),transparent 72%),
+    radial-gradient(240px 150px at 5% 0%,rgba(139,92,246,.20),rgba(139,92,246,0) 72%),
+    radial-gradient(230px 150px at 100% 100%,rgba(255,188,52,.095),rgba(255,188,52,0) 72%),
     linear-gradient(145deg,rgba(31,27,48,.98),rgba(13,12,22,.98))!important;
 }
 .player-card__ring-wrap{width:88px!important;height:88px!important;flex-basis:88px!important;}
