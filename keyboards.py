@@ -442,13 +442,6 @@ def reminders_keyboard(settings_data=None):
 
             [
                 InlineKeyboardButton(
-                    text="🕘 Изменить время",
-                    callback_data="change_time"
-                )
-            ],
-
-            [
-                InlineKeyboardButton(
                     text="⬅️ Главное меню",
                     callback_data="back_menu"
                 )

@@ -4646,6 +4646,31 @@ section[data-tab="home"] .streak-widget__hero-row{
 .decor-settled .streak-widget__count strong{
   animation-play-state:paused!important;
 }
+/* Жалоба пользователя: телефон греется, пока держишь приложение открытым
+   (не только в первые секунды) — decor-settled теперь включён всегда (см.
+   app.js::scheduleDecorSettle), но раньше он гасил только "искры/блики"
+   выше, а XP-полоса (xpGlow), блик кнопки квестов (questShine) и пульс
+   активной иконки таб-бара (iconPulse) крутились бесконечно ВСЁ время,
+   пока открыт этот экран — document.getAnimations() в живой вкладке
+   подтвердил: это единственные декоративные infinite-анимации, что
+   остаются "running" после успокоения. Эти три — чистая декорация без
+   смысловой нагрузки, гасим полностью. */
+.decor-settled .xp-bar__fill::after,
+.decor-settled .today-focus__quests-btn::after,
+.decor-settled .tab-bar__item.is-active .tab-bar__icon{
+  animation-play-state:paused!important;
+}
+/* Огонёк серии/орбиты/гало — та же логика, что и в .performance-lite ниже
+   (см. комментарий выше про фидбек "движущиеся элементы пропали") —
+   не останавливаем совсем, а замедляем в разы: "живое" ощущение остаётся,
+   но браузер пересчитывает кадр в разы реже. */
+.decor-settled .streak-widget__mini-flame,
+.decor-settled .streak-orbit{
+  animation-duration:10s!important;
+}
+.decor-settled .streak-widget__flame-halo{
+  animation-duration:9s!important;
+}
 
 @media (max-width:600px){
   .streak-widget__glow--orange,
