@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260921_DARKONLY_RATINGFIX_V43">
+<link rel="stylesheet" href="/static/style.css?v=20260921_REMINDERSUI_V44">
 </head>
 <body>
 
@@ -547,6 +547,25 @@ class="habit-add-form__submit">
   </div>
 
   <div class="settings-row">
+    <span>🔔 Умные напоминания</span>
+    <button type="button" class="settings-quiet-toggle" id="remindersToggle" aria-pressed="false">Выкл</button>
+  </div>
+  <div class="reminders-categories-row" id="remindersCategoriesRow" hidden>
+    <div class="reminders-category-item">
+      <span>📋 Привычки и план дня</span>
+      <button type="button" class="settings-quiet-toggle" data-category="habits" aria-pressed="true">Вкл</button>
+    </div>
+    <div class="reminders-category-item">
+      <span>🔥 Ударный режим</span>
+      <button type="button" class="settings-quiet-toggle" data-category="streak" aria-pressed="true">Вкл</button>
+    </div>
+    <div class="reminders-category-item">
+      <span>📊 Сводки и отчёты</span>
+      <button type="button" class="settings-quiet-toggle" data-category="digests" aria-pressed="true">Вкл</button>
+    </div>
+  </div>
+
+  <div class="settings-row">
     <span>🌙 Тихие часы</span>
     <button type="button" class="settings-quiet-toggle" id="quietHoursToggle" aria-pressed="false">Выкл</button>
   </div>
@@ -942,7 +961,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260921_NODECORBURST_V3"></script>
+<script type="module" src="/static/app.js?v=20260921_REMINDERSUI_V4"></script>
 
 </body>
 </html>

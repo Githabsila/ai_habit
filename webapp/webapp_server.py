@@ -28,7 +28,8 @@ from db import (
     get_habits, get_habit, add_habit, edit_habit, delete_habit,
     complete_habit, get_progress, get_settings,
     skip_habit, unskip_habit, HABIT_CATEGORIES,
-    update_reminder_time, toggle_reminders, update_ai_style, get_ai_style,
+    update_reminder_time, toggle_reminders, toggle_reminder_category, REMINDER_CATEGORIES,
+    update_ai_style, get_ai_style,
     set_quiet_hours, clear_quiet_hours,
     get_shop_items, buy_shop_item, get_user_items, get_shop_item,
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
@@ -448,6 +449,9 @@ async def bootstrap(request):
             "reminders": bool(settings_row["reminders"]) if settings_row else True,
             "reminder_hour": settings_row["reminder_hour"] if settings_row else 9,
             "reminder_minute": settings_row["reminder_minute"] if settings_row else 0,
+            "reminders_habits": bool(settings_row["reminders_habits"]) if settings_row and "reminders_habits" in settings_row.keys() else True,
+            "reminders_streak": bool(settings_row["reminders_streak"]) if settings_row and "reminders_streak" in settings_row.keys() else True,
+            "reminders_digests": bool(settings_row["reminders_digests"]) if settings_row and "reminders_digests" in settings_row.keys() else True,
             "ai_style": get_ai_style(telegram_id),
             "theme_owned": has_item(telegram_id, THEME_ITEM_ID),
             "theme": get_theme(telegram_id),
@@ -1270,6 +1274,20 @@ async def toggle_reminders_route(request):
     telegram_id, _ = await _authenticate(request)
     enabled = toggle_reminders(telegram_id)
     return web.json_response({"ok": True, "reminders": enabled})
+
+@routes.post("/api/settings/reminders/category")
+async def toggle_reminder_category_route(request):
+    """Гранулярные тумблеры напоминаний (Привычки и план дня / Ударный
+    режим / Сводки и отчёты) — та же логика, что у бота (см.
+    handlers/settings.py::toggle_category), только теперь доступна и из
+    Mini App."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    category = body.get("category")
+    if category not in REMINDER_CATEGORIES:
+        return web.json_response({"error": "invalid_category"}, status=400)
+    enabled = toggle_reminder_category(telegram_id, category)
+    return web.json_response({"ok": True, "category": category, "enabled": enabled})
 
 @routes.post("/api/settings/quiet-hours")
 async def set_quiet_hours_route(request):

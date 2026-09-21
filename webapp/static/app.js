@@ -4025,6 +4025,7 @@ function initSettingsActions() {
   });
 
   initQuietHoursActions();
+  initReminderSettingsActions();
 }
 
 // ===================== «ЧТО НОВОГО» =====================
@@ -4129,6 +4130,59 @@ function initQuietHoursActions() {
 
   startSelect.addEventListener("change", save);
   endSelect.addEventListener("change", save);
+}
+
+// Роадмап: "Умные напоминания" — раньше единственный раздел настроек,
+// оставшийся только в панели бота (см. keyboards.py::main_menu,
+// handlers/settings.py). Тот же общий тумблер + 3 гранулярные категории,
+// теперь и в Mini App — бэкенд уже был готов (db/settings.py::toggle_reminders/
+// toggle_reminder_category), нужен был только UI.
+function initReminderSettingsActions() {
+  const toggle = document.getElementById("remindersToggle");
+  const categoriesRow = document.getElementById("remindersCategoriesRow");
+  if (!toggle || !categoriesRow) return;
+
+  function render() {
+    const s = state.settings || {};
+    const enabled = !!s.reminders;
+    toggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+    toggle.textContent = enabled ? "Вкл" : "Выкл";
+    categoriesRow.hidden = !enabled;
+    categoriesRow.querySelectorAll("[data-category]").forEach(btn => {
+      const on = s[`reminders_${btn.dataset.category}`] !== false;
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.textContent = on ? "Вкл" : "Выкл";
+    });
+  }
+  render();
+
+  toggle.addEventListener("click", async () => {
+    try {
+      const res = await api("/api/settings/reminders/toggle", { method: "POST" });
+      if (state.settings) state.settings.reminders = res.reminders;
+      haptic("light");
+      render();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+
+  categoriesRow.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-category]");
+    if (!btn) return;
+    const category = btn.dataset.category;
+    try {
+      const res = await api("/api/settings/reminders/category", {
+        method: "POST",
+        body: JSON.stringify({ category }),
+      });
+      if (state.settings) state.settings[`reminders_${category}`] = res.enabled;
+      haptic("light");
+      render();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
 }
 
 // Roadmap #39 — короткий тест на архетип личности. Подсчёт целиком на

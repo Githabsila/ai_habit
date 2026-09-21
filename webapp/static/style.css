@@ -6984,6 +6984,22 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   color:var(--text-muted,#9D9DB3);
 }
 .quiet-hours-row[hidden]{display:none !important}
+.reminders-categories-row{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  padding:0 2px 12px;
+}
+.reminders-categories-row[hidden]{display:none !important}
+.reminders-category-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:6px 0;
+  font-size:12px;
+  color:var(--text-muted,#9D9DB3);
+}
 .quiet-hours-select{
   height:32px;
   padding:0 8px;
