@@ -4728,6 +4728,28 @@ document.getElementById("bootRetryBtn")?.addEventListener("click", () => {
 
 document.addEventListener("DOMContentLoaded", boot);
 
+// Жалоба пользователя: открываешь Mini App повторно — на экране старые
+// уровень/монеты/серия (например level 9 вместо реальных 37), хотя
+// сервер уже давно отдаёт актуальные данные. Причина: Telegram при
+// повторном открытии часто РЕЗЮМИРУЕТ уже загруженную WebView вместо
+// полной перезагрузки страницы — DOMContentLoaded не срабатывает снова,
+// а boot() выше запускается только один раз за всё время жизни этой
+// WebView. Раз полной перезагрузки может не случиться сама собой,
+// подгружаем свежий /api/bootstrap вручную при возврате в приложение
+// (только если оно реально было скрыто заметное время — иначе спамили
+// бы запросом на каждое мимолётное переключение вкладок).
+let _hiddenAt = null;
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+        _hiddenAt = Date.now();
+        return;
+    }
+    const wasHiddenMs = _hiddenAt ? Date.now() - _hiddenAt : 0;
+    _hiddenAt = null;
+    if (!state || !postBootstrapInitDone || wasHiddenMs < 15000) return;
+    loadBootstrap().catch(() => {});
+});
+
 document.getElementById("aiCoachBtn").addEventListener("click", () => {
     hideProductHint();
     api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage: 3 }) }).catch(() => {});
