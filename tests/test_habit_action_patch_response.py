@@ -5,7 +5,7 @@
 за ВСЕМ главным экраном и полной перерисовки всех секций ради отметки
 одной привычки. См. _shape_user/_shape_habit в webapp_server.py.
 """
-from db import add_user
+from db import add_user, add_habit, get_habits
 
 from tests.conftest import sign_init_data
 
@@ -37,10 +37,14 @@ async def test_complete_route_returns_user_habit_and_quests(client, uid):
 
 
 async def test_progress_route_returns_habit_before_target_reached(client, uid):
+    # POST /api/habits больше не принимает target_count от клиента (форма
+    # добавления привычки лишилась степпера "Сколько раз в день") — но
+    # /progress обязан продолжать работать для привычки со счётчиком,
+    # заданным напрямую через db.add_habit.
     add_user(uid, "u", "Test")
+    add_habit(uid, "Пить воду", target_count=4)
+    habit_id = get_habits(uid)[0]["id"]
     headers = await _headers(uid)
-    r = await client.post("/api/habits", headers=headers, json={"title": "Пить воду", "target_count": 4})
-    habit_id = (await r.json())["habit"]["id"]
 
     r2 = await client.post(f"/api/habits/{habit_id}/progress", headers=headers, json={})
     body = await r2.json()
@@ -58,9 +62,9 @@ async def test_progress_route_returns_habit_before_target_reached(client, uid):
 
 async def test_progress_route_returns_user_and_quests_on_target_reached(client, uid):
     add_user(uid, "u", "Test")
+    add_habit(uid, "Пить воду", target_count=2)
+    habit_id = get_habits(uid)[0]["id"]
     headers = await _headers(uid)
-    r = await client.post("/api/habits", headers=headers, json={"title": "Пить воду", "target_count": 2})
-    habit_id = (await r.json())["habit"]["id"]
 
     await client.post(f"/api/habits/{habit_id}/progress", headers=headers, json={})
     r2 = await client.post(f"/api/habits/{habit_id}/progress", headers=headers, json={})

@@ -732,11 +732,6 @@ async def create_habit(request):
     if category not in HABIT_CATEGORIES:
         category = None
     priority = 2 if body.get("priority") == 2 else 1
-    try:
-        target_count = int(body.get("target_count") or 1)
-    except (TypeError, ValueError):
-        target_count = 1
-    target_count = max(1, min(target_count, MAX_TARGET_COUNT))
     chain_trigger_habit_id = body.get("chain_trigger_habit_id")
     try:
         chain_trigger_habit_id = int(chain_trigger_habit_id) if chain_trigger_habit_id else None
@@ -746,7 +741,6 @@ async def create_habit(request):
     try:
         add_habit(
             telegram_id, title, planned_time=planned_time, category=category, priority=priority,
-            target_count=target_count,
             chain_trigger_habit_id=chain_trigger_habit_id,
         )
     except ValueError as exc:
@@ -795,12 +789,11 @@ async def rename_habit(request):
     if category is not None and category not in HABIT_CATEGORIES:
         category = None
     priority = body.get("priority") if "priority" in body else None
-    target_count = body.get("target_count") if "target_count" in body else None
     # edit_habit(planned_time=...) через COALESCE обновил бы NULL как
     # "не менять" — а нам как раз нужно уметь ОЧИЩАТЬ время (пользователь
     # снял галочку "напоминать"), поэтому колонку планового времени
     # обновляем отдельным явным запросом, а не через edit_habit().
-    edit_habit(habit_id, new_title, category=category, priority=priority, target_count=target_count)
+    edit_habit(habit_id, new_title, category=category, priority=priority)
     if "planned_time" in body:
         from db.core import connect
         conn = connect()

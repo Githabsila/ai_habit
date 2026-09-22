@@ -2,7 +2,7 @@
 HTTP-роуты для roadmap #1 (POST /api/habits/{id}/progress) и #3
 (POST /api/habits/{id}/note, GET /api/habits/notes).
 """
-from db import add_user
+from db import add_user, add_habit, get_habits
 
 from tests.conftest import sign_init_data
 
@@ -13,14 +13,16 @@ async def _headers(uid_):
 
 
 async def test_create_habit_with_counter_and_progress_route(client, uid):
+    # Просьба пользователя: степпер "Сколько раз в день" убрали из формы
+    # добавления привычки, POST /api/habits больше не принимает
+    # target_count от клиента (см. test_habit_extras.py) — но сам роут
+    # /progress должен по-прежнему уметь докручивать счётчик у привычки,
+    # у которой target_count>1 уже стоит (задан напрямую через db.add_habit,
+    # а не через HTTP, раз с фронта так создать больше нельзя).
     add_user(uid, "u", "Test")
+    add_habit(uid, "Пить воду", target_count=4)
+    habit_id = get_habits(uid)[0]["id"]
     headers = await _headers(uid)
-
-    r = await client.post("/api/habits", headers=headers, json={"title": "Пить воду", "target_count": 4})
-    assert r.status == 200
-    data = await r.json()
-    habit_id = data["habit"]["id"]
-    assert data["habit"]["target_count"] == 4
 
     r2 = await client.post(f"/api/habits/{habit_id}/progress", headers=headers, json={})
     body2 = await r2.json()

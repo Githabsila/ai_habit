@@ -2777,16 +2777,6 @@ function initHabitActions() {
   if (advToggle && advPanel) {
     advToggle.addEventListener("click", () => { advPanel.hidden = !advPanel.hidden; });
   }
-  const targetStepper = document.getElementById("newHabitTargetStepper");
-  const targetValueEl = document.getElementById("newHabitTargetValue");
-  if (targetStepper && targetValueEl) {
-    targetStepper.addEventListener("click", (e) => {
-      const stepBtn = e.target.closest("[data-step]");
-      if (!stepBtn) return;
-      const next = Math.max(1, Math.min(20, Number(targetValueEl.textContent) + Number(stepBtn.dataset.step)));
-      targetValueEl.textContent = String(next);
-    });
-  }
   const filterRow = document.getElementById("habitFilterRow");
   if (filterRow) {
     filterRow.addEventListener("click", (e) => {
@@ -3009,8 +2999,6 @@ function initHabitActions() {
     const priorityBtn = document.getElementById("newHabitPriorityBtn");
     const category = categorySelect ? categorySelect.value : "";
     const priority = priorityBtn && priorityBtn.getAttribute("aria-pressed") === "true" ? 2 : 1;
-    const targetValueEl = document.getElementById("newHabitTargetValue");
-    const targetCount = targetValueEl ? Number(targetValueEl.textContent) || 1 : 1;
     const chainSelect = document.getElementById("newHabitChainTrigger");
     const chainTriggerHabitId = chainSelect && chainSelect.value ? Number(chainSelect.value) : undefined;
 
@@ -3023,7 +3011,6 @@ function initHabitActions() {
           planned_time: plannedTime || undefined,
           category: category || undefined,
           priority,
-          target_count: targetCount > 1 ? targetCount : undefined,
           chain_trigger_habit_id: chainTriggerHabitId,
         })
       });
@@ -3043,7 +3030,6 @@ function initHabitActions() {
         const icon = document.getElementById("newHabitPriorityIcon");
         if (icon) icon.textContent = "☆";
       }
-      if (targetValueEl) targetValueEl.textContent = "1";
       if (chainSelect) chainSelect.value = "";
       const advPanelAfterSubmit = document.getElementById("newHabitAdvanced");
       if (advPanelAfterSubmit) advPanelAfterSubmit.hidden = true;
