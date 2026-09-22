@@ -40,6 +40,30 @@ def test_renumber_restarts_after_new_list():
     assert multi_agent._renumber_numbered_lists(text) == "План 1:\n1. Первый шаг\n2. Второй шаг\n\n\nПлан 2:\n1. Первый шаг\n2. Второй шаг"
 
 
+def test_renumber_continues_through_explanation_paragraph():
+    # Жалоба пользователя: реальный формат ответов ADAM — "N. Шаг" с
+    # абзацем-пояснением под каждым пунктом. Абзац между пунктами не
+    # должен обрывать нумерацию одного и того же плана.
+    text = (
+        "1. 16:20–16:50 — отдых 30 минут без телефона.\n\n"
+        "Смысл отдыха — восстановить внимание, а не заменить работу лентой, "
+        "видео и перепиской. Подойдут сон, прогулка, еда без экрана.\n\n"
+        "1. 16:50–17:00 — быстрый переход в рабочий режим.\n\n"
+        "Вода, проветрить комнату, открыть заметки или планировщик."
+    )
+    result = multi_agent._renumber_numbered_lists(text)
+    assert result.startswith("1. 16:20–16:50")
+    assert "\n\n2. 16:50–17:00" in result
+
+
+def test_renumber_still_restarts_after_real_gap_even_with_heading_text():
+    # Заголовок между пунктами (не пустая строка) не должен "прятать"
+    # настоящий двойной разрыв, случившийся перед ним.
+    text = "1. Первый шаг\n1. Второй шаг\n\n\nНовый план:\n1. Первый шаг\n1. Второй шаг"
+    result = multi_agent._renumber_numbered_lists(text)
+    assert result == "1. Первый шаг\n2. Второй шаг\n\n\nНовый план:\n1. Первый шаг\n2. Второй шаг"
+
+
 def test_renumber_empty_and_plain_text_untouched():
     assert multi_agent._renumber_numbered_lists("") == ""
     assert multi_agent._renumber_numbered_lists("Просто текст без списка") == "Просто текст без списка"

@@ -449,6 +449,17 @@ def _renumber_numbered_lists(text: str) -> str:
     Модель иногда печатает 1., 1., 1. или 1), 1), 1). Нумерацию
     исправляем детерминированно, но только внутри одного списка: новый
     список снова начинается с 1. Поддерживаются как ``1.`` так и ``1)``.
+
+    Жалоба пользователя (повторная): в ответах вида "1. Шаг — ...\\n\\n
+    Пояснение к шагу, несколько предложений.\\n\\n1. Следующий шаг — ...")
+    ADAM формирует каждый шаг как "заголовок + абзац объяснения" — это
+    ОДИН логический план, но обычный текст объяснения между пунктами
+    раньше безусловно обрывал список (см. git-историю), так что каждый
+    следующий шаг снова начинался с "1.". Обычный текст сам по себе
+    больше не обрывает список — только "настоящий" разрыв: 2+ пустые
+    строки подряд ГДЕ-ТО в промежутке с последнего пункта (даже если
+    между этим разрывом и следующим пунктом есть текст-заголовок вроде
+    "План 2:") — см. test_renumber_restarts_after_new_list.
     """
     if not text:
         return text
@@ -457,7 +468,8 @@ def _renumber_numbered_lists(text: str) -> str:
     out = []
     counter = 0
     in_list = False
-    blank_since_item = 0
+    current_blank_run = 0
+    max_blank_run = 0
 
     for line in lines:
         raw = line.rstrip('\r\n')
@@ -466,8 +478,9 @@ def _renumber_numbered_lists(text: str) -> str:
 
         if match:
             # Один пустой ряд между пунктами допустим (частый формат LLM).
-            # Более длинный разрыв считаем началом нового списка.
-            if not in_list or blank_since_item > 1:
+            # Более длинный разрыв (2+ пустые строки ПОДРЯД где-то с
+            # прошлого пункта) считаем началом нового списка.
+            if not in_list or max_blank_run > 1:
                 counter = 1
                 in_list = True
             else:
@@ -477,19 +490,19 @@ def _renumber_numbered_lists(text: str) -> str:
                 f"{match.group('indent')}{counter}{match.group('marker')}"
                 f"{match.group('space')}{match.group('body')}{ending}"
             )
-            blank_since_item = 0
+            current_blank_run = 0
+            max_blank_run = 0
             continue
 
         if raw.strip() == '':
-            if in_list:
-                blank_since_item += 1
+            current_blank_run += 1
+            max_blank_run = max(max_blank_run, current_blank_run)
             out.append(line)
             continue
 
-        # Обычный текст завершает текущий список.
-        in_list = False
-        counter = 0
-        blank_since_item = 0
+        # Обычный текст (например, объяснение под пунктом плана) список
+        # НЕ обрывает — обрывает только большой разрыв пустых строк выше.
+        current_blank_run = 0
         out.append(line)
 
     return ''.join(out)
