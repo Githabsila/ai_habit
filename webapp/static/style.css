@@ -10286,9 +10286,14 @@ button:not(:disabled):active,
 .daily-quests-overlay.is-open .daily-quest:nth-child(2){animation-delay:45ms}
 .daily-quests-overlay.is-open .daily-quest:nth-child(3){animation-delay:90ms}
 .daily-quests-overlay.is-open .daily-quest:nth-child(4){animation-delay:135ms}
+/* opacity в "from" сознательно убран — см. подробный комментарий у
+   @keyframes itemReveal выше по файлу: .app-performance-paused *
+   ставит на паузу ЛЮБУЮ анимацию (в т.ч. не начавшуюся из-за
+   animation-delay), и если это происходит в момент открытия модалки
+   квестов, карточка застревала бы невидимой навсегда. */
 @keyframes adamQuestItemIn{
-  from{opacity:0;transform:translate3d(0,5px,0)}
-  to{opacity:1;transform:translate3d(0,0,0)}
+  from{transform:translate3d(0,5px,0)}
+  to{transform:translate3d(0,0,0)}
 }
 
 /* ---------- Все большие overlay/sheet-переходы ---------- */
@@ -10357,19 +10362,36 @@ button:not(:disabled):active,
 .tab-panel.tab-enter{
   animation:adamTabEnter 320ms var(--adam-motion-ease) both !important;
 }
+/* opacity в "from" сознательно убран — та же причина, что и у
+   @keyframes itemReveal ниже: пауза от .app-performance-paused * могла
+   застать анимацию ДО старта и навсегда оставить вкладку невидимой. */
 @keyframes adamTabEnter{
-  from{opacity:0;transform:translate3d(0,6px,0)}
-  to{opacity:1;transform:translate3d(0,0,0)}
+  from{transform:translate3d(0,6px,0)}
+  to{transform:translate3d(0,0,0)}
 }
 
-/* Системные появления списков — мягче и без заметного scale-jump. */
+/* Системные появления списков — мягче и без заметного scale-jump.
+   Жалоба пользователя: часть привычек в списке пропадала (пустой разрыв
+   в вёрстке на их месте, счётчик "0/6" наверху при этом честно считал
+   все 6) — эти keyframes ниже ПЕРЕОПРЕДЕЛЯЛИ более раннее определение
+   itemReveal (см. .habit-item{animation:fadeUp...} выше по файлу, ~2000
+   строка — там opacity сознательно НЕ используется, ровно по этой же
+   причине, см. комментарий там), молча возвращая opacity:0 в "from".
+   .app-performance-paused *{animation-play-state:paused!important}
+   (ниже по каскаду) ставит на паузу ЛЮБую анимацию, в т.ч. ещё не
+   начавшуюся (у элементов 3+ в списке есть animation-delay через
+   nth-child) — если пауза срабатывает в эти доли секунды (свернул
+   приложение сразу после открытия), элемент так и остаётся с
+   opacity:0 — невидимый, но своё место в списке держит. Без opacity
+   в keyframes худшее что может случиться — элемент виден, просто ещё
+   на 6-7px не довинулся до места. */
 @keyframes contentReveal{
-  from{opacity:0;transform:translate3d(0,6px,0)}
-  to{opacity:1;transform:translate3d(0,0,0)}
+  from{transform:translate3d(0,6px,0)}
+  to{transform:translate3d(0,0,0)}
 }
 @keyframes itemReveal{
-  from{opacity:0;transform:translate3d(0,7px,0) scale(.995)}
-  to{opacity:1;transform:translate3d(0,0,0) scale(1)}
+  from{transform:translate3d(0,7px,0) scale(.995)}
+  to{transform:translate3d(0,0,0) scale(1)}
 }
 .streak-widget,
 .plan-card,
