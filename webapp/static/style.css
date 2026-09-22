@@ -8973,36 +8973,31 @@ body{
     0 0 16px rgba(255,209,102,.16);
 }
 .today-focus__quests-btn:active{transform:scale(.96)}
+/* Просьба пользователя: у кнопки "Квесты" (если есть невостребованная
+   награда) — движущаяся цветная обводка по бокам, как в референс-видео
+   (та же просьба, что и для карточек квестов внутри модалки — см.
+   .daily-quest.is-ready ниже по файлу, там уже реализовано и проверено
+   вживую). Раньше здесь уже была попытка — вращающееся conic-gradient
+   кольцо через ::before с mask/mask-composite:exclude. У этой техники
+   в проекте уже задокументированы проблемы с рендерингом в некоторых
+   Android WebView (см. другие комментарии про mask/filter/
+   backdrop-filter на постоянных/анимированных элементах) — вероятная
+   причина, почему пользователь не увидел эффект и попросил его снова.
+   Заменено на тот же безопасный приём без mask: прозрачная рамка +
+   третий слой фона с clip:border-box, анимируется только
+   background-position. */
 .today-focus__quests-btn.has-claimable{
-  border-color:#FFE08A;
-  background:
-    radial-gradient(circle at 30% 15%,rgba(255,239,170,.26),transparent 48%),
-    linear-gradient(145deg,rgba(91,67,26,.98),rgba(45,32,14,.99));
-  animation:questBtnGlow 1.35s ease-in-out infinite;
+  border:2px solid transparent!important;
+  background-image:
+    radial-gradient(circle at 30% 15%,rgba(255,239,170,.26),rgba(255,239,170,0) 48%),
+    linear-gradient(145deg,rgba(91,67,26,.98),rgba(45,32,14,.99)),
+    linear-gradient(120deg,#FFE9A8,#FFB93E,#FF7A18,#FFB93E,#FFE9A8)!important;
+  background-clip:padding-box,padding-box,border-box!important;
+  background-size:100% 100%,100% 100%,240% 100%!important;
 }
-.today-focus__quests-btn.has-claimable::before{
-  content:"";
-  position:absolute;
-  inset:-3px;
-  border-radius:18px;
-  padding:2px;
-  background:conic-gradient(
-    from 0deg,
-    rgba(255,215,106,.15) 0deg,
-    rgba(255,215,106,.15) 210deg,
-    #FFF4BE 250deg,
-    #FFC43D 292deg,
-    rgba(255,215,106,.15) 330deg,
-    rgba(255,215,106,.15) 360deg
-  );
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor;
-  mask-composite:exclude;
-  animation:questBtnBorderSpin 1.05s linear infinite;
-  pointer-events:none;
-  z-index:1;
-  will-change:transform;
+@keyframes questBtnBorderShine{
+  from{background-position:0 0,0 0,0% 50%;}
+  to{background-position:0 0,0 0,100% 50%;}
 }
 @keyframes questBtnGlow{
   0%,100%{box-shadow:0 6px 18px rgba(0,0,0,.28),0 0 0 0 rgba(255,209,102,.36),inset 0 1px 0 rgba(255,255,255,.10)}
@@ -10591,7 +10586,6 @@ body{
 .today-focus__quests-label{font-size:12px;letter-spacing:.01em;color:#FFF5CF}
 .today-focus__quests-btn::after{border-radius:15px}
 .today-focus__quests-btn.has-claimable{animation:adamQuestPulse 1.7s ease-in-out infinite}
-.today-focus__quests-btn.has-claimable::before{inset:-4px;border-radius:20px;filter:drop-shadow(0 0 7px rgba(255,203,66,.32))}
 @keyframes adamQuestPulse{0%,100%{box-shadow:0 7px 18px rgba(0,0,0,.30),0 0 0 0 rgba(255,211,79,.28),inset 0 1px rgba(255,255,255,.14)}50%{box-shadow:0 9px 25px rgba(0,0,0,.34),0 0 0 6px rgba(255,211,79,0),inset 0 1px rgba(255,255,255,.18)}}
 
 /* ---------- Streak hero: the main daily reward surface ---------- */
@@ -10853,6 +10847,12 @@ body{
 .xp-bar__label{font-size:9px!important;margin-top:5px!important;color:rgba(255,255,255,.44)!important;font-weight:800!important;}
 
 /* ---------- today's mission strip ---------- */
+/* Жалоба пользователя: тёмное/мутное пятно у нижнего края карточки —
+   тот же баг, что уже чинили у .player-card (см. комментарий там):
+   голый "transparent" в radial-gradient часть WebView интерполирует
+   как прозрачный ЧЁРНЫЙ, а не как rgba(255,211,90,0) — рядом с уже
+   тёмной подложкой карточки это давало заметную мутную дугу вместо
+   плавного растворения. */
 .today-focus{
   margin:9px 0 13px!important;
   min-height:74px!important;
@@ -10860,7 +10860,7 @@ body{
   gap:10px!important;
   border-radius:23px!important;
   background:
-    radial-gradient(180px 90px at 4% 50%,rgba(255,211,90,.11),transparent 75%),
+    radial-gradient(180px 90px at 4% 50%,rgba(255,211,90,.11),rgba(255,211,90,0) 75%),
     linear-gradient(145deg,rgba(42,34,20,.94),rgba(20,16,16,.97))!important;
   border:1px solid rgba(255,211,90,.19)!important;
   box-shadow:0 13px 35px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.055)!important;
@@ -10873,7 +10873,12 @@ body{
   min-width:103px!important;height:51px!important;padding:0 12px!important;gap:7px!important;
   border-radius:17px!important;
   border:1px solid rgba(255,218,110,.62)!important;
-  background:radial-gradient(circle at 25% 12%,rgba(255,246,190,.27),transparent 43%),linear-gradient(145deg,#755722,#35240e)!important;
+  /* background-image (не background-шорткод) — шорткод неявно сбросил бы
+     background-position в 0% 0% !important, а такое значение по CSS
+     Cascade побеждает keyframe-анимацию того же свойства у
+     .has-claimable ниже (движущаяся обводка) — проверено вживую, та же
+     причина, что и в .daily-quest выше по файлу. */
+  background-image:radial-gradient(circle at 25% 12%,rgba(255,246,190,.27),rgba(255,246,190,0) 43%),linear-gradient(145deg,#755722,#35240e)!important;
   box-shadow:0 9px 22px rgba(0,0,0,.30),inset 0 1px rgba(255,255,255,.17),0 0 0 1px rgba(255,203,60,.06)!important;
   position:relative!important;overflow:hidden!important;
   transition:transform .18s var(--wow-ease),filter .18s ease!important;
@@ -10883,7 +10888,7 @@ body{
   background:linear-gradient(115deg,transparent 0 38%,rgba(255,255,255,.24) 48%,transparent 58% 100%)!important;
   transform:translateX(-120%)!important;animation:questShine 2.8s ease-in-out infinite!important;
 }
-.today-focus__quests-btn.has-claimable{animation:questAttention 1.55s ease-in-out infinite!important;}
+.today-focus__quests-btn.has-claimable{animation:questAttention 1.55s ease-in-out infinite,questBtnBorderShine 3s linear infinite!important;}
 .today-focus__quests-icon{font-size:23px!important;position:relative!important;z-index:2!important;filter:drop-shadow(0 2px 7px rgba(255,204,66,.42))!important;}
 .today-focus__quests-label{position:relative!important;z-index:2!important;font-size:12px!important;font-weight:900!important;color:#fff4c9!important;}
 @keyframes questShine{0%,48%{transform:translateX(-120%)}72%,100%{transform:translateX(120%)}}
