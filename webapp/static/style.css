@@ -10692,8 +10692,8 @@ body{
     linear-gradient(145deg,#211c31,#0e0c15) !important;
   box-shadow:0 35px 100px rgba(0,0,0,.58),inset 0 1px rgba(255,255,255,.07) !important;
 }
-.daily-quest{border-radius:18px !important;border:1px solid rgba(255,255,255,.07) !important;background:rgba(255,255,255,.035) !important;padding:12px !important}
-.daily-quest.is-ready{border-color:rgba(255,213,79,.32) !important;background:rgba(255,213,79,.065) !important}
+.daily-quest{border-radius:18px !important;border:1px solid rgba(255,255,255,.07) !important;background-color:rgba(255,255,255,.035) !important;padding:12px !important}
+.daily-quest.is-ready{border-color:rgba(255,213,79,.32) !important;background-color:rgba(255,213,79,.065) !important}
 .daily-quest__bar{height:7px !important;border-radius:999px !important;background:rgba(255,255,255,.07) !important}
 .daily-quest__bar-fill{background:linear-gradient(90deg,#FFE17B,#FFAE20) !important;box-shadow:0 0 10px rgba(255,191,43,.32)}
 .daily-quest__claim{border-radius:12px !important;background:linear-gradient(180deg,#FFE47C,#EFB72C) !important;color:#3a2600 !important;font-weight:900 !important}
@@ -11019,26 +11019,63 @@ body{
   border:1px solid rgba(255,255,255,.10)!important;
   box-shadow:0 40px 100px rgba(0,0,0,.62),inset 0 1px rgba(255,255,255,.075)!important;
 }
-.daily-quest{border-radius:19px!important;padding:13px!important;background:rgba(255,255,255,.035)!important;border:1px solid rgba(255,255,255,.065)!important;}
+/* background-color (не background-шорткод!) — шорткод неявно сбросил бы
+   background-position в 0% 0% !important, а такое !important-значение
+   по CSS Cascade побеждает любую keyframe-анимацию того же свойства на
+   этом элементе (проверено вживую) — это глушило бы бегущий блик у
+   .daily-quest.is-ready (см. ниже), т.к. background-position там же
+   наследуется от этого правила. */
+.daily-quest{border-radius:19px!important;padding:13px!important;background-color:rgba(255,255,255,.035)!important;border:1px solid rgba(255,255,255,.065)!important;}
 /* Просьба пользователя: у квеста с готовой наградой — цветная обводка
    (референс видео с другим приложением, карточка "СЕРИЯ" с градиентной
-   рамкой по контуру). Стандартный приём: border:...solid transparent +
-   два слоя background (сплошная заливка clip:padding-box поверх
-   градиента clip:border-box) — так градиент виден только в кольце самой
-   рамки, а не поверх содержимого карточки.
-   Статичная, без анимации: .daily-quest использует свой собственный
-   animation для входного fade-in (adamQuestItemIn, см. выше по каскаду) —
-   анимация тут через animation:...!important молча заменила бы его
-   целиком (shorthand — одно значение на элемент), и карточка с наградой
-   навсегда оставалась бы invisible (opacity:0 из базового состояния).
-   Поймано и проверено вживую при разработке этой фичи. */
+   рамкой по контуру) + по ней бежит блик (новые референсы амии.mp4/иим.mp4
+   показали, что обводка должна именно двигаться, не быть статичной).
+   Стандартный приём: border:...solid transparent + два слоя background
+   (сплошная заливка clip:padding-box поверх градиента clip:border-box) —
+   так градиент виден только в кольце самой рамки, а не поверх содержимого
+   карточки. background-size у второго (border-box) слоя растянут шире
+   100%, а анимация двигает его background-position — блик "бежит" по
+   кольцу.
+   Первая попытка сделать это анимацией была через animation:...!important
+   прямо на .daily-quest.is-ready — это молча заменяло собой весь
+   входной fade-in (adamQuestItemIn, см. .daily-quests-overlay.is-open
+   .daily-quest выше по каскаду), т.к. animation-shorthand — одно значение
+   на элемент, а не слияние правил. Карточка с наградой навсегда
+   оставалась invisible (opacity:0 из базового состояния). Починено ниже:
+   обе анимации явно перечислены через запятую в одном правиле
+   (.daily-quests-overlay.is-open .daily-quest.is-ready), это не
+   clobber, а сумма двух анимаций сразу.
+   Второй, отдельный баг (найден и починен при разработке этой версии):
+   background:<цвет> padding-box, <градиент> border-box — по спецификации
+   background-color обязан быть ТОЛЬКО в последнем слое shorthand'а;
+   когда он первый (как тут было), всё объявление невалидно и браузер
+   молча его игнорирует целиком — обводка не отображалась вообще, ни
+   статично, ни анимированно, с самого первого коммита фичи. Проверено
+   вживую (background-image computed = "none"). Фикс: оба слоя — image
+   (не background-color), плоская заливка как linear-gradient с двумя
+   одинаковыми стопами — тогда background-clip можно указать списком без
+   ограничения на порядок. Заливка внутри (padding-box слой) должна быть
+   почти непрозрачной (.95) — раньше стояло 7% альфы (задумано было как
+   лёгкий тёплый оттенок), но раз этот слой лежит НАД градиентом рамки,
+   низкая альфа пропускала яркий градиент внутрь всей карточки целиком
+   (проверено вживую: вся карточка заливалась цветом рамки). */
 .daily-quest.is-ready{
+  position:relative!important;
   border:2px solid transparent!important;
   border-radius:19px!important;
-  background:
-    rgba(255,204,64,.07) padding-box,
-    linear-gradient(120deg,#FFE9A8,#FFB93E,#FF7A18,#FFB93E,#FFE9A8) border-box!important;
+  background-image:
+    linear-gradient(rgba(22,17,12,.95),rgba(22,17,12,.95)),
+    linear-gradient(120deg,#FFE9A8,#FFB93E,#FF7A18,#FFB93E,#FFE9A8)!important;
+  background-clip:padding-box,border-box!important;
+  background-size:100% 100%,240% 100%!important;
   box-shadow:0 0 24px rgba(255,193,46,.08)!important;
+}
+.daily-quests-overlay.is-open .daily-quest.is-ready{
+  animation:adamQuestItemIn 360ms var(--adam-motion-ease) both,questBorderShine 3s linear infinite!important;
+}
+@keyframes questBorderShine{
+  from{background-position:0 0,0% 50%;}
+  to{background-position:0 0,100% 50%;}
 }
 .daily-quest__bar{height:7px!important;border-radius:999px!important;background:rgba(255,255,255,.07)!important;overflow:hidden!important;}
 .daily-quest__bar-fill{background:linear-gradient(90deg,#ffe992,#ffae22)!important;box-shadow:0 0 12px rgba(255,190,44,.34)!important;}
