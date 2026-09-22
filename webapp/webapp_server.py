@@ -27,7 +27,7 @@ from db import (
     get_user, add_user, is_banned, get_access_status, set_access_status,
     get_habits, get_habit, add_habit, edit_habit, delete_habit,
     complete_habit, get_progress, get_settings,
-    skip_habit, unskip_habit, HABIT_CATEGORIES,
+    HABIT_CATEGORIES,
     update_reminder_time, toggle_reminders, toggle_reminder_category, REMINDER_CATEGORIES,
     update_ai_style, get_ai_style,
     set_quiet_hours, clear_quiet_hours,
@@ -57,7 +57,7 @@ from db import (
     should_show_app_tour, mark_app_tour_seen,
     increment_habit_progress, get_weekly_progress,
     add_habit_note, get_recent_habit_notes,
-    MAX_TARGET_COUNT, MAX_FREQUENCY_PER_WEEK,
+    MAX_TARGET_COUNT,
     get_daily_quests, claim_daily_quest,
     get_league_tier, get_league_progress,
     is_xp_booster_active,
@@ -737,13 +737,6 @@ async def create_habit(request):
     except (TypeError, ValueError):
         target_count = 1
     target_count = max(1, min(target_count, MAX_TARGET_COUNT))
-    frequency_per_week = body.get("frequency_per_week")
-    try:
-        frequency_per_week = int(frequency_per_week) if frequency_per_week else None
-    except (TypeError, ValueError):
-        frequency_per_week = None
-    if frequency_per_week is not None:
-        frequency_per_week = max(1, min(frequency_per_week, MAX_FREQUENCY_PER_WEEK))
     chain_trigger_habit_id = body.get("chain_trigger_habit_id")
     try:
         chain_trigger_habit_id = int(chain_trigger_habit_id) if chain_trigger_habit_id else None
@@ -753,7 +746,7 @@ async def create_habit(request):
     try:
         add_habit(
             telegram_id, title, planned_time=planned_time, category=category, priority=priority,
-            target_count=target_count, frequency_per_week=frequency_per_week,
+            target_count=target_count,
             chain_trigger_habit_id=chain_trigger_habit_id,
         )
     except ValueError as exc:
@@ -803,16 +796,11 @@ async def rename_habit(request):
         category = None
     priority = body.get("priority") if "priority" in body else None
     target_count = body.get("target_count") if "target_count" in body else None
-    edit_kwargs = {}
-    if "frequency_per_week" in body:
-        # None явно означает "снять периодичность, вернуть к ежедневной" —
-        # отличаем от "поле вообще не прислали" (см. edit_habit's _UNSET).
-        edit_kwargs["frequency_per_week"] = body.get("frequency_per_week")
     # edit_habit(planned_time=...) через COALESCE обновил бы NULL как
     # "не менять" — а нам как раз нужно уметь ОЧИЩАТЬ время (пользователь
     # снял галочку "напоминать"), поэтому колонку планового времени
     # обновляем отдельным явным запросом, а не через edit_habit().
-    edit_habit(habit_id, new_title, category=category, priority=priority, target_count=target_count, **edit_kwargs)
+    edit_habit(habit_id, new_title, category=category, priority=priority, target_count=target_count)
     if "planned_time" in body:
         from db.core import connect
         conn = connect()
@@ -821,36 +809,6 @@ async def rename_habit(request):
         conn.close()
     return web.json_response({"ok": True})
 
-
-@routes.post("/api/habits/{habit_id}/skip")
-async def skip_habit_route(request):
-    """Осознанный пропуск привычки на сегодня с причиной (#6 из roadmap) —
-    в отличие от простого игнорирования, не считается "провалом" в
-    еженедельном AI-разборе и перестаёт слать напоминания на сегодня."""
-    telegram_id, _ = await _authenticate(request)
-    habit_id = int(request.match_info["habit_id"])
-    _owned_habit_or_404(habit_id, telegram_id)
-    body = await request.json()
-    reason = (body.get("reason") or "").strip()
-    if not reason:
-        return web.json_response({"error": "reason_required"}, status=400)
-    if len(reason) > 60:
-        return web.json_response({"error": "reason_too_long"}, status=400)
-    ok = skip_habit(habit_id, reason)
-    if not ok:
-        return web.json_response({"error": "already_completed"}, status=409)
-    return web.json_response({"ok": True})
-
-
-@routes.post("/api/habits/{habit_id}/unskip")
-async def unskip_habit_route(request):
-    """Отменяет пропуск — пользователь передумал и хочет вернуть привычку
-    в обычный список на сегодня."""
-    telegram_id, _ = await _authenticate(request)
-    habit_id = int(request.match_info["habit_id"])
-    _owned_habit_or_404(habit_id, telegram_id)
-    unskip_habit(habit_id)
-    return web.json_response({"ok": True})
 
 async def _maybe_push_first_win(app, telegram_id, result_type):
     """После первого закрытого результата отправляет один отдельный push от ADAM.

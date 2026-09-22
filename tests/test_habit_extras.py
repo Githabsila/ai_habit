@@ -261,39 +261,21 @@ async def test_api_create_habit_with_category_and_priority(client, uid):
     assert data["habit"]["priority"] == 2
 
 
-async def test_api_skip_habit_requires_reason(client, uid):
+async def test_api_skip_routes_removed(client, uid):
+    # Просьба пользователя: "Пропустить привычку" убрали как функцию
+    # целиком (дисциплина — заморозки есть для тех, кто не может
+    # выполнить) — HTTP-маршруты больше не существуют. db.skip_habit/
+    # unskip_habit остаются в кодовой базе (см. test_skip_habit_* выше) —
+    # намеренно не удалялись, чтобы можно было вернуть фичу в премиум
+    # позже без переписывания бэкенда, но достучаться до них снаружи
+    # теперь нельзя.
     add_user(uid, "u", "Test")
     add_habit(uid, "Пить воду")
     habit_id = get_habits(uid)[0]["id"]
     headers = await _headers(uid)
-
-    r = await client.post(f"/api/habits/{habit_id}/skip", headers=headers, data='{"reason": ""}')
-    assert r.status == 400
 
     r = await client.post(f"/api/habits/{habit_id}/skip", headers=headers, data='{"reason": "Болею"}')
-    assert r.status == 200
-    assert get_habit(habit_id)["skip_reason"] == "Болею"
-
-
-async def test_api_unskip_habit(client, uid):
-    add_user(uid, "u", "Test")
-    add_habit(uid, "Пить воду")
-    habit_id = get_habits(uid)[0]["id"]
-    headers = await _headers(uid)
-    await client.post(f"/api/habits/{habit_id}/skip", headers=headers, data='{"reason": "Болею"}')
+    assert r.status == 404
 
     r = await client.post(f"/api/habits/{habit_id}/unskip", headers=headers)
-    assert r.status == 200
-    assert get_habit(habit_id)["skip_reason"] is None
-
-
-async def test_api_skip_habit_rejects_other_users_habit(client, uid):
-    add_user(uid, "u", "Test")
-    other_uid = uid * 10
-    add_user(other_uid, "u2", "Test2")
-    add_habit(other_uid, "Чужая привычка")
-    other_habit_id = get_habits(other_uid)[0]["id"]
-
-    headers = await _headers(uid)
-    r = await client.post(f"/api/habits/{other_habit_id}/skip", headers=headers, data='{"reason": "Болею"}')
     assert r.status == 404

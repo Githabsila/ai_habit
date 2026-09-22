@@ -278,7 +278,6 @@
   let state = null; // последний bootstrap-снимок
   let knownLevel = null; // для детекта левел-апа между загрузками
   let activeHabitFilter = ""; // выбранная категория в фильтре привычек ("" — все)
-  let skipPromptHabitId = null; // id привычки, для которой сейчас открыт выбор причины пропуска
   let currentLanguage = "ru"; // roadmap #46 — язык интерфейса, обновляется из state.settings.language
   let reactPickerForId = null; // roadmap #19 — telegram_id, для которого сейчас открыт выбор эмодзи-реакции в рейтинге
 
@@ -289,7 +288,6 @@
     mind: { emoji: "🧘", label: "Разум" },
     other: { emoji: "✨", label: "Другое" },
   };
-  const SKIP_REASONS = ["Болею", "В отъезде", "Просто пропускаю"];
 
 
   // Безопасный вывод пользовательского текста в HTML.
@@ -1923,8 +1921,7 @@
       const isCounter = (h.target_count || 1) > 1;
       const badges =
         (h.priority === 2 ? `<span class="habit-item__badge" title="Важная привычка">⭐</span>` : "") +
-        (catMeta ? `<span class="habit-item__badge" title="${escapeHtml(catMeta.label)}">${catMeta.emoji}</span>` : "") +
-        (h.frequency_per_week ? `<span class="habit-item__badge habit-item__badge--freq" title="Гибкая периодичность">${h.weekly_progress ?? 0}/${h.frequency_per_week} нед.</span>` : "");
+        (catMeta ? `<span class="habit-item__badge" title="${escapeHtml(catMeta.label)}">${catMeta.emoji}</span>` : "");
       const noteBtn = h.completed
         ? `<button class="habit-item__note" data-action="note" aria-label="Заметка/фото">📝</button>`
         : "";
@@ -1937,29 +1934,6 @@
            </span>`
         : "";
 
-      if (h.skip_reason) {
-        return `
-      <li class="habit-item is-skipped" data-id="${h.id}">
-        <button class="habit-item__check" disabled>⏭</button>
-        ${badges}<span class="habit-item__title ${expandedHabitTextIds.has(h.id) ? "is-expanded" : ""}" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
-        <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
-        <div class="habit-item__skip-note">Пропущено: ${escapeHtml(h.skip_reason)} · <button type="button" data-action="unskip">вернуть</button></div>
-      </li>`;
-      }
-
-      if (skipPromptHabitId === h.id) {
-        return `
-      <li class="habit-item" data-id="${h.id}">
-        <button class="habit-item__check" data-action="complete"></button>
-        ${badges}<span class="habit-item__title ${expandedHabitTextIds.has(h.id) ? "is-expanded" : ""}" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
-        <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>
-        <div class="habit-skip-reasons">
-          ${SKIP_REASONS.map(r => `<button type="button" class="habit-skip-reason-chip" data-reason="${escapeHtml(r)}">${escapeHtml(r)}</button>`).join("")}
-          <button type="button" class="habit-skip-reason-cancel">Отмена</button>
-        </div>
-      </li>`;
-      }
-
       const checkLabel = h.completed
         ? "✓"
         : (isCounter ? `${h.progress_count || 0}/${h.target_count}` : "");
@@ -1970,7 +1944,6 @@
         ? `
         <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
         ${noteBtn}
-        ${h.completed ? "" : `<button class="habit-item__skip" data-action="skip" aria-label="Пропустить сегодня">⏭</button>`}
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>`
         : `<button class="habit-item__more" data-action="toggle-actions" aria-label="Действия с привычкой" aria-expanded="false">✏️</button>`;
 
@@ -2814,16 +2787,6 @@ function initHabitActions() {
       targetValueEl.textContent = String(next);
     });
   }
-  const freqChips = document.getElementById("newHabitFreqChips");
-  if (freqChips) {
-    freqChips.addEventListener("click", (e) => {
-      const chip = e.target.closest(".habit-add-form__freq-chip");
-      if (!chip) return;
-      freqChips.querySelectorAll(".habit-add-form__freq-chip").forEach(c => c.classList.remove("is-active"));
-      chip.classList.add("is-active");
-    });
-  }
-
   const filterRow = document.getElementById("habitFilterRow");
   if (filterRow) {
     filterRow.addEventListener("click", (e) => {
@@ -2835,29 +2798,6 @@ function initHabitActions() {
   }
 
   habitList.addEventListener("click", async (e) => {
-    // Причина пропуска — выбор одного из готовых чипов ("Болею" и т.п.).
-    const reasonChip = e.target.closest(".habit-skip-reason-chip");
-    if (reasonChip) {
-      const li = reasonChip.closest(".habit-item");
-      if (!li) return;
-      skipPromptHabitId = null;
-      try {
-        await api(`/api/habits/${li.dataset.id}/skip`, {
-          method: "POST",
-          body: JSON.stringify({ reason: reasonChip.dataset.reason }),
-        });
-        haptic("light");
-        await loadBootstrap();
-      } catch (err) {
-        showToast(friendlyError(err), "error");
-      }
-      return;
-    }
-    if (e.target.closest(".habit-skip-reason-cancel")) {
-      skipPromptHabitId = null;
-      renderHabits();
-      return;
-    }
     // Чип готового шаблона привычки (только в пустом состоянии) — сразу
     // отправляем как обычное создание, без набора текста руками.
     const templateChip = e.target.closest("[data-template]");
@@ -2972,15 +2912,6 @@ function initHabitActions() {
       return;
     }
 
-    if (action === "skip") {
-      // Не шлём запрос сразу — сначала даём выбрать причину (готовые чипы
-      // ниже строки), сам API-вызов уходит по клику на конкретный чип
-      // (см. обработчик .habit-skip-reason-chip выше).
-      skipPromptHabitId = habitId;
-      renderHabits();
-      return;
-    }
-
     try {
       if (action === "complete") {
         btn.disabled = true;
@@ -3003,10 +2934,6 @@ function initHabitActions() {
         }
       } else if (action === "note") {
         openHabitNotePrompt(habitId);
-      } else if (action === "unskip") {
-        await api(`/api/habits/${habitId}/unskip`, { method: "POST" });
-        haptic("light");
-        await loadBootstrap();
       } else if (action === "delete") {
         deleteHabitWithUndo(habitId);
       }
@@ -3084,8 +3011,6 @@ function initHabitActions() {
     const priority = priorityBtn && priorityBtn.getAttribute("aria-pressed") === "true" ? 2 : 1;
     const targetValueEl = document.getElementById("newHabitTargetValue");
     const targetCount = targetValueEl ? Number(targetValueEl.textContent) || 1 : 1;
-    const activeFreqChip = document.querySelector(".habit-add-form__freq-chip.is-active");
-    const frequencyPerWeek = activeFreqChip ? Number(activeFreqChip.dataset.freq) || 0 : 0;
     const chainSelect = document.getElementById("newHabitChainTrigger");
     const chainTriggerHabitId = chainSelect && chainSelect.value ? Number(chainSelect.value) : undefined;
 
@@ -3099,7 +3024,6 @@ function initHabitActions() {
           category: category || undefined,
           priority,
           target_count: targetCount > 1 ? targetCount : undefined,
-          frequency_per_week: frequencyPerWeek > 0 ? frequencyPerWeek : undefined,
           chain_trigger_habit_id: chainTriggerHabitId,
         })
       });
@@ -3120,8 +3044,6 @@ function initHabitActions() {
         if (icon) icon.textContent = "☆";
       }
       if (targetValueEl) targetValueEl.textContent = "1";
-      document.querySelectorAll(".habit-add-form__freq-chip").forEach(c => c.classList.remove("is-active"));
-      document.querySelector('.habit-add-form__freq-chip[data-freq="0"]')?.classList.add("is-active");
       if (chainSelect) chainSelect.value = "";
       const advPanelAfterSubmit = document.getElementById("newHabitAdvanced");
       if (advPanelAfterSubmit) advPanelAfterSubmit.hidden = true;

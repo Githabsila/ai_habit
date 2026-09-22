@@ -11,6 +11,12 @@ from db import (
     reset_habits, log_daily_habits,
 )
 from db.core import connect
+from tests.conftest import sign_init_data
+
+
+async def _headers(uid_):
+    init_data = sign_init_data(uid_)
+    return {"Authorization": f"tma {init_data}", "Content-Type": "application/json"}
 
 
 # =====================================
@@ -143,6 +149,23 @@ def test_daily_habit_without_frequency_unaffected(uid):
     add_habit(uid, "Обычная")
     habit_id = get_habits(uid)[0]["id"]
     assert any(h["id"] == habit_id for h in get_incomplete_habits(uid))
+
+
+async def test_api_create_habit_ignores_frequency_per_week(client, uid):
+    # Просьба пользователя: гибкую периодичность (2×/3×/5× в неделю)
+    # убрали из интерфейса как отвлекающую доп.функцию (в будущем — может
+    # премиум). db.add_habit(frequency_per_week=...) осталась в кодовой
+    # базе для этого (см. тесты выше), но HTTP-ручка создания привычки
+    # больше не принимает это поле от клиента, даже если его прислать.
+    add_user(uid, "u", "Test")
+    headers = await _headers(uid)
+    r = await client.post(
+        "/api/habits", headers=headers,
+        data='{"title": "Бег", "frequency_per_week": 3}',
+    )
+    assert r.status == 200
+    habit = get_habits(uid)[0]
+    assert habit["frequency_per_week"] is None
 
 
 # =====================================
