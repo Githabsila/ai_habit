@@ -1960,7 +1960,7 @@ async def buy_route(request):
         return web.json_response({"error": "shop_item_not_found"}, status=404)
 
     item_type = item["item_type"] if "item_type" in item.keys() else "cosmetic"
-    if item_type in ("frame_stars", "answer_pack_stars"):
+    if item_type in ("frame_stars", "answer_pack_stars", "diamond_pack_stars"):
         return web.json_response({"error": "use_stars_checkout"}, status=400)
 
     if item_id == 1 and was_premium_purchased(telegram_id):
@@ -2112,7 +2112,7 @@ async def create_stars_invoice(request):
     telegram_id, _ = await _authenticate(request)
     item_id = int(request.match_info["item_id"])
     item = get_shop_item(item_id)
-    if not item or item["item_type"] not in ("frame_stars", "answer_pack_stars", "booster_stars"):
+    if not item or item["item_type"] not in ("frame_stars", "answer_pack_stars", "booster_stars", "diamond_pack_stars"):
         return web.json_response({"error": "stars_item_not_found"}, status=404)
 
     if item["item_type"] == "frame_stars":
@@ -2128,6 +2128,13 @@ async def create_stars_invoice(request):
         title = item["name"]
         description = item["description"]
         payload = f"booster:{item_id}:{telegram_id}"
+    elif item["item_type"] == "diamond_pack_stars":
+        # Алмазы — без дневного лимита, как и booster_stars: ограничивает
+        # только кошелёк покупателя (см. комментарий у сидирования в
+        # db/core.py).
+        title = item["name"]
+        description = item["description"]
+        payload = f"diamond_pack_stars:{item_id}:{telegram_id}"
     else:
         # Пром 9: пакеты +50/+100 ответов ADAM за Stars — не больше 1 раза
         # в день каждый, как и монетные пакеты (см. has_reached_daily_limit).

@@ -12594,3 +12594,30 @@ body{
   font-size: 11.5px !important;
   font-weight: 800 !important;
 }
+
+/* Баланс алмазов в шапке магазина — рядом с балансом Adam Coin. */
+.shop-balances{
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  align-items: flex-end !important;
+  flex: 0 0 auto !important;
+}
+.shop-balance--diamond{
+  background: rgba(93,188,252,.10) !important;
+  border-color: rgba(93,188,252,.22) !important;
+  color: #5DBCFC !important;
+}
+.shop-balance__diamond{
+  font-size: 16px !important;
+  line-height: 1 !important;
+}
+
+/* Карточка пакета алмазов в магазине — голубой акцент, тот же приём, что
+   и у .shop-item--answers (фиолетовый акцент для пакетов ответов). */
+.shop-item--diamond{
+  border-color: rgba(93,188,252,.25) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(93,188,252,.18), transparent 48%),
+    linear-gradient(145deg, rgba(24,31,42,.98), rgba(15,19,27,.98)) !important;
+}

@@ -2012,9 +2012,11 @@
   function renderShop() {
     const list = document.getElementById("shopList");
     const balance = document.getElementById("shopBalanceValue");
+    const diamondBalance = document.getElementById("shopDiamondBalanceValue");
     const items = Array.isArray(state.shop_items) ? state.shop_items : [];
 
     if (balance) balance.textContent = Number(state.user?.xp || 0).toLocaleString("ru-RU");
+    if (diamondBalance) diamondBalance.textContent = Number(state.user?.diamonds || 0).toLocaleString("ru-RU");
     if (!list) return;
 
     if (items.length === 0) {
@@ -2030,6 +2032,7 @@
       const balanceValue = Number(state.user?.xp || 0);
       const canAfford = balanceValue >= price;
       const isAnswer = it.item_type === "answer_pack" || /ответ/i.test(it.name || "");
+      const isDiamondPack = it.item_type === "diamond_pack_stars";
       const amountMatch = String(it.payload || it.name || "").match(/(\d+)/);
       const amount = amountMatch ? amountMatch[1] : "";
 
@@ -2039,6 +2042,9 @@
       if (isAnswer) {
         title = amount ? `+${amount} ответов` : title;
         desc = amount ? `Ещё ${amount} запросов к ADAM` : desc;
+      } else if (isDiamondPack) {
+        title = amount ? `+${amount} 💎` : title;
+        desc = amount ? `${amount} алмазов на баланс` : desc;
       }
 
       // Цена находится только слева. На кнопке никогда не дублируем
@@ -2046,7 +2052,7 @@
       let btnLabel = "Купить";
       let btnClass = "buy-btn";
       let disabled = "";
-      const isStars = it.item_type === "frame_stars" || it.item_type === "answer_pack_stars" || it.item_type === "booster_stars";
+      const isStars = it.item_type === "frame_stars" || it.item_type === "answer_pack_stars" || it.item_type === "booster_stars" || it.item_type === "diamond_pack_stars";
       const isFrame = it.item_type === "frame";
 
       if (isStars) {
@@ -2068,10 +2074,10 @@
       }
 
       return `
-        <li class="shop-item ${isAnswer ? "shop-item--answers" : ""}" data-id="${it.id}">
+        <li class="shop-item ${isAnswer ? "shop-item--answers" : ""} ${isDiamondPack ? "shop-item--diamond" : ""}" data-id="${it.id}">
           <div class="shop-item__top">
-            <span class="shop-item__icon">${isAnswer ? "💬" : "✦"}</span>
-            ${isAnswer ? `<span class="shop-item__tag">ДОП. ОТВЕТЫ</span>` : ""}
+            <span class="shop-item__icon">${isAnswer ? "💬" : (isDiamondPack ? "💎" : "✦")}</span>
+            ${isAnswer ? `<span class="shop-item__tag">ДОП. ОТВЕТЫ</span>` : (isDiamondPack ? `<span class="shop-item__tag">АЛМАЗЫ</span>` : "")}
           </div>
           <div class="shop-item__name">${title}</div>
           <div class="shop-item__desc">${desc}</div>

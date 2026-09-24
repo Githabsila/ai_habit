@@ -12,7 +12,7 @@ from config import PREMIUM_PRICE_STARS
 from db import (
     give_premium_admin, set_cosmetic, get_shop_item, add_ai_bonus_answers, log_stars_purchase,
     get_subscription_price_stars, record_subscription_payment, get_subscription_status,
-    try_grant_channel_access, activate_xp_booster, get_timezone,
+    try_grant_channel_access, activate_xp_booster, get_timezone, add_diamonds,
     is_payment_processed, mark_payment_processed, log_error,
     get_user, get_referred_users,
 )
@@ -249,6 +249,33 @@ async def successful_payment(message: Message):
             log_stars_purchase(message.from_user.id, item_id)
         await message.answer(
             f"✅ Спасибо! {item['name'] if item else 'Пакет ответов'} добавлен к твоему дневному лимиту.",
+            reply_markup=back_menu_keyboard()
+        )
+        return
+
+    # Алмазы (премиальная валюта) за Telegram Stars — первая и пока
+    # единственная платная покупка алмазов; правила, на что их можно
+    # тратить, продумаем отдельно.
+    if payload.startswith("diamond_pack_stars:"):
+        parts = payload.split(":")
+        try:
+            item_id = int(parts[1])
+            paid_user_id = int(parts[2])
+        except (IndexError, ValueError):
+            return
+        if paid_user_id != message.from_user.id:
+            return
+        item = get_shop_item(item_id)
+        if item and item["item_type"] == "diamond_pack_stars":
+            try:
+                amount = int(item["payload"] or 0)
+            except (TypeError, ValueError):
+                amount = 0
+            if amount > 0:
+                add_diamonds(message.from_user.id, amount)
+            log_stars_purchase(message.from_user.id, item_id)
+        await message.answer(
+            f"💎 Спасибо! {item['name'] if item else 'Алмазы'} зачислены на баланс.",
             reply_markup=back_menu_keyboard()
         )
         return

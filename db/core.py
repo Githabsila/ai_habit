@@ -604,6 +604,26 @@ def create_tables():
         "VALUES (26,'💜 Рамка: Пульс','Анимированная пульсирующая рамка аватара',280,'frame','pulse_violet',0)"
     )
 
+    # Алмазы — премиальная валюта, которую нельзя заработать обычными
+    # действиями (см. диздок-комментарий у колонки users.diamonds выше),
+    # только купить за реальные деньги (Telegram Stars) или получить в
+    # награду за идеальный месяц серии. Это сама покупка — правила, на что
+    # алмазы тратятся, продумаем позже, сейчас важно включить сам вход
+    # денег. Без дневного лимита (daily_limit_per_user=0) — в отличие от
+    # пакетов ответов ADAM, здесь ограничивает только кошелёк покупателя,
+    # а не риск абуза лимита AI-запросов.
+    # ВАЖНО: цены в Stars ниже — плейсхолдер, требуют финального ревью
+    # (курс Stars→USD задаёт Telegram и меняется), как и остальные
+    # Stars-цены выше.
+    cursor.execute(
+        "INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable,daily_limit_per_user) "
+        "VALUES (27,'💎 10 алмазов','Премиальная валюта — оплата Telegram Stars',150,'diamond_pack_stars','10',1,0)"
+    )
+    cursor.execute(
+        "INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable,daily_limit_per_user) "
+        "VALUES (28,'💎 50 алмазов','Премиальная валюта — оплата Telegram Stars',600,'diamond_pack_stars','50',1,0)"
+    )
+
     # ---------------- DAILY TASKS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS daily_tasks(
