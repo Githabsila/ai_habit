@@ -107,7 +107,8 @@ from .settings import (
     update_theme,
     get_theme,
     get_color_mode, update_color_mode, VALID_COLOR_MODES,
-    get_habit_checkpoint_style, update_habit_checkpoint_style, VALID_HABIT_CHECKPOINT_STYLES,
+    get_habit_checkpoint_style, update_habit_checkpoint_style,
+    get_home_layout, update_home_habits_first, update_home_plan_hidden, VALID_HABIT_CHECKPOINT_STYLES,
 )
 
 from .habits import (
@@ -347,6 +348,7 @@ __all__ = [
     "has_item", "get_item_owner_ids", "update_theme", "get_theme",
     "get_color_mode", "update_color_mode", "VALID_COLOR_MODES",
     "get_habit_checkpoint_style", "update_habit_checkpoint_style", "VALID_HABIT_CHECKPOINT_STYLES",
+    "get_home_layout", "update_home_habits_first", "update_home_plan_hidden",
     "get_handle", "is_handle_taken", "update_handle", "generate_unique_handle", "normalize_handle", "HANDLE_RE",
     "count_purchases_today", "has_reached_daily_limit", "log_stars_purchase",
     "is_payment_processed", "mark_payment_processed",

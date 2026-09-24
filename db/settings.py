@@ -278,3 +278,53 @@ def update_habit_checkpoint_style(user_id, style):
     conn.commit()
     conn.close()
     return True
+
+
+# =====================================
+# ГЛАВНЫЙ ЭКРАН: ПОРЯДОК И ВИДИМОСТЬ РАЗДЕЛОВ
+# =====================================
+# Просьба пользователя: многие пользуются сторонними планировщиками задач,
+# а у нас главное — привычки. Две независимые настройки:
+# - home_habits_first — переставляет местами "План дня" и "Привычки" на
+#   главном экране (0 — план сверху как раньше, 1 — привычки сверху);
+# - home_plan_hidden — прячет "План дня" с главного экрана целиком, с
+#   тумблером в Настройках (Профиль), чтобы вернуть обратно в любой
+#   момент — сами данные плана (задачи, главная цель) при этом не
+#   трогаются, скрывается только секция в интерфейсе.
+
+def get_home_layout(user_id):
+    settings = get_settings(user_id)
+    habits_first = False
+    plan_hidden = False
+    if settings is not None:
+        try:
+            habits_first = bool(settings["home_habits_first"])
+        except (IndexError, KeyError):
+            pass
+        try:
+            plan_hidden = bool(settings["home_plan_hidden"])
+        except (IndexError, KeyError):
+            pass
+    return {"habits_first": habits_first, "plan_hidden": plan_hidden}
+
+
+def update_home_habits_first(user_id, habits_first):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE settings SET home_habits_first=? WHERE user_id=?",
+        (1 if habits_first else 0, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_home_plan_hidden(user_id, plan_hidden):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE settings SET home_plan_hidden=? WHERE user_id=?",
+        (1 if plan_hidden else 0, user_id),
+    )
+    conn.commit()
+    conn.close()

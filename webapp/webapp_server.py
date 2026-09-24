@@ -35,6 +35,7 @@ from db import (
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
     get_color_mode, update_color_mode,
     get_habit_checkpoint_style, update_habit_checkpoint_style,
+    get_home_layout, update_home_habits_first, update_home_plan_hidden,
     get_handle, update_handle,
     get_language, set_language,
     get_gender, set_gender,
@@ -460,6 +461,7 @@ async def bootstrap(request):
             "theme": get_theme(telegram_id),
             "color_mode": get_color_mode(telegram_id),
             "habit_checkpoint_style": get_habit_checkpoint_style(telegram_id),
+            "home_layout": get_home_layout(telegram_id),
             "language": get_language(telegram_id),
             "gender": get_gender(telegram_id),
             "quiet_hours": (
@@ -1256,6 +1258,20 @@ async def set_habit_checkpoint_style_route(request):
     if not update_habit_checkpoint_style(telegram_id, style):
         return web.json_response({"error": "invalid_style"}, status=400)
     return web.json_response({"ok": True, "style": style})
+
+@routes.post("/api/settings/home-layout")
+async def set_home_layout_route(request):
+    """Главный экран: порядок разделов "План дня"/"Привычки" и видимость
+    "Плана дня" — см. db/settings.py::get_home_layout. body: любое из
+    {"habits_first": bool}, {"plan_hidden": bool} — оба поля необязательны,
+    можно менять по одному."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    if "habits_first" in body:
+        update_home_habits_first(telegram_id, bool(body.get("habits_first")))
+    if "plan_hidden" in body:
+        update_home_plan_hidden(telegram_id, bool(body.get("plan_hidden")))
+    return web.json_response({"ok": True, "home_layout": get_home_layout(telegram_id)})
 
 @routes.post("/api/settings/reminders/category")
 async def toggle_reminder_category_route(request):

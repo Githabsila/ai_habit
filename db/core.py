@@ -226,7 +226,9 @@ def create_tables():
         reminders_digests INTEGER DEFAULT 1,
         quiet_hours_start INTEGER,
         quiet_hours_end INTEGER,
-        habit_checkpoint_style TEXT DEFAULT 'full'
+        habit_checkpoint_style TEXT DEFAULT 'full',
+        home_habits_first INTEGER DEFAULT 0,
+        home_plan_hidden INTEGER DEFAULT 0
     )
     """)
 
@@ -282,6 +284,15 @@ def create_tables():
     # не меняется для тех, кто его не настраивал.
     if "habit_checkpoint_style" not in settings_columns:
         cursor.execute("ALTER TABLE settings ADD COLUMN habit_checkpoint_style TEXT DEFAULT 'full'")
+
+    # Главный экран: порядок разделов "План дня"/"Привычки" и видимость
+    # "Плана дня" — многие пользуются сторонними планировщиками задач, а
+    # здесь главное привычки. DEFAULT 0/0 — ничего не меняется для тех,
+    # кто их не настраивал (план сверху и виден, как раньше).
+    if "home_habits_first" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN home_habits_first INTEGER DEFAULT 0")
+    if "home_plan_hidden" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN home_plan_hidden INTEGER DEFAULT 0")
 
     # ---------------- HABITS ----------------
     cursor.execute("""

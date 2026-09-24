@@ -521,6 +521,15 @@ class="habit-add-form__submit">
 <div class="settings-card">
 
   <div class="settings-row">
+    <span>🔀 Привычки сверху на главной</span>
+    <button type="button" class="settings-quiet-toggle" id="homeHabitsFirstToggle" aria-pressed="false">Выкл</button>
+  </div>
+  <div class="settings-row">
+    <span>📋 План дня на главной</span>
+    <button type="button" class="settings-quiet-toggle" id="homePlanVisibleToggle" aria-pressed="true">Вкл</button>
+  </div>
+
+  <div class="settings-row">
     <span>🎭 Стиль AI-наставника</span>
   </div>
   <div class="ai-style-picker" id="aiStylePicker">
@@ -969,7 +978,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260924_ONBOARDSKIP_V1"></script>
+<script type="module" src="/static/app.js?v=20260924_HOMELAYOUT_V1"></script>
 
 </body>
 </html>

@@ -706,6 +706,7 @@
     // Привычки и Ударный режим больше не конкурируют за CPU с магазином,
     // рейтингом и архивом достижений.
     renderPlayerCard();
+    applyHomeLayout();
     renderHabits();
     renderPlan();
     renderTodayFocus();
@@ -3960,6 +3961,66 @@ function initSettingsActions() {
   initQuietHoursActions();
   initReminderSettingsActions();
   initHabitCheckpointStylePicker();
+  initHomeLayoutActions();
+}
+
+// Главный экран: порядок разделов "План дня"/"Привычки" и видимость
+// "Плана дня". Многие пользуются сторонними планировщиками задач, а для
+// нас главное — привычки, поэтому План дня можно скрыть с главной и
+// вернуть обратно тем же тумблером здесь, в Настройках.
+function applyHomeLayout() {
+  const planCard = document.querySelector('section[data-tab="home"] .plan-card');
+  const habitsPanel = document.querySelector('section[data-tab="home"] .habits-panel');
+  if (!planCard || !habitsPanel) return;
+  const layout = (state.settings && state.settings.home_layout) || {};
+  planCard.hidden = !!layout.plan_hidden;
+  const parent = habitsPanel.parentNode;
+  if (layout.habits_first) {
+    parent.insertBefore(habitsPanel, planCard);
+  } else {
+    parent.insertBefore(planCard, habitsPanel);
+  }
+}
+
+function initHomeLayoutActions() {
+  const orderToggle = document.getElementById("homeHabitsFirstToggle");
+  const visibilityToggle = document.getElementById("homePlanVisibleToggle");
+  if (!orderToggle || !visibilityToggle) return;
+
+  function render() {
+    const layout = (state.settings && state.settings.home_layout) || {};
+    orderToggle.setAttribute("aria-pressed", layout.habits_first ? "true" : "false");
+    orderToggle.textContent = layout.habits_first ? "Вкл" : "Выкл";
+    const planVisible = !layout.plan_hidden;
+    visibilityToggle.setAttribute("aria-pressed", planVisible ? "true" : "false");
+    visibilityToggle.textContent = planVisible ? "Вкл" : "Выкл";
+  }
+  render();
+
+  async function updateLayout(body) {
+    try {
+      const res = await api("/api/settings/home-layout", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      if (state.settings) state.settings.home_layout = res.home_layout;
+      render();
+      applyHomeLayout();
+      haptic("light");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  }
+
+  orderToggle.addEventListener("click", () => {
+    const layout = (state.settings && state.settings.home_layout) || {};
+    updateLayout({ habits_first: !layout.habits_first });
+  });
+
+  visibilityToggle.addEventListener("click", () => {
+    const layout = (state.settings && state.settings.home_layout) || {};
+    updateLayout({ plan_hidden: !layout.plan_hidden });
+  });
 }
 
 // Роадмап: стиль контрольной точки по привычкам. 'full' (по умолчанию) —
