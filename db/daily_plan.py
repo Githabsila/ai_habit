@@ -20,6 +20,13 @@ from .core import connect
 # — их этот сдвиг не касается).
 PLAN_DAY_ROLLOVER_HOUR = 3
 
+# Просьба пользователя: 5 второстепенных задач было мало — расширили до 9
+# (с главной задачей дня получается 10 пунктов плана всего). Заодно
+# ограничили длину текста (тот же приём, что и db.users.set_long_term_goals
+# / db.habits.MAX_HABIT_TITLE_LENGTH) — раньше текст ничем не ограничивался.
+MAX_DAILY_TASKS = 9
+MAX_DAILY_TASK_TEXT_LENGTH = 80
+
 
 def _effective_plan_date():
     now = datetime.now()
@@ -74,7 +81,7 @@ def get_daily_plan(user_id, plan_date=None):
 def set_daily_main_goal(user_id, text):
     """Создаёт/обновляет главную задачу дня без пересоздания списка обычных задач."""
     plan = get_daily_plan(user_id)
-    text = (text or "").strip()
+    text = (text or "").strip()[:MAX_DAILY_TASK_TEXT_LENGTH]
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("""
@@ -112,8 +119,8 @@ def toggle_daily_main_goal(user_id):
     conn.close()
 
 
-def add_daily_task(user_id, text, max_tasks=5):
-    text = (text or "").strip()
+def add_daily_task(user_id, text, max_tasks=MAX_DAILY_TASKS):
+    text = (text or "").strip()[:MAX_DAILY_TASK_TEXT_LENGTH]
     if not text:
         return None
     plan = get_daily_plan(user_id)
@@ -133,7 +140,7 @@ def add_daily_task(user_id, text, max_tasks=5):
 
 
 def update_daily_plan_task(user_id, task_id, text):
-    text = (text or "").strip()
+    text = (text or "").strip()[:MAX_DAILY_TASK_TEXT_LENGTH]
     plan = get_daily_plan(user_id)
     conn = connect()
     cursor = conn.cursor()

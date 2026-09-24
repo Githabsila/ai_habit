@@ -14,6 +14,12 @@ BONUS_WINDOW_MINUTES = 30
 # Пром 10.2: максимум привычек в обычной версии + анти-абузная защита.
 MAX_HABITS = 10
 
+# Просьба пользователя: раньше название привычки ничем не ограничивалось,
+# в списке уезжало в многострочный текст. Обрезаем молча (тот же приём,
+# что и db.users.set_long_term_goals) — с maxlength на инпуте пользователь
+# в обычном сценарии вообще не столкнётся с обрезкой на лету.
+MAX_HABIT_TITLE_LENGTH = 50
+
 # Категории привычек — просто список известных ключей для фронтенда
 # (badge/фильтр), сама колонка habits.category — свободный TEXT, так что
 # невалидный/пустой ключ просто не попадёт ни в один известный фильтр.
@@ -122,6 +128,7 @@ def add_habit(user_id, title, planned_time=None, time_window_minutes=60, categor
     ok, reason = can_add_habit(user_id)
     if not ok:
         raise ValueError(reason)
+    title = (title or "").strip()[:MAX_HABIT_TITLE_LENGTH]
     if category is not None and category not in HABIT_CATEGORIES:
         category = None
     priority = 2 if int(priority or 1) >= 2 else 1
@@ -142,8 +149,10 @@ def add_habit(user_id, title, planned_time=None, time_window_minutes=60, categor
         VALUES (?, ?, CURRENT_TIMESTAMP, 0, ?, ?, ?, ?, ?, ?, ?)
     """, (user_id, title, planned_time, int(time_window_minutes or 60), category, priority,
           target_count, frequency_per_week, chain_trigger_habit_id))
+    habit_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    return habit_id
 
 
 def get_habits(user_id):
@@ -166,6 +175,7 @@ def get_habit(habit_id):
 
 def edit_habit(habit_id, new_title, planned_time=None, time_window_minutes=None, category=None,
                 priority=None, target_count=None, frequency_per_week=_UNSET):
+    new_title = (new_title or "").strip()[:MAX_HABIT_TITLE_LENGTH]
     if category is not None and category not in HABIT_CATEGORIES:
         category = None
     if priority is not None:

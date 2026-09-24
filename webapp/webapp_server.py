@@ -747,7 +747,7 @@ async def create_habit(request):
         chain_trigger_habit_id = None
     had_habits = bool(get_habits(telegram_id))
     try:
-        add_habit(
+        new_habit_id = add_habit(
             telegram_id, title, planned_time=planned_time, category=category, priority=priority,
             chain_trigger_habit_id=chain_trigger_habit_id,
         )
@@ -760,8 +760,11 @@ async def create_habit(request):
         raise
     first_habit = not had_habits
     # Возвращаем созданную запись, чтобы Mini App мог показать её сразу,
-    # даже если повторная загрузка bootstrap временно задержалась.
-    created = next((h for h in get_habits(telegram_id) if h["title"] == title), None)
+    # даже если повторная загрузка bootstrap временно задержалась. По id,
+    # а не по совпадению title — название теперь обрезается по длине
+    # (db.habits.MAX_HABIT_TITLE_LENGTH), и сверка с исходным (необрезанным)
+    # title больше не гарантированно находила бы свежесозданную запись.
+    created = get_habit(new_habit_id)
     return web.json_response({
         "ok": True,
         "first_habit": first_habit,

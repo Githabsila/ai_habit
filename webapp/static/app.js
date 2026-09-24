@@ -3153,9 +3153,10 @@ function renderPlan() {
     addBtn.textContent = "Добавить новую задачу";
   }
 
-  addBtn.disabled = plan.tasks.length >= 5 && !editingId;
-  if (plan.tasks.length >= 5 && !editingId) {
-    addBtn.textContent = "Максимум 5 задач";
+  const MAX_DAILY_TASKS = 9;
+  addBtn.disabled = plan.tasks.length >= MAX_DAILY_TASKS && !editingId;
+  if (plan.tasks.length >= MAX_DAILY_TASKS && !editingId) {
+    addBtn.textContent = `Максимум ${MAX_DAILY_TASKS} задач`;
   }
 }
 
@@ -3178,7 +3179,7 @@ function resetPlanTaskEditor() {
   delete input.dataset.editingTaskId;
   input.value = "";
   btn.textContent = "Добавить новую задачу";
-  if (state?.daily_plan?.tasks) btn.disabled = state.daily_plan.tasks.length >= 5;
+  if (state?.daily_plan?.tasks) btn.disabled = state.daily_plan.tasks.length >= 9;
 }
 
 function initPlanActions() {
@@ -3474,7 +3475,7 @@ function initPlanActions() {
     avatar_too_large: "Photo must be under 5 MB",
     unsupported_image: "JPG, PNG and WEBP are supported",
     invalid_theme: "That theme doesn't exist",
-    task_limit: "You can add up to 5 tasks",
+    task_limit: "You can add up to 9 tasks",
     habit_limit: "You can add up to 10 habits",
     daily_limit_reached: "Already bought today — available again tomorrow",
     habit_add_locked: "You already logged and deleted a habit today — adding new ones reopens at midnight",
@@ -3507,7 +3508,7 @@ function initPlanActions() {
         unsupported_image: "Поддерживаются JPG, PNG и WEBP",
         not_available: "Уже недоступно — раз в месяц, и только пока свежо",
         invalid_theme: "Такой темы не существует",
-        task_limit: "Можно добавить не больше 5 задач",
+        task_limit: "Можно добавить не больше 9 задач",
         habit_limit: "Можно добавить не больше 10 привычек",
         daily_limit_reached: "Этот пакет уже куплен сегодня — доступен снова завтра",
         habit_add_locked: "Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00",
