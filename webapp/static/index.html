@@ -438,14 +438,13 @@ class="habit-add-form__submit">
 <ul class="shop-list shop-list--grid" id="shopList">
 </ul>
 
-<div class="section-heading">
-
-<h2 data-i18n="theme_title">Тема оформления</h2>
-
-</div>
-
-<div class="theme-picker" id="themePicker"></div>
-<div class="theme-picker__hint" id="themeHint"></div>
+<!-- Тема оформления (акцентный цвет, покупка в магазине THEME_ITEM_ID)
+     временно убрана из интерфейса по решению пользователя — до запуска и
+     тестов. Позже вернётся как отдельная платная фича (алмазы/подписка)
+     вместо обычной цены за Adam Coin. Разметка и app.js::renderThemePicker/
+     initThemeActions/THEMES не трогались — оба no-op'ятся сами через
+     document.getElementById(...) === null, товар и вся логика темы в БД
+     тоже не тронуты (webapp_server.py фильтрует его из списка магазина). -->
 
 <!-- Роадмап #48 (светлая/тёмная тема) убран по решению пользователя:
      приложение развивается только в тёмных тонах — светлая тема больше

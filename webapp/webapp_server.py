@@ -655,6 +655,12 @@ async def bootstrap_secondary(request):
                 "payload": it["payload"] if "payload" in it.keys() else None,
             }
             for it in shop_items
+            # Просьба пользователя: тема оформления временно убрана из
+            # магазина до запуска и тестов — позже вернётся как отдельная
+            # платная фича (алмазы/подписка) вместо обычной цены за Adam
+            # Coin. Сам товар (id=THEME_ITEM_ID) и вся логика темы в БД не
+            # трогаются, только скрыт из списка покупок.
+            if it["item_type"] != "theme"
         ]
         payload["achievements"] = [
             {

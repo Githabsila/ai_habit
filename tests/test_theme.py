@@ -59,3 +59,18 @@ async def test_theme_apply_rejected_without_ownership(client, uid):
     assert r.status == 403
     body = await r.json()
     assert body["error"] == "theme_not_owned"
+
+
+async def test_theme_shop_item_hidden_from_shop_listing(client, uid):
+    """Просьба пользователя: тема оформления временно убрана из магазина
+    до запуска и тестов (вернётся позже как платная фича — алмазы/
+    подписка). Сам товар и вся логика темы (покупка/применение выше в
+    этом файле) остаются рабочими — скрыт только пункт в списке магазина."""
+    init_data = sign_init_data(uid)
+    auth = {"Authorization": f"tma {init_data}"}
+
+    r = await client.get("/api/bootstrap-secondary?section=profile", headers=auth)
+    assert r.status == 200
+    body = await r.json()
+    item_ids = {item["id"] for item in body["shop_items"]}
+    assert 2 not in item_ids
