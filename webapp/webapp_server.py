@@ -34,6 +34,7 @@ from db import (
     get_shop_items, buy_shop_item, get_user_items, get_shop_item,
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
     get_color_mode, update_color_mode,
+    get_habit_checkpoint_style, update_habit_checkpoint_style,
     get_language, set_language,
     get_gender, set_gender,
     touch_last_seen,
@@ -456,6 +457,7 @@ async def bootstrap(request):
             "theme_owned": has_item(telegram_id, THEME_ITEM_ID),
             "theme": get_theme(telegram_id),
             "color_mode": get_color_mode(telegram_id),
+            "habit_checkpoint_style": get_habit_checkpoint_style(telegram_id),
             "language": get_language(telegram_id),
             "gender": get_gender(telegram_id),
             "quiet_hours": (
@@ -1225,6 +1227,19 @@ async def toggle_reminders_route(request):
     telegram_id, _ = await _authenticate(request)
     enabled = toggle_reminders(telegram_id)
     return web.json_response({"ok": True, "reminders": enabled})
+
+@routes.post("/api/settings/habit-checkpoint-style")
+async def set_habit_checkpoint_style_route(request):
+    """Стиль контрольной точки по привычкам: 'full' (со сверкой прогресса
+    + доп. строкой про таймерные привычки) или 'simple' (без сверки и без
+    упоминания таймерных привычек — для тех, у кого почти всё уже на
+    таймере). См. db/settings.py::get_habit_checkpoint_style."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    style = body.get("style")
+    if not update_habit_checkpoint_style(telegram_id, style):
+        return web.json_response({"error": "invalid_style"}, status=400)
+    return web.json_response({"ok": True, "style": style})
 
 @routes.post("/api/settings/reminders/category")
 async def toggle_reminder_category_route(request):

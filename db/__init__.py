@@ -98,6 +98,7 @@ from .settings import (
     update_theme,
     get_theme,
     get_color_mode, update_color_mode, VALID_COLOR_MODES,
+    get_habit_checkpoint_style, update_habit_checkpoint_style, VALID_HABIT_CHECKPOINT_STYLES,
 )
 
 from .habits import (
@@ -336,6 +337,7 @@ __all__ = [
     "get_shop_items", "buy_shop_item", "get_user_items",
     "has_item", "get_item_owner_ids", "update_theme", "get_theme",
     "get_color_mode", "update_color_mode", "VALID_COLOR_MODES",
+    "get_habit_checkpoint_style", "update_habit_checkpoint_style", "VALID_HABIT_CHECKPOINT_STYLES",
     "count_purchases_today", "has_reached_daily_limit", "log_stars_purchase",
     "is_payment_processed", "mark_payment_processed",
     "get_access_status", "set_access_status", "reject_user", "get_pending_users",

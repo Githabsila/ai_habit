@@ -3934,6 +3934,44 @@ function initSettingsActions() {
 
   initQuietHoursActions();
   initReminderSettingsActions();
+  initHabitCheckpointStylePicker();
+}
+
+// Роадмап: стиль контрольной точки по привычкам. 'full' (по умолчанию) —
+// как раньше: "X из Y выполнено..." + доп. строка про привычки со своим
+// ещё не наступившим временем ("Не забудь в HH:MM — ..."). 'simple' — для
+// тех, у кого почти все привычки уже на таймере и своя система в голове
+// выстроена: без сверки прогресса и без упоминания таймерных привычек
+// вообще (по ним и так придёт отдельное напоминание ровно в их время).
+function initHabitCheckpointStylePicker() {
+  const picker = document.getElementById("habitCheckpointStylePicker");
+  if (!picker) return;
+
+  function markActive() {
+    const current = (state.settings && state.settings.habit_checkpoint_style) || "full";
+    picker.querySelectorAll(".ai-style-btn").forEach(b => {
+      b.classList.toggle("is-active", b.dataset.checkpointStyle === current);
+    });
+  }
+  markActive();
+
+  picker.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".ai-style-btn");
+    if (!btn) return;
+    const style = btn.dataset.checkpointStyle;
+    try {
+      await api("/api/settings/habit-checkpoint-style", {
+        method: "POST",
+        body: JSON.stringify({ style }),
+      });
+      if (state.settings) state.settings.habit_checkpoint_style = style;
+      markActive();
+      haptic("light");
+      showToast("Стиль сохранён", "success");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
 }
 
 // ===================== «ЧТО НОВОГО» =====================

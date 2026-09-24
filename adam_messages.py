@@ -106,6 +106,29 @@ def format_habit_checkpoint_message(incomplete_habits, hour: int, completed: int
 
 
 # =====================================
+# УПРОЩЁННАЯ ТОЧКА ДНЯ (habit_checkpoint_style == "simple")
+# =====================================
+# Для тех, у кого почти все привычки уже на таймере (planned_time) и своя
+# система в голове/жизни выстроена — без рамки "X из Y выполнено, сверка
+# курса" и без доп. строки про таймерные привычки (это и есть "лишняя
+# доп. инфа", от которой этот стиль отказывается): просто короткое прямое
+# упоминание того, что осталось без таймера.
+
+SIMPLE_HABIT_CHECKPOINT_TEMPLATES = [
+    "Ещё не отмечено: {habits} {emoji}",
+    "Пока открыто: {habits} {emoji}",
+    "На сегодня осталось: {habits} {emoji}",
+    "Без отметки пока: {habits} {emoji}",
+]
+
+
+def format_simple_habit_checkpoint_message(free_habits) -> str:
+    titles = [str(h["title"]) for h in free_habits]
+    habits = ", ".join(f"«{t}»" for t in titles)
+    return pick(SIMPLE_HABIT_CHECKPOINT_TEMPLATES, pool=SOFT_EMOJIS, habits=habits)
+
+
+# =====================================
 # СВОЁ ВРЕМЯ НАПОМИНАНИЯ У ПРИВЫЧКИ
 # =====================================
 

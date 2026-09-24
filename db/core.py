@@ -206,7 +206,8 @@ def create_tables():
         reminders_streak INTEGER DEFAULT 1,
         reminders_digests INTEGER DEFAULT 1,
         quiet_hours_start INTEGER,
-        quiet_hours_end INTEGER
+        quiet_hours_end INTEGER,
+        habit_checkpoint_style TEXT DEFAULT 'full'
     )
     """)
 
@@ -251,6 +252,17 @@ def create_tables():
         cursor.execute("ALTER TABLE settings ADD COLUMN quiet_hours_start INTEGER")
     if "quiet_hours_end" not in settings_columns:
         cursor.execute("ALTER TABLE settings ADD COLUMN quiet_hours_end INTEGER")
+
+    # Стиль контрольной точки по привычкам (10/12/17/22:00): 'full' — как
+    # раньше, со сверкой прогресса и доп. строкой про привычки со своим
+    # (ещё не наступившим) временем; 'simple' — для тех, у кого почти все
+    # привычки уже на таймере и своя система в голове/жизни — без рамки
+    # "сверки точки дня" и без упоминания таймерных привычек вообще (по
+    # ним и так придёт отдельное напоминание в своё время), только прямое
+    # упоминание того, что осталось без таймера. DEFAULT 'full' — ничего
+    # не меняется для тех, кто его не настраивал.
+    if "habit_checkpoint_style" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN habit_checkpoint_style TEXT DEFAULT 'full'")
 
     # ---------------- HABITS ----------------
     cursor.execute("""

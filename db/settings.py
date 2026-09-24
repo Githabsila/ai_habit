@@ -241,3 +241,40 @@ def update_color_mode(user_id, mode):
     conn.commit()
     conn.close()
     return True
+
+
+# =====================================
+# СТИЛЬ КОНТРОЛЬНОЙ ТОЧКИ ПО ПРИВЫЧКАМ
+# =====================================
+# 'full' (по умолчанию) — точка дня как раньше: "X из Y выполнено..." +
+# доп. строка "Не забудь в HH:MM — ..." по привычкам со своим ещё не
+# наступившим временем (planned_time). 'simple' — для тех, у кого почти
+# все привычки уже на таймере и своя система в голове/жизни выстроена:
+# без рамки "сверки точки дня" и без упоминания таймерных привычек вообще
+# (по ним и так придёт отдельное персональное напоминание ровно в их
+# время) — просто короткое прямое упоминание того, что осталось без
+# таймера. См. coach._run_habit_checkpoint / adam_messages.
+
+VALID_HABIT_CHECKPOINT_STYLES = ("full", "simple")
+
+
+def get_habit_checkpoint_style(user_id):
+    settings = get_settings(user_id)
+    if settings is None:
+        return "full"
+    try:
+        style = settings["habit_checkpoint_style"]
+    except (IndexError, KeyError):
+        return "full"
+    return style if style in VALID_HABIT_CHECKPOINT_STYLES else "full"
+
+
+def update_habit_checkpoint_style(user_id, style):
+    if style not in VALID_HABIT_CHECKPOINT_STYLES:
+        return False
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE settings SET habit_checkpoint_style=? WHERE user_id=?", (style, user_id))
+    conn.commit()
+    conn.close()
+    return True

@@ -36,11 +36,13 @@ from db import (
     get_habits, mark_habit_reminder_sent,
     reminder_category_enabled, in_quiet_hours,
     get_streak_reengagement_state, has_completed_today,
+    get_habit_checkpoint_style,
 )
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from adam_messages import (
     format_day_progress_message,
     format_habit_checkpoint_message,
+    format_simple_habit_checkpoint_message,
     format_plan_task_reminder_message,
     format_goal_reminder_message,
     format_week_start_message,
@@ -390,11 +392,25 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
 
             timed_habits.sort(key=lambda t: (t[0], t[1]))
 
-            # Передаём точную статистику, чтобы сообщение прямо отражало
-            # текущий прогресс пользователя, без условных формулировок.
-            progress = get_progress(telegram_id)
-            completed_count = int(progress.get("completed") or 0)
-            total_count = int(progress.get("total") or (completed_count + len(incomplete)))
+            # 'simple' — для тех, у кого почти все привычки уже на таймере
+            # и своя система в голове/жизни выстроена: без рамки "X из Y
+            # выполнено, сверка курса" и без доп. строки про таймерные
+            # привычки вообще (по ним и так придёт отдельное напоминание
+            # в своё время) — просто прямое упоминание того, что осталось
+            # без таймера, без статистики.
+            style = get_habit_checkpoint_style(telegram_id)
+            if style == "simple":
+                message_text = format_simple_habit_checkpoint_message(free_habits)
+            else:
+                # Передаём точную статистику, чтобы сообщение прямо отражало
+                # текущий прогресс пользователя, без условных формулировок.
+                progress = get_progress(telegram_id)
+                completed_count = int(progress.get("completed") or 0)
+                total_count = int(progress.get("total") or (completed_count + len(incomplete)))
+                message_text = format_habit_checkpoint_message(
+                    free_habits, target_hour, completed=completed_count, total=total_count,
+                    timed_habits=timed_habits,
+                )
 
             day = now.date().isoformat()
             scope = notification_scope(bot)
@@ -407,14 +423,7 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
                 continue
 
             try:
-                await bot.send_message(
-                    telegram_id,
-                    format_habit_checkpoint_message(
-                        free_habits, target_hour, completed=completed_count, total=total_count,
-                        timed_habits=timed_habits,
-                    ),
-                    parse_mode="HTML"
-                )
+                await bot.send_message(telegram_id, message_text, parse_mode="HTML")
             except Exception:
                 release_notification(telegram_id, day, kind, scope)
                 raise

@@ -14,9 +14,11 @@
 """
 from adam_messages import (
     format_habit_checkpoint_message,
+    format_simple_habit_checkpoint_message,
     format_week_end_message,
     HABIT_CHECKPOINT_TEMPLATES,
     HABIT_CHECKPOINT_ZERO_TEMPLATES,
+    SIMPLE_HABIT_CHECKPOINT_TEMPLATES,
     WEEK_END_TEMPLATES,
     WEEK_END_ALL_DONE_TEMPLATES,
     MOTIVATION_EMOJIS,
@@ -58,6 +60,18 @@ def test_habit_checkpoint_appends_timed_note_before_motivational_close():
     # note должна идти после списка обычных привычек и перед мотивационной
     # концовкой/эмодзи — то есть не в самом конце строки.
     assert not msg.rstrip().endswith(note.strip())
+
+
+def test_simple_habit_checkpoint_has_no_progress_stats_or_timer_wording():
+    """Упрощённый стиль (habit_checkpoint_style == 'simple') — без рамки
+    "X из Y выполнено" и без единого упоминания времени/таймера, только
+    прямой список того, что осталось без таймера."""
+    kwargs = dict(habits="«Растяжка»")
+    msg = format_simple_habit_checkpoint_message([{"title": "Растяжка"}])
+
+    assert msg in _candidates(SIMPLE_HABIT_CHECKPOINT_TEMPLATES, SOFT_EMOJIS, **kwargs)
+    assert "из" not in msg
+    assert "Не забудь" not in msg
 
 
 def test_week_end_message_all_done_uses_praise_wording():

@@ -9,7 +9,7 @@
 """
 from datetime import datetime
 
-from db import add_user, add_habit, get_habits, complete_habit
+from db import add_user, add_habit, get_habits, complete_habit, update_habit_checkpoint_style
 
 
 class FakeBot:
@@ -200,6 +200,48 @@ async def test_checkpoint_treats_past_due_timed_habit_as_normal(monkeypatch, uid
     text = bot.sent[0][1]
     assert "Спорт" in text
     assert "Не забудь" not in text
+
+
+async def test_checkpoint_simple_style_drops_progress_stats_and_timer_note(monkeypatch, uid):
+    """habit_checkpoint_style == 'simple' — для тех, у кого почти всё уже
+    на таймере: сообщение прямо называет только привычки без таймера, без
+    рамки "X из Y выполнено" и без доп. строки про таймерные привычки."""
+    import coach
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Растяжка")
+    add_habit(uid, "Спорт", planned_time="23:00")
+    update_habit_checkpoint_style(uid, "simple")
+    _patch_user(monkeypatch, uid)
+    _freeze(monkeypatch, 12, 0)
+
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_12(bot)
+
+    assert len(bot.sent) == 1
+    text = bot.sent[0][1]
+    assert "Растяжка" in text
+    assert "Не забудь" not in text
+    assert "23:00" not in text
+    assert "из" not in text
+
+
+async def test_checkpoint_simple_style_still_silent_when_only_timed_habit_left(monkeypatch, uid):
+    """И в упрощённом, и в полном стиле — если остались только привычки
+    со своим ещё не наступившим временем, точка дня молчит: об этом уже
+    позаботится персональное напоминание по таймеру."""
+    import coach
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Спорт", planned_time="23:00")
+    update_habit_checkpoint_style(uid, "simple")
+    _patch_user(monkeypatch, uid)
+    _freeze(monkeypatch, 12, 0)
+
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_12(bot)
+
+    assert bot.sent == []
 
 
 async def test_checkpoint_17_and_22_use_independent_dedup_keys(monkeypatch, uid):
