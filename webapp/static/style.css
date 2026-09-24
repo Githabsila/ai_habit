@@ -11558,14 +11558,19 @@ body{
 /* ================= PRODUCT ONBOARDING — первые 15 минут ================= */
 .product-onboarding-hint{
   position:fixed;left:14px;right:14px;bottom:88px;z-index:1800;
-  display:flex;align-items:flex-start;gap:11px;padding:13px 13px 13px 14px;
+  padding:8px 13px 13px 14px;
   border:1px solid rgba(255,255,255,.10);border-radius:16px;
   background:rgba(20,18,28,.96);box-shadow:0 14px 40px rgba(0,0,0,.34),0 0 0 1px rgba(255,138,0,.05);
-  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
   transform:translateY(12px);opacity:0;transition:opacity .22s ease,transform .22s ease;
 }
 .product-onboarding-hint.show{opacity:1;transform:translateY(0)}
 .product-onboarding-hint[hidden]{display:none}
+.product-onboarding-hint__top{display:flex;justify-content:flex-end}
+.product-onboarding-hint__skip{
+  border:0;background:none;color:#FFB068;font-size:11.5px;font-weight:700;
+  padding:4px 2px;margin:-4px -2px 0 0;cursor:pointer;
+}
+.product-onboarding-hint__body{display:flex;align-items:flex-start;gap:11px}
 .product-onboarding-hint__accent{width:4px;min-width:4px;align-self:stretch;border-radius:99px;background:linear-gradient(180deg,#FFB347,#EF4444)}
 .product-onboarding-hint__content{min-width:0;flex:1}
 .product-onboarding-hint__title{font-weight:800;font-size:14px;color:#fff;margin-bottom:3px}

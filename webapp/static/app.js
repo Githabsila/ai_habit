@@ -1267,11 +1267,11 @@
   let productOnboardingLocalStage = 0;
 
   const PRODUCT_ONBOARDING_STEPS = {
-    1: { target: '#habitList', title: 'Начни с одного простого шага', text: 'Здесь будут твои привычки. Закрой хотя бы одну сегодня — ADAM сразу покажет результат.' },
-    2: { target: '#newPlanTaskInput', title: 'Теперь — одна задача', text: 'Добавь небольшую задачу, которую реально закрыть сегодня. Не нужно заполнять всё сразу.' },
-    3: { target: '#aiCoachBtn', title: 'А здесь живёт ADAM', text: 'В любой момент открой чат: можно спросить совет, разобрать цель или попросить помочь с привычками.' },
-    4: { target: '[data-tab="calendar"]', title: 'История появится сама', text: 'Календарь пригодится позже — сначала сделай первые два маленьких результата.' },
-    5: { target: '[data-tab="profile"]', title: 'Профиль — для настройки', text: 'Здесь позже можно настроить профиль, внешний вид и посмотреть личный прогресс.' },
+    1: { target: '#habitList', title: 'Твои привычки', text: 'Закрой хотя бы одну сегодня — увидишь результат сразу.' },
+    2: { target: '#newPlanTaskInput', title: 'Добавь задачу', text: 'Одну, которую реально закрыть сегодня.' },
+    3: { target: '#aiCoachBtn', title: 'Здесь живёт ADAM', text: 'Открой чат в любой момент — за советом или помощью.' },
+    4: { target: '[data-tab="calendar"]', title: 'История — потом', text: 'Сначала пара маленьких побед, календарь подождёт.' },
+    5: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар, тема, прогресс — здесь.' },
   };
 
   function clearProductOnboardingTarget() {
@@ -1285,6 +1285,19 @@
     clearProductOnboardingTarget();
     el.classList.remove('show');
     setTimeout(() => { if (!el.classList.contains('show')) el.hidden = true; }, 220);
+  }
+
+  // Кнопка "Пропустить" сверху подсказки — для тех, кто не хочет читать:
+  // в отличие от ✕ (закрывает только текущую подсказку), останавливает
+  // весь онбординг целиком — ни эта, ни следующие подсказки больше не
+  // покажутся. Переиспользует /api/tour/seen — тот же флаг app_tour_seen,
+  // которым уже гасится и старый модальный тур, и весь этот сценарий.
+  function skipProductOnboarding() {
+    hideProductHint();
+    productOnboardingTimers.forEach(clearTimeout);
+    productOnboardingTimers = [];
+    if (state) state.show_app_tour = false;
+    api('/api/tour/seen', { method: 'POST' }).catch(() => {});
   }
 
   function showProductHint(stage) {
@@ -1342,6 +1355,7 @@
     });
     document.getElementById("appTourSkip")?.addEventListener("click", closeAppTour);
     document.getElementById('productOnboardingHintClose')?.addEventListener('click', hideProductHint);
+    document.getElementById('productOnboardingHintSkip')?.addEventListener('click', skipProductOnboarding);
 
     // Переходы в разделы открывают подсказку именно тогда, когда она полезна.
     document.getElementById('tabBar')?.addEventListener('click', (e) => {

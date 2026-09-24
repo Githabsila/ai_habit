@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260924_HANDLE_V1">
+<link rel="stylesheet" href="/static/style.css?v=20260924_ONBOARDSKIP_V1">
 </head>
 <body>
 
@@ -876,12 +876,17 @@ class="habit-add-form__submit">
 
 <!-- МЯГКИЙ PRODUCT ONBOARDING: контекстные подсказки первых 15 минут -->
 <div class="product-onboarding-hint" id="productOnboardingHint" hidden aria-live="polite">
-  <div class="product-onboarding-hint__accent"></div>
-  <div class="product-onboarding-hint__content">
-    <div class="product-onboarding-hint__title" id="productOnboardingHintTitle"></div>
-    <div class="product-onboarding-hint__text" id="productOnboardingHintText"></div>
+  <div class="product-onboarding-hint__top">
+    <button type="button" class="product-onboarding-hint__skip" id="productOnboardingHintSkip">Пропустить</button>
   </div>
-  <button type="button" class="product-onboarding-hint__close" id="productOnboardingHintClose" aria-label="Закрыть">✕</button>
+  <div class="product-onboarding-hint__body">
+    <div class="product-onboarding-hint__accent"></div>
+    <div class="product-onboarding-hint__content">
+      <div class="product-onboarding-hint__title" id="productOnboardingHintTitle"></div>
+      <div class="product-onboarding-hint__text" id="productOnboardingHintText"></div>
+    </div>
+    <button type="button" class="product-onboarding-hint__close" id="productOnboardingHintClose" aria-label="Закрыть">✕</button>
+  </div>
 </div>
 <div class="streak-onboarding-overlay" id="streakOnboardingOverlay" hidden aria-hidden="true">
   <div class="streak-onboarding-card">
@@ -964,7 +969,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260924_HANDLE_V1"></script>
+<script type="module" src="/static/app.js?v=20260924_ONBOARDSKIP_V1"></script>
 
 </body>
 </html>
