@@ -32,7 +32,7 @@ def _fetch_full_season_leaderboard():
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT s.user_id, u.first_name, u.username, u.avatar_id, u.frame_id,
+        SELECT s.user_id, u.first_name, u.username, u.handle, u.avatar_id, u.frame_id,
                SUM(s.gained_xp) as season_xp
         FROM statistics s
         JOIN users u ON u.telegram_id = s.user_id
@@ -47,6 +47,7 @@ def _fetch_full_season_leaderboard():
             "telegram_id": r["user_id"],
             "first_name": r["first_name"],
             "username": r["username"],
+            "handle": r["handle"],
             "avatar_id": r["avatar_id"],
             "frame_id": r["frame_id"],
             "season_xp": r["season_xp"] or 0,

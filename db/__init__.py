@@ -2,6 +2,15 @@
 
 from .core import DB_NAME, DATA_DIR, DB_PATH, connect, create_tables
 
+from .handles import (
+    get_handle,
+    is_handle_taken,
+    update_handle,
+    generate_unique_handle,
+    normalize_handle,
+    HANDLE_RE,
+)
+
 from .users import (
     add_user,
     survey_variant,
@@ -338,6 +347,7 @@ __all__ = [
     "has_item", "get_item_owner_ids", "update_theme", "get_theme",
     "get_color_mode", "update_color_mode", "VALID_COLOR_MODES",
     "get_habit_checkpoint_style", "update_habit_checkpoint_style", "VALID_HABIT_CHECKPOINT_STYLES",
+    "get_handle", "is_handle_taken", "update_handle", "generate_unique_handle", "normalize_handle", "HANDLE_RE",
     "count_purchases_today", "has_reached_daily_limit", "log_stars_purchase",
     "is_payment_processed", "mark_payment_processed",
     "get_access_status", "set_access_status", "reject_user", "get_pending_users",

@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260922_RATINGFIX_V55">
+<link rel="stylesheet" href="/static/style.css?v=20260924_HANDLE_V1">
 </head>
 <body>
 
@@ -65,6 +65,8 @@ r="49"></circle>
 <span id="playerName">👋 Добро пожаловать</span><span id="playerBadge" class="player-badge" style="display:none">🏅</span>
 
 </div>
+
+<div id="playerHandle" class="player-card__handle"></div>
 
 <div class="player-card__stats">
 
@@ -579,6 +581,18 @@ class="habit-add-form__submit">
   </div>
 
   <div class="settings-row">
+    <span>🏷️ Твой @ник</span>
+  </div>
+  <p class="theme-picker__hint" id="userHandleHint">Виден в рейтинге, профиле и ленте друзей. Латиница, цифры и «_», от 3 до 20 символов.</p>
+  <div class="goals-row">
+    <div class="handle-input-wrap">
+      <span class="handle-input-at">@</span>
+      <input type="text" id="userHandleInput" class="handle-input" maxlength="20" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="nickname">
+    </div>
+    <button type="button" class="goals-save-btn" id="userHandleSaveBtn">Сохранить</button>
+  </div>
+
+  <div class="settings-row">
     <span>🌐 Публичный профиль</span>
     <button type="button" class="settings-quiet-toggle" id="publicProfileToggle" aria-pressed="false">Выкл</button>
   </div>
@@ -950,7 +964,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260924_CHECKPOINTSTYLE_V1"></script>
+<script type="module" src="/static/app.js?v=20260924_HANDLE_V1"></script>
 
 </body>
 </html>

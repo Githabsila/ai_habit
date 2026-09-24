@@ -42,6 +42,7 @@ def get_public_profile(user_id):
     return {
         "telegram_id": user_id,
         "first_name": user["first_name"] or "Игрок",
+        "handle": user["handle"] if "handle" in user.keys() else None,
         "level": user["level"],
         "streak": user["streak"],
         "total_completed": user["total_completed"] if "total_completed" in user.keys() else 0,

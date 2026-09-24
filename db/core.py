@@ -192,6 +192,25 @@ def create_tables():
     if "first_win_push_sent" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN first_win_push_sent INTEGER DEFAULT 0")
 
+    # Уникальный игровой @ник (в духе Duolingo) — отдельная от
+    # telegram-username сущность (см. db/handles.py), есть у КАЖДОГО
+    # пользователя, в отличие от username, который Telegram не гарантирует.
+    # UNIQUE — не inline в ALTER TABLE (SQLite запрещает добавлять колонку
+    # с UNIQUE на непустую таблицу через ALTER), а отдельным
+    # CREATE UNIQUE INDEX сразу после добавления колонки. Бэкфилл сразу для
+    # уже существующих пользователей — ник появляется у всех сразу в
+    # момент этого деплоя, а не откладывается до следующего входа каждого.
+    if "handle" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN handle TEXT")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle ON users(handle)")
+        from .handles import generate_unique_handle
+        cursor.execute("SELECT telegram_id, first_name FROM users WHERE handle IS NULL")
+        for row in cursor.fetchall():
+            cursor.execute(
+                "UPDATE users SET handle=? WHERE telegram_id=?",
+                (generate_unique_handle(cursor, row["first_name"]), row["telegram_id"]),
+            )
+
     # ---------------- SETTINGS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS settings(

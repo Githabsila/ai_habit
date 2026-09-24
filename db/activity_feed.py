@@ -59,7 +59,7 @@ def get_friend_activity_feed(user_id, limit=20):
     conn = connect()
     cursor = conn.cursor()
     cursor.execute(f"""
-        SELECT e.event_type, e.payload, e.created_at, u.first_name, u.telegram_id
+        SELECT e.event_type, e.payload, e.created_at, u.first_name, u.handle, u.telegram_id
         FROM activity_events e
         JOIN users u ON u.telegram_id = e.user_id
         WHERE e.user_id IN ({placeholders})
@@ -77,6 +77,7 @@ def get_friend_activity_feed(user_id, limit=20):
         result.append({
             "telegram_id": r["telegram_id"],
             "first_name": r["first_name"],
+            "handle": r["handle"],
             "event_type": r["event_type"],
             "label": label,
             "detail": detail,

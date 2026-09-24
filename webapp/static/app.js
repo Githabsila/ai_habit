@@ -1679,6 +1679,8 @@
 
     renderProfileAvatarControls();
     document.getElementById("playerName").textContent = u.first_name || "Игрок";
+    const handleEl = document.getElementById("playerHandle");
+    if (handleEl) handleEl.textContent = u.handle ? `@${u.handle}` : "";
     document.getElementById("streakValue").textContent = u.streak || 0;
     document.getElementById("coinValue").textContent = u.xp || 0;
 
@@ -2196,6 +2198,7 @@
           <div class="rating-podium-card__avatar frame-${escapeHtml(r.frame_id || frame)}">${String(r.avatar_id || "default").startsWith("upload:") ? `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(String(r.avatar_id).split(":")[1])}.jpg" alt="">` : escapeHtml((name[0] || "A").toUpperCase())}</div>
           <div class="rating-podium-card__rank">#${rank}</div>
           <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? "🏅" : ""}</div>
+          ${r.handle ? `<div class="rating-podium-card__handle">@${escapeHtml(r.handle)}</div>` : ""}
           ${r.league_tier ? `<div class="rating-podium-card__league">${escapeHtml(r.league_tier)}</div>` : ""}
           ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
           <div class="rating-podium-card__stats"><span><i class="stat-icon">🔥</i> ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
@@ -2221,7 +2224,7 @@
         <span class="rating-item__rank">${rank}</span>
         <span class="rating-avatar frame-${escapeHtml(r.frame_id || frame)}">${String(r.avatar_id || "default").startsWith("upload:") ? `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(String(r.avatar_id).split(":")[1])}.jpg" alt="" loading="lazy">` : escapeHtml((name[0] || "A").toUpperCase())}</span>
         <span class="rating-item__name">
-          <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
+          <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.handle ? `<span class="rating-item__handle">@${escapeHtml(r.handle)}</span>` : ""}${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
           ${r.league_tier ? `<small class="rating-item__league">${escapeHtml(r.league_tier)}</small>` : ""}
           ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
         </span>
@@ -3451,6 +3454,8 @@ function initPlanActions() {
     already_reacted_today: "You already cheered this player today — try again tomorrow",
     invalid_reaction: "Couldn't send support",
     invalid_target: "Player not found",
+    invalid_format: "Only latin letters, digits and \"_\", 3 to 20 characters",
+    taken: "This handle is already taken",
   };
 
   function friendlyError(err) {
@@ -3481,7 +3486,9 @@ function initPlanActions() {
         rate_limited: "Слишком много запросов подряд — подожди пару секунд и попробуй ещё раз",
         already_reacted_today: "Сегодня ты уже поддержал этого игрока — можно снова завтра",
         invalid_reaction: "Не получилось отправить поддержку",
-        invalid_target: "Игрок не найден"
+        invalid_target: "Игрок не найден",
+        invalid_format: "Только латиница, цифры и «_», от 3 до 20 символов",
+        taken: "Этот ник уже занят"
     };
 
     const activeMap = currentLanguage === "en" ? ERROR_MAP_EN : map;
@@ -3723,7 +3730,10 @@ function renderTeamCard() {
 
   const membersHtml = team.members.map(m => `
     <div class="team-card__member">
-      <span class="team-card__member-name">${escapeHtml(m.first_name || "Игрок")}</span>
+      <span class="team-card__member-identity">
+        <span class="team-card__member-name">${escapeHtml(m.first_name || "Игрок")}</span>
+        ${m.handle ? `<span class="team-card__member-handle">@${escapeHtml(m.handle)}</span>` : ""}
+      </span>
       <span class="team-card__member-count">${m.week_completions}</span>
     </div>`).join("");
 
@@ -3755,7 +3765,7 @@ function renderSeasonList() {
     <li class="rating-item ${r.telegram_id === myId ? "is-me" : ""}">
       <span class="rating-item__rank">${i + 1}</span>
       <span class="rating-avatar">${escapeHtml((r.first_name || "A")[0].toUpperCase())}</span>
-      <span class="rating-item__name"><span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(r.first_name || r.username || "Игрок")}</span></span></span>
+      <span class="rating-item__name"><span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(r.first_name || r.username || "Игрок")}</span>${r.handle ? `<span class="rating-item__handle">@${escapeHtml(r.handle)}</span>` : ""}</span></span>
       <span class="rating-item__meta"><span class="rating-stat">${ADAM_COIN_ICON}${r.season_xp}</span></span>
     </li>`).join("");
 }
@@ -3787,6 +3797,7 @@ async function loadActivityFeed() {
       : events.map(e => `
           <div class="activity-feed__row">
             <span class="activity-feed__name">${escapeHtml(e.first_name || "Игрок")}</span>
+            ${e.handle ? `<span class="activity-feed__handle">@${escapeHtml(e.handle)}</span>` : ""}
             <span class="activity-feed__label">${e.label}${e.detail ? " «" + escapeHtml(e.detail) + "»" : ""}</span>
           </div>`).join("");
   } catch (err) {
@@ -4274,6 +4285,35 @@ function initGenderActions() {
   });
 }
 
+// Уникальный @ник (в духе Duolingo) — генерируется автоматически при
+// регистрации (см. db/handles.py), но пользователь может сменить его сам.
+function initUserHandleActions() {
+  const input = document.getElementById("userHandleInput");
+  const saveBtn = document.getElementById("userHandleSaveBtn");
+  if (!input || !saveBtn) return;
+  input.value = (state.user && state.user.handle) || "";
+
+  saveBtn.addEventListener("click", async () => {
+    const value = input.value.trim().replace(/^@/, "");
+    saveBtn.disabled = true;
+    try {
+      const res = await api("/api/settings/handle", {
+        method: "POST",
+        body: JSON.stringify({ handle: value }),
+      });
+      if (state.user) state.user.handle = res.handle;
+      input.value = res.handle;
+      haptic("light");
+      showToast("Ник сохранён", "success");
+      renderPlayerCard();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+}
+
 // Roadmap #25 — долгосрочные цели пользователя для AI-наставника.
 function initGoalsActions() {
   const input = document.getElementById("longTermGoalsInput");
@@ -4623,6 +4663,7 @@ async function boot() {
             // (см. комментарий над loadBootstrap() выше) и вся остальная
             // инициализация после падения просто не происходит.
             initPublicProfileActions();
+            initUserHandleActions();
             initGoalsActions();
             initLanguageActions();
             initGenderActions();

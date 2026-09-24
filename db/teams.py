@@ -107,7 +107,7 @@ def get_my_team(user_id):
             WHERE completed=1
             GROUP BY user_id
         )
-        SELECT u.telegram_id, u.first_name, u.avatar_id, u.frame_id,
+        SELECT u.telegram_id, u.first_name, u.handle, u.avatar_id, u.frame_id,
                COALESCE(lw.done, 0) + COALESCE(td.done, 0) AS week_completions
         FROM team_members m
         JOIN users u ON u.telegram_id = m.user_id
@@ -123,6 +123,7 @@ def get_my_team(user_id):
         {
             "telegram_id": m["telegram_id"],
             "first_name": m["first_name"],
+            "handle": m["handle"],
             "avatar_id": m["avatar_id"],
             "frame_id": m["frame_id"],
             "week_completions": m["week_completions"] or 0,

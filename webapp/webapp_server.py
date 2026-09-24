@@ -35,6 +35,7 @@ from db import (
     has_item, get_item_owner_ids, update_theme, get_theme, set_cosmetic,
     get_color_mode, update_color_mode,
     get_habit_checkpoint_style, update_habit_checkpoint_style,
+    get_handle, update_handle,
     get_language, set_language,
     get_gender, set_gender,
     touch_last_seen,
@@ -321,6 +322,7 @@ def _shape_user(telegram_id, user, is_admin=False):
     return {
         "telegram_id": telegram_id,
         "first_name": user["first_name"] if user else "",
+        "handle": (user["handle"] if "handle" in user.keys() else None) if user else None,
         "xp": user["xp"] if user else 0,
         "total_xp": user["total_xp"] if user else 0,
         "level": user["level"] if user else 1,
@@ -671,6 +673,7 @@ async def bootstrap_secondary(request):
                 "telegram_id": row["telegram_id"],
                 "username": row["username"],
                 "first_name": row["first_name"],
+                "handle": row["handle"] if "handle" in row.keys() else None,
                 "xp": row["xp"],
                 "level": row["level"],
                 "streak": row["streak"],
@@ -1227,6 +1230,19 @@ async def toggle_reminders_route(request):
     telegram_id, _ = await _authenticate(request)
     enabled = toggle_reminders(telegram_id)
     return web.json_response({"ok": True, "reminders": enabled})
+
+@routes.post("/api/settings/handle")
+async def set_handle_route(request):
+    """Смена уникального @ника (создаётся автоматически при регистрации,
+    см. db/handles.py) — пользователь может сменить его сам, как в
+    Duolingo/Instagram. Ошибки: 'invalid_format' (не 3-20 символов
+    a-z0-9_) или 'taken' (уже занят другим пользователем)."""
+    telegram_id, _ = await _authenticate(request)
+    body = await request.json()
+    error = update_handle(telegram_id, body.get("handle"))
+    if error:
+        return web.json_response({"error": error}, status=400)
+    return web.json_response({"ok": True, "handle": get_handle(telegram_id)})
 
 @routes.post("/api/settings/habit-checkpoint-style")
 async def set_habit_checkpoint_style_route(request):

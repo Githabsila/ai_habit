@@ -25,6 +25,19 @@ def add_user(telegram_id, username, first_name):
         VALUES (?, ?, ?)
     """, (telegram_id, username, first_name))
 
+    # Уникальный @ник — назначается один раз для новой строки. Проверка "а
+    # не пустой ли он" (а не просто "это INSERT или IGNORE?") заодно
+    # самовосстанавливает ник для уже существующих пользователей, если он
+    # почему-то не был назначен миграцией (см. db/handles.py).
+    cursor.execute("SELECT handle FROM users WHERE telegram_id=?", (telegram_id,))
+    row = cursor.fetchone()
+    if row and not row["handle"]:
+        from .handles import generate_unique_handle
+        cursor.execute(
+            "UPDATE users SET handle=? WHERE telegram_id=?",
+            (generate_unique_handle(cursor, first_name), telegram_id),
+        )
+
     cursor.execute("""
         INSERT OR IGNORE INTO settings(user_id)
         VALUES(?)
@@ -627,7 +640,7 @@ def get_rating(limit=10):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT u.telegram_id, u.username, u.first_name, u.xp, u.level, u.streak,
+        SELECT u.telegram_id, u.username, u.first_name, u.handle, u.xp, u.level, u.streak,
                u.avatar_id, u.frame_id, u.total_xp,
                sm.temp_frame, sm.temp_status
         FROM users u

@@ -51,6 +51,7 @@ body{
 }
 .name{font:800 22px 'Space Grotesk',sans-serif;margin-bottom:2px}
 .name .badge{font-size:16px;margin-left:4px}
+.handle{color:var(--muted);font-size:13px;font-weight:600;margin-bottom:8px}
 .league{color:#cfc6ff;font-size:12.5px;font-weight:700;margin-bottom:18px}
 .stats{display:flex;gap:10px;margin-bottom:16px}
 .stat{
@@ -99,6 +100,7 @@ body{
       card.innerHTML =
         '<div class="avatar">' + escapeHtml(initial) + '</div>' +
         '<div class="name">' + escapeHtml(p.first_name) + (p.badge ? '<span class="badge">🏅</span>' : '') + '</div>' +
+        (p.handle ? '<div class="handle">@' + escapeHtml(p.handle) + '</div>' : '') +
         '<div class="league">' + escapeHtml(p.league_tier) + '</div>' +
         '<div class="stats">' +
           '<div class="stat"><div class="stat-value">' + Number(p.level || 1) + '</div><div class="stat-label">Уровень</div></div>' +

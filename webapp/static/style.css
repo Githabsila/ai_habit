@@ -12500,3 +12500,77 @@ body{
   margin: 0 !important;
   padding: 0 !important;
 }
+
+/* Уникальный @ник — карточка игрока, рейтинг (подиум/список/сезон),
+   команда, лента друзей, публичный профиль. Везде рядом с именем, как
+   Instagram/Duolingo: отдельной, мелкой, приглушённой строкой. */
+.player-card__handle{
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--muted, #938DA6) !important;
+  margin: -4px 0 6px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100% !important;
+}
+.player-card__handle:empty{
+  display: none !important;
+}
+.rating-podium-card__handle{
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  color: var(--muted, #938DA6) !important;
+  margin-top: 1px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100% !important;
+}
+.rating-item__handle{
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  color: var(--muted, #938DA6) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.team-card__member-identity{
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+}
+.team-card__member-handle,
+.activity-feed__handle{
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  color: var(--muted, #938DA6) !important;
+  margin-left: 4px !important;
+}
+.handle-input-wrap{
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  padding: 0 12px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  background: rgba(255,255,255,.03) !important;
+}
+.handle-input-at{
+  color: var(--muted, #938DA6) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+}
+.handle-input{
+  flex: 1 !important;
+  min-width: 0 !important;
+  padding: 10px 4px !important;
+  border: none !important;
+  background: transparent !important;
+  color: var(--text, #EAE5FA) !important;
+  font-family: inherit !important;
+  font-size: 12.5px !important;
+}
+.handle-input:focus{
+  outline: none !important;
+}
