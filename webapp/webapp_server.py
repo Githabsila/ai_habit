@@ -669,7 +669,8 @@ async def bootstrap_secondary(request):
 
     if section in ("", "rating"):
         badge_owner_ids = set(get_item_owner_ids(BADGE_ITEM_ID))
-        leaderboard = get_rating()
+        rating_league, leaderboard = get_rating(telegram_id, limit=50)
+        payload["rating_league"] = rating_league
         payload["leaderboard"] = [
             {
                 "telegram_id": row["telegram_id"],

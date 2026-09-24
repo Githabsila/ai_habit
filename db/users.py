@@ -623,38 +623,70 @@ def get_referred_users(user_id):
 # РЕЙТИНГ (menu.py / rating.py)
 # =====================================
 
-_RATING_CACHE = {"at": 0.0, "data": None}
+def clear_rating_cache():
+    """Сбрасывает кэш вручную — нужно только тестам (иначе кэш одного
+    теста мог бы отдать устаревшие данные следующему в том же процессе,
+    т.к. кэш модульный/на весь процесс, а не per-request). Аналог
+    db/seasons.py::clear_season_leaderboard_cache для того же класса
+    проблемы."""
+    _RATING_CACHE.clear()
+
+
+# Кэш на лигу (не один общий) — с тех пор, как рейтинг стал персональным
+# (см. db/leagues.py::RATING_LEAGUES), у разных зрителей одной и той же
+# лиги один и тот же список, но у разных лиг — разные списки.
+_RATING_CACHE = {}
 _RATING_CACHE_TTL_SECONDS = 5
 
 
-def get_rating(limit=10):
-    # Рейтинг меняется часто, поэтому кэш короткий. Он особенно помогает
-    # при холодном открытии Mini App и при повторных заходах на вкладку.
-    import time
-    now = time.monotonic()
-    cached = _RATING_CACHE.get("data")
-    if cached is not None and now - _RATING_CACHE["at"] <= _RATING_CACHE_TTL_SECONDS:
-        return cached[:limit]
+def get_rating(user_id, limit=10):
+    """Рейтинг игроков ИЗ ТОЙ ЖЕ лиги (streak-диапазон), что и viewer
+    (user_id) — "рейтинг у каждого свой". См. db/leagues.py для того, как
+    это заодно исключает тех, кто попробовал один раз и не вернулся, и
+    возвращает вернувшихся только после 2 дней новой серии."""
+    from .leagues import get_rating_league_for_viewer
 
     conn = connect()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT u.telegram_id, u.username, u.first_name, u.handle, u.xp, u.level, u.streak,
-               u.avatar_id, u.frame_id, u.total_xp,
-               sm.temp_frame, sm.temp_status
-        FROM users u
-        LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id
-        WHERE u.banned=0
-        ORDER BY u.streak DESC, u.xp DESC
-        LIMIT ?
-    """, (limit,))
+    cursor.execute("SELECT streak FROM users WHERE telegram_id=?", (user_id,))
+    row = cursor.fetchone()
+    league = get_rating_league_for_viewer(row["streak"] if row else 0)
+
+    # Рейтинг меняется часто, поэтому кэш короткий. Он особенно помогает
+    # при холодном открытии Mini App и при повторных заходах на вкладку.
+    import time
+    now = time.monotonic()
+    cached = _RATING_CACHE.get(league["index"])
+    if cached is not None and now - cached["at"] <= _RATING_CACHE_TTL_SECONDS:
+        conn.close()
+        return league, cached["data"][:limit]
+
+    if league["max_streak"] is None:
+        cursor.execute("""
+            SELECT u.telegram_id, u.username, u.first_name, u.handle, u.xp, u.level, u.streak,
+                   u.avatar_id, u.frame_id, u.total_xp,
+                   sm.temp_frame, sm.temp_status
+            FROM users u
+            LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id
+            WHERE u.banned=0 AND u.streak >= ?
+            ORDER BY u.streak DESC, u.xp DESC
+        """, (league["min_streak"],))
+    else:
+        cursor.execute("""
+            SELECT u.telegram_id, u.username, u.first_name, u.handle, u.xp, u.level, u.streak,
+                   u.avatar_id, u.frame_id, u.total_xp,
+                   sm.temp_frame, sm.temp_status
+            FROM users u
+            LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id
+            WHERE u.banned=0 AND u.streak BETWEEN ? AND ?
+            ORDER BY u.streak DESC, u.xp DESC
+        """, (league["min_streak"], league["max_streak"]))
 
     data = cursor.fetchall()
     conn.close()
-    _RATING_CACHE["data"] = data
-    _RATING_CACHE["at"] = now
-    return data[:limit]
+    _RATING_CACHE[league["index"]] = {"data": data, "at": now}
+    return league, data[:limit]
 
 
 def get_user_rank(user_id):

@@ -37,6 +37,7 @@ from .users import (
     add_referral,
     get_referrals,
     get_rating,
+    clear_rating_cache,
     get_user_rank,
     claim_daily_bonus,
     get_last_ai_message_at,
@@ -87,7 +88,10 @@ from .client_errors import log_client_error, get_recent_client_errors
 
 from .quests import get_daily_quests, claim_daily_quest, QUEST_DEFINITIONS
 
-from .leagues import get_league_tier, get_league_progress, LEAGUE_TIERS
+from .leagues import (
+    get_league_tier, get_league_progress, LEAGUE_TIERS,
+    get_rating_league, get_rating_league_for_viewer, RATING_LEAGUES, RATING_LEAGUE_MIN_STREAK,
+)
 
 from .public_profile import set_public_profile_enabled, get_public_profile
 
@@ -284,7 +288,7 @@ __all__ = [
     "should_show_app_tour", "mark_app_tour_seen",
     "ban_user", "unban_user", "is_banned", "reset_progress",
     "set_referrer", "add_referral", "get_referrals",
-    "get_rating", "get_user_rank", "claim_daily_bonus",
+    "get_rating", "clear_rating_cache", "get_user_rank", "claim_daily_bonus",
     "get_last_ai_message_at", "touch_last_ai_message", "claim_ai_first_message",
     "activate_xp_booster", "is_xp_booster_active",
     "set_long_term_goals", "get_long_term_goals", "MAX_LONG_TERM_GOALS_LENGTH",
@@ -308,6 +312,7 @@ __all__ = [
     "log_client_error", "get_recent_client_errors",
     "get_daily_quests", "claim_daily_quest", "QUEST_DEFINITIONS",
     "get_league_tier", "get_league_progress", "LEAGUE_TIERS",
+    "get_rating_league", "get_rating_league_for_viewer", "RATING_LEAGUES", "RATING_LEAGUE_MIN_STREAK",
     "set_public_profile_enabled", "get_public_profile",
     "send_reaction", "get_recent_reactions_received", "has_reacted_today", "REACTION_EMOJIS",
     "touch_last_seen", "get_dau", "get_subscription_conversion",

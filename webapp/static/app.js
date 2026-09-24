@@ -876,6 +876,7 @@
               stabilizeFirstPaint(["shopList", "achievementList", "achievementArchiveList", "petWidget"]);
             } else if (key === "rating") {
               state.leaderboard = data.leaderboard || [];
+              state.rating_league = data.rating_league || null;
               renderRating();
               // Team + season are already prefetched in parallel from boot.
               // Не запускаем второй комплект запросов при ответе рейтинга.
@@ -2179,6 +2180,22 @@
     const count = document.getElementById("ratingPlayerCount");
     const countLabel = document.getElementById("ratingPlayerCountLabel");
     if (!list) return;
+
+    // Рейтинг теперь персональный — каждый видит только свою лигу (см.
+    // db/leagues.py::RATING_LEAGUES). Показываем название лиги в шапке,
+    // чтобы было понятно, что это не "весь" рейтинг.
+    const leagueEl = document.getElementById("ratingHeroLeague");
+    if (leagueEl) {
+      const league = state.rating_league;
+      if (league) {
+        const range = league.max_streak ? `${league.min_streak}–${league.max_streak}` : `${league.min_streak}+`;
+        leagueEl.textContent = `${league.name} · ${range} 🔥`;
+        leagueEl.hidden = false;
+      } else {
+        leagueEl.hidden = true;
+      }
+    }
+
     let rows = Array.isArray(state.leaderboard) ? state.leaderboard.slice() : [];
     if (count) count.textContent = rows.length;
     if (countLabel) countLabel.textContent = pluralRu(rows.length, "игрок", "игрока", "игроков");

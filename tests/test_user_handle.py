@@ -5,7 +5,7 @@
 публичном профиле (см. соответствующие SELECT'ы в db/*.py).
 """
 from db import (
-    add_user, get_user, get_rating, add_habit,
+    add_user, get_user, get_rating, clear_rating_cache, add_habit,
     get_handle, is_handle_taken, update_handle, generate_unique_handle,
     normalize_handle, HANDLE_RE,
 )
@@ -192,11 +192,19 @@ async def test_bootstrap_reflects_handle(client, uid):
 
 def test_rating_includes_handle(uid):
     add_user(uid, "a", "Тест")
-    # limit нарочно огромный: get_rating() сортирует по streak/xp, а в
-    # общей тестовой БД к этому моменту уже сотни пользователей с
-    # streak=xp=0 — маленький limit не гарантировал бы, что именно этот
-    # только что созданный попадёт в срез.
-    rows = get_rating(limit=100000)
+    # get_rating() теперь персональный (см. db/leagues.py) — зритель со
+    # streak=0 в своём же списке не появится (ещё не набрал streak>=2 для
+    # входа в лигу рейтинга), поэтому явно задаём streak, чтобы попасть в
+    # свою же лигу и проверить, что handle долетает до неё.
+    conn = connect()
+    conn.execute("UPDATE users SET streak=5 WHERE telegram_id=?", (uid,))
+    conn.commit()
+    conn.close()
+    clear_rating_cache()
+    # limit нарочно огромный: внутри лиги может быть много пользователей
+    # из других тестов с тем же диапазоном streak — маленький limit не
+    # гарантировал бы, что именно этот попадёт в срез.
+    _league, rows = get_rating(uid, limit=100000)
     row = next(r for r in rows if r["telegram_id"] == uid)
     assert row["handle"] == get_handle(uid)
 

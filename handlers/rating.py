@@ -12,7 +12,7 @@ BADGE_ITEM_ID = 3  # 🏅 Особый значок — тот же id, что �
 @router.callback_query(F.data == "rating")
 async def rating(callback: CallbackQuery):
 
-    users = get_rating()
+    league, users = get_rating(callback.from_user.id)
 
     if not users:
 
@@ -26,7 +26,7 @@ async def rating(callback: CallbackQuery):
 
     badge_owner_ids = get_item_owner_ids(BADGE_ITEM_ID)
 
-    text = "🏆 <b>Рейтинг пользователей</b>\n\n"
+    text = f"🏆 <b>Рейтинг · {league['name']}</b>\n\n"
 
     medals = ["🥇", "🥈", "🥉"]
 
