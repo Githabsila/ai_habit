@@ -55,11 +55,11 @@ def streak_phrase(n: int) -> str:
 # =====================================
 
 HABIT_CHECKPOINT_TEMPLATES = [
-    "⏱️ Контрольная точка дня: уже закрыто {completed} из {total}. Сейчас остаётся {left_phrase}: {habits}. Начни с ближайшей — и продолжай двигаться по плану {emoji}",
-    "🎯 {time}:00 — сверка курса. Ты уже выполнил {completed} из {total}. В фокусе сейчас {left_phrase}: {habits}. Закрой следующий пункт и продолжай день {emoji}",
-    "☀️ На {time}:00 вижу реальный прогресс: {completed} из {total} уже выполнено. Остаётся {left_phrase}: {habits}. Следующий шаг — закрыть один из этих пунктов {emoji}",
-    "📍 Точка дня: {completed} из {total} уже закрыто. Сейчас в плане {left_phrase}: {habits}. Двигайся дальше с ближайшего пункта {emoji}",
-    "⚡️ Уже есть результат: {completed} из {total} привычек выполнено. Осталось {left_phrase}: {habits}. Закрой следующую и сохрани темп {emoji}",
+    "⏱️ Контрольная точка дня: уже закрыто {completed} из {total}. Сейчас остаётся {left_phrase}: {habits}.{timed_note} Начни с ближайшей — и продолжай двигаться по плану {emoji}",
+    "🎯 {time}:00 — сверка курса. Ты уже выполнил {completed} из {total}. В фокусе сейчас {left_phrase}: {habits}.{timed_note} Закрой следующий пункт и продолжай день {emoji}",
+    "☀️ На {time}:00 вижу реальный прогресс: {completed} из {total} уже выполнено. Остаётся {left_phrase}: {habits}.{timed_note} Следующий шаг — закрыть один из этих пунктов {emoji}",
+    "📍 Точка дня: {completed} из {total} уже закрыто. Сейчас в плане {left_phrase}: {habits}.{timed_note} Двигайся дальше с ближайшего пункта {emoji}",
+    "⚡️ Уже есть результат: {completed} из {total} привычек выполнено. Осталось {left_phrase}: {habits}.{timed_note} Закрой следующую и сохрани темп {emoji}",
 ]
 
 # Когда completed == 0, формулировки выше звучат как противоречие ("уже
@@ -67,12 +67,26 @@ HABIT_CHECKPOINT_TEMPLATES = [
 # рамки "уже что-то сделано" для случая, когда за день пока ничего не
 # отмечено.
 HABIT_CHECKPOINT_ZERO_TEMPLATES = [
-    "⏱️ Контрольная точка дня: из {total} пока не закрыто ни одной. В плане {left_phrase}: {habits}. Начни с ближайшей — и сдвинь день с места {emoji}",
-    "🎯 {time}:00 — сверка курса. Пока 0 из {total}. В фокусе {left_phrase}: {habits}. Закрой первый пункт — и наберёшь темп {emoji}",
-    "📍 Точка дня: из {total} пока ничего не отмечено. В плане {left_phrase}: {habits}. Начни с ближайшего пункта {emoji}",
+    "⏱️ Контрольная точка дня: из {total} пока не закрыто ни одной. В плане {left_phrase}: {habits}.{timed_note} Начни с ближайшей — и сдвинь день с места {emoji}",
+    "🎯 {time}:00 — сверка курса. Пока 0 из {total}. В фокусе {left_phrase}: {habits}.{timed_note} Закрой первый пункт — и наберёшь темп {emoji}",
+    "📍 Точка дня: из {total} пока ничего не отмечено. В плане {left_phrase}: {habits}.{timed_note} Начни с ближайшего пункта {emoji}",
 ]
 
-def format_habit_checkpoint_message(incomplete_habits, hour: int, completed: int | None = None, total: int | None = None) -> str:
+
+def _format_timed_note(timed_habits) -> str:
+    """timed_habits — список (hour, minute, title) привычек со своим ещё не
+    наступившим временем, отсортированный по времени по возрастанию.
+    Возвращает готовую вставку вида
+    " Не забудь в 18:00 — «Спорт» и в 23:00 — «Растяжка»." — как
+    дополнительную информацию в конце точки дня, перед мотивационной
+    концовкой шаблона. Пусто, если таких привычек нет."""
+    if not timed_habits:
+        return ""
+    parts = [f"в {int(h):02d}:{int(m):02d} — «{title}»" for h, m, title in timed_habits]
+    return " Не забудь " + " и ".join(parts) + "."
+
+
+def format_habit_checkpoint_message(incomplete_habits, hour: int, completed: int | None = None, total: int | None = None, timed_habits=None) -> str:
     titles = [str(h["title"]) for h in incomplete_habits]
     left = len(titles)
     if total is None:
@@ -85,9 +99,10 @@ def format_habit_checkpoint_message(incomplete_habits, hour: int, completed: int
     left_word = plural_ru(left, "привычка", "привычки", "привычек")
     left_phrase = f"одна {left_word}" if left == 1 else f"{left} {left_word}"
     templates = HABIT_CHECKPOINT_TEMPLATES if completed > 0 else HABIT_CHECKPOINT_ZERO_TEMPLATES
+    timed_note = _format_timed_note(timed_habits)
     return pick(templates, pool=SOFT_EMOJIS, time=hour,
                 completed=completed, total=total, left=left, habits=habits,
-                left_phrase=left_phrase)
+                left_phrase=left_phrase, timed_note=timed_note)
 
 
 # =====================================

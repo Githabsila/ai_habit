@@ -29,7 +29,7 @@ def _candidates(templates, pool, **kwargs):
 
 
 def test_habit_checkpoint_zero_completed_avoids_already_done_wording():
-    kwargs = dict(time=12, completed=0, total=6, left=1, habits="«Разминка»", left_phrase="одна привычка")
+    kwargs = dict(time=12, completed=0, total=6, left=1, habits="«Разминка»", left_phrase="одна привычка", timed_note="")
     msg = format_habit_checkpoint_message([{"title": "Разминка"}], hour=12, completed=0, total=6)
 
     assert msg in _candidates(HABIT_CHECKPOINT_ZERO_TEMPLATES, SOFT_EMOJIS, **kwargs)
@@ -37,11 +37,27 @@ def test_habit_checkpoint_zero_completed_avoids_already_done_wording():
 
 
 def test_habit_checkpoint_nonzero_completed_uses_progress_wording():
-    kwargs = dict(time=12, completed=2, total=6, left=1, habits="«Разминка»", left_phrase="одна привычка")
+    kwargs = dict(time=12, completed=2, total=6, left=1, habits="«Разминка»", left_phrase="одна привычка", timed_note="")
     msg = format_habit_checkpoint_message([{"title": "Разминка"}], hour=12, completed=2, total=6)
 
     assert msg in _candidates(HABIT_CHECKPOINT_TEMPLATES, SOFT_EMOJIS, **kwargs)
     assert msg not in _candidates(HABIT_CHECKPOINT_ZERO_TEMPLATES, SOFT_EMOJIS, **kwargs)
+
+
+def test_habit_checkpoint_appends_timed_note_before_motivational_close():
+    """Привычки со своим ещё не наступившим временем не входят в основной
+    список {habits}, а добавляются отдельной фразой "Не забудь в HH:MM —
+    ..." в конце сообщения, перед мотивационной концовкой (и эмодзи)."""
+    msg = format_habit_checkpoint_message(
+        [{"title": "Разминка"}], hour=12, completed=4, total=6,
+        timed_habits=[(18, 0, "Спорт"), (23, 0, "Растяжка")],
+    )
+
+    note = " Не забудь в 18:00 — «Спорт» и в 23:00 — «Растяжка»."
+    assert note in msg
+    # note должна идти после списка обычных привычек и перед мотивационной
+    # концовкой/эмодзи — то есть не в самом конце строки.
+    assert not msg.rstrip().endswith(note.strip())
 
 
 def test_week_end_message_all_done_uses_praise_wording():

@@ -122,6 +122,86 @@ async def test_checkpoint_17_does_not_fire_outside_its_window(monkeypatch, uid):
     assert bot.sent == []
 
 
+async def test_checkpoint_silent_when_only_incomplete_habit_has_future_timer(monkeypatch, uid):
+    """Просьба пользователя: если у всех оставшихся привычек ещё не
+    наступило собственное время (planned_time), общая точка дня молчит —
+    по каждой такой привычке своё отдельное напоминание всё равно придёт
+    ровно в её время (run_planned_time_reminders), дублировать это было бы
+    спамом."""
+    import coach
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Спорт", planned_time="23:00")
+    _patch_user(monkeypatch, uid)
+    _freeze(monkeypatch, 12, 0)  # день, до 23:00
+
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_12(bot)
+
+    assert bot.sent == []
+
+
+async def test_checkpoint_mentions_free_habit_and_appends_timed_note(monkeypatch, uid):
+    """Если помимо привычки со своим (будущим) временем остаётся хотя бы
+    одна обычная привычка без времени — точка дня отправляется как раньше,
+    а привычка со временем добавляется доп. фразой "Не забудь в HH:MM"."""
+    import coach
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Растяжка")
+    add_habit(uid, "Спорт", planned_time="23:00")
+    _patch_user(monkeypatch, uid)
+    _freeze(monkeypatch, 12, 0)
+
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_12(bot)
+
+    assert len(bot.sent) == 1
+    text = bot.sent[0][1]
+    assert "Растяжка" in text
+    assert "Не забудь в 23:00 — «Спорт»" in text
+
+
+async def test_checkpoint_timed_note_lists_multiple_habits_sorted_by_time(monkeypatch, uid):
+    import coach
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Растяжка")
+    add_habit(uid, "Растяжка вечером", planned_time="23:00")
+    add_habit(uid, "Обед", planned_time="18:00")
+    _patch_user(monkeypatch, uid)
+    _freeze(monkeypatch, 12, 0)
+
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_12(bot)
+
+    text = bot.sent[0][1]
+    assert "в 18:00 — «Обед»" in text
+    assert "в 23:00 — «Растяжка вечером»" in text
+    assert text.index("18:00") < text.index("23:00")
+
+
+async def test_checkpoint_treats_past_due_timed_habit_as_normal(monkeypatch, uid):
+    """Если собственное время привычки уже прошло, а она всё ещё не
+    выполнена — это обычная просроченная привычка, а не "ещё не
+    наступившее время": она должна попасть в основной список, а не в
+    доп. фразу "Не забудь"."""
+    import coach
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Спорт", planned_time="10:00")
+    _patch_user(monkeypatch, uid)
+    _freeze(monkeypatch, 12, 0)  # 10:00 уже прошло
+
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_12(bot)
+
+    assert len(bot.sent) == 1
+    text = bot.sent[0][1]
+    assert "Спорт" in text
+    assert "Не забудь" not in text
+
+
 async def test_checkpoint_17_and_22_use_independent_dedup_keys(monkeypatch, uid):
     """17:00 и 22:00 не должны блокировать друг друга через claim_notification —
     у каждого свой kind, поэтому оба сообщения в один день должны дойти."""

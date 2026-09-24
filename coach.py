@@ -358,6 +358,38 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
             incomplete = get_incomplete_habits(telegram_id)
             if not incomplete:
                 continue
+
+            # Привычки со своим временем (planned_time), которое ещё не
+            # наступило, не должны дублироваться в общей точке дня —
+            # по каждой из них своё отдельное напоминание всё равно придёт
+            # ровно в её время (run_planned_time_reminders). Здесь они лишь
+            # упоминаются доп. строкой "Не забудь в HH:MM — ...". А если
+            # своё время уже прошло (привычка просрочена) — она давно не
+            # "своё время в будущем", а обычная незакрытая привычка, и идёт
+            # в общий список как раньше.
+            now_hm = (now.hour, now.minute)
+            free_habits = []
+            timed_habits = []
+            for h in incomplete:
+                planned_time = h["planned_time"]
+                if planned_time:
+                    try:
+                        planned_hour, planned_minute = (int(x) for x in planned_time.split(":"))
+                        if (planned_hour, planned_minute) > now_hm:
+                            timed_habits.append((planned_hour, planned_minute, str(h["title"])))
+                            continue
+                    except (ValueError, AttributeError):
+                        pass
+                free_habits.append(h)
+
+            if not free_habits:
+                # Все оставшиеся привычки ждут ещё не наступившего своего
+                # времени — отдельное напоминание по каждой уже в пути,
+                # дублировать это точкой дня было бы спамом.
+                continue
+
+            timed_habits.sort(key=lambda t: (t[0], t[1]))
+
             # Передаём точную статистику, чтобы сообщение прямо отражало
             # текущий прогресс пользователя, без условных формулировок.
             progress = get_progress(telegram_id)
@@ -377,7 +409,10 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
             try:
                 await bot.send_message(
                     telegram_id,
-                    format_habit_checkpoint_message(incomplete, target_hour, completed=completed_count, total=total_count),
+                    format_habit_checkpoint_message(
+                        free_habits, target_hour, completed=completed_count, total=total_count,
+                        timed_habits=timed_habits,
+                    ),
                     parse_mode="HTML"
                 )
             except Exception:
