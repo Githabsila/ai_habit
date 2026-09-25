@@ -212,7 +212,9 @@ def get_onboarding_state(user_id):
 
 
 def advance_onboarding(user_id, stage):
-    stage = max(0, min(int(stage), 5))
+    # 6 шагов теперь (было 5) — базовая версия онбординга добавила шаг
+    # приветствия первым (см. app.js::PRODUCT_ONBOARDING_STEPS).
+    stage = max(0, min(int(stage), 6))
     conn = connect()
     try:
         cur = conn.cursor()

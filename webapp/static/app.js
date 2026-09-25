@@ -1268,12 +1268,19 @@
   let productHintTarget = null;
   let productOnboardingLocalStage = 0;
 
+  // Базовая версия онбординга "в духе Habitica": короткие подсказки одна
+  // за другой, каждая указывает на конкретный элемент экрана, без стены
+  // текста — приветствие первым шагом, затем по одному ключевому действию
+  // за раз (привычка → задача → ADAM-чат), второстепенное (календарь/
+  // профиль) — позже и по факту перехода на вкладку. Черновая версия для
+  // предпросмотра — планируется доработка по референсам пользователя.
   const PRODUCT_ONBOARDING_STEPS = {
-    1: { target: '#habitList', title: 'Твои привычки', text: 'Закрой хотя бы одну сегодня — увидишь результат сразу.' },
-    2: { target: '#newPlanTaskInput', title: 'Добавь задачу', text: 'Одну, которую реально закрыть сегодня.' },
-    3: { target: '#aiCoachBtn', title: 'Здесь живёт ADAM', text: 'Открой чат в любой момент — за советом или помощью.' },
-    4: { target: '[data-tab="calendar"]', title: 'История — потом', text: 'Сначала пара маленьких побед, календарь подождёт.' },
-    5: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар, тема, прогресс — здесь.' },
+    1: { target: '.player-card', title: 'Привет, я ADAM 👋', text: 'Коротко покажу, что где — 20 секунд, дальше сам.' },
+    2: { target: '#habitList', title: 'Твои привычки', text: 'Закрой хотя бы одну сегодня — увидишь результат сразу.' },
+    3: { target: '#newPlanTaskInput', title: 'Добавь задачу', text: 'Одну, которую реально закрыть сегодня.' },
+    4: { target: '#aiCoachBtn', title: 'Здесь живёт ADAM', text: 'Открой чат в любой момент — за советом или помощью.' },
+    5: { target: '[data-tab="calendar"]', title: 'История — потом', text: 'Сначала пара маленьких побед, календарь подождёт.' },
+    6: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар, тема, прогресс — здесь.' },
   };
 
   function clearProductOnboardingTarget() {
@@ -1322,14 +1329,18 @@
   function scheduleProductOnboarding() {
     if (!state?.show_app_tour) return;
     api('/api/onboarding/start', { method: 'POST' }).catch(() => {});
-    // Никакого экрана из 6 слайдов сразу: сначала даём человеку освоиться.
+    // Никакого экрана из 6 слайдов сразу: подсказки идут одна за другой
+    // (в духе Habitica) — приветствие, затем по одному ключевому действию,
+    // с паузой на чтение между ними, а не всё сразу.
     productOnboardingTimers.forEach(clearTimeout);
     productOnboardingTimers = [
-      setTimeout(() => showProductHint(1), 1800),
+      setTimeout(() => showProductHint(1), 900),
+      setTimeout(() => showProductHint(2), 5500),
       setTimeout(() => {
         const plan = state?.daily_plan;
-        if (plan && (!plan.main_goal || !(plan.tasks || []).length)) showProductHint(2);
-      }, 7000),
+        if (plan && (!plan.main_goal || !(plan.tasks || []).length)) showProductHint(3);
+      }, 11000),
+      setTimeout(() => showProductHint(4), 17000),
     ];
   }
 
@@ -1365,8 +1376,8 @@
       const btn = e.target.closest('.tab-bar__item');
       if (!btn) return;
       const tab = btn.dataset.tab;
-      if (tab === 'calendar') setTimeout(() => showProductHint(4), 180);
-      if (tab === 'profile') setTimeout(() => showProductHint(5), 180);
+      if (tab === 'calendar') setTimeout(() => showProductHint(5), 180);
+      if (tab === 'profile') setTimeout(() => showProductHint(6), 180);
     });
   }
 
@@ -4838,7 +4849,7 @@ document.addEventListener("visibilitychange", () => {
 
 document.getElementById("aiCoachBtn").addEventListener("click", () => {
     hideProductHint();
-    api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage: 3 }) }).catch(() => {});
+    api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage: 4 }) }).catch(() => {});
     haptic("light");
     const overlay = document.getElementById("loadingOverlay");
     if (overlay) overlay.hidden = false;
