@@ -1,23 +1,24 @@
 """
-Базовая версия онбординга "в духе Habitica" (черновик для предпросмотра,
-будет дорабатываться по референсам пользователя): добавлен шаг
-приветствия первым в app.js::PRODUCT_ONBOARDING_STEPS — теперь 6 шагов
-вместо 5, advance_onboarding должен принимать весь диапазон.
+Онбординг v3 (по детальному плану пользователя, в духе Habitica): 5
+пронумерованных шагов — app.js::PRODUCT_ONBOARDING_STEPS (1-2 —
+стартовые: кнопка "Добавить привычку" и главное дело дня; 3-5 —
+контекстные: календарь/рейтинг/профиль, по факту первого захода на
+вкладку, независимо от того, завершён ли стартовый сценарий).
 """
 from db import add_user
 from db.product_experience import advance_onboarding, get_onboarding_state
 
 
-def test_advance_onboarding_accepts_new_max_stage(uid):
+def test_advance_onboarding_accepts_max_stage(uid):
     add_user(uid, "u", "Test")
-    advance_onboarding(uid, 6)
-    assert get_onboarding_state(uid)["onboarding_stage"] == 6
+    advance_onboarding(uid, 5)
+    assert get_onboarding_state(uid)["onboarding_stage"] == 5
 
 
-def test_advance_onboarding_clamps_above_new_max(uid):
+def test_advance_onboarding_clamps_above_max(uid):
     add_user(uid, "u", "Test")
     advance_onboarding(uid, 99)
-    assert get_onboarding_state(uid)["onboarding_stage"] == 6
+    assert get_onboarding_state(uid)["onboarding_stage"] == 5
 
 
 def test_advance_onboarding_never_decreases(uid):

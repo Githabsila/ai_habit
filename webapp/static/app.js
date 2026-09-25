@@ -1172,39 +1172,26 @@
   }
 
   // ===================== ОБУЧЕНИЕ ПРИ ПЕРВОМ ВХОДЕ =====================
+  // Короткая вводная модалка — 3 шага вместо прежних 6, текста в разы
+  // меньше: одна главная мысль на шаг, без перечисления всех фич разом.
+  // Дальше (после закрытия/Skip) человек попадает в само приложение, где
+  // его встречает интерактивный онбординг (PRODUCT_ONBOARDING_STEPS ниже) —
+  // эта модалка только называет, что такое ADAM, не объясняет интерфейс.
   const APP_TOUR_STEPS = [
     {
       icon: "👋",
-      title: "Добро пожаловать в Project ADAM",
-      text: "Я — твой личный ИИ-наставник по привычкам. Покажу за минуту, что тут где и зачем.",
+      title: "Это ADAM",
+      text: "Система для привычек, задач и планирования дня.",
     },
     {
       icon: "🎯",
-      title: "Привычки держат серию",
-      text: "Отмечай хотя бы одну привычку в день, чтобы не терять ударный режим. Вторая подряд в течение 30 минут — уже двойные Adam Coin.",
+      title: "Формируй привычки",
+      text: "Постепенно меняй своё поведение — шаг за шагом.",
     },
     {
-      icon: "✦",
-      title: "План дня — отдельно от привычек",
-      text: "Одна главная задача и до 5 обычных. Своя логика, свой темп — не смешивается с привычками.",
-    },
-    {
-      // Эмодзи монеты (U+1FA99) не везде рендерится — вместо него та же
-      // SVG-иконка Adam Coin, что используется по всему приложению
-      // (профиль, магазин, рейтинг), гарантированно отрисовывается всегда.
-      icon: ADAM_COIN_ICON,
-      title: "Adam Coin открывают вещи",
-      text: "Зарабатывай монеты за привычки и задачи — трать их в магазине на рамки, темы и заморозки серии.",
-    },
-    {
-      icon: "🤖",
-      title: "Спроси у ADAM",
-      text: "Обсуди цель, разбери день или просто спроси совет — отвечаю прямо во вкладке «ИИ».",
-    },
-    {
-      icon: "🏆",
-      title: "Сравнивай и настраивай",
-      text: "Смотри своё место в рейтинге, собирай рамки за серию, настраивай профиль. Погнали!",
+      icon: "🚀",
+      title: "Погнали",
+      text: "Дальше покажу прямо в приложении, с чего начать.",
     },
   ];
   let appTourStep = 0;
@@ -1255,33 +1242,48 @@
     overlay.classList.remove("show");
     overlay.setAttribute("aria-hidden", "true");
     setTimeout(() => { overlay.hidden = true; }, 280);
-    api("/api/tour/seen", { method: "POST" }).catch(() => {});
+    // Закрытие этой модалки (хоть через "Начать", хоть через "Пропустить")
+    // НЕ должно само по себе гасить app_tour_seen — иначе интерактивный
+    // онбординг (подсветка кнопки "Добавить привычку" и т.д.) не успел бы
+    // ни разу показаться. Она только называет, что такое ADAM — сам
+    // /api/tour/seen вызывается позже, когда завершится или будет
+    // пропущен уже интерактивный сценарий (см. skipProductOnboarding).
+    scheduleProductOnboarding();
   }
 
   let appTourShownThisSession = false;
 
-  // Новый onboarding вместо длинного модального тура: первые 15 минут
-  // пользователь получает маленькие подсказки только в нужном контексте.
-  // Старый appTour оставляем в коде для совместимости, но новым пользователям
-  // его больше не показываем.
+  // Базовая версия онбординга "в духе Habitica" — два независимых слоя:
+  //
+  // 1) "Стартовые" шаги (1-2) — подсвечивают КНОПКУ действия (не раздел
+  //    целиком), ведут человека создать первую привычку и главное дело
+  //    дня, а дальше НЕ превращаются в экскурсию по всему приложению —
+  //    человек сам их выполняет и получает обычную награду за это
+  //    (celebrateHabitCompletion/toast за главную задачу, см. ниже), и уже
+  //    в этот момент предлагается добавить ещё одну привычку или
+  //    продолжить самому (см. maybeOfferAnotherHabit).
+  // 2) "Контекстные" шаги (3-5) — календарь/рейтинг/профиль объясняются
+  //    ТОЛЬКО когда человек сам туда впервые заходит, не раньше. Они
+  //    завязаны на persisted onboarding_stage (а не на show_app_tour),
+  //    поэтому продолжают работать даже после того, как стартовые шаги
+  //    уже закончились/были пропущены — иначе пропуск стартового
+  //    сценария заодно навсегда скрыл бы и эти разовые контекстные
+  //    подсказки, а они как раз про "объяснять по мере использования".
   let productOnboardingTimers = [];
   let productHintTarget = null;
   let productOnboardingLocalStage = 0;
+  let onboardingHabitDoneOnce = false;
+  let onboardingMainGoalDoneOnce = false;
+  let addAnotherHabitPromptShown = false;
 
-  // Базовая версия онбординга "в духе Habitica": короткие подсказки одна
-  // за другой, каждая указывает на конкретный элемент экрана, без стены
-  // текста — приветствие первым шагом, затем по одному ключевому действию
-  // за раз (привычка → задача → ADAM-чат), второстепенное (календарь/
-  // профиль) — позже и по факту перехода на вкладку. Черновая версия для
-  // предпросмотра — планируется доработка по референсам пользователя.
   const PRODUCT_ONBOARDING_STEPS = {
-    1: { target: '.player-card', title: 'Привет, я ADAM 👋', text: 'Коротко покажу, что где — 20 секунд, дальше сам.' },
-    2: { target: '#habitList', title: 'Твои привычки', text: 'Закрой хотя бы одну сегодня — увидишь результат сразу.' },
-    3: { target: '#newPlanTaskInput', title: 'Добавь задачу', text: 'Одну, которую реально закрыть сегодня.' },
-    4: { target: '#aiCoachBtn', title: 'Здесь живёт ADAM', text: 'Открой чат в любой момент — за советом или помощью.' },
-    5: { target: '[data-tab="calendar"]', title: 'История — потом', text: 'Сначала пара маленьких побед, календарь подождёт.' },
-    6: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар, тема, прогресс — здесь.' },
+    1: { target: '#addHabitTrigger', title: 'Начни с одной привычки', text: 'Нажми сюда, чтобы добавить первую.' },
+    2: { target: '#mainGoalEditor', title: 'Главное дело на сегодня', text: 'Одна задача, которую точно сделаешь.' },
+    3: { target: '[data-tab="calendar"]', title: 'Календарь', text: 'Здесь виден твой прогресс по дням.' },
+    4: { target: '[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.' },
+    5: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь. Остальное можно посмотреть самому.' },
   };
+  const CONTEXT_TAB_STAGE = { calendar: 3, rating: 4, profile: 5 };
 
   function clearProductOnboardingTarget() {
     if (productHintTarget) productHintTarget.classList.remove('product-onboarding-target');
@@ -1294,15 +1296,21 @@
     clearProductOnboardingTarget();
     el.classList.remove('show');
     setTimeout(() => { if (!el.classList.contains('show')) el.hidden = true; }, 220);
+    const actions = document.getElementById('productOnboardingHintActions');
+    if (actions) { actions.hidden = true; actions.innerHTML = ''; }
   }
 
   // Кнопка "Пропустить" сверху подсказки — для тех, кто не хочет читать:
   // в отличие от ✕ (закрывает только текущую подсказку), останавливает
-  // весь онбординг целиком — ни эта, ни следующие подсказки больше не
-  // покажутся. Переиспользует /api/tour/seen — тот же флаг app_tour_seen,
-  // которым уже гасится и старый модальный тур, и весь этот сценарий.
+  // именно СТАРТОВЫЙ сценарий (шаги 1-2 + предложение добавить ещё одну
+  // привычку) — контекстные подсказки календаря/рейтинга/профиля не
+  // затрагивает, у них своя логика показа (см. CONTEXT_TAB_STAGE выше).
   function skipProductOnboarding() {
     hideProductHint();
+    finishStartOnboarding();
+  }
+
+  function finishStartOnboarding() {
     productOnboardingTimers.forEach(clearTimeout);
     productOnboardingTimers = [];
     if (state) state.show_app_tour = false;
@@ -1320,34 +1328,114 @@
     target.classList.add('product-onboarding-target');
     document.getElementById('productOnboardingHintTitle').textContent = step.title;
     document.getElementById('productOnboardingHintText').textContent = step.text;
+    const actions = document.getElementById('productOnboardingHintActions');
+    if (actions) { actions.hidden = true; actions.innerHTML = ''; }
     el.hidden = false;
     requestAnimationFrame(() => el.classList.add('show'));
     productOnboardingLocalStage = Math.max(productOnboardingLocalStage, stage);
     api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage }) }).catch(() => {});
   }
 
+  // Шаг 1 (или сразу шаг 2, если привычка уже есть, а главного дела ещё
+  // нет — например, страница была перезагружена посередине сценария).
   function scheduleProductOnboarding() {
     if (!state?.show_app_tour) return;
     api('/api/onboarding/start', { method: 'POST' }).catch(() => {});
-    // Никакого экрана из 6 слайдов сразу: подсказки идут одна за другой
-    // (в духе Habitica) — приветствие, затем по одному ключевому действию,
-    // с паузой на чтение между ними, а не всё сразу.
     productOnboardingTimers.forEach(clearTimeout);
-    productOnboardingTimers = [
-      setTimeout(() => showProductHint(1), 900),
-      setTimeout(() => showProductHint(2), 5500),
-      setTimeout(() => {
-        const plan = state?.daily_plan;
-        if (plan && (!plan.main_goal || !(plan.tasks || []).length)) showProductHint(3);
-      }, 11000),
-      setTimeout(() => showProductHint(4), 17000),
-    ];
+    productOnboardingTimers = [];
+    const hasHabits = (state?.habits || []).length > 0;
+    const hasMainGoal = !!state?.daily_plan?.main_goal;
+    if (!hasHabits) {
+      productOnboardingTimers.push(setTimeout(() => showProductHint(1), 700));
+    } else if (!hasMainGoal) {
+      productOnboardingTimers.push(setTimeout(() => showProductHint(2), 700));
+    }
+  }
+
+  // Вызывается из обработчика создания привычки (app.js::addHabitForm) —
+  // только для ПЕРВОЙ когда-либо созданной привычки в рамках сценария.
+  function onOnboardingHabitCreated() {
+    if (!state?.show_app_tour) return;
+    hideProductHint();
+    if (!state?.daily_plan?.main_goal) {
+      setTimeout(() => showProductHint(2), 700);
+    }
+  }
+
+  // Вызывается после сохранения главного дела дня, если оно раньше было
+  // пустым — сценарий НЕ продолжается дальше сам (никакой "экскурсии" по
+  // остальным разделам): дальше человек сам отмечает привычку/задачу и
+  // получает обычную награду (toast за монеты, тосты плана дня) — именно
+  // на этом прожитом опыте и держится petля "делаю → вижу прогресс".
+  function onOnboardingMainGoalSaved() {
+    hideProductHint();
+  }
+
+  // После того как в рамках сценария человек хотя бы раз отметил
+  // привычку И хотя бы раз закрыл главное дело дня — предлагаем добавить
+  // ещё одну привычку (кнопки "Добавить"/"Потом"), не раньше.
+  function maybeOfferAnotherHabit() {
+    if (addAnotherHabitPromptShown || !state?.show_app_tour) return;
+    if (!onboardingHabitDoneOnce || !onboardingMainGoalDoneOnce) return;
+    addAnotherHabitPromptShown = true;
+    setTimeout(showAddAnotherHabitPrompt, 1600);
+  }
+
+  function showAddAnotherHabitPrompt() {
+    const el = document.getElementById('productOnboardingHint');
+    const actions = document.getElementById('productOnboardingHintActions');
+    // Форма добавления привычки могла остаться открытой после создания
+    // первой (не сворачивается автоматически) — тогда #addHabitTrigger
+    // скрыт. Подсвечиваем саму секцию "Привычки" (она всегда видна),
+    // а не конкретно кнопку-триггер.
+    const habitTrigger = document.getElementById('addHabitTrigger');
+    const triggerVisible = habitTrigger && habitTrigger.offsetParent !== null;
+    const target = triggerVisible ? habitTrigger : document.querySelector('.habits-panel');
+    if (!el || !actions || !target || target.offsetParent === null) {
+      finishStartOnboarding();
+      return;
+    }
+    clearProductOnboardingTarget();
+    productHintTarget = target;
+    target.classList.add('product-onboarding-target');
+    document.getElementById('productOnboardingHintTitle').textContent = 'Ты справляешься 🔥';
+    document.getElementById('productOnboardingHintText').textContent = 'Хочешь добавить ещё одну привычку?';
+    actions.innerHTML = `
+      <button type="button" class="product-onboarding-hint__action product-onboarding-hint__action--primary" id="onboardingAddAnotherYes">Добавить</button>
+      <button type="button" class="product-onboarding-hint__action" id="onboardingAddAnotherLater">Потом</button>
+    `;
+    actions.hidden = false;
+    el.hidden = false;
+    requestAnimationFrame(() => el.classList.add('show'));
+    document.getElementById('onboardingAddAnotherYes')?.addEventListener('click', () => {
+      hideProductHint();
+      finishStartOnboarding();
+      const trigger = document.getElementById('addHabitTrigger');
+      if (trigger && trigger.offsetParent !== null) {
+        trigger.click();
+      } else {
+        document.getElementById('newHabitInput')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('newHabitInput')?.focus();
+      }
+    });
+    document.getElementById('onboardingAddAnotherLater')?.addEventListener('click', () => {
+      hideProductHint();
+      finishStartOnboarding();
+    });
   }
 
   function maybeShowAppTour() {
     if (!state?.show_app_tour || appTourShownThisSession) return;
     appTourShownThisSession = true;
-    scheduleProductOnboarding();
+    // Если вводная модалка уже была показана в предыдущей загрузке этого
+    // же (незавершённого) сценария — например, страницу перезагрузили
+    // посередине — не показываем её снова, продолжаем сразу с
+    // интерактивных шагов.
+    if (state?.product_onboarding?.onboarding_started_at) {
+      scheduleProductOnboarding();
+    } else {
+      openAppTour();
+    }
   }
 
   function initAppTour() {
@@ -1370,14 +1458,18 @@
     document.getElementById('productOnboardingHintClose')?.addEventListener('click', hideProductHint);
     document.getElementById('productOnboardingHintSkip')?.addEventListener('click', skipProductOnboarding);
 
-    // Переходы в разделы открывают подсказку именно тогда, когда она полезна.
+    // Контекстные подсказки по разделам — по факту первого перехода на
+    // вкладку, независимо от того, идёт ли ещё стартовый сценарий (см.
+    // комментарий у CONTEXT_TAB_STAGE выше). onboarding_stage персистится
+    // на сервере, поэтому "уже показывали" переживает перезагрузку.
     document.getElementById('tabBar')?.addEventListener('click', (e) => {
-      if (!state?.show_app_tour) return;
       const btn = e.target.closest('.tab-bar__item');
       if (!btn) return;
-      const tab = btn.dataset.tab;
-      if (tab === 'calendar') setTimeout(() => showProductHint(5), 180);
-      if (tab === 'profile') setTimeout(() => showProductHint(6), 180);
+      const stage = CONTEXT_TAB_STAGE[btn.dataset.tab];
+      if (!stage) return;
+      const reachedStage = state?.product_onboarding?.onboarding_stage || 0;
+      if (reachedStage >= stage) return;
+      setTimeout(() => showProductHint(stage), 180);
     });
   }
 
@@ -2570,6 +2662,10 @@ async function celebrateHabitCompletion(result) {
   const boostTag = result.xp_boosted ? " ⚡x2 бустер" : (result.doubled ? " ⚡️×2" : "");
   const coinText = `+${result.coins || 10} Adam Coin` + boostTag;
   showToast(coinText, "praise");
+  if (state?.show_app_tour) {
+    onboardingHabitDoneOnce = true;
+    maybeOfferAnotherHabit();
+  }
   if (result.streak_event) {
     pendingBonusIntro = !!result.show_bonus_intro;
     openStreakCelebration(result.streak_event);
@@ -3097,6 +3193,7 @@ function initHabitActions() {
 
       if (result.first_habit) {
         maybeShowStreakOnboarding();
+        onOnboardingHabitCreated();
       }
     } catch (err) {
       showToast(friendlyError(err), "error");
@@ -3225,6 +3322,7 @@ function initPlanActions() {
   mainConfirm.addEventListener("click", async () => {
     const text = mainInput.value.trim();
     if (!text) return;
+    const isFirstMainGoal = !!state?.show_app_tour && !state?.daily_plan?.main_goal;
     try {
       await api("/api/plan/main/save", {
         method: "POST",
@@ -3233,6 +3331,7 @@ function initPlanActions() {
       delete mainInput.dataset.editingValue;
       haptic("light");
       await loadBootstrap();
+      if (isFirstMainGoal) onOnboardingMainGoalSaved();
     } catch (err) {
       showToast(friendlyError(err), "error");
     }
@@ -3336,10 +3435,15 @@ function initPlanActions() {
 
   document.addEventListener("change", async (e) => {
     if (e.target.classList.contains("plan-toggle--main")) {
+      const wasCompleting = e.target.checked;
       try {
         const res = await api("/api/plan/main/toggle", { method: "POST" });
         if (res && res.message) showToast(res.message, "praise", 4500);
         applyPlanPatch(res);
+        if (wasCompleting && state?.show_app_tour) {
+          onboardingMainGoalDoneOnce = true;
+          maybeOfferAnotherHabit();
+        }
       } catch (err) {
         showToast(friendlyError(err), "error");
         await loadBootstrap();

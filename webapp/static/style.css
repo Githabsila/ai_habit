@@ -12621,3 +12621,49 @@ body{
     radial-gradient(circle at 100% 0%, rgba(93,188,252,.18), transparent 48%),
     linear-gradient(145deg, rgba(24,31,42,.98), rgba(15,19,27,.98)) !important;
 }
+
+/* Просьба пользователя: кнопка "Пропустить" должна быть заметной, не
+   выглядеть второстепенным текстом — ни на вводной модалке, ни на
+   интерактивных подсказках. Настоящая кнопка-пилюля с рамкой вместо
+   мелкой подписи в углу. */
+.app-tour-skip{
+  font-size: 13px !important;
+  padding: 9px 16px !important;
+  border-width: 2px !important;
+  border-color: rgba(255,255,255,.22) !important;
+  font-weight: 800 !important;
+}
+.product-onboarding-hint__skip{
+  border: 1.5px solid rgba(255,176,104,.45) !important;
+  border-radius: 999px !important;
+  padding: 5px 12px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  background: rgba(255,176,104,.08) !important;
+}
+
+/* Кнопки-действия внутри подсказки онбординга (напр. "Добавить ещё одну
+   привычку?" — Добавить/Потом), в дополнение к обычному title+text. */
+.product-onboarding-hint__actions{
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+}
+.product-onboarding-hint__actions[hidden]{ display: none !important; }
+.product-onboarding-hint__action{
+  flex: 1 1 auto !important;
+  padding: 9px 10px !important;
+  border-radius: 12px !important;
+  border: 1.5px solid rgba(255,255,255,.14) !important;
+  background: rgba(255,255,255,.04) !important;
+  color: var(--text, #EAE5FA) !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+}
+.product-onboarding-hint__action--primary{
+  border-color: rgba(255,157,52,.55) !important;
+  background: linear-gradient(135deg,#FF9D34,#EF4444) !important;
+  color: #1a1220 !important;
+  font-weight: 800 !important;
+}
