@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260925_ONBOARDV3_V1">
+<link rel="stylesheet" href="/static/style.css?v=20260928_HINTS_SPOTLIGHT_V1">
 </head>
 <body>
 
@@ -436,6 +436,20 @@ class="habit-add-form__submit">
     <div class="shop-balance" id="shopBalance"><span class="shop-balance__coin">A</span><span id="shopBalanceValue">0</span></div>
     <div class="shop-balance shop-balance--diamond" id="shopDiamondBalance"><span class="shop-balance__diamond">💎</span><span id="shopDiamondBalanceValue">0</span></div>
   </div>
+</div>
+
+<div class="self-reward-card" id="selfRewardCard">
+  <div class="self-reward-card__body">
+    <div class="self-reward-card__title">Вознаградите себя</div>
+    <p class="self-reward-card__desc">Посмотрите телевизор, поиграйте в игры, съешьте сладкое — всё зависит только от вас!</p>
+    <button type="button" class="self-reward-card__history" id="selfRewardHistoryBtn">История →</button>
+  </div>
+  <button type="button" class="self-reward-card__action" id="selfRewardActionBtn">
+    <span class="self-reward-card__cost">
+      <span class="self-reward-card__cost-icon">A</span>
+      <span id="selfRewardCostValue">20</span>
+    </span>
+  </button>
 </div>
 
 <ul class="shop-list shop-list--grid" id="shopList">
@@ -888,6 +902,18 @@ class="habit-add-form__submit">
 </div>
 
 
+<!-- Прожектор вокруг цели текущей подсказки: 4 размытые панели вырезают
+     "окно" по факту getBoundingClientRect() цели (см. positionOnboardingSpotlight
+     в app.js) + светящаяся рамка. Отдельно от самой карточки подсказки
+     ниже, т.к. должен появляться/исчезать и на время скролла к цели. -->
+<div class="onboarding-spotlight" id="onboardingSpotlight" hidden aria-hidden="true">
+  <div class="onboarding-spotlight__panel" data-side="top"></div>
+  <div class="onboarding-spotlight__panel" data-side="bottom"></div>
+  <div class="onboarding-spotlight__panel" data-side="left"></div>
+  <div class="onboarding-spotlight__panel" data-side="right"></div>
+  <div class="onboarding-spotlight__ring" id="onboardingSpotlightRing"></div>
+</div>
+
 <!-- МЯГКИЙ PRODUCT ONBOARDING: контекстные подсказки первых 15 минут -->
 <div class="product-onboarding-hint" id="productOnboardingHint" hidden aria-live="polite">
   <div class="product-onboarding-hint__top">
@@ -975,6 +1001,40 @@ class="habit-add-form__submit">
   </div>
 </div>
 
+<div class="handle-intro-overlay" id="handleIntroOverlay" hidden aria-hidden="true">
+  <div class="handle-intro-card" role="dialog" aria-modal="true" aria-labelledby="handleIntroTitle">
+    <div class="handle-intro-icon">🏷️</div>
+    <h2 class="handle-intro-title" id="handleIntroTitle">Вот твой ник</h2>
+    <p class="handle-intro-text">Под этим именем тебя увидят в рейтинге и в ленте друзей. Можешь оставить как есть или сразу поменять — потом это всегда можно сделать в Настройках.</p>
+    <div class="handle-input-wrap handle-intro-input-wrap">
+      <span class="handle-input-at">@</span>
+      <input type="text" id="handleIntroInput" class="handle-input" maxlength="20" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="nickname">
+    </div>
+    <p class="handle-intro-error" id="handleIntroError" hidden></p>
+    <button class="app-tour-next handle-intro-continue" id="handleIntroContinue" type="button">Продолжить</button>
+  </div>
+</div>
+
+<div class="self-reward-modal-overlay" id="selfRewardModalOverlay" hidden aria-hidden="true">
+  <div class="self-reward-modal" role="dialog" aria-modal="true" aria-labelledby="selfRewardModalTitle">
+    <button class="self-reward-modal__close" id="selfRewardModalClose" type="button" aria-label="Закрыть">✕</button>
+    <div class="self-reward-modal__icon">🎁</div>
+    <h3 class="self-reward-modal__title" id="selfRewardModalTitle">Вознаградить себя?</h3>
+    <p class="self-reward-modal__hint">Спишется <b id="selfRewardModalCost">20</b> Adam Coin. Необязательно — чем себя порадуешь?</p>
+    <input type="text" id="selfRewardNoteInput" class="self-reward-modal__input" maxlength="200" placeholder="Например: посмотрел сериал">
+    <button type="button" class="self-reward-modal__submit" id="selfRewardModalSubmit">Наградить себя</button>
+  </div>
+</div>
+
+<div class="self-reward-history-overlay" id="selfRewardHistoryOverlay" hidden aria-hidden="true">
+  <div class="self-reward-history-modal" role="dialog" aria-modal="true" aria-labelledby="selfRewardHistoryTitle">
+    <button class="self-reward-modal__close" id="selfRewardHistoryClose" type="button" aria-label="Закрыть">✕</button>
+    <h3 class="self-reward-history-modal__title" id="selfRewardHistoryTitle">История вознаграждений</h3>
+    <p class="self-reward-history-modal__stats" id="selfRewardHistoryStats"></p>
+    <ul class="self-reward-history-list" id="selfRewardHistoryList"></ul>
+  </div>
+</div>
+
 <div class="bg-particles">
   <span></span>
   <span></span>
@@ -984,7 +1044,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260925_ONBOARDV3_V1"></script>
+<script type="module" src="/static/app.js?v=20260928_HINTS_SPOTLIGHT_V1"></script>
 
 </body>
 </html>

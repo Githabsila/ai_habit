@@ -10283,9 +10283,13 @@ button:not(:disabled):active,
   transform:translate3d(0,0,0) scale(1) !important;
 }
 
-/* Список появляется после самой карточки, а не одновременно рывком. */
+/* Список появляется после самой карточки, а не одновременно рывком.
+   opacity сознательно НЕ здесь (баг был именно в этом): @keyframes
+   adamQuestItemIn ниже анимирует только transform, а не opacity — если
+   бы тут стояло opacity:0, карточки квестов застревали бы невидимыми
+   навсегда (см. тот же самый разбор у @keyframes itemReveal выше по
+   файлу — тот случай был исправлен правильно, этот был пропущен). */
 .daily-quests-modal .daily-quest{
-  opacity:0;
   transform:translate3d(0,5px,0);
 }
 .daily-quests-overlay.is-open .daily-quest{
@@ -11556,6 +11560,42 @@ body{
 }
 
 /* ================= PRODUCT ONBOARDING — первые 15 минут ================= */
+/* Прожектор: 4 полосы-панели вокруг цели подсказки + светящаяся рамка —
+   вместо просто обводки где-то на странице, размывает и затемняет ВСЁ
+   вокруг конкретного элемента, к которому относится текст подсказки
+   (просьба пользователя). Позиционируются в JS (positionOnboardingSpotlight
+   в app.js) под фактический getBoundingClientRect() цели — координаты
+   зависят от скролла и не могут быть просто CSS. pointer-events:none —
+   подсказка не блокирует остальной интерфейс, это не модалка. */
+.onboarding-spotlight{position:fixed;inset:0;z-index:1690;pointer-events:none}
+.onboarding-spotlight[hidden]{display:none}
+.onboarding-spotlight__panel{
+  position:fixed;top:0;left:0;width:0;height:0;
+  background:rgba(8,6,16,.52);
+  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  opacity:0;
+  transition:opacity .32s var(--adam-motion-ease,ease),
+    top .38s var(--adam-motion-ease,ease),left .38s var(--adam-motion-ease,ease),
+    width .38s var(--adam-motion-ease,ease),height .38s var(--adam-motion-ease,ease);
+}
+.onboarding-spotlight.show .onboarding-spotlight__panel{opacity:1}
+.onboarding-spotlight__ring{
+  position:fixed;top:0;left:0;width:0;height:0;border-radius:16px;
+  box-shadow:0 0 0 2px rgba(255,157,52,.82),0 0 0 8px rgba(255,157,52,.13),0 14px 34px rgba(0,0,0,.35);
+  opacity:0;
+  transition:opacity .32s ease,
+    top .38s var(--adam-motion-ease,ease),left .38s var(--adam-motion-ease,ease),
+    width .38s var(--adam-motion-ease,ease),height .38s var(--adam-motion-ease,ease);
+}
+.onboarding-spotlight.show .onboarding-spotlight__ring{opacity:1}
+/* Блюр — самый дорогой фильтр на слабых устройствах/старых WebView, ещё и
+   на 4 полноэкранных слоях сразу. performance-lite (см. общий переключатель
+   выше по файлу) оставляет только затемнение, без backdrop-filter. */
+.performance-lite .onboarding-spotlight__panel{
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  background:rgba(8,6,16,.64);
+}
+
 .product-onboarding-hint{
   position:fixed;left:14px;right:14px;bottom:88px;z-index:1800;
   padding:8px 13px 13px 14px;
@@ -11575,6 +11615,15 @@ body{
 .product-onboarding-hint__content{min-width:0;flex:1}
 .product-onboarding-hint__title{font-weight:800;font-size:14px;color:#fff;margin-bottom:3px}
 .product-onboarding-hint__text{font-size:12.5px;line-height:1.42;color:#B8B4C8}
+/* Мигающий курсор, пока текст "печатается" (typewriteHintText в app.js) —
+   просьба пользователя: подсказки должны выглядеть как будто их печатают
+   прямо сейчас, а не просто появляются целиком. */
+.product-onboarding-hint__text.is-typing::after{
+  content:"";display:inline-block;width:2px;height:11px;margin-left:2px;
+  background:#FFB068;vertical-align:-1px;
+  animation:adamOnboardCursorBlink .8s steps(1) infinite;
+}
+@keyframes adamOnboardCursorBlink{50%{opacity:0}}
 .product-onboarding-hint__close{border:0;background:none;color:#777487;font-size:15px;padding:1px 0 0 4px;cursor:pointer}
 .product-onboarding-target{position:relative!important;z-index:1701!important;box-shadow:0 0 0 2px rgba(255,157,52,.78),0 0 0 7px rgba(255,157,52,.10),0 12px 35px rgba(0,0,0,.20)!important;border-radius:16px!important}
 
@@ -12666,4 +12715,139 @@ body{
   background: linear-gradient(135deg,#FF9D34,#EF4444) !important;
   color: #1a1220 !important;
   font-weight: 800 !important;
+}
+
+/* =========================================================
+   «ВОЗНАГРАДИТЕ СЕБЯ» — карточка над обычным списком магазина
+   ========================================================= */
+.self-reward-card{
+  display:flex;align-items:stretch;gap:14px;
+  margin:0 0 16px;padding:16px;border-radius:20px;
+  background:
+    radial-gradient(280px 160px at 0% 0%,rgba(255,107,157,.16),transparent 60%),
+    linear-gradient(150deg,rgba(40,24,34,.96),rgba(18,14,22,.98));
+  border:1px solid rgba(255,140,171,.22);
+  box-shadow:0 18px 40px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.06);
+}
+.self-reward-card__body{flex:1 1 auto;min-width:0}
+.self-reward-card__title{font:800 15px 'Space Grotesk',sans-serif;color:#fff;margin-bottom:4px}
+.self-reward-card__desc{margin:0 0 8px;color:#C9C2D6;font-size:12.5px;line-height:1.5}
+.self-reward-card__history{
+  border:0;background:transparent;color:#FF8FB4;font-size:12px;font-weight:800;
+  padding:0;cursor:pointer;
+}
+.self-reward-card__history:hover{color:#ffb2cd}
+.self-reward-card__action{
+  flex:0 0 auto;align-self:center;border:0;border-radius:16px;padding:12px 16px;
+  background:linear-gradient(135deg,#FF8A00,#EF4444);color:#fff;font-weight:800;
+  cursor:pointer;box-shadow:0 12px 26px rgba(239,68,68,.28);
+  display:grid;place-items:center;gap:2px;
+}
+.self-reward-card__action:active{transform:translateY(1px)}
+.self-reward-card__action.is-unavailable{
+  background:rgba(255,255,255,.06);box-shadow:none;color:#8b879b;
+}
+.self-reward-card__cost{display:flex;align-items:center;gap:5px;font-size:13.5px;white-space:nowrap}
+.self-reward-card__cost-icon{font-size:12px;opacity:.85}
+
+/* Модалка подтверждения — тот же визуальный язык, что и app-tour-card. */
+.self-reward-modal-overlay,.self-reward-history-overlay{
+  position:fixed;inset:0;z-index:10100;display:grid;place-items:center;padding:18px;
+  background:rgba(3,3,8,.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  opacity:0;transition:opacity .28s ease;
+}
+.self-reward-modal-overlay.show,.self-reward-history-overlay.show{opacity:1}
+.self-reward-modal-overlay[hidden],.self-reward-history-overlay[hidden]{display:none}
+.self-reward-modal,.self-reward-history-modal{
+  position:relative;width:min(380px,100%);padding:26px 22px 22px;border-radius:26px;text-align:center;
+  background:linear-gradient(160deg,rgba(30,26,42,.98),rgba(12,11,18,.99));
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 40px 100px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.08);
+  transform:translateY(10px) scale(.98);opacity:0;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .26s ease;
+}
+.self-reward-modal-overlay.show .self-reward-modal,
+.self-reward-history-overlay.show .self-reward-history-modal{transform:translateY(0) scale(1);opacity:1}
+.self-reward-modal__close,.self-reward-history-modal .self-reward-modal__close{
+  position:absolute;top:14px;right:14px;width:28px;height:28px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#cfcbe0;
+  font-size:13px;cursor:pointer;display:grid;place-items:center;
+}
+.self-reward-modal__icon{font-size:34px;margin-bottom:8px}
+.self-reward-modal__title{font:800 19px 'Space Grotesk',sans-serif;color:#fff;margin:0 0 8px}
+.self-reward-modal__hint{margin:0 0 14px;color:#B8B4C8;font-size:13px;line-height:1.5}
+.self-reward-modal__hint b{color:#FFB347}
+.self-reward-modal__input{
+  width:100%;box-sizing:border-box;padding:13px 14px;border-radius:14px;margin-bottom:14px;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;font-size:14px;
+}
+.self-reward-modal__input:focus{outline:none;border-color:rgba(255,140,171,.5)}
+.self-reward-modal__submit{
+  width:100%;border:0;border-radius:16px;padding:15px 18px;font-weight:800;font-size:14px;color:#fff;
+  background:linear-gradient(135deg,#FF6B9D,#FF8A00);box-shadow:0 14px 34px rgba(255,107,157,.28);cursor:pointer;
+}
+.self-reward-modal__submit:active{transform:translateY(1px)}
+
+.self-reward-history-modal__title{font:800 18px 'Space Grotesk',sans-serif;color:#fff;margin:0 0 6px}
+.self-reward-history-modal__stats{margin:0 0 14px;color:#B8B4C8;font-size:12.5px}
+.self-reward-history-list{
+  list-style:none;margin:0;padding:0;max-height:50vh;overflow-y:auto;text-align:left;
+  display:flex;flex-direction:column;gap:8px;
+}
+.self-reward-history-item{
+  padding:11px 13px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
+}
+.self-reward-history-item__note{color:#EAE5FA;font-size:13px;font-weight:600;margin-bottom:4px}
+.self-reward-history-item__meta{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:#8b879b}
+.self-reward-history-item__cost{color:#FF8FB4;font-weight:800}
+.self-reward-history-list .empty-hint{text-align:center;color:#8b879b;font-size:13px;padding:18px 0}
+
+/* =========================================================
+   ЭКРАН "ВОТ ТВОЙ НИК" — сразу после app-tour (Слой A онбординга)
+   ========================================================= */
+.handle-intro-overlay{
+  position:fixed;inset:0;z-index:10100;display:grid;place-items:center;padding:18px;
+  background:rgba(3,3,8,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  opacity:0;transition:opacity .3s ease;
+}
+.handle-intro-overlay.show{opacity:1}
+.handle-intro-overlay[hidden]{display:none}
+.handle-intro-card{
+  position:relative;width:min(380px,100%);padding:34px 26px 26px;border-radius:32px;text-align:center;
+  background:
+    radial-gradient(420px 240px at 15% -10%,rgba(139,92,246,.22),transparent 60%),
+    linear-gradient(160deg,rgba(30,26,42,.98),rgba(12,11,18,.99));
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 40px 100px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.08);
+  transform:translateY(10px) scale(.98);opacity:0;transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .28s ease;
+}
+.handle-intro-overlay.show .handle-intro-card{transform:translateY(0) scale(1);opacity:1}
+.handle-intro-icon{font-size:40px;margin-bottom:10px}
+.handle-intro-title{font:800 22px 'Space Grotesk',sans-serif;letter-spacing:-.02em;margin:0 0 10px;color:#fff}
+.handle-intro-text{margin:0 auto 18px;max-width:300px;color:#B8B4C8;font-size:13.5px;line-height:1.55}
+.handle-intro-input-wrap{margin:0 auto 8px}
+.handle-intro-error{color:#EF4444;font-size:12.5px;margin:0 0 10px}
+.handle-intro-error[hidden]{display:none}
+.handle-intro-continue{margin-top:8px;width:100%}
+@media(max-width:380px){.handle-intro-card{padding:28px 20px 22px}.handle-intro-title{font-size:19px}}
+
+/* Пакеты алмазов и Premium — ярче обычной карточки магазина, в духе
+   красочных тарифных карточек подписки (просьба пользователя). */
+#shopList .shop-item--diamond{
+  position:relative;overflow:hidden;
+  border-color:rgba(93,188,252,.35) !important;
+  background:
+    radial-gradient(160px 120px at 100% 0%,rgba(93,188,252,.28),transparent 55%),
+    radial-gradient(160px 120px at 0% 100%,rgba(139,92,246,.18),transparent 55%),
+    linear-gradient(145deg,rgba(24,31,42,.98),rgba(15,19,27,.98)) !important;
+  box-shadow:0 14px 30px rgba(93,188,252,.14);
+}
+.shop-item--diamond .shop-item__icon{filter:drop-shadow(0 0 10px rgba(93,188,252,.55))}
+#shopList .shop-item[data-id="1"]{
+  position:relative;overflow:hidden;
+  border-color:rgba(255,157,52,.35) !important;
+  background:
+    radial-gradient(160px 120px at 100% 0%,rgba(255,157,52,.26),transparent 55%),
+    radial-gradient(160px 120px at 0% 100%,rgba(239,68,68,.18),transparent 55%),
+    linear-gradient(145deg,rgba(42,28,20,.98),rgba(20,15,12,.98)) !important;
+  box-shadow:0 14px 30px rgba(255,157,52,.14);
 }

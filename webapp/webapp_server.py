@@ -58,6 +58,8 @@ from db import (
     get_monthly_progress, consume_month_end_reward_event,
     get_subscription_status, try_grant_channel_access, bot_access_allowed,
     should_show_app_tour, mark_app_tour_seen,
+    should_show_handle_intro, mark_handle_intro_seen,
+    log_self_reward, get_self_reward_history, get_self_reward_stats, SELF_REWARD_COST,
     increment_habit_progress, get_weekly_progress,
     add_habit_note, get_recent_habit_notes,
     MAX_TARGET_COUNT,
@@ -448,6 +450,8 @@ async def bootstrap(request):
             "message": onboarding_message(telegram_id) if habits and should_show_onboarding(telegram_id) else None,
         },
         "show_app_tour": should_show_app_tour(telegram_id),
+        "show_handle_intro": should_show_handle_intro(telegram_id),
+        "self_reward_cost": SELF_REWARD_COST,
         "product_onboarding": get_onboarding_state(telegram_id),
         "settings": {
             "reminders": bool(settings_row["reminders"]) if settings_row else True,
@@ -1146,6 +1150,38 @@ async def app_tour_seen(request):
     telegram_id, _ = await _authenticate(request)
     mark_app_tour_seen(telegram_id)
     return web.json_response({"ok": True})
+
+@routes.post("/api/handle-intro/seen")
+async def handle_intro_seen(request):
+    telegram_id, _ = await _authenticate(request)
+    mark_handle_intro_seen(telegram_id)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/self-reward")
+async def self_reward_route(request):
+    """«Вознаградите себя» — фиксированная цена (db.self_rewards.DEFAULT_COST),
+    необязательная заметка чем себя порадовал. См. db/self_rewards.py."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    note = body.get("note")
+    if note is not None and not isinstance(note, str):
+        return web.json_response({"error": "invalid_note"}, status=400)
+
+    new_xp = log_self_reward(telegram_id, note=note, cost=SELF_REWARD_COST)
+    if new_xp is None:
+        return web.json_response({"error": "not_enough_xp"}, status=400)
+    return web.json_response({"ok": True, "xp": new_xp})
+
+@routes.get("/api/self-reward/history")
+async def self_reward_history_route(request):
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({
+        "history": get_self_reward_history(telegram_id),
+        "stats": get_self_reward_stats(telegram_id),
+    })
 
 @routes.post("/api/streak/freeze/buy")
 async def streak_buy_freeze(request):

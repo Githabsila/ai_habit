@@ -70,6 +70,20 @@ def mark_app_tour_seen(user_id):
     conn.close()
 
 
+def should_show_handle_intro(user_id):
+    user = get_user(user_id)
+    if not user or "handle_intro_seen" not in user.keys():
+        return False
+    return not bool(user["handle_intro_seen"])
+
+
+def mark_handle_intro_seen(user_id):
+    conn = connect()
+    conn.execute("UPDATE users SET handle_intro_seen=1 WHERE telegram_id=?", (user_id,))
+    conn.commit()
+    conn.close()
+
+
 def _ensure_admin_premium(telegram_id):
     """Администраторы бота (config.ADMIN_IDS) всегда получают Premium
     навсегда, без покупки — вызывается при каждом add_user (idempotent),

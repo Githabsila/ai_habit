@@ -29,6 +29,8 @@ from .users import (
     get_diamonds,
     should_show_app_tour,
     mark_app_tour_seen,
+    should_show_handle_intro,
+    mark_handle_intro_seen,
     ban_user,
     unban_user,
     is_banned,
@@ -286,6 +288,7 @@ __all__ = [
     "has_premium", "was_premium_purchased", "give_premium", "give_premium_admin",
     "add_xp", "give_xp_admin", "add_diamonds", "get_diamonds",
     "should_show_app_tour", "mark_app_tour_seen",
+    "should_show_handle_intro", "mark_handle_intro_seen",
     "ban_user", "unban_user", "is_banned", "reset_progress",
     "set_referrer", "add_referral", "get_referrals",
     "get_rating", "clear_rating_cache", "get_user_rank", "claim_daily_bonus",
@@ -381,7 +384,9 @@ __all__ = [
     "mark_channel_access_granted", "try_grant_channel_access",
     "export_full_account_data", "request_account_deletion",
     "add_changelog_entry", "get_unseen_changelog_entries", "mark_changelog_seen",
+    "log_self_reward", "get_self_reward_history", "get_self_reward_stats", "SELF_REWARD_COST",
 ]
 
 from .account import export_full_account_data, request_account_deletion
 from .changelog import add_changelog_entry, get_unseen_changelog_entries, mark_changelog_seen
+from .self_rewards import log_self_reward, get_self_reward_history, get_self_reward_stats, DEFAULT_COST as SELF_REWARD_COST

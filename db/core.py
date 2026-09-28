@@ -143,6 +143,15 @@ def create_tables():
     if "app_tour_seen" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN app_tour_seen INTEGER DEFAULT 0")
 
+    # Разовый экран "вот твой @ник" сразу после app-tour (Слой A онбординга):
+    # ник уже назначен автоматически при регистрации (см. db/handles.py),
+    # этот экран просто показывает его и даёт сразу сменить, не уходя в
+    # Настройки. Отдельный флаг от app_tour_seen — экран логически другой
+    # шаг и должен показываться независимо, если когда-нибудь app-tour
+    # начнёт пропускаться раньше.
+    if "handle_intro_seen" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN handle_intro_seen INTEGER DEFAULT 0")
+
     # ---------------- ПОДПИСКА: триал → оплата → закрытый канал (пром 13) ----------------
     # Отдельно от "Premium" (косметический тариф выше) — это доступ к
     # самому боту после 3-дневного триала. subscription_paid_until=NULL
@@ -1197,6 +1206,24 @@ def create_tables():
     # (get_habits/get_incomplete_habits/get_progress), индекса не было.
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_habits_user ON habits(user_id)"
+    )
+
+    # ---------------- «Вознаградите себя» (db/self_rewards.py) ----------------
+    # Простая отметка "я себя порадовал(а)" за фиксированную цену в Adam
+    # Coin (xp) — отдельная таблица, а не shop_items, потому что это не
+    # покупка вещи, а история с необязательной заметкой (чем себя
+    # вознаградил), которую пользователь смотрит через неделю-другую.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS self_rewards(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        note TEXT,
+        cost INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_self_rewards_user ON self_rewards(user_id, created_at)"
     )
 
     conn.commit()

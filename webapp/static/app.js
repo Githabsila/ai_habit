@@ -706,6 +706,7 @@
     // Привычки и Ударный режим больше не конкурируют за CPU с магазином,
     // рейтингом и архивом достижений.
     renderPlayerCard();
+    renderSelfReward();
     applyHomeLayout();
     renderHabits();
     renderPlan();
@@ -859,6 +860,7 @@
               state.shop_items = data.shop_items || [];
               state.achievements = data.achievements || [];
               renderShop();
+              renderSelfReward();
               renderProfileAvatarControls();
               renderThemePicker();
               renderAchievements();
@@ -1248,10 +1250,88 @@
     // ни разу показаться. Она только называет, что такое ADAM — сам
     // /api/tour/seen вызывается позже, когда завершится или будет
     // пропущен уже интерактивный сценарий (см. skipProductOnboarding).
-    scheduleProductOnboarding();
+    proceedPastWelcome();
   }
 
   let appTourShownThisSession = false;
+  let handleIntroShownThisSession = false;
+
+  // Экран "вот твой @ник" (Слой A онбординга) — показывается один раз,
+  // сразу после app-tour, ДО интерактивных шагов. Ник уже назначен
+  // автоматически при регистрации (db/handles.py), это просто делает его
+  // заметным с первой секунды и даёт сразу поменять, как в Habitica.
+  function maybeShowHandleIntro() {
+    if (!state?.show_handle_intro || handleIntroShownThisSession) return;
+    handleIntroShownThisSession = true;
+    openHandleIntro();
+  }
+
+  // Общая точка выхода из "вводной" части онбординга (app-tour, если он
+  // был) в сторону интерактивных стартовых шагов — по пути показывает
+  // экран ника, если он ещё не был показан.
+  function proceedPastWelcome() {
+    if (state?.show_handle_intro && !handleIntroShownThisSession) {
+      handleIntroShownThisSession = true;
+      openHandleIntro();
+    } else {
+      scheduleProductOnboarding();
+    }
+  }
+
+  function openHandleIntro() {
+    const overlay = document.getElementById("handleIntroOverlay");
+    if (!overlay) { scheduleProductOnboarding(); return; }
+    const input = document.getElementById("handleIntroInput");
+    if (input) input.value = (state.user && state.user.handle) || "";
+    const err = document.getElementById("handleIntroError");
+    if (err) { err.hidden = true; err.textContent = ""; }
+    overlay.hidden = false;
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    overlay.setAttribute("aria-hidden", "false");
+    haptic("light");
+  }
+
+  function closeHandleIntro() {
+    const overlay = document.getElementById("handleIntroOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { overlay.hidden = true; }, 280);
+  }
+
+  function initHandleIntro() {
+    const continueBtn = document.getElementById("handleIntroContinue");
+    if (!continueBtn) return;
+    continueBtn.addEventListener("click", async () => {
+      const input = document.getElementById("handleIntroInput");
+      const err = document.getElementById("handleIntroError");
+      const value = (input?.value || "").trim().replace(/^@/, "");
+      const original = (state.user && state.user.handle) || "";
+      continueBtn.disabled = true;
+      try {
+        if (value && value !== original) {
+          const res = await api("/api/settings/handle", {
+            method: "POST",
+            body: JSON.stringify({ handle: value }),
+          });
+          if (state.user) state.user.handle = res.handle;
+          renderPlayerCard();
+        }
+        await api("/api/handle-intro/seen", { method: "POST" }).catch(() => {});
+        if (state) state.show_handle_intro = false;
+        haptic("light");
+        closeHandleIntro();
+        scheduleProductOnboarding();
+      } catch (e) {
+        if (err) {
+          err.textContent = friendlyError(e);
+          err.hidden = false;
+        }
+      } finally {
+        continueBtn.disabled = false;
+      }
+    });
+  }
 
   // Базовая версия онбординга "в духе Habitica" — два независимых слоя:
   //
@@ -1271,7 +1351,7 @@
   //    подсказки, а они как раз про "объяснять по мере использования".
   let productOnboardingTimers = [];
   let productHintTarget = null;
-  let productOnboardingLocalStage = 0;
+  let activeHintStage = null;
   let onboardingHabitDoneOnce = false;
   let onboardingMainGoalDoneOnce = false;
   let addAnotherHabitPromptShown = false;
@@ -1290,14 +1370,143 @@
     productHintTarget = null;
   }
 
+  // ---------- Прожектор вокруг цели (#onboardingSpotlight) ----------
+  // 4 полосы вокруг getBoundingClientRect() цели + светящаяся рамка —
+  // просьба пользователя: акцент именно на объекте, весь остальной экран
+  // размыт/затемнён, пока подсказка не закрыта или не выполнена.
+  function setSpotlightRect(el, top, left, width, height) {
+    if (!el) return;
+    el.style.top = `${top}px`;
+    el.style.left = `${left}px`;
+    el.style.width = `${Math.max(0, width)}px`;
+    el.style.height = `${Math.max(0, height)}px`;
+  }
+
+  function positionOnboardingSpotlight(target) {
+    const spotlight = document.getElementById('onboardingSpotlight');
+    if (!spotlight || !target) return;
+    const pad = 10;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const r = target.getBoundingClientRect();
+    const top = Math.max(0, r.top - pad);
+    const left = Math.max(0, r.left - pad);
+    const right = Math.min(vw, r.right + pad);
+    const bottom = Math.min(vh, r.bottom + pad);
+
+    const panels = spotlight.querySelectorAll('.onboarding-spotlight__panel');
+    const bySide = {};
+    panels.forEach(p => { bySide[p.dataset.side] = p; });
+    setSpotlightRect(bySide.top, 0, 0, vw, top);
+    setSpotlightRect(bySide.bottom, bottom, 0, vw, vh - bottom);
+    setSpotlightRect(bySide.left, top, 0, left, bottom - top);
+    setSpotlightRect(bySide.right, top, right, vw - right, bottom - top);
+
+    const ring = document.getElementById('onboardingSpotlightRing');
+    if (ring) setSpotlightRect(ring, top, left, right - left, bottom - top);
+  }
+
+  function showOnboardingSpotlight(target) {
+    const spotlight = document.getElementById('onboardingSpotlight');
+    if (!spotlight || !target) return;
+    positionOnboardingSpotlight(target);
+    spotlight.hidden = false;
+    requestAnimationFrame(() => spotlight.classList.add('show'));
+  }
+
+  function hideOnboardingSpotlight() {
+    const spotlight = document.getElementById('onboardingSpotlight');
+    if (!spotlight) return;
+    spotlight.classList.remove('show');
+    setTimeout(() => { if (!spotlight.classList.contains('show')) spotlight.hidden = true; }, 340);
+  }
+
+  // Пока подсказка открыта, цель может уехать (скролл, поворот экрана) —
+  // держим прожектор точно на ней. rAF-throttled, почти бесплатно, когда
+  // подсказки нет (ранний return). capture:true на 'scroll' — этот эвент
+  // не всплывает сам, но так долетает и со вложенных скролл-контейнеров,
+  // не только с window.
+  let spotlightReflowPending = false;
+  function scheduleSpotlightReflow() {
+    if (spotlightReflowPending || !productHintTarget) return;
+    const spotlight = document.getElementById('onboardingSpotlight');
+    if (!spotlight || spotlight.hidden) return;
+    spotlightReflowPending = true;
+    requestAnimationFrame(() => {
+      spotlightReflowPending = false;
+      if (!productHintTarget) return;
+      if (productHintTarget.offsetParent === null) {
+        // Ушли с вкладки/экрана, где была цель — держать прожектор и
+        // подсказку смысла нет, они больше ни к чему не указывают.
+        hideProductHint();
+        return;
+      }
+      positionOnboardingSpotlight(productHintTarget);
+    });
+  }
+  window.addEventListener('scroll', scheduleSpotlightReflow, { passive: true, capture: true });
+  window.addEventListener('resize', scheduleSpotlightReflow);
+
+  // ---------- Эффект "печатается прямо сейчас" ----------
+  let typewriterTimer = null;
+  function typewriteHintText(el, text) {
+    if (!el) return;
+    if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+    el.textContent = '';
+    el.classList.add('is-typing');
+    const chars = Array.from(text || '');
+    let i = 0;
+    typewriterTimer = setInterval(() => {
+      if (i >= chars.length) {
+        clearInterval(typewriterTimer);
+        typewriterTimer = null;
+        el.classList.remove('is-typing');
+        return;
+      }
+      el.textContent += chars[i];
+      i += 1;
+    }, 16);
+  }
+
+  // Карточка подсказки встаёт рядом с целью (сверху/снизу — где есть
+  // место), а не всегда внизу экрана: иначе непонятно, к чему она
+  // относится (жалоба пользователя на подсказку про привычки).
+  function positionHintCardNear(target, el) {
+    const r = target.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const margin = 14;
+    el.style.visibility = 'hidden';
+    el.hidden = false;
+    const cardHeight = el.offsetHeight || 140;
+    el.hidden = true;
+    el.style.visibility = '';
+
+    const spaceBelow = vh - r.bottom;
+    const spaceAbove = r.top;
+    let top;
+    if (spaceBelow >= cardHeight + margin * 2) {
+      top = r.bottom + margin;
+    } else if (spaceAbove >= cardHeight + margin * 2) {
+      top = r.top - cardHeight - margin;
+    } else {
+      top = vh - cardHeight - margin;
+    }
+    top = Math.max(margin, Math.min(top, vh - cardHeight - margin));
+    el.style.top = `${top}px`;
+    el.style.bottom = 'auto';
+  }
+
   function hideProductHint() {
     const el = document.getElementById('productOnboardingHint');
     if (!el) return;
     clearProductOnboardingTarget();
+    activeHintStage = null;
     el.classList.remove('show');
     setTimeout(() => { if (!el.classList.contains('show')) el.hidden = true; }, 220);
     const actions = document.getElementById('productOnboardingHintActions');
     if (actions) { actions.hidden = true; actions.innerHTML = ''; }
+    hideOnboardingSpotlight();
+    if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
   }
 
   // Кнопка "Пропустить" сверху подсказки — для тех, кто не хочет читать:
@@ -1325,14 +1534,37 @@
     if (!target || target.offsetParent === null) return;
     clearProductOnboardingTarget();
     productHintTarget = target;
+    activeHintStage = stage;
     target.classList.add('product-onboarding-target');
     document.getElementById('productOnboardingHintTitle').textContent = step.title;
-    document.getElementById('productOnboardingHintText').textContent = step.text;
     const actions = document.getElementById('productOnboardingHintActions');
     if (actions) { actions.hidden = true; actions.innerHTML = ''; }
-    el.hidden = false;
-    requestAnimationFrame(() => el.classList.add('show'));
-    productOnboardingLocalStage = Math.max(productOnboardingLocalStage, stage);
+
+    // Перелистываем/докручиваем к цели — просьба пользователя: раньше
+    // подсказка могла говорить про элемент, которого не видно на экране
+    // (например, если пользователь наверху страницы). Ждём окончания
+    // плавного scrollIntoView, прежде чем ставить прожектор и карточку по
+    // координатам цели — иначе они встанут по ещё старым координатам.
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    setTimeout(() => {
+      if (productHintTarget !== target) return; // подсказку уже сменили/закрыли за это время
+      showOnboardingSpotlight(target);
+      positionHintCardNear(target, el);
+      el.hidden = false;
+      requestAnimationFrame(() => el.classList.add('show'));
+      typewriteHintText(document.getElementById('productOnboardingHintText'), step.text);
+    }, 380);
+
+    // Баг: reachedStage в обработчике клика по вкладкам (ниже) читает
+    // state.product_onboarding.onboarding_stage — раньше это поле
+    // обновлял только следующий bootstrap, а не сам показ подсказки,
+    // поэтому оно оставалось устаревшим весь сеанс, и подсказка для
+    // рейтинга/профиля показывалась заново при каждом повторном переходе
+    // на вкладку, даже после закрытия крестиком.
+    if (state) {
+      state.product_onboarding = state.product_onboarding || {};
+      state.product_onboarding.onboarding_stage = Math.max(state.product_onboarding.onboarding_stage || 0, stage);
+    }
     api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage }) }).catch(() => {});
   }
 
@@ -1425,14 +1657,20 @@
   }
 
   function maybeShowAppTour() {
-    if (!state?.show_app_tour || appTourShownThisSession) return;
+    if (!state?.show_app_tour) {
+      // Пользователи, увидевшие app-tour ещё до появления экрана ника —
+      // показываем им ник отдельно, без самого тура.
+      maybeShowHandleIntro();
+      return;
+    }
+    if (appTourShownThisSession) return;
     appTourShownThisSession = true;
     // Если вводная модалка уже была показана в предыдущей загрузке этого
     // же (незавершённого) сценария — например, страницу перезагрузили
     // посередине — не показываем её снова, продолжаем сразу с
     // интерактивных шагов.
     if (state?.product_onboarding?.onboarding_started_at) {
-      scheduleProductOnboarding();
+      proceedPastWelcome();
     } else {
       openAppTour();
     }
@@ -2202,6 +2440,132 @@
       ` : "");
   }
 
+  // ===================== "ВОЗНАГРАДИТЕ СЕБЯ" =====================
+  // Простая отметка за фиксированную цену (state.self_reward_cost, из
+  // db.self_rewards.DEFAULT_COST) — не покупка вещи, а лог с
+  // необязательной заметкой, который открывается через "История →" (см.
+  // db/self_rewards.py). Карточка пришпилена над обычным списком магазина
+  // в Профиле, в духе рюрика "Вознаградите себя" из Habitica.
+  function renderSelfReward() {
+    const cost = Number(state.self_reward_cost || 20);
+    const costLabel = cost.toLocaleString("ru-RU");
+    const valueEl = document.getElementById("selfRewardCostValue");
+    if (valueEl) valueEl.textContent = costLabel;
+    const modalCost = document.getElementById("selfRewardModalCost");
+    if (modalCost) modalCost.textContent = costLabel;
+    const actionBtn = document.getElementById("selfRewardActionBtn");
+    if (actionBtn) {
+      const canAfford = Number(state.user?.xp || 0) >= cost;
+      actionBtn.classList.toggle("is-unavailable", !canAfford);
+    }
+  }
+
+  function openSelfRewardModal() {
+    const overlay = document.getElementById("selfRewardModalOverlay");
+    if (!overlay) return;
+    const noteInput = document.getElementById("selfRewardNoteInput");
+    if (noteInput) noteInput.value = "";
+    overlay.hidden = false;
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    overlay.setAttribute("aria-hidden", "false");
+    haptic("light");
+  }
+
+  function closeSelfRewardModal() {
+    const overlay = document.getElementById("selfRewardModalOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { overlay.hidden = true; }, 280);
+  }
+
+  function openSelfRewardHistory() {
+    const overlay = document.getElementById("selfRewardHistoryOverlay");
+    if (!overlay) return;
+    overlay.hidden = false;
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    overlay.setAttribute("aria-hidden", "false");
+    haptic("light");
+    loadSelfRewardHistory();
+  }
+
+  function closeSelfRewardHistory() {
+    const overlay = document.getElementById("selfRewardHistoryOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { overlay.hidden = true; }, 280);
+  }
+
+  async function loadSelfRewardHistory() {
+    const list = document.getElementById("selfRewardHistoryList");
+    const statsEl = document.getElementById("selfRewardHistoryStats");
+    if (list) list.innerHTML = `<li class="empty-hint">Загрузка…</li>`;
+    try {
+      const data = await api("/api/self-reward/history");
+      const history = Array.isArray(data.history) ? data.history : [];
+      const stats = data.stats || {};
+      if (statsEl) {
+        statsEl.textContent = stats.count
+          ? `За последние ${stats.days} дн.: ${stats.count} раз, потрачено ${stats.total_cost} Adam Coin`
+          : `За последние ${stats.days || 7} дн. пока пусто`;
+      }
+      if (!list) return;
+      if (history.length === 0) {
+        list.innerHTML = `<li class="empty-hint">Пока нет ни одной записи</li>`;
+        return;
+      }
+      list.innerHTML = history.map(h => {
+        const raw = String(h.created_at || "").replace(" ", "T") + "Z";
+        const date = new Date(raw);
+        const dateLabel = isNaN(date.getTime()) ? "" : date.toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+        const note = h.note ? escapeHtml(h.note) : "Себя порадовал(а)";
+        return `
+          <li class="self-reward-history-item">
+            <div class="self-reward-history-item__note">${note}</div>
+            <div class="self-reward-history-item__meta">
+              <span class="self-reward-history-item__date">${dateLabel}</span>
+              <span class="self-reward-history-item__cost">−${Number(h.cost || 0)} A</span>
+            </div>
+          </li>
+        `;
+      }).join("");
+    } catch (err) {
+      if (list) list.innerHTML = `<li class="empty-hint">${escapeHtml(friendlyError(err))}</li>`;
+    }
+  }
+
+  function initSelfRewardActions() {
+    document.getElementById("selfRewardActionBtn")?.addEventListener("click", openSelfRewardModal);
+    document.getElementById("selfRewardModalClose")?.addEventListener("click", closeSelfRewardModal);
+    document.getElementById("selfRewardHistoryBtn")?.addEventListener("click", openSelfRewardHistory);
+    document.getElementById("selfRewardHistoryClose")?.addEventListener("click", closeSelfRewardHistory);
+
+    const submitBtn = document.getElementById("selfRewardModalSubmit");
+    submitBtn?.addEventListener("click", async () => {
+      const noteInput = document.getElementById("selfRewardNoteInput");
+      const note = (noteInput?.value || "").trim();
+      submitBtn.disabled = true;
+      try {
+        const res = await api("/api/self-reward", {
+          method: "POST",
+          body: JSON.stringify({ note: note || null }),
+        });
+        if (state.user) state.user.xp = res.xp;
+        renderPlayerCard();
+        renderShop();
+        renderSelfReward();
+        haptic("medium");
+        showToast("Себя можно похвалить! 🎉", "praise", 3000);
+        closeSelfRewardModal();
+      } catch (err) {
+        showToast(friendlyError(err), "error");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  }
+
   // ===================== RENDER: THEME PICKER =====================
   const THEMES = [
     { id: "violet", label: "Фиолетовая" },
@@ -2310,7 +2674,18 @@
     if (countLabel) countLabel.textContent = pluralRu(rows.length, "игрок", "игрока", "игроков");
     if (rows.length === 0) {
       if (podium) podium.innerHTML = "";
-      list.innerHTML = `<li class="empty-hint">Рейтинг пока пуст</li>`;
+      // Раньше тут было просто "Рейтинг пока пуст" — непонятно, баг это
+      // или так и должно быть (жалоба пользователя: "перепроверься").
+      // Рейтинг персональный (см. комментарий выше про db/leagues.py) —
+      // попадают только те, у кого серия >= 2 дней подряд, и только из
+      // той же лиги, что у зрителя. Пусто значит буквально "пока никто,
+      // включая тебя, не набрал серию 2+ дня" — не баг, а раннее
+      // состояние лиги. Объясняем это прямо, а не оставляем догадываться.
+      const league = state.rating_league;
+      const requirement = league
+        ? `Начни серию — 2 дня подряд, и лига «${league.name}» откроется.`
+        : "Начни серию — 2 дня подряд, и рейтинг откроется.";
+      list.innerHTML = `<li class="empty-hint">Здесь пока никого нет: рейтинг открывается только у тех, чья серия — 2 дня подряд и больше. ${requirement}</li>`;
       return;
     }
     const myId = state.user.telegram_id;
@@ -2615,6 +2990,17 @@ function initTabs() {
       // recalculate/composite thousands of pixels and causes a visible jerk.
       if (active) panel.classList.remove("tab-enter");
     });
+    // Цель открытой подсказки может оказаться на скрытой теперь вкладке
+    // (стартовые шаги 1-2 живут на Главной) — кнопка вкладки-цели
+    // (шаги 3-5) при этом всегда на экране сама по себе, так что прожектор
+    // сам не погас бы при уходе на другую вкладку. Гасим явно, если цель
+    // больше не видна (жалоба пользователя: подсказка должна убираться
+    // вместе с фокусом, а не висеть на произвольной вкладке).
+    if (productHintTarget && productHintTarget.offsetParent === null) {
+      hideProductHint();
+    } else if (activeHintStage && CONTEXT_TAB_STAGE[tab] !== activeHintStage && productHintTarget?.closest('.tab-bar')) {
+      hideProductHint();
+    }
     // Загружаем только открытый раздел. Никаких фоновых запросов к
     // календарю/рейтингу/профилю при нахождении на Главной.
     if (tab === "profile" || tab === "rating" || tab === "calendar") {
@@ -3610,6 +3996,7 @@ function initPlanActions() {
     invalid_target: "Player not found",
     invalid_format: "Only latin letters, digits and \"_\", 3 to 20 characters",
     taken: "This handle is already taken",
+    not_enough_xp: "Not enough Adam Coin",
   };
 
   function friendlyError(err) {
@@ -3642,7 +4029,8 @@ function initPlanActions() {
         invalid_reaction: "Не получилось отправить поддержку",
         invalid_target: "Игрок не найден",
         invalid_format: "Только латиница, цифры и «_», от 3 до 20 символов",
-        taken: "Этот ник уже занят"
+        taken: "Этот ник уже занят",
+        not_enough_xp: "Не хватает Adam Coin",
     };
 
     const activeMap = currentLanguage === "en" ? ERROR_MAP_EN : map;
@@ -4845,6 +5233,8 @@ async function boot() {
         if (!preBootstrapInitDone) {
             initTelegram();
             initAppTour();
+            initHandleIntro();
+            initSelfRewardActions();
             initTabs();
             initHabitActions();
             initDailyQuestActions();
