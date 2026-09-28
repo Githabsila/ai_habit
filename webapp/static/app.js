@@ -1362,12 +1362,17 @@
   let addAnotherHabitPromptShown = false;
 
   const PRODUCT_ONBOARDING_STEPS = {
-    1: { target: '#addHabitTrigger', title: 'Начни с одной привычки', text: 'Нажми сюда, чтобы добавить первую.' },
-    2: { target: '#mainGoalEditor', title: 'Главное дело на сегодня', text: 'Одна задача, которую точно сделаешь.' },
-    3: { target: '[data-tab="calendar"]', title: 'Календарь', text: 'Здесь виден твой прогресс по дням.' },
-    4: { target: '[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.' },
-    5: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь. Остальное можно посмотреть самому.' },
+    1: { target: '#addHabitTrigger', title: 'Начни с одной привычки', text: 'Нажми сюда, чтобы добавить первую.', icon: '🎯' },
+    2: { target: '#mainGoalEditor', title: 'Главное дело на сегодня', text: 'Одна задача, которую точно сделаешь.', icon: '✨' },
+    3: { target: '[data-tab="calendar"]', title: 'Календарь', text: 'Здесь виден твой прогресс по дням.', icon: '📅' },
+    4: { target: '[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.', icon: '🏆' },
+    5: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь. Остальное можно посмотреть самому.', icon: '👤' },
   };
+  // Вкладка, на которой живёт цель каждого шага — нужно, чтобы кнопки
+  // "Назад"/"Далее" внутри подсказки (просьба пользователя: "переходить
+  // между шагами") сами переключали вкладку, а не просто молча не находили
+  // цель на неактивной вкладке.
+  const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'calendar', 4: 'rating', 5: 'profile' };
   const CONTEXT_TAB_STAGE = { calendar: 3, rating: 4, profile: 5 };
 
   function clearProductOnboardingTarget() {
@@ -1406,9 +1411,10 @@
     setSpotlightRect(bySide.bottom, bottom, 0, vw, vh - bottom);
     setSpotlightRect(bySide.left, top, 0, left, bottom - top);
     setSpotlightRect(bySide.right, top, right, vw - right, bottom - top);
-
-    const ring = document.getElementById('onboardingSpotlightRing');
-    if (ring) setSpotlightRect(ring, top, left, right - left, bottom - top);
+    // Рамку вокруг цели рисует сам .product-onboarding-target (box-shadow
+    // прямо на элементе, см. style.css) — раньше тут ЕЩЁ позиционировалась
+    // отдельная #onboardingSpotlightRing поверх, и получалось две рамки
+    // сразу, вторая из которых при скролле заметно отставала (лаг JS).
   }
 
   function showOnboardingSpotlight(target) {
@@ -1531,6 +1537,24 @@
     api('/api/tour/seen', { method: 'POST' }).catch(() => {});
   }
 
+  // Переход на конкретный шаг онбординга вручную (кнопки "Назад"/"Далее" в
+  // самой подсказке — просьба пользователя). В отличие от естественного
+  // сценария (шаги 1-2 открываются по завершению предыдущего шага, 3-5 —
+  // по факту захода на вкладку), здесь нужно САМИМ переключить вкладку,
+  // если цель следующего шага живёт не на текущей — иначе showProductHint
+  // тихо ничего не сделает (target.offsetParent === null).
+  function goToOnboardingStage(stage) {
+    if (!PRODUCT_ONBOARDING_STEPS[stage]) return;
+    const tab = ONBOARDING_STAGE_TAB[stage];
+    const activeTab = document.querySelector('.tab-bar__item.is-active')?.dataset.tab;
+    if (tab && tab !== activeTab) {
+      document.querySelector(`.tab-bar__item[data-tab="${tab}"]`)?.click();
+      setTimeout(() => showProductHint(stage), 200);
+    } else {
+      showProductHint(stage);
+    }
+  }
+
   function showProductHint(stage) {
     const step = PRODUCT_ONBOARDING_STEPS[stage];
     const el = document.getElementById('productOnboardingHint');
@@ -1542,8 +1566,32 @@
     activeHintStage = stage;
     target.classList.add('product-onboarding-target');
     document.getElementById('productOnboardingHintTitle').textContent = step.title;
+    const iconEl = document.getElementById('productOnboardingHintIcon');
+    if (iconEl) iconEl.textContent = step.icon || '💡';
+    // Просьба пользователя: возможность переходить между шагами подсказок
+    // самому, а не только вперёд по мере выполнения действий.
     const actions = document.getElementById('productOnboardingHintActions');
-    if (actions) { actions.hidden = true; actions.innerHTML = ''; }
+    if (actions) {
+      actions.innerHTML = '';
+      const total = Object.keys(PRODUCT_ONBOARDING_STEPS).length;
+      if (stage > 1) {
+        const back = document.createElement('button');
+        back.type = 'button';
+        back.className = 'product-onboarding-hint__action';
+        back.textContent = '← Назад';
+        back.addEventListener('click', () => goToOnboardingStage(stage - 1));
+        actions.appendChild(back);
+      }
+      if (stage < total) {
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'product-onboarding-hint__action product-onboarding-hint__action--primary';
+        next.textContent = 'Далее →';
+        next.addEventListener('click', () => goToOnboardingStage(stage + 1));
+        actions.appendChild(next);
+      }
+      actions.hidden = actions.children.length === 0;
+    }
     // Просьба пользователя: непонятно, сколько шагов онбординга ещё
     // осталось — считаем прямо по PRODUCT_ONBOARDING_STEPS, чтобы не
     // разъезжалось с реальным числом шагов при будущих правках.

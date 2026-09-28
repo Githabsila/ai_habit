@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260928_ONBOARD_EXTRAS_V1">
+<link rel="stylesheet" href="/static/style.css?v=20260928_SINGLE_RING_NAV_V1">
 </head>
 <body>
 
@@ -909,14 +909,14 @@ class="habit-add-form__submit">
 
 <!-- Прожектор вокруг цели текущей подсказки: 4 размытые панели вырезают
      "окно" по факту getBoundingClientRect() цели (см. positionOnboardingSpotlight
-     в app.js) + светящаяся рамка. Отдельно от самой карточки подсказки
-     ниже, т.к. должен появляться/исчезать и на время скролла к цели. -->
+     в app.js). Саму рамку вокруг цели рисует .product-onboarding-target
+     (box-shadow прямо на элементе, см. style.css) — не отдельный див
+     здесь, чтобы рамка не отставала от цели при скролле и не дублировалась. -->
 <div class="onboarding-spotlight" id="onboardingSpotlight" hidden aria-hidden="true">
   <div class="onboarding-spotlight__panel" data-side="top"></div>
   <div class="onboarding-spotlight__panel" data-side="bottom"></div>
   <div class="onboarding-spotlight__panel" data-side="left"></div>
   <div class="onboarding-spotlight__panel" data-side="right"></div>
-  <div class="onboarding-spotlight__ring" id="onboardingSpotlightRing"></div>
 </div>
 
 <!-- МЯГКИЙ PRODUCT ONBOARDING: контекстные подсказки первых 15 минут -->
@@ -926,14 +926,14 @@ class="habit-add-form__submit">
     <button type="button" class="product-onboarding-hint__skip" id="productOnboardingHintSkip">Пропустить</button>
   </div>
   <div class="product-onboarding-hint__body">
-    <div class="product-onboarding-hint__accent"></div>
+    <div class="product-onboarding-hint__icon" id="productOnboardingHintIcon"></div>
     <div class="product-onboarding-hint__content">
       <div class="product-onboarding-hint__title" id="productOnboardingHintTitle"></div>
       <div class="product-onboarding-hint__text" id="productOnboardingHintText"></div>
-      <div class="product-onboarding-hint__actions" id="productOnboardingHintActions" hidden></div>
     </div>
     <button type="button" class="product-onboarding-hint__close" id="productOnboardingHintClose" aria-label="Закрыть">✕</button>
   </div>
+  <div class="product-onboarding-hint__actions" id="productOnboardingHintActions" hidden></div>
 </div>
 <div class="streak-onboarding-overlay" id="streakOnboardingOverlay" hidden aria-hidden="true">
   <div class="streak-onboarding-card">
@@ -1050,7 +1050,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260928_ONBOARD_EXTRAS_V1"></script>
+<script type="module" src="/static/app.js?v=20260928_SINGLE_RING_NAV_V1"></script>
 
 </body>
 </html>

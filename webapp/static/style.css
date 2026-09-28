@@ -11592,20 +11592,17 @@ body{
   background:rgba(8,6,16,.52);
   backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
   opacity:0;
-  transition:opacity .32s var(--adam-motion-ease,ease),
-    top .38s var(--adam-motion-ease,ease),left .38s var(--adam-motion-ease,ease),
-    width .38s var(--adam-motion-ease,ease),height .38s var(--adam-motion-ease,ease);
+  /* ВАЖНО: transition только на opacity, НЕ на top/left/width/height.
+     Раньше позиция панелей тоже была "transition" — при обычном скролле
+     JS пересчитывает прямоугольник на каждый кадр (см. scheduleSpotlightReflow
+     в app.js), и с transition каждое такое обновление плавно "доезжало"
+     до новых координат ~380ms — из-за этого затемнение визуально
+     отставало от пальца и "ездило" по экрану (жалоба пользователя).
+     Позиция должна прыгать мгновенно, синхронно со скроллом; плавным
+     остаётся только появление/исчезание (opacity). */
+  transition:opacity .32s var(--adam-motion-ease,ease);
 }
 .onboarding-spotlight.show .onboarding-spotlight__panel{opacity:1}
-.onboarding-spotlight__ring{
-  position:fixed;top:0;left:0;width:0;height:0;border-radius:16px;
-  box-shadow:0 0 0 2px rgba(255,157,52,.82),0 0 0 8px rgba(255,157,52,.13),0 14px 34px rgba(0,0,0,.35);
-  opacity:0;
-  transition:opacity .32s ease,
-    top .38s var(--adam-motion-ease,ease),left .38s var(--adam-motion-ease,ease),
-    width .38s var(--adam-motion-ease,ease),height .38s var(--adam-motion-ease,ease);
-}
-.onboarding-spotlight.show .onboarding-spotlight__ring{opacity:1}
 /* Блюр — самый дорогой фильтр на слабых устройствах/старых WebView, ещё и
    на 4 полноэкранных слоях сразу. performance-lite (см. общий переключатель
    выше по файлу) оставляет только затемнение, без backdrop-filter. */
@@ -11616,28 +11613,38 @@ body{
 
 .product-onboarding-hint{
   position:fixed;left:14px;right:14px;bottom:88px;z-index:1800;
-  padding:8px 13px 13px 14px;
-  border:1px solid rgba(255,255,255,.10);border-radius:16px;
-  background:rgba(20,18,28,.96);box-shadow:0 14px 40px rgba(0,0,0,.34),0 0 0 1px rgba(255,138,0,.05);
+  padding:14px 15px 15px;
+  border-radius:20px;
+  border:1px solid rgba(255,177,104,.22);
+  background:
+    radial-gradient(160px 90px at 12% 0%,rgba(255,157,52,.14),transparent 60%),
+    linear-gradient(165deg,rgba(30,25,38,.98),rgba(17,15,23,.98));
+  box-shadow:0 16px 44px rgba(0,0,0,.40),0 0 0 1px rgba(255,138,0,.06),inset 0 1px rgba(255,255,255,.05);
   transform:translateY(12px);opacity:0;transition:opacity .22s ease,transform .22s ease;
 }
 .product-onboarding-hint.show{opacity:1;transform:translateY(0)}
 .product-onboarding-hint[hidden]{display:none}
-.product-onboarding-hint__top{display:flex;justify-content:space-between;align-items:center}
+.product-onboarding-hint__top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
 .product-onboarding-hint__step{
-  font-size:10.5px;font-weight:800;letter-spacing:.02em;
-  color:#8f8aa3;padding:4px 2px;
+  font-size:10.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;
+  color:#FFB068;padding:4px 2px;
 }
 .product-onboarding-hint__step[hidden]{display:none}
 .product-onboarding-hint__skip{
-  border:0;background:none;color:#FFB068;font-size:11.5px;font-weight:700;
+  border:0;background:none;color:#8f8aa3;font-size:11.5px;font-weight:700;
   padding:4px 2px;margin:-4px -2px 0 0;cursor:pointer;
 }
-.product-onboarding-hint__body{display:flex;align-items:flex-start;gap:11px}
-.product-onboarding-hint__accent{width:4px;min-width:4px;align-self:stretch;border-radius:99px;background:linear-gradient(180deg,#FFB347,#EF4444)}
-.product-onboarding-hint__content{min-width:0;flex:1}
-.product-onboarding-hint__title{font-weight:800;font-size:14px;color:#fff;margin-bottom:3px}
-.product-onboarding-hint__text{font-size:12.5px;line-height:1.42;color:#B8B4C8}
+.product-onboarding-hint__body{display:flex;align-items:flex-start;gap:12px}
+.product-onboarding-hint__icon{
+  width:38px;height:38px;min-width:38px;border-radius:13px;
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+  background:linear-gradient(155deg,rgba(255,157,52,.22),rgba(239,68,68,.14));
+  border:1px solid rgba(255,177,104,.30);
+  box-shadow:inset 0 1px rgba(255,255,255,.10);
+}
+.product-onboarding-hint__content{min-width:0;flex:1;padding-top:2px}
+.product-onboarding-hint__title{font-weight:800;font-size:14.5px;color:#fff;margin-bottom:4px;letter-spacing:-.01em}
+.product-onboarding-hint__text{font-size:12.5px;line-height:1.46;color:#B8B4C8}
 /* Мигающий курсор, пока текст "печатается" (typewriteHintText в app.js) —
    просьба пользователя: подсказки должны выглядеть как будто их печатают
    прямо сейчас, а не просто появляются целиком. */
@@ -11648,7 +11655,26 @@ body{
 }
 @keyframes adamOnboardCursorBlink{50%{opacity:0}}
 .product-onboarding-hint__close{border:0;background:none;color:#777487;font-size:15px;padding:1px 0 0 4px;cursor:pointer}
-.product-onboarding-target{position:relative!important;z-index:1701!important;box-shadow:0 0 0 2px rgba(255,157,52,.78),0 0 0 7px rgba(255,157,52,.10),0 12px 35px rgba(0,0,0,.20)!important;border-radius:16px!important}
+/* Единственная обводка цели подсказки — раньше здесь же ставился ещё и
+   отдельный #onboardingSpotlightRing поверх (position:fixed, координаты
+   считались в JS), из-за чего вокруг цели было видно ДВЕ рамки сразу и
+   вторая заметно "ездила" при скролле, пока JS её досчитывал (жалоба
+   пользователя). Этот box-shadow — часть самого элемента, поэтому всегда
+   синхронен с его реальным положением, без JS и без лага. */
+.product-onboarding-target{
+  position:relative!important;z-index:1701!important;border-radius:16px!important;
+  box-shadow:
+    0 0 0 2px rgba(255,180,90,.95),
+    0 0 0 6px rgba(255,157,52,.22),
+    0 0 26px rgba(255,157,52,.30),
+    0 12px 35px rgba(0,0,0,.25)!important;
+  animation:adamOnboardTargetPulse 2.2s ease-in-out infinite!important;
+}
+@keyframes adamOnboardTargetPulse{
+  0%,100%{box-shadow:0 0 0 2px rgba(255,180,90,.95),0 0 0 6px rgba(255,157,52,.22),0 0 26px rgba(255,157,52,.30),0 12px 35px rgba(0,0,0,.25)}
+  50%{box-shadow:0 0 0 2px rgba(255,190,110,1),0 0 0 8px rgba(255,157,52,.30),0 0 34px rgba(255,157,52,.42),0 12px 35px rgba(0,0,0,.25)}
+}
+.performance-lite .product-onboarding-target{animation:none!important}
 
 /* Двойное касание карточки привычки раскрывает полный текст. */
 /* По умолчанию длинное название всегда остаётся компактным, даже когда
@@ -12719,7 +12745,9 @@ body{
 .product-onboarding-hint__actions{
   display: flex !important;
   gap: 8px !important;
-  margin-top: 10px !important;
+  margin-top: 13px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid rgba(255,255,255,.08) !important;
 }
 .product-onboarding-hint__actions[hidden]{ display: none !important; }
 .product-onboarding-hint__action{
