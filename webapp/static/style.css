@@ -10889,21 +10889,32 @@ body{
 .today-focus__quests-btn{
   min-width:103px!important;height:51px!important;padding:0 12px!important;gap:7px!important;
   border-radius:17px!important;
-  border:1px solid rgba(255,218,110,.62)!important;
+  border:1.5px solid rgba(255,226,148,.85)!important;
   /* background-image (не background-шорткод) — шорткод неявно сбросил бы
      background-position в 0% 0% !important, а такое значение по CSS
      Cascade побеждает keyframe-анимацию того же свойства у
      .has-claimable ниже (движущаяся обводка) — проверено вживую, та же
-     причина, что и в .daily-quest выше по файлу. */
-  background-image:radial-gradient(circle at 25% 12%,rgba(255,246,190,.27),rgba(255,246,190,0) 43%),linear-gradient(145deg,#755722,#35240e)!important;
-  box-shadow:0 9px 22px rgba(0,0,0,.30),inset 0 1px rgba(255,255,255,.17),0 0 0 1px rgba(255,203,60,.06)!important;
+     причина, что и в .daily-quest выше по файлу.
+     Просьба пользователя (референс-видео amf.mp4): более насыщенный
+     глянцевый золотой значок, как у наградных кнопок в играх — верхний
+     "стеклянный" блик (первый слой) + светлее и теплее сам градиент. */
+  background-image:
+    linear-gradient(180deg,rgba(255,255,255,.24) 0%,rgba(255,255,255,0) 36%),
+    radial-gradient(circle at 25% 10%,rgba(255,246,190,.38),rgba(255,246,190,0) 48%),
+    linear-gradient(145deg,#8a6427,#3a260e)!important;
+  box-shadow:
+    0 10px 26px rgba(0,0,0,.34),
+    0 0 20px rgba(255,193,60,.20),
+    inset 0 1px rgba(255,255,255,.30),
+    inset 0 -2px 5px rgba(0,0,0,.30),
+    0 0 0 1px rgba(255,203,60,.08)!important;
   position:relative!important;overflow:hidden!important;
   transition:transform .18s var(--wow-ease),filter .18s ease!important;
 }
 .today-focus__quests-btn::after{
   content:""!important;position:absolute!important;inset:2px!important;border-radius:15px!important;pointer-events:none!important;
-  background:linear-gradient(115deg,transparent 0 38%,rgba(255,255,255,.24) 48%,transparent 58% 100%)!important;
-  transform:translateX(-120%)!important;animation:questShine 2.8s ease-in-out infinite!important;
+  background:linear-gradient(115deg,transparent 0 34%,rgba(255,255,255,.55) 50%,transparent 64% 100%)!important;
+  transform:translateX(-120%)!important;animation:questShine 2.6s ease-in-out infinite!important;
 }
 .today-focus__quests-btn.has-claimable{animation:questAttention 1.55s ease-in-out infinite,questBtnBorderShine 3s linear infinite!important;}
 .today-focus__quests-icon{font-size:23px!important;position:relative!important;z-index:2!important;filter:drop-shadow(0 2px 7px rgba(255,204,66,.42))!important;}
