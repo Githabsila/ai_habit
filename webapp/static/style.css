@@ -7107,6 +7107,7 @@ section[data-tab="profile"] .section-heading h2::first-letter{
 }
 .team-card[hidden]{display:none !important}
 .team-card__title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:#fff;margin-bottom:10px}
+.team-card__desc{font-size:11.5px;line-height:1.45;color:var(--text-muted,#9D9DB3);margin:-2px 0 12px}
 .team-card__sub{font-size:11.5px;color:var(--text-muted,#9D9DB3);margin-bottom:12px}
 .team-card__row{display:flex;gap:8px;margin-bottom:8px}
 .team-card__input{
@@ -9096,6 +9097,12 @@ body{
   margin-bottom:16px;
   padding-right:26px;
 }
+.daily-quests-modal__hint{
+  font-size:12px;line-height:1.45;color:#9D9DB3;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+  border-radius:12px;padding:10px 12px;margin:-6px 0 14px;
+}
+.daily-quests-modal__hint[hidden]{display:none}
 
 /* =========================================================
    ROADMAP #32 — БАННЕР АКТИВНОГО БУСТЕРА x2 ADAM COIN
@@ -11616,7 +11623,12 @@ body{
 }
 .product-onboarding-hint.show{opacity:1;transform:translateY(0)}
 .product-onboarding-hint[hidden]{display:none}
-.product-onboarding-hint__top{display:flex;justify-content:flex-end}
+.product-onboarding-hint__top{display:flex;justify-content:space-between;align-items:center}
+.product-onboarding-hint__step{
+  font-size:10.5px;font-weight:800;letter-spacing:.02em;
+  color:#8f8aa3;padding:4px 2px;
+}
+.product-onboarding-hint__step[hidden]{display:none}
 .product-onboarding-hint__skip{
   border:0;background:none;color:#FFB068;font-size:11.5px;font-weight:700;
   padding:4px 2px;margin:-4px -2px 0 0;cursor:pointer;

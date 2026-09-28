@@ -578,6 +578,11 @@
     const btn = document.getElementById("dailyQuestsBtn");
     if (!list) return;
     const quests = Array.isArray(state.daily_quests) ? state.daily_quests : [];
+    // Просьба пользователя: квесты формируются заранее и всегда видны
+    // (progress 0/x), даже без единой привычки — непонятно, почему цифры
+    // не двигаются. Явно объясняем причину вместо голого списка нулей.
+    const noHabitsHint = document.getElementById("dailyQuestsNoHabitsHint");
+    if (noHabitsHint) noHabitsHint.hidden = (state.habits || []).length > 0;
     if (btn) {
       btn.hidden = quests.length === 0;
       // Награду можно забрать хотя бы у одного квеста — подсвечиваем
@@ -1539,6 +1544,14 @@
     document.getElementById('productOnboardingHintTitle').textContent = step.title;
     const actions = document.getElementById('productOnboardingHintActions');
     if (actions) { actions.hidden = true; actions.innerHTML = ''; }
+    // Просьба пользователя: непонятно, сколько шагов онбординга ещё
+    // осталось — считаем прямо по PRODUCT_ONBOARDING_STEPS, чтобы не
+    // разъезжалось с реальным числом шагов при будущих правках.
+    const stepEl = document.getElementById('productOnboardingHintStep');
+    if (stepEl) {
+      stepEl.textContent = `Шаг ${stage} из ${Object.keys(PRODUCT_ONBOARDING_STEPS).length}`;
+      stepEl.hidden = false;
+    }
 
     // Перелистываем/докручиваем к цели — просьба пользователя: раньше
     // подсказка могла говорить про элемент, которого не видно на экране
@@ -1553,6 +1566,10 @@
       el.hidden = false;
       requestAnimationFrame(() => el.classList.add('show'));
       typewriteHintText(document.getElementById('productOnboardingHintText'), step.text);
+      // Просьба пользователя: у остальных модалок при появлении уже есть
+      // лёгкая вибрация, у контекстных подсказок — нет, хотя момент
+      // появления прожектора заметнее всего именно на телефоне.
+      haptic('light');
     }, 380);
 
     // Баг: reachedStage в обработчике клика по вкладкам (ниже) читает
@@ -1632,6 +1649,10 @@
     target.classList.add('product-onboarding-target');
     document.getElementById('productOnboardingHintTitle').textContent = 'Ты справляешься 🔥';
     document.getElementById('productOnboardingHintText').textContent = 'Хочешь добавить ещё одну привычку?';
+    // Это бонусное предложение, а не один из 5 пронумерованных шагов —
+    // счётчик "Шаг N из 5" тут был бы враньём, скрываем его.
+    const stepEl = document.getElementById('productOnboardingHintStep');
+    if (stepEl) stepEl.hidden = true;
     actions.innerHTML = `
       <button type="button" class="product-onboarding-hint__action product-onboarding-hint__action--primary" id="onboardingAddAnotherYes">Добавить</button>
       <button type="button" class="product-onboarding-hint__action" id="onboardingAddAnotherLater">Потом</button>
@@ -4240,8 +4261,12 @@ function renderTeamCard() {
   const team = state.team;
 
   if (!team) {
+    // Просьба пользователя: две пустые строки без объяснения непонятны —
+    // добавляем короткое описание, что вообще даёт команда, до самой
+    // формы создания/входа.
     box.innerHTML = `
       <div class="team-card__title">🤝 Групповой челлендж</div>
+      <div class="team-card__desc">Создай команду или войди по коду друга — увидите недельный прогресс друг друга и посоревнуетесь, кто больше отметил привычек.</div>
       <div class="team-card__row">
         <input type="text" id="teamNameInput" class="team-card__input" placeholder="Название команды" maxlength="40">
         <button type="button" class="team-card__btn" id="teamCreateBtn">Создать</button>
@@ -5007,6 +5032,34 @@ async function renderReactionsFeed() {
 // Mini App — раньше единственным каналом было написать разработчику
 // лично, что резко снижает вероятность честного отчёта о проблеме.
 function initDataSupportActions() {
+  // Просьба пользователя: для тех, кто когда-то нажал "Пропустить" в
+  // онбординге, а теперь сам захотел пересмотреть подсказки — не только
+  // текстовая модалка "Это ADAM", но и весь интерактивный сценарий заново
+  // (см. db/product_experience.py::restart_onboarding). Переключаем на
+  // Главную ДО показа — там живёт цель первого шага (#addHabitTrigger),
+  // а к моменту, когда человек долистает вводные слайды, вкладка уже
+  // будет той, что нужно.
+  document.getElementById("replayOnboardingBtn")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      await api('/api/onboarding/restart', { method: 'POST' });
+      hideProductHint();
+      if (state) {
+        state.show_app_tour = true;
+        state.product_onboarding = { onboarding_stage: 0, onboarding_started_at: null };
+      }
+      appTourShownThisSession = false;
+      document.querySelector('.tab-bar__item[data-tab="home"]')?.click();
+      haptic("light");
+      maybeShowAppTour();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   document.getElementById("shareWeeklyBtn")?.addEventListener("click", () => {
     const completed = Number(document.getElementById("progressStatCompleted")?.textContent || 0);
     const activeDays = document.getElementById("progressStatActiveDays")?.textContent || "0/7";

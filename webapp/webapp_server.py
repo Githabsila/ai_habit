@@ -21,7 +21,7 @@ from adam_messages import (
 )
 
 from db.core import DATA_DIR
-from db.product_experience import start_onboarding, get_onboarding_state, advance_onboarding, claim_first_win_push, mark_first_win_push_sent
+from db.product_experience import start_onboarding, get_onboarding_state, advance_onboarding, claim_first_win_push, mark_first_win_push_sent, restart_onboarding
 
 from db import (
     get_user, add_user, is_banned, get_access_status, set_access_status,
@@ -1149,6 +1149,14 @@ async def onboarding_stage_route(request):
 async def app_tour_seen(request):
     telegram_id, _ = await _authenticate(request)
     mark_app_tour_seen(telegram_id)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/onboarding/restart")
+async def onboarding_restart_route(request):
+    """«Показать подсказки заново» в Настройках — см. комментарий у
+    db/product_experience.py::restart_onboarding."""
+    telegram_id, _ = await _authenticate(request)
+    restart_onboarding(telegram_id)
     return web.json_response({"ok": True})
 
 @routes.post("/api/handle-intro/seen")

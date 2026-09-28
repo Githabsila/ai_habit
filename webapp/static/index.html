@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260928_QUESTBTN_V2">
+<link rel="stylesheet" href="/static/style.css?v=20260928_ONBOARD_EXTRAS_V1">
 </head>
 <body>
 
@@ -658,6 +658,10 @@ class="habit-add-form__submit">
 </div>
 
 <div class="settings-card data-support-card">
+  <button type="button" class="data-support-btn" id="replayOnboardingBtn">
+    <span class="data-support-btn__icon">🎓</span>
+    <span class="data-support-btn__text"><b>Показать подсказки заново</b><small>Вводный тур и обучающие подсказки по разделам</small></span>
+  </button>
   <button type="button" class="data-support-btn" id="shareWeeklyBtn">
     <span class="data-support-btn__icon">📈</span>
     <span class="data-support-btn__text"><b>Поделиться итогом недели</b><small>Красивая карточка с результатами за 7 дней</small></span>
@@ -801,6 +805,7 @@ class="habit-add-form__submit">
   <section class="daily-quests-modal" role="dialog" aria-modal="true" aria-labelledby="dailyQuestsModalTitle">
     <button type="button" class="daily-quests-modal__close" id="dailyQuestsClose" aria-label="Закрыть">✕</button>
     <div class="daily-quests-modal__title" id="dailyQuestsModalTitle">🗺️ Квесты дня</div>
+    <div class="daily-quests-modal__hint" id="dailyQuestsNoHabitsHint" hidden>Квесты появятся с прогрессом, как только добавишь хотя бы одну привычку и начнёшь её отмечать.</div>
     <ul class="daily-quests__list" id="dailyQuestsList"></ul>
   </section>
 </div>
@@ -917,6 +922,7 @@ class="habit-add-form__submit">
 <!-- МЯГКИЙ PRODUCT ONBOARDING: контекстные подсказки первых 15 минут -->
 <div class="product-onboarding-hint" id="productOnboardingHint" hidden aria-live="polite">
   <div class="product-onboarding-hint__top">
+    <span class="product-onboarding-hint__step" id="productOnboardingHintStep" hidden></span>
     <button type="button" class="product-onboarding-hint__skip" id="productOnboardingHintSkip">Пропустить</button>
   </div>
   <div class="product-onboarding-hint__body">
@@ -1044,7 +1050,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260928_HINTS_SPOTLIGHT_V1"></script>
+<script type="module" src="/static/app.js?v=20260928_ONBOARD_EXTRAS_V1"></script>
 
 </body>
 </html>

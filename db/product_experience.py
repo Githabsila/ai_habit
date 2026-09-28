@@ -230,6 +230,28 @@ def advance_onboarding(user_id, stage):
         conn.close()
 
 
+def restart_onboarding(user_id):
+    """«Показать подсказки заново» в Настройках — для тех, кто когда-то
+    нажал «Пропустить» и потом сам захотел пересмотреть онбординг. Сбрасывает
+    и app-tour (вводная модалка "Это ADAM"), и стадию контекстных подсказок
+    (привычка/главное дело/календарь/рейтинг/профиль) — иначе после сброса
+    только app_tour_seen онбординг открылся бы сразу на середине, т.к.
+    onboarding_stage остался бы от предыдущего прохождения. Экран ника
+    (handle_intro_seen) сознательно не трогаем — это отдельный одноразовый
+    шаг про сам ник, не часть тура по интерфейсу.
+    """
+    conn = connect()
+    try:
+        conn.execute(
+            "UPDATE users SET app_tour_seen=0, onboarding_stage=0, onboarding_started_at=NULL "
+            "WHERE telegram_id=?",
+            (int(user_id),),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def mark_first_win_push_sent(user_id):
     conn = connect()
     try:
