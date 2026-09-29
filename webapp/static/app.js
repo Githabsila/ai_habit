@@ -3161,6 +3161,7 @@ function initSubpageOverlay(overlayId, triggerId, closeId, backdropId) {
 
 function initSubpageOverlays() {
   initSubpageOverlay("shopOverlay", "openShopBtn", "shopOverlayClose", "shopOverlayBackdrop");
+  initSubpageOverlay("statsOverlay", "openStatsBtn", "statsOverlayClose", "statsOverlayBackdrop");
   initSubpageOverlay("settingsOverlay", "openSettingsBtn", "settingsOverlayClose", "settingsOverlayBackdrop");
 }
 

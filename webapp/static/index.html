@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260929_FINISH_BTN_V3">
+<link rel="stylesheet" href="/static/style.css?v=20260929_PROFILE_STATS_V4">
 </head>
 <body>
 
@@ -500,14 +500,27 @@ class="habit-add-form__submit">
      пользователей просто остаётся на дефолте 'ru', саму фичу можно будет
      вернуть в интерфейс, когда перевод будет доделан полностью. -->
 
-<div class="section-heading">
-<h2>Как к тебе обращаться</h2>
+<!-- Просьба пользователя: Достижения + Прогресс (статистика, инсайты,
+     тепловая карта года, PDF-отчёт, AI-анализ) были ещё одной длинной
+     секцией прямо в Профиле — по тому же принципу, что и Магазин/
+     Настройки выше, сворачиваем их в компактную карточку-переход.
+     "Как к тебе обращаться" переехал внутрь Настроек (это тоже просто
+     персональная настройка, ему там самое место) — см. #settingsOverlay
+     ниже. Все id внутри не менялись, app.js их не трогал. -->
+<button type="button" class="profile-nav-card" id="openStatsBtn">
+  <span class="profile-nav-card__icon">📊</span>
+  <span class="profile-nav-card__text"><b>Прогресс и достижения</b><small>Статистика, награды, PDF-отчёт и AI-анализ</small></span>
+  <span class="profile-nav-card__chevron">›</span>
+</button>
+
+<div class="subpage-overlay" id="statsOverlay" hidden aria-hidden="true">
+<div class="subpage-overlay__backdrop" id="statsOverlayBackdrop"></div>
+<div class="subpage-overlay__panel">
+<div class="subpage-overlay__header">
+  <button type="button" class="subpage-overlay__back" id="statsOverlayClose" aria-label="Закрыть">←</button>
+  <h2 class="subpage-overlay__title">📊 Прогресс и достижения</h2>
 </div>
-<p class="theme-picker__hint" id="genderHint">Нужно, чтобы Адам правильно согласовывал "Ты" в напоминаниях — "сделал" или "сделала".</p>
-<div class="color-mode-picker" id="genderPicker">
-<button type="button" class="color-mode-btn" data-gender="m">Он</button>
-<button type="button" class="color-mode-btn" data-gender="f">Она</button>
-</div>
+<div class="subpage-overlay__body">
 
 <div class="section-heading achievements-heading">
 
@@ -559,6 +572,10 @@ class="habit-add-form__submit">
 <button type="button" class="progress-ai-btn" id="progressAiBtn">🤖 AI-анализ прогресса</button>
 <div class="progress-ai-result" id="progressAiResult" hidden></div>
 
+</div>
+</div>
+</div>
+
 <!-- Просьба пользователя: и "Настройки", и "Данные и поддержка" были
      двумя длинными секциями прямо в Профиле — теперь только компактная
      карточка-переход, а само содержимое (обе секции целиком, без
@@ -581,6 +598,15 @@ class="habit-add-form__submit">
 <div class="subpage-overlay__body">
 
 <div class="settings-card">
+
+  <div class="section-heading">
+  <h2>Как к тебе обращаться</h2>
+  </div>
+  <p class="theme-picker__hint" id="genderHint">Нужно, чтобы Адам правильно согласовывал "Ты" в напоминаниях — "сделал" или "сделала".</p>
+  <div class="color-mode-picker" id="genderPicker">
+  <button type="button" class="color-mode-btn" data-gender="m">Он</button>
+  <button type="button" class="color-mode-btn" data-gender="f">Она</button>
+  </div>
 
   <div class="settings-row">
     <span>🔀 Привычки сверху на главной</span>
@@ -1096,7 +1122,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260929_FINISH_BTN_V3"></script>
+<script type="module" src="/static/app.js?v=20260929_PROFILE_STATS_V4"></script>
 
 </body>
 </html>
