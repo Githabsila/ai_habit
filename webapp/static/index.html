@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260928_SINGLE_RING_NAV_V1">
+<link rel="stylesheet" href="/static/style.css?v=20260929_PROFILE_SPLIT_V1">
 </head>
 <body>
 
@@ -426,6 +426,28 @@ class="habit-add-form__submit">
   <div class="profile-frame-picker" id="profileFramePicker"></div>
 </div>
 
+<!-- Просьба пользователя: магазин раньше был длинной секцией прямо в
+     Профиле (шапка + самовознаграждение + сетка товаров) — вместе с
+     Настройками это и давало "вниз сильно много листать". Теперь это
+     только компактная карточка-переход, а само содержимое (те же id —
+     #shopList, #selfRewardCard и т.д., app.js их трогать не пришлось)
+     обёрнуто в #shopOverlay (position:fixed на весь экран, см. style.css),
+     физически осталось на том же месте в файле. -->
+<button type="button" class="profile-nav-card" id="openShopBtn">
+  <span class="profile-nav-card__icon">🛍️</span>
+  <span class="profile-nav-card__text"><b>ADAM Store</b><small>Алмазы, Premium и улучшения для ADAM</small></span>
+  <span class="profile-nav-card__chevron">›</span>
+</button>
+
+<div class="subpage-overlay" id="shopOverlay" hidden aria-hidden="true">
+<div class="subpage-overlay__backdrop" id="shopOverlayBackdrop"></div>
+<div class="subpage-overlay__panel">
+<div class="subpage-overlay__header">
+  <button type="button" class="subpage-overlay__back" id="shopOverlayClose" aria-label="Закрыть">←</button>
+  <h2 class="subpage-overlay__title">🛍️ ADAM Store</h2>
+</div>
+<div class="subpage-overlay__body">
+
 <div class="shop-head">
   <div>
     <div class="shop-eyebrow">ADAM STORE</div>
@@ -454,6 +476,10 @@ class="habit-add-form__submit">
 
 <ul class="shop-list shop-list--grid" id="shopList">
 </ul>
+
+</div>
+</div>
+</div>
 
 <!-- Тема оформления (акцентный цвет, покупка в магазине THEME_ITEM_ID)
      временно убрана из интерфейса по решению пользователя — до запуска и
@@ -533,9 +559,26 @@ class="habit-add-form__submit">
 <button type="button" class="progress-ai-btn" id="progressAiBtn">🤖 AI-анализ прогресса</button>
 <div class="progress-ai-result" id="progressAiResult" hidden></div>
 
-<div class="section-heading">
-  <h2><span data-i18n="settings_title">⚙️ Настройки</span></h2>
+<!-- Просьба пользователя: и "Настройки", и "Данные и поддержка" были
+     двумя длинными секциями прямо в Профиле — теперь только компактная
+     карточка-переход, а само содержимое (обе секции целиком, без
+     изменений) обёрнуто в #settingsOverlay (position:fixed на весь
+     экран, см. style.css) — физически осталось на том же месте в файле,
+     просто показывается поверх всего, когда не hidden. -->
+<button type="button" class="profile-nav-card" id="openSettingsBtn">
+  <span class="profile-nav-card__icon">⚙️</span>
+  <span class="profile-nav-card__text"><b>Настройки</b><small>Напоминания, аккаунт, данные и поддержка</small></span>
+  <span class="profile-nav-card__chevron">›</span>
+</button>
+
+<div class="subpage-overlay" id="settingsOverlay" hidden aria-hidden="true">
+<div class="subpage-overlay__backdrop" id="settingsOverlayBackdrop"></div>
+<div class="subpage-overlay__panel">
+<div class="subpage-overlay__header">
+  <button type="button" class="subpage-overlay__back" id="settingsOverlayClose" aria-label="Закрыть">←</button>
+  <h2 class="subpage-overlay__title">⚙️ Настройки</h2>
 </div>
+<div class="subpage-overlay__body">
 
 <div class="settings-card">
 
@@ -696,6 +739,10 @@ class="habit-add-form__submit">
     <span class="data-support-btn__icon">📄</span>
     <span class="data-support-btn__text"><b>Пользовательское соглашение</b><small>Условия использования сервиса</small></span>
   </button>
+</div>
+
+</div>
+</div>
 </div>
 
 </section>
@@ -931,7 +978,6 @@ class="habit-add-form__submit">
       <div class="product-onboarding-hint__title" id="productOnboardingHintTitle"></div>
       <div class="product-onboarding-hint__text" id="productOnboardingHintText"></div>
     </div>
-    <button type="button" class="product-onboarding-hint__close" id="productOnboardingHintClose" aria-label="Закрыть">✕</button>
   </div>
   <div class="product-onboarding-hint__actions" id="productOnboardingHintActions" hidden></div>
 </div>
@@ -1050,7 +1096,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260928_SINGLE_RING_NAV_V1"></script>
+<script type="module" src="/static/app.js?v=20260929_PROFILE_SPLIT_V1"></script>
 
 </body>
 </html>

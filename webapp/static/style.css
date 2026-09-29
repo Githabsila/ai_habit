@@ -9205,6 +9205,67 @@ body{
 }
 
 /* =========================================================
+   ПРОФИЛЬ: компактные карточки-переходы + полноэкранные подстраницы
+   (просьба пользователя — Профиль был одной длинной лентой из Магазина +
+   Настроек + Данных и поддержки, "вниз сильно много листать"). Магазин и
+   Настройки теперь открываются отдельным экраном (#shopOverlay /
+   #settingsOverlay в index.html) поверх всего остального.
+   ========================================================= */
+.profile-nav-card{
+  display:flex;align-items:center;gap:12px;
+  width:100%;padding:14px 15px;margin-bottom:14px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,.09);
+  background:linear-gradient(150deg,rgba(255,255,255,.05),rgba(255,255,255,.015));
+  color:#fff;text-align:left;cursor:pointer;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .2s ease;
+}
+.profile-nav-card:active{transform:scale(.985);background:rgba(139,108,255,.08)}
+.profile-nav-card__icon{
+  flex:0 0 auto;width:42px;height:42px;min-width:42px;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+  background:rgba(143,114,255,.14);border:1px solid rgba(143,114,255,.18);
+}
+.profile-nav-card__text{flex:1 1 auto;min-width:0}
+.profile-nav-card__text b{display:block;font-size:14px;font-weight:800;color:#fff}
+.profile-nav-card__text small{display:block;margin-top:2px;color:#9D9DB3;font-size:11.5px;line-height:1.3}
+.profile-nav-card__chevron{flex:0 0 auto;font-size:22px;color:#6f6b80;font-weight:400}
+
+.subpage-overlay{position:fixed;inset:0;z-index:1850}
+.subpage-overlay[hidden]{display:none}
+.subpage-overlay__backdrop{
+  position:absolute;inset:0;background:rgba(6,4,12,.62);
+  opacity:0;transition:opacity .28s ease;
+}
+.subpage-overlay__panel{
+  position:absolute;inset:0;
+  background:#0d0b14;
+  display:flex;flex-direction:column;
+  transform:translateY(18px);opacity:0;
+  transition:opacity .28s ease,transform .28s var(--adam-motion-ease,ease);
+}
+.subpage-overlay.is-open .subpage-overlay__backdrop{opacity:1}
+.subpage-overlay.is-open .subpage-overlay__panel{opacity:1;transform:translateY(0)}
+.subpage-overlay__header{
+  display:flex;align-items:center;gap:12px;flex:0 0 auto;
+  padding:calc(env(safe-area-inset-top,0px) + 16px) 16px 14px;
+  border-bottom:1px solid rgba(255,255,255,.07);
+  background:rgba(13,11,20,.98);
+}
+.subpage-overlay__back{
+  flex:0 0 auto;width:36px;height:36px;border-radius:12px;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+  color:#fff;font-size:18px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.subpage-overlay__back:active{transform:scale(.92)}
+.subpage-overlay__title{font-size:16px;font-weight:800;color:#fff;margin:0}
+.subpage-overlay__body{
+  flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 24px);
+}
+
+/* =========================================================
    ДАННЫЕ И ПОДДЕРЖКА — экспорт CSV, недельный шаринг, фидбек
    ========================================================= */
 .data-support-card{display:flex;flex-direction:column;gap:8px}
@@ -11654,7 +11715,6 @@ body{
   animation:adamOnboardCursorBlink .8s steps(1) infinite;
 }
 @keyframes adamOnboardCursorBlink{50%{opacity:0}}
-.product-onboarding-hint__close{border:0;background:none;color:#777487;font-size:15px;padding:1px 0 0 4px;cursor:pointer}
 /* Единственная обводка цели подсказки — раньше здесь же ставился ещё и
    отдельный #onboardingSpotlightRing поверх (position:fixed, координаты
    считались в JS), из-за чего вокруг цели было видно ДВЕ рамки сразу и

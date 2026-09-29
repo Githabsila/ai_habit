@@ -1340,14 +1340,17 @@
 
   // Базовая версия онбординга "в духе Habitica" — два независимых слоя:
   //
-  // 1) "Стартовые" шаги (1-2) — подсвечивают КНОПКУ действия (не раздел
-  //    целиком), ведут человека создать первую привычку и главное дело
-  //    дня, а дальше НЕ превращаются в экскурсию по всему приложению —
-  //    человек сам их выполняет и получает обычную награду за это
-  //    (celebrateHabitCompletion/toast за главную задачу, см. ниже), и уже
-  //    в этот момент предлагается добавить ещё одну привычку или
-  //    продолжить самому (см. maybeOfferAnotherHabit).
-  // 2) "Контекстные" шаги (3-5) — календарь/рейтинг/профиль объясняются
+  // 1) "Стартовые" шаги (1-4) — подсвечивают КНОПКУ/раздел действия, ведут
+  //    человека создать первую привычку (1), коротко показывают список
+  //    привычек (2), заполнить главное дело дня (3) и коротко показывают,
+  //    что можно добавить второстепенные задачи (4). Дальше сценарий НЕ
+  //    превращается в экскурсию по всему приложению — человек сам всё
+  //    выполняет и получает обычную награду за это (celebrateHabitCompletion/
+  //    тост за главную задачу, см. ниже), и уже в этот момент предлагается
+  //    добавить ещё одну привычку или продолжить самому (см. maybeOfferAnotherHabit).
+  //    Далее/Назад внутри подсказки (см. showProductHint/goToOnboardingStage)
+  //    позволяют пролистать эти шаги и вручную, не только по мере действий.
+  // 2) "Контекстные" шаги (5-7) — календарь/рейтинг/профиль объясняются
   //    ТОЛЬКО когда человек сам туда впервые заходит, не раньше. Они
   //    завязаны на persisted onboarding_stage (а не на show_app_tour),
   //    поэтому продолжают работать даже после того, как стартовые шаги
@@ -1361,19 +1364,24 @@
   let onboardingMainGoalDoneOnce = false;
   let addAnotherHabitPromptShown = false;
 
+  // 7 шагов (было 5 — просьба пользователя рассказать ещё и про список
+  // привычек, и про второстепенные задачи, а не только про кнопки
+  // "Добавить привычку"/"Главное дело").
   const PRODUCT_ONBOARDING_STEPS = {
     1: { target: '#addHabitTrigger', title: 'Начни с одной привычки', text: 'Нажми сюда, чтобы добавить первую.', icon: '🎯' },
-    2: { target: '#mainGoalEditor', title: 'Главное дело на сегодня', text: 'Одна задача, которую точно сделаешь.', icon: '✨' },
-    3: { target: '[data-tab="calendar"]', title: 'Календарь', text: 'Здесь виден твой прогресс по дням.', icon: '📅' },
-    4: { target: '[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.', icon: '🏆' },
-    5: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь. Остальное можно посмотреть самому.', icon: '👤' },
+    2: { target: '.habits-panel', title: 'Твои привычки', text: 'Список появится здесь — нажимай на привычку, чтобы отметить её выполненной сегодня.', icon: '✅' },
+    3: { target: '#mainGoalEditor', title: 'Главное дело на сегодня', text: 'Одна задача, которую точно сделаешь.', icon: '✨' },
+    4: { target: '#addPlanTaskTrigger', title: 'Второстепенные задачи', text: 'Кроме главного дела можно добавить ещё несколько — необязательных, но чтобы не забыть.', icon: '📝' },
+    5: { target: '[data-tab="calendar"]', title: 'Календарь', text: 'Здесь виден твой прогресс по дням.', icon: '📅' },
+    6: { target: '[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.', icon: '🏆' },
+    7: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь. Остальное можно посмотреть самому.', icon: '👤' },
   };
   // Вкладка, на которой живёт цель каждого шага — нужно, чтобы кнопки
   // "Назад"/"Далее" внутри подсказки (просьба пользователя: "переходить
   // между шагами") сами переключали вкладку, а не просто молча не находили
   // цель на неактивной вкладке.
-  const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'calendar', 4: 'rating', 5: 'profile' };
-  const CONTEXT_TAB_STAGE = { calendar: 3, rating: 4, profile: 5 };
+  const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'home', 4: 'home', 5: 'calendar', 6: 'rating', 7: 'profile' };
+  const CONTEXT_TAB_STAGE = { calendar: 5, rating: 6, profile: 7 };
 
   function clearProductOnboardingTarget() {
     if (productHintTarget) productHintTarget.classList.remove('product-onboarding-target');
@@ -1589,6 +1597,19 @@
         next.textContent = 'Далее →';
         next.addEventListener('click', () => goToOnboardingStage(stage + 1));
         actions.appendChild(next);
+      } else {
+        // Просьба пользователя: на последнем шаге снизу должна быть кнопка
+        // "Вперёд" — завершает тур (а не просто повисает без выхода).
+        const finish = document.createElement('button');
+        finish.type = 'button';
+        finish.className = 'product-onboarding-hint__action product-onboarding-hint__action--primary';
+        finish.textContent = 'Вперёд';
+        finish.addEventListener('click', () => {
+          hideProductHint();
+          finishStartOnboarding();
+          showToast('Готово! Теперь ты знаешь, где что находится 🎉', 'success');
+        });
+        actions.appendChild(finish);
       }
       actions.hidden = actions.children.length === 0;
     }
@@ -1603,10 +1624,19 @@
 
     // Перелистываем/докручиваем к цели — просьба пользователя: раньше
     // подсказка могла говорить про элемент, которого не видно на экране
-    // (например, если пользователь наверху страницы). Ждём окончания
-    // плавного scrollIntoView, прежде чем ставить прожектор и карточку по
-    // координатам цели — иначе они встанут по ещё старым координатам.
-    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    // (например, если пользователь наверху страницы). НО: цель шагов 5-7 —
+    // кнопка в нижней навигации (position:fixed), она и так всегда видна
+    // независимо от скролла — scrollIntoView на fixed-элементе не нужен
+    // семантически и на практике дёргал всю страницу далеко вниз без
+    // всякого смысла (жалоба пользователя: "в профиле сильно спускает
+    // вниз"). Докручиваем только к целям, которые реально могут быть вне
+    // экрана — то есть НЕ внутри .tab-bar.
+    if (!target.closest('.tab-bar')) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    }
+    // Ждём столько же, сколько занял бы возможный scrollIntoView, прежде
+    // чем ставить прожектор и карточку по координатам цели — иначе они
+    // встанут по ещё старым координатам.
     setTimeout(() => {
       if (productHintTarget !== target) return; // подсказку уже сменили/закрыли за это время
       showOnboardingSpotlight(target);
@@ -1633,8 +1663,12 @@
     api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage }) }).catch(() => {});
   }
 
-  // Шаг 1 (или сразу шаг 2, если привычка уже есть, а главного дела ещё
+  // Шаг 1 (или сразу шаг 3, если привычка уже есть, а главного дела ещё
   // нет — например, страница была перезагружена посередине сценария).
+  // Шаги 2 и 4 ("Твои привычки"/"Второстепенные задачи") на resume
+  // намеренно пропускаются — это разовые сноски сразу после действия
+  // (см. onOnboardingHabitCreated/onOnboardingMainGoalSaved ниже), не то,
+  // ради чего стоит прерывать человека при каждой перезагрузке страницы.
   function scheduleProductOnboarding() {
     if (!state?.show_app_tour) return;
     api('/api/onboarding/start', { method: 'POST' }).catch(() => {});
@@ -1645,27 +1679,30 @@
     if (!hasHabits) {
       productOnboardingTimers.push(setTimeout(() => showProductHint(1), 700));
     } else if (!hasMainGoal) {
-      productOnboardingTimers.push(setTimeout(() => showProductHint(2), 700));
+      productOnboardingTimers.push(setTimeout(() => showProductHint(3), 700));
     }
   }
 
   // Вызывается из обработчика создания привычки (app.js::addHabitForm) —
   // только для ПЕРВОЙ когда-либо созданной привычки в рамках сценария.
+  // Просьба пользователя: рассказать и про сам список привычек, а не
+  // только про кнопку добавления — коротко показываем шаг 2, затем (если
+  // главное дело ещё не заполнено) ведём к шагу 3.
   function onOnboardingHabitCreated() {
     if (!state?.show_app_tour) return;
     hideProductHint();
-    if (!state?.daily_plan?.main_goal) {
-      setTimeout(() => showProductHint(2), 700);
-    }
+    setTimeout(() => showProductHint(2), 700);
   }
 
   // Вызывается после сохранения главного дела дня, если оно раньше было
-  // пустым — сценарий НЕ продолжается дальше сам (никакой "экскурсии" по
-  // остальным разделам): дальше человек сам отмечает привычку/задачу и
+  // пустым. Просьба пользователя: коротко упомянуть и второстепенные
+  // задачи (шаг 4) — дальше сценарий по-прежнему НЕ превращается в
+  // экскурсию по всему приложению, человек сам отмечает привычку/задачу и
   // получает обычную награду (toast за монеты, тосты плана дня) — именно
-  // на этом прожитом опыте и держится petля "делаю → вижу прогресс".
+  // на этом прожитом опыте и держится петля "делаю → вижу прогресс".
   function onOnboardingMainGoalSaved() {
     hideProductHint();
+    setTimeout(() => showProductHint(4), 700);
   }
 
   // После того как в рамках сценария человек хотя бы раз отметил
@@ -1762,7 +1799,8 @@
       haptic("light");
     });
     document.getElementById("appTourSkip")?.addEventListener("click", closeAppTour);
-    document.getElementById('productOnboardingHintClose')?.addEventListener('click', hideProductHint);
+    // Просьба пользователя: крестик и "Пропустить" делали одно и то же
+    // (закрывали подсказку) — оставляем только "Пропустить".
     document.getElementById('productOnboardingHintSkip')?.addEventListener('click', skipProductOnboarding);
 
     // Контекстные подсказки по разделам — по факту первого перехода на
@@ -3081,6 +3119,38 @@ function initTabs() {
     haptic("light");
     scheduleDecorSettle();
   });
+}
+
+// ===================== ПОДСТРАНИЦЫ ПРОФИЛЯ (Магазин / Настройки) =====================
+// Просьба пользователя: Профиль был одной длинной лентой (Магазин +
+// Настройки + Данные и поддержка) — "вниз сильно много листать". Обе
+// секции теперь открываются отдельным полноэкранным оверлеем поверх
+// текущей вкладки (тот же приём, что и у daily-quests-overlay), их
+// содержимое и id внутри не менялись — просто скрыты за компактной
+// карточкой-переходом в Профиле, пока оверлей не открыт.
+function initSubpageOverlay(overlayId, triggerId, closeId, backdropId) {
+  const overlay = document.getElementById(overlayId);
+  const trigger = document.getElementById(triggerId);
+  if (!overlay || !trigger) return;
+  const open = () => {
+    overlay.hidden = false;
+    requestAnimationFrame(() => overlay.classList.add("is-open"));
+    overlay.setAttribute("aria-hidden", "false");
+    haptic("light");
+  };
+  const close = () => {
+    overlay.classList.remove("is-open");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { if (!overlay.classList.contains("is-open")) overlay.hidden = true; }, 300);
+  };
+  trigger.addEventListener("click", open);
+  document.getElementById(closeId)?.addEventListener("click", close);
+  document.getElementById(backdropId)?.addEventListener("click", close);
+}
+
+function initSubpageOverlays() {
+  initSubpageOverlay("shopOverlay", "openShopBtn", "shopOverlayClose", "shopOverlayBackdrop");
+  initSubpageOverlay("settingsOverlay", "openSettingsBtn", "settingsOverlayClose", "settingsOverlayBackdrop");
 }
 
 // ===================== СВОРАЧИВАЕМЫЕ ФОРМЫ ДОБАВЛЕНИЯ =====================
@@ -5337,6 +5407,7 @@ async function boot() {
             initHandleIntro();
             initSelfRewardActions();
             initTabs();
+            initSubpageOverlays();
             initHabitActions();
             initDailyQuestActions();
             initRatingActions();
