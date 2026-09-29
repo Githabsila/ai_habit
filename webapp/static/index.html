@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260929_PROFILE_STATS_V4">
+<link rel="stylesheet" href="/static/style.css?v=20260929_PROFILE_HUB_V5">
 </head>
 <body>
 
@@ -416,30 +416,17 @@ class="habit-add-form__submit">
   </div>
 </div>
 
-<div class="profile-cosmetics-panel">
-  <div class="profile-cosmetics-head">
-    <div><b>Аватар</b><small>Фото будет видно в профиле и рейтинге</small></div>
-    <button class="profile-photo-btn" id="profilePhotoBtn" type="button">Изменить фото</button>
-    <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
-  </div>
-  <div class="profile-frame-head"><b>Рамка аватарки</b><small id="profileFrameHint">Выбери доступную рамку</small></div>
-  <div class="profile-frame-picker" id="profileFramePicker"></div>
-</div>
+<!-- Просьба пользователя: в Профиле должно остаться только самое важное
+     (стрик/аватар/питомец), а всё остальное — за ОДНОЙ кнопкой
+     "Настройки" единым меню. Магазин, Прогресс/достижения и
+     персонализация (аватар/рамка) больше не отдельные карточки прямо
+     здесь — они переехали внутрь #settingsOverlay (см. ниже), сама
+     кнопка "Настройки" осталась единственной точкой входа. Оверлеи
+     #shopOverlay/#statsOverlay физически остались на том же месте в
+     файле (position:fixed — их место в DOM не влияет на то, где они
+     рисуются), просто их кнопки-триггеры теперь внутри Настроек. -->
 
-<!-- Просьба пользователя: магазин раньше был длинной секцией прямо в
-     Профиле (шапка + самовознаграждение + сетка товаров) — вместе с
-     Настройками это и давало "вниз сильно много листать". Теперь это
-     только компактная карточка-переход, а само содержимое (те же id —
-     #shopList, #selfRewardCard и т.д., app.js их трогать не пришлось)
-     обёрнуто в #shopOverlay (position:fixed на весь экран, см. style.css),
-     физически осталось на том же месте в файле. -->
-<button type="button" class="profile-nav-card" id="openShopBtn">
-  <span class="profile-nav-card__icon">🛍️</span>
-  <span class="profile-nav-card__text"><b>ADAM Store</b><small>Алмазы, Premium и улучшения для ADAM</small></span>
-  <span class="profile-nav-card__chevron">›</span>
-</button>
-
-<div class="subpage-overlay" id="shopOverlay" hidden aria-hidden="true">
+<div class="subpage-overlay subpage-overlay--nested" id="shopOverlay" hidden aria-hidden="true">
 <div class="subpage-overlay__backdrop" id="shopOverlayBackdrop"></div>
 <div class="subpage-overlay__panel">
 <div class="subpage-overlay__header">
@@ -500,20 +487,7 @@ class="habit-add-form__submit">
      пользователей просто остаётся на дефолте 'ru', саму фичу можно будет
      вернуть в интерфейс, когда перевод будет доделан полностью. -->
 
-<!-- Просьба пользователя: Достижения + Прогресс (статистика, инсайты,
-     тепловая карта года, PDF-отчёт, AI-анализ) были ещё одной длинной
-     секцией прямо в Профиле — по тому же принципу, что и Магазин/
-     Настройки выше, сворачиваем их в компактную карточку-переход.
-     "Как к тебе обращаться" переехал внутрь Настроек (это тоже просто
-     персональная настройка, ему там самое место) — см. #settingsOverlay
-     ниже. Все id внутри не менялись, app.js их не трогал. -->
-<button type="button" class="profile-nav-card" id="openStatsBtn">
-  <span class="profile-nav-card__icon">📊</span>
-  <span class="profile-nav-card__text"><b>Прогресс и достижения</b><small>Статистика, награды, PDF-отчёт и AI-анализ</small></span>
-  <span class="profile-nav-card__chevron">›</span>
-</button>
-
-<div class="subpage-overlay" id="statsOverlay" hidden aria-hidden="true">
+<div class="subpage-overlay subpage-overlay--nested" id="statsOverlay" hidden aria-hidden="true">
 <div class="subpage-overlay__backdrop" id="statsOverlayBackdrop"></div>
 <div class="subpage-overlay__panel">
 <div class="subpage-overlay__header">
@@ -576,15 +550,16 @@ class="habit-add-form__submit">
 </div>
 </div>
 
-<!-- Просьба пользователя: и "Настройки", и "Данные и поддержка" были
-     двумя длинными секциями прямо в Профиле — теперь только компактная
-     карточка-переход, а само содержимое (обе секции целиком, без
-     изменений) обёрнуто в #settingsOverlay (position:fixed на весь
-     экран, см. style.css) — физически осталось на том же месте в файле,
-     просто показывается поверх всего, когда не hidden. -->
+<!-- Просьба пользователя: в Профиле должно остаться только самое важное,
+     всё остальное — за ОДНОЙ кнопкой "Настройки", открывающей единое
+     меню. Раньше здесь было три отдельные карточки (Магазин/Прогресс/
+     Настройки) — теперь Магазин и Прогресс с достижениями стали первыми
+     пунктами ВНУТРИ этого меню (см. #settingsOverlay ниже), рядом с
+     персонализацией (аватар/рамка) и обычными настройками — все id не
+     менялись, app.js их не трогал. -->
 <button type="button" class="profile-nav-card" id="openSettingsBtn">
   <span class="profile-nav-card__icon">⚙️</span>
-  <span class="profile-nav-card__text"><b>Настройки</b><small>Напоминания, аккаунт, данные и поддержка</small></span>
+  <span class="profile-nav-card__text"><b>Настройки</b><small>Магазин, прогресс, персонализация и вся остальная настройка</small></span>
   <span class="profile-nav-card__chevron">›</span>
 </button>
 
@@ -596,6 +571,28 @@ class="habit-add-form__submit">
   <h2 class="subpage-overlay__title">⚙️ Настройки</h2>
 </div>
 <div class="subpage-overlay__body">
+
+<button type="button" class="profile-nav-card" id="openShopBtn">
+  <span class="profile-nav-card__icon">🛍️</span>
+  <span class="profile-nav-card__text"><b>ADAM Store</b><small>Алмазы, Premium и улучшения для ADAM</small></span>
+  <span class="profile-nav-card__chevron">›</span>
+</button>
+
+<button type="button" class="profile-nav-card" id="openStatsBtn">
+  <span class="profile-nav-card__icon">📊</span>
+  <span class="profile-nav-card__text"><b>Прогресс и достижения</b><small>Статистика, награды, PDF-отчёт и AI-анализ</small></span>
+  <span class="profile-nav-card__chevron">›</span>
+</button>
+
+<div class="profile-cosmetics-panel">
+  <div class="profile-cosmetics-head">
+    <div><b>Аватар</b><small>Фото будет видно в профиле и рейтинге</small></div>
+    <button class="profile-photo-btn" id="profilePhotoBtn" type="button">Изменить фото</button>
+    <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+  </div>
+  <div class="profile-frame-head"><b>Рамка аватарки</b><small id="profileFrameHint">Выбери доступную рамку</small></div>
+  <div class="profile-frame-picker" id="profileFramePicker"></div>
+</div>
 
 <div class="settings-card">
 
@@ -1122,7 +1119,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260929_PROFILE_STATS_V4"></script>
+<script type="module" src="/static/app.js?v=20260929_PROFILE_HUB_V5"></script>
 
 </body>
 </html>

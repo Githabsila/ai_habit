@@ -9233,6 +9233,11 @@ body{
 .profile-nav-card__chevron{flex:0 0 auto;font-size:22px;color:#6f6b80;font-weight:400}
 
 .subpage-overlay{position:fixed;inset:0;z-index:1850}
+/* Магазин и Прогресс/достижения теперь открываются ИЗ Настроек (просьба
+   пользователя — в Профиле только самое важное + одна кнопка "Настройки"
+   на всё остальное) — им нужен z-index выше, чтобы лечь поверх уже
+   открытого #settingsOverlay, а не под него. */
+.subpage-overlay--nested{z-index:1860}
 .subpage-overlay[hidden]{display:none}
 .subpage-overlay__backdrop{
   position:absolute;inset:0;background:rgba(6,4,12,.62);
