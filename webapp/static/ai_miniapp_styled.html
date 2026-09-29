@@ -848,7 +848,7 @@ body{
 <body>
     <div id="root"></div>
 
-   <script src="/static/ai_coach.js?v=20260921_DARKONLY_V39"></script>
+   <script src="/static/ai_coach.js?v=20260929_UX_FIXES_V40"></script>
 </body>
 </html>
 <style>
@@ -1942,4 +1942,73 @@ body:after{
    занимает места в раскладке вообще, а bottom кладёт её ровно над
    композером, не залезая на текст. */
 .scroll-down-btn{position:fixed!important}
+</style>
+
+<style id="adam-chat-ux-fixes-v38">
+/* Просьба пользователя (скриншот из реального клиента, Swiftgram):
+   1) между нативной шапкой Telegram ("Назад") и нашей шапкой ADAM был
+      заметный лишний отступ;
+   2) текст ответов ADAM иногда рендерился с огромными неравномерными
+      пробелами между словами, а короткие "строки" (голое число "100",
+      "21:00") — посимвольно растянутыми. Раньше чинили только для <li>
+      (см. adam-chat-ultra-v37 выше, жалоба на видео) — теперь тот же фикс
+      работает для ЛЮБОГО текста внутри пузыря ответа, не только списков;
+   3) кнопка эмодзи в композере убрана (дублировала системную клавиатуру),
+      иконка микрофона теперь SVG-обводка в стиле нижней навигации
+      основного приложения (см. MIC_ICON_SVG в ai_coach.js), а не эмодзи;
+   4) переходы в чате получили единую сглаженную кривую вместо дефолтной
+      ease — только у ещё РАБОТАЮЩИХ анимаций, decorative-эффекты выше уже
+      намеренно отключены из-за жалоб на лаги в WebView, их не трогаем. */
+
+/* --- 1) отступ шапки: --tg-safe-top уже сам по себе учитывает высоту
+   нативной панели Telegram (contentSafeAreaInset+safeAreaInset, см.
+   applySafeArea() в ai_coach.js) — лишние +46px поверх него и давали
+   двойной отступ. --- */
+.header{
+  padding-top:calc(12px + var(--tg-safe-top, 0px)) !important;
+}
+
+/* --- 2) пробелы/раздвинутые символы в тексте ответа: применяем ко ВСЕМУ
+   содержимому пузыря, а не только к <li>. --- */
+.message-bubble,
+.message-bubble *{
+  text-align:left !important;
+  text-align-last:left !important;
+  word-spacing:normal !important;
+  letter-spacing:normal !important;
+  text-justify:auto !important;
+  -webkit-text-justify:auto !important;
+}
+
+/* --- 3) иконка микрофона: SVG вместо эмодзи, кнопка эмодзи удалена. --- */
+.voice-btn{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+.voice-btn-icon{
+  width:20px;height:20px;display:block;color:inherit;
+}
+.voice-btn-icon svg{width:100%;height:100%;display:block}
+.voice-btn-rec{
+  width:13px;height:13px;border-radius:50%;
+  background:#FF8D8D;
+  box-shadow:0 0 0 4px rgba(255,141,141,.18);
+}
+
+/* --- 4) единая плавная кривая для активных переходов. --- */
+.voice-btn,
+.send-btn,
+.icon-btn,
+.quick-toggle,
+.quick-toggle-chevron,
+.quick-grid button,
+.quick-arrow,
+.welcome-prompts button,
+.message-mini-actions button,
+.scroll-down-btn,
+.habit-suggestion .add-habit-btn,
+.rate-btn{
+  transition-timing-function:cubic-bezier(.4,0,.2,1) !important;
+}
 </style>

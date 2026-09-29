@@ -187,6 +187,14 @@ const FEEDBACK_REASONS = {
     off: 'ответ был не по теме, что нужно',
     unclear: 'ответ был непонятно объяснён',
 };
+// Просьба пользователя: иконка микрофона была голым эмодзи 🎙 — не в стиле
+// остального интерфейса. Тот же язык линий, что у иконок нижней навигации
+// в основном приложении (webapp/static/index.html, .tab-bar__icon) — обводка
+// currentColor толщиной 2, скруглённые концы, без заливки.
+const MIC_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="9" y="2.5" width="6" height="12" rx="3" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
 function AiChat() {
     const [messages, setMessages] = useState(loadStoredMessages);
     const [input, setInput] = useState('');
@@ -195,8 +203,6 @@ function AiChat() {
     const [quota, setQuota] = useState(null);
     const [listening, setListening] = useState(false);
     const [showTools, setShowTools] = useState(false);
-    const [showEmoji, setShowEmoji] = useState(false);
-    const [emojiTab, setEmojiTab] = useState('smile');
     const [copiedId, setCopiedId] = useState(null);
     const [toast, setToast] = useState('');
     const [online, setOnline] = useState(navigator.onLine);
@@ -402,18 +408,6 @@ function AiChat() {
         // записи никогда не оставит позднюю расшифровку в поле.
         cancelVoiceForSend();
         sendText(input);
-    };
-    const EMOJIS = {
-        smile: '😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😛 😜 🤪 🤨 🧐 🤓 😎 🤩 🥳 😏 😭 😂 😤 😱 😴 🤔 🤗 🤭 🤫 🤠 🫡',
-        hearts: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💕 💞 💓 💗 💖 💘 💝 💟 ❣️ 💔 ❤️‍🔥 ❤️‍🩹',
-        hands: '👍 👎 👌 ✌️ 🤞 🤟 🤘 🤙 👋 🫶 🙌 👏 👐 🤝 🙏 ✍️ 💪 🫵 ☝️ ✋ 🖐️',
-        fun: '🔥 ✨ ⭐ 🌟 💫 ⚡ 🎉 🎊 🎯 🚀 🧠 💡 🏆 🥇 🎮 🎵 🎨 ☕ 🍕 🍔 🍩 🥤 🦄 🐸 🐼 🐱 🐶 🦊 🐻'
-    };
-    const addEmoji = (emoji) => {
-        setInput(v => v + emoji);
-        setShowEmoji(false);
-        requestAnimationFrame(resizeInput);
-        vibrate('light');
     };
     const showToast = (text) => {
         setToast(text);
@@ -708,12 +702,8 @@ function AiChat() {
             throttle,
             " \u0441\u0435\u043A."),
         React.createElement("div", { className: "input-area" },
-            showEmoji && React.createElement("div", { className: "emoji-panel" },
-                React.createElement("div", { className: "emoji-tabs" }, Object.keys(EMOJIS).map(t => React.createElement("button", { key: t, className: `emoji-tab ${emojiTab === t ? 'active' : ''}`, onClick: () => setEmojiTab(t) }, t === 'smile' ? '😊' : t === 'hearts' ? '❤️' : t === 'hands' ? '👍' : '🔥'))),
-                React.createElement("div", { className: "emoji-grid" }, EMOJIS[emojiTab].split(' ').map((e, i) => React.createElement("button", { key: i, onClick: () => addEmoji(e) }, e)))),
             React.createElement("div", { className: "input-row composer-row" },
                 React.createElement("div", { className: "composer-glow" }),
-                React.createElement("button", { className: "emoji-launcher", onClick: () => { setShowEmoji(v => !v); vibrate('light'); }, title: "\u042D\u043C\u043E\u0434\u0437\u0438" }, "\uD83D\uDE0A"),
                 React.createElement("div", { className: "input-wrapper" },
                     React.createElement("textarea", { ref: textareaRef, maxLength: 6000, value: input, enterKeyHint: "send", onChange: e => {
                             // \u041D\u0430 \u0447\u0430\u0441\u0442\u0438 \u043C\u043E\u0431\u0438\u043B\u044C\u043D\u044B\u0445 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440 (Gboard/Samsung Keyboard \u0438 \u0442.\u0434.)
@@ -736,7 +726,10 @@ function AiChat() {
                             e.preventDefault();
                             sendMsg();
                         } }, placeholder: "\u041D\u0430\u043F\u0438\u0448\u0438 ADAM...", disabled: loading || throttle, rows: "1" })),
-                React.createElement("button", { className: `voice-btn ${listening ? 'is-listening' : ''}`, onClick: startVoice, disabled: loading, title: "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434" }, listening ? '●' : '🎙'),
+                React.createElement("button", { className: `voice-btn ${listening ? "is-listening" : ""}`, onClick: startVoice, disabled: loading, title: "Голосовой ввод" },
+                    listening
+                        ? React.createElement("span", { className: "voice-btn-rec" })
+                        : React.createElement("span", { className: "voice-btn-icon", dangerouslySetInnerHTML: { __html: MIC_ICON_SVG } })),
                 React.createElement("button", { className: "send-btn", onClick: sendMsg, disabled: !input.trim() || loading || throttle, "aria-label": "\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C" }, loading ? React.createElement("div", { className: "spinner" }) : '➤')),
             ),
         toast && React.createElement("div", { className: "adam-toast show" }, toast));
