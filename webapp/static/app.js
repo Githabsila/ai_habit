@@ -1363,6 +1363,12 @@
   let onboardingHabitDoneOnce = false;
   let onboardingMainGoalDoneOnce = false;
   let addAnotherHabitPromptShown = false;
+  // Просьба пользователя: "Показать подсказки заново" должно всегда
+  // начинать именно с шага 1 — без этого флага scheduleProductOnboarding
+  // ниже ориентировался на hasHabits/hasMainGoal и у пользователя, который
+  // уже прошёл часть сценария, тур при повторном показе стартовал не с
+  // первого шага, а с того, до которого тот уже дошёл по факту.
+  let onboardingReplayPending = false;
 
   // 7 шагов (было 5 — просьба пользователя рассказать ещё и про список
   // привычек, и про второстепенные задачи, а не только про кнопки
@@ -1674,6 +1680,11 @@
     api('/api/onboarding/start', { method: 'POST' }).catch(() => {});
     productOnboardingTimers.forEach(clearTimeout);
     productOnboardingTimers = [];
+    if (onboardingReplayPending) {
+      onboardingReplayPending = false;
+      productOnboardingTimers.push(setTimeout(() => showProductHint(1), 700));
+      return;
+    }
     const hasHabits = (state?.habits || []).length > 0;
     const hasMainGoal = !!state?.daily_plan?.main_goal;
     if (!hasHabits) {
@@ -5168,6 +5179,7 @@ function initDataSupportActions() {
         state.product_onboarding = { onboarding_stage: 0, onboarding_started_at: null };
       }
       appTourShownThisSession = false;
+      onboardingReplayPending = true;
       document.querySelector('.tab-bar__item[data-tab="home"]')?.click();
       haptic("light");
       maybeShowAppTour();
