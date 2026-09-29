@@ -1608,7 +1608,7 @@
         // "Вперёд" — завершает тур (а не просто повисает без выхода).
         const finish = document.createElement('button');
         finish.type = 'button';
-        finish.className = 'product-onboarding-hint__action product-onboarding-hint__action--primary';
+        finish.className = 'product-onboarding-hint__action product-onboarding-hint__action--primary product-onboarding-hint__action--finish';
         finish.textContent = 'Вперёд';
         finish.addEventListener('click', () => {
           hideProductHint();
