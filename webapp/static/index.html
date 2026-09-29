@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20260929_PROFILE_HUB_V5">
+<link rel="stylesheet" href="/static/style.css?v=20260929_SHOP_HINTS_V6">
 </head>
 <body>
 
@@ -416,15 +416,17 @@ class="habit-add-form__submit">
   </div>
 </div>
 
-<!-- Просьба пользователя: в Профиле должно остаться только самое важное
-     (стрик/аватар/питомец), а всё остальное — за ОДНОЙ кнопкой
-     "Настройки" единым меню. Магазин, Прогресс/достижения и
-     персонализация (аватар/рамка) больше не отдельные карточки прямо
-     здесь — они переехали внутрь #settingsOverlay (см. ниже), сама
-     кнопка "Настройки" осталась единственной точкой входа. Оверлеи
-     #shopOverlay/#statsOverlay физически остались на том же месте в
-     файле (position:fixed — их место в DOM не влияет на то, где они
-     рисуются), просто их кнопки-триггеры теперь внутри Настроек. -->
+<!-- Просьба пользователя: Магазин ADAM вернулся отдельной компактной
+     карточкой прямо в Профиль — не должен прятаться внутри Настроек.
+     Прогресс/достижения и персонализация (аватар/рамка) остаются внутри
+     #settingsOverlay (см. ниже). Оверлей #shopOverlay физически остался
+     на том же месте в файле (position:fixed — его место в DOM не влияет
+     на то, где он рисуется). -->
+<button type="button" class="profile-nav-card" id="openShopBtn">
+  <span class="profile-nav-card__icon">🛍️</span>
+  <span class="profile-nav-card__text"><b>ADAM Store</b><small>Алмазы, Premium и улучшения для ADAM</small></span>
+  <span class="profile-nav-card__chevron">›</span>
+</button>
 
 <div class="subpage-overlay subpage-overlay--nested" id="shopOverlay" hidden aria-hidden="true">
 <div class="subpage-overlay__backdrop" id="shopOverlayBackdrop"></div>
@@ -559,7 +561,7 @@ class="habit-add-form__submit">
      менялись, app.js их не трогал. -->
 <button type="button" class="profile-nav-card" id="openSettingsBtn">
   <span class="profile-nav-card__icon">⚙️</span>
-  <span class="profile-nav-card__text"><b>Настройки</b><small>Магазин, прогресс, персонализация и вся остальная настройка</small></span>
+  <span class="profile-nav-card__text"><b>Настройки</b><small>Прогресс, персонализация и вся остальная настройка</small></span>
   <span class="profile-nav-card__chevron">›</span>
 </button>
 
@@ -571,12 +573,6 @@ class="habit-add-form__submit">
   <h2 class="subpage-overlay__title">⚙️ Настройки</h2>
 </div>
 <div class="subpage-overlay__body">
-
-<button type="button" class="profile-nav-card" id="openShopBtn">
-  <span class="profile-nav-card__icon">🛍️</span>
-  <span class="profile-nav-card__text"><b>ADAM Store</b><small>Алмазы, Premium и улучшения для ADAM</small></span>
-  <span class="profile-nav-card__chevron">›</span>
-</button>
 
 <button type="button" class="profile-nav-card" id="openStatsBtn">
   <span class="profile-nav-card__icon">📊</span>
@@ -1119,7 +1115,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script type="module" src="/static/app.js?v=20260929_PROFILE_HUB_V5"></script>
+<script type="module" src="/static/app.js?v=20260929_SHOP_HINTS_V6"></script>
 
 </body>
 </html>

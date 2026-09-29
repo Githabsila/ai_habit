@@ -3448,6 +3448,16 @@ section[data-tab="home"] .plan-main::before{
   padding:18px var(--rp-pad-x) 8px;
   margin:0 0 16px;
 }
+/* Жалоба пользователя: пустой рейтинг (app.js::renderRating очищает
+   #ratingPodium, когда лидерборда ещё нет) оставлял пустой промежуток
+   между переключателем "Всё время/Сезон" и заголовком "Лидерборд" — этот
+   padding/margin рассчитан под 3 карточки подиума и не учитывал пустое
+   состояние. Полное схлопывание независимо от вьюпорта (доп.
+   min-height:0 для мобильного @media чуть ниже). */
+.rating-podium:empty{
+  padding:0;
+  margin:0;
+}
 .rating-podium::before{
   content:"";
   position:absolute;
@@ -3748,6 +3758,19 @@ section[data-tab="home"] .plan-main::before{
     min-height: 215px;
     gap: var(--rp-gap) !important;
     padding-inline: var(--rp-pad-x);
+  }
+
+  /* Жалоба пользователя: когда рейтинг пуст (app.js::renderRating очищает
+     #ratingPodium в этом случае), между переключателем "Всё время/Сезон"
+     и заголовком "Лидерборд" оставался пустой промежуток высотой 215px —
+     min-height выше рассчитан под 3 карточки подиума и не учитывал
+     пустое состояние. :empty матчит только реально пустой innerHTML
+     (то самое podium.innerHTML = ""), не задевая обычный подиум с
+     карточками. */
+  .rating-podium:empty {
+    min-height: 0;
+    padding: 0;
+    margin: 0;
   }
 
   .rating-podium > :nth-child(1),
@@ -11084,6 +11107,7 @@ body{
 .rating-hero p{font-size:11px!important;color:rgba(255,255,255,.47)!important;}
 .rating-hero__stats{margin-top:15px!important;}
 .rating-podium{margin-top:11px!important;}
+.rating-podium:empty{margin-top:0!important;min-height:0!important;padding:0!important;}
 .rating-item{border-radius:18px!important;background:rgba(255,255,255,.035)!important;border-color:rgba(255,255,255,.055)!important;}
 .rating-rest-head{margin:17px 4px 8px!important;font-size:10px!important;font-weight:900!important;letter-spacing:.08em!important;text-transform:uppercase!important;color:rgba(255,255,255,.40)!important;}
 
