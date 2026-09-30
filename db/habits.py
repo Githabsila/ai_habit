@@ -656,8 +656,17 @@ def complete_habit(habit_id):
     check_achievements(user_id)
 
     # Roadmap #11 — виртуальный питомец кормится каждой отметкой привычки.
-    from .pets import feed_pet
-    pet_result = feed_pet(user_id, day_key(local_today(user_id)))
+    # Баг (жалоба пользователя, скриншот): feed_pet() возвращает урезанный
+    # набор полей (нет next_stage_points/next_stage_emoji/is_max_stage) —
+    # app.js::renderPetWidget ждёт ту же форму, что отдаёт get_pet() при
+    # обычной загрузке, и без этих полей считал "Ещё NaN привычек до
+    # undefined". Берём evolved/emoji/stage_name из feed_pet() (сразу после
+    # кормления, для тоста об эволюции), а сам pet_result — из get_pet(),
+    # чтобы форма всегда совпадала с тем, что уже показывает фронт.
+    from .pets import feed_pet, get_pet
+    pet_feed_result = feed_pet(user_id, day_key(local_today(user_id)))
+    pet_result = get_pet(user_id)
+    pet_result["evolved"] = pet_feed_result["evolved"]
 
     # Roadmap #18 — рубеж серии попадает в ленту активности друзей.
     from .streak import STREAK_FORECAST_MILESTONES

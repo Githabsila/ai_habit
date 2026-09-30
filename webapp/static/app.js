@@ -3253,7 +3253,21 @@ async function celebrateHabitCompletion(result) {
 // реально могло поменяться, без единого лишнего запроса или перерисовки.
 function applyActionPatch(result) {
   if (!state || !result) return;
-  if (result.user) Object.assign(state.user, result.user);
+  if (result.user) {
+    Object.assign(state.user, result.user);
+    // Жалоба пользователя: модалка "LEVEL UP" появлялась с задержкой в
+    // 15-20 минут после реального повышения уровня — раньше её показывал
+    // только loadBootstrap() (полная перезагрузка), а applyActionPatch
+    // (лёгкий патч после каждой отметки привычки, см. комментарий ниже)
+    // молча обновлял state.user.level без сравнения со старым значением.
+    // Дублируем ту же проверку knownLevel здесь, чтобы левел-ап праздновался
+    // сразу, а не при следующей случайной полной перезагрузке.
+    const newLevel = state.user.level;
+    if (knownLevel !== null && newLevel > knownLevel) {
+      showLevelUp(newLevel);
+    }
+    knownLevel = newLevel;
+  }
   let habitPatched = false;
   if (result.habit) {
     const idx = (state.habits || []).findIndex(h => h.id === result.habit.id);

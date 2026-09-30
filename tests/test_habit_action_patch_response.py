@@ -92,3 +92,28 @@ async def test_bootstrap_habits_match_shape_used_by_action_patch(client, uid):
     action_habit = (await r2.json())["habit"]
 
     assert set(bootstrap_habit.keys()) == set(action_habit.keys())
+
+
+async def test_bootstrap_pet_matches_shape_used_by_action_patch(client, uid):
+    """Баг (жалоба пользователя, скриншот): /complete раньше клал в "pet"
+    урезанный db.pets.feed_pet() (без next_stage_points/next_stage_emoji/
+    is_max_stage) вместо полного db.pets.get_pet() — тот же, что отдаёт
+    /api/bootstrap. app.js::renderPetWidget() читает next_stage_points и
+    next_stage_emoji безусловно (когда не is_max_stage), поэтому после
+    отметки привычки виджет питомца показывал "Ещё NaN привычек до
+    undefined" до следующей полной перезагрузки."""
+    add_user(uid, "u", "Test")
+    headers = await _headers(uid)
+    r = await client.post("/api/habits", headers=headers, json={"title": "Пить воду"})
+    habit_id = (await r.json())["habit"]["id"]
+
+    r_boot = await client.get("/api/bootstrap", headers=headers)
+    bootstrap_pet = (await r_boot.json())["pet"]
+
+    r2 = await client.post(f"/api/habits/{habit_id}/complete", headers=headers)
+    action_pet = (await r2.json())["pet"]
+
+    assert set(bootstrap_pet.keys()) <= set(action_pet.keys())
+    assert "next_stage_points" in action_pet
+    assert "next_stage_emoji" in action_pet
+    assert "is_max_stage" in action_pet
