@@ -288,3 +288,29 @@ def claim_ai_first_message(user_id):
     conn.commit()
     conn.close()
     return claimed
+
+
+def get_users_needing_ai_welcome_nudge(min_minutes=4, max_minutes=30):
+    """Кандидаты на приветственный пуш "Привет! Я Adam..." (см.
+    coach.py::run_ai_welcome_nudge) — просьба пользователя: если человек
+    так и не написал ADAM ни разу за первые минуты после регистрации,
+    напомнить о нём боту.
+
+    created_at <= now-min_minutes — не раньше min_minutes с регистрации
+    (даём шанс увидеть бейдж/подсказку в самом Mini App сначала).
+    created_at >= now-max_minutes — верхняя граница ВАЖНА: без неё при
+    первом же деплое этой функции джоба нашла бы вообще всех исторических
+    пользователей с ai_intro_shown=0 и разом отправила бы им всем это
+    сообщение, а не только реально свежим регистрациям."""
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT telegram_id FROM users
+        WHERE COALESCE(ai_intro_shown, 0) = 0
+          AND COALESCE(banned, 0) = 0
+          AND created_at <= datetime('now', ?)
+          AND created_at >= datetime('now', ?)
+    """, (f"-{min_minutes} minutes", f"-{max_minutes} minutes"))
+    rows = cursor.fetchall()
+    conn.close()
+    return [row["telegram_id"] for row in rows]

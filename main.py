@@ -24,6 +24,7 @@ from coach import (
     run_day_progress_check,
     run_week_start_ping, run_week_end_ping, run_month_start_ping, run_month_end_ping,
     run_planned_time_reminders,
+    run_ai_welcome_nudge,
 )
 from onboarding_auto import run_auto_approve
 from goal_feedback import run_goal_feedback
@@ -164,6 +165,9 @@ async def main():
     scheduler.add_job(run_habit_checkpoint_22, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_day_progress_check, "interval", minutes=1, args=[bot])
     # 19:00 — единая сверка главной + второстепенных задач.
+    # Разовое приглашение начать диалог с ADAM — 4-30 минут после
+    # регистрации, только если человек так и не написал ему ни разу.
+    scheduler.add_job(run_ai_welcome_nudge, "interval", minutes=1, args=[bot])
 
     # --- Промт п.8: начало/конец недели и месяца ---
     scheduler.add_job(run_week_start_ping, "cron", day_of_week="mon", hour=7, minute=0, args=[bot])

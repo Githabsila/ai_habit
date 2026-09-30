@@ -514,26 +514,31 @@ function AiChat() {
             setLoading(false);
         }
     };
-    // Раньше можно было только "Повторить" последний вопрос — сбросить
-    // весь видимый диалог было нельзя, старые сообщения копились до
-    // бесконечности. Чистит только ЭКРАН (sessionStorage + локальное
-    // состояние) — история на сервере (get_ai_history) не трогается,
-    // так что долгосрочная память ADAM о пользователе не теряется,
-    // просто следующий openHistory-запрос при перезаходе всё равно
-    // подтянет её обратно. Это осознанный выбор: "чистый экран" ощущается
-    // как новый диалог, не требуя отдельного эндпоинта на удаление истории.
+    // Жалоба пользователя: "очистка сообщений не работает" — раньше кнопка
+    // чистила только ЭКРАН (sessionStorage + локальное состояние), а
+    // история на сервере (get_ai_history) оставалась и следующий же
+    // openHistory-запрос при перезаходе подтягивал её обратно, так что
+    // "очистка" выглядела нерабочей. Теперь зовём /api/ai/clear — реально
+    // удаляет переписку в БД (db.clear_ai_history), а не только прячет её.
     const startNewDialog = () => {
-        const clear = () => {
+        const clear = async () => {
             setMessages([]);
             try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch (e) { }
             vibrate('medium');
+            try {
+                await fetch('/api/ai/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ init_data: tg.initData }),
+                });
+            } catch (e) { /* экран уже очищен — молча пробуем позже, не блокируем пользователя */ }
         };
         if (!messages.length) { clear(); return; }
         try {
-            tg.showConfirm('Начать новый диалог? Текущий останется в истории, но исчезнет с экрана.', (ok) => { if (ok) clear(); });
+            tg.showConfirm('Удалить всю переписку с ADAM? Это действие нельзя отменить.', (ok) => { if (ok) clear(); });
         }
         catch (e) {
-            if (window.confirm('Начать новый диалог? Текущий останется в истории, но исчезнет с экрана.')) clear();
+            if (window.confirm('Удалить всю переписку с ADAM? Это действие нельзя отменить.')) clear();
         }
     };
     const quickPrompts = [
@@ -654,8 +659,8 @@ function AiChat() {
         React.createElement("div", { className: "messages-container", ref: messagesContainerRef }, messages.length === 0 ? React.createElement("div", { className: "empty-state" },
             React.createElement("div", { className: "empty-icon" },
                 React.createElement("img", { src: "/static/assets/adam-avatar.webp", alt: "ADAM" })),
-            React.createElement("div", { className: "empty-title" }, "\u041F\u0440\u0438\u0432\u0435\u0442, \u044F ADAM \uD83D\uDC4B"),
-            React.createElement("div", { className: "empty-text" }, "\u042F \u043F\u043E\u043C\u043E\u0433\u0430\u044E \u043F\u043B\u0430\u043D\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0434\u0435\u043D\u044C, \u0440\u0430\u0431\u043E\u0442\u0430\u0442\u044C \u0441 \u043F\u0440\u0438\u0432\u044B\u0447\u043A\u0430\u043C\u0438, \u0440\u0430\u0437\u0431\u0438\u0440\u0430\u0442\u044C \u043F\u0440\u043E\u0431\u043B\u0435\u043C\u044B \u0438 \u0432\u0438\u0434\u0435\u0442\u044C \u0442\u0432\u043E\u0439 \u043F\u0440\u043E\u0433\u0440\u0435\u0441\u0441."),
+            React.createElement("div", { className: "empty-title" }, "\u041F\u0440\u0438\u0432\u0435\u0442! \u042F ADAM \uD83D\uDC4B"),
+            React.createElement("div", { className: "empty-text" }, "\u0422\u0432\u043E\u0439 \u043B\u0438\u0447\u043D\u044B\u0439 \u043C\u0435\u043D\u0442\u043E\u0440 \u0438 \u043D\u0430\u043F\u0430\u0440\u043D\u0438\u043A \u043F\u043E \u043F\u0440\u0438\u0432\u044B\u0447\u043A\u0430\u043C: \u043F\u043E\u043C\u043E\u0433\u0443 \u0432\u044B\u0441\u0442\u0440\u043E\u0438\u0442\u044C \u0440\u0435\u0436\u0438\u043C, \u043F\u0440\u043E\u043A\u0430\u0447\u0430\u044E \u0434\u0438\u0441\u0446\u0438\u043F\u043B\u0438\u043D\u0443 \u0438\u043B\u0438 \u043F\u0440\u043E\u0441\u0442\u043E \u043F\u043E\u0431\u043E\u043B\u0442\u0430\u0435\u043C \u043E \u0442\u043E\u043C, \u0447\u0442\u043E \u0441\u0435\u0439\u0447\u0430\u0441 \u043C\u0435\u0448\u0430\u0435\u0442 \u0434\u0432\u0438\u0433\u0430\u0442\u044C\u0441\u044F \u0432\u043F\u0435\u0440\u0451\u0434. \u0421 \u043A\u0430\u043A\u043E\u0439 \u0446\u0435\u043B\u0438 \u043D\u0430\u0447\u043D\u0451\u043C?"),
             React.createElement("div", { className: "welcome-prompts" }, quickPrompts.slice(0, 3).map(([icon, label]) => React.createElement("button", { key: label, onClick: () => sendText(label) },
                 React.createElement("span", null, icon),
                 label)))) : React.createElement(React.Fragment, null,

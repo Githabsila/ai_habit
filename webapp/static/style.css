@@ -1378,6 +1378,25 @@ opacity:.35;
     /* см. комментарий у .tab-bar__item выше — "transition:.3s ease" без
        свойства = ALL. */
     transition: transform .3s ease, color .3s ease, text-shadow .3s ease;
+    position: relative;
+}
+
+/* Непрочитанное "сообщение" от ADAM на кнопке ИИ, пока пользователь ни
+   разу не написал ему — просьба пользователя, тот же приём, что бейдж
+   непрочитанного у приложений в телефоне. Видимость переключает app.js
+   по user.ai_intro_shown. */
+.tab-bar__badge{
+    position: absolute;
+    top: -2px;
+    right: -5px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 0 2px #0E0B14, 0 0 8px rgba(239,68,68,.65);
+}
+.tab-bar__badge[hidden]{
+    display: none;
 }
 
 .tab-bar__item.is-active{

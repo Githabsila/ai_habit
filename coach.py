@@ -16,6 +16,9 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from config import WEBAPP_URL
+
 from db import (
     get_all_users,
     get_settings,
@@ -37,6 +40,7 @@ from db import (
     reminder_category_enabled, in_quiet_hours,
     get_streak_reengagement_state, has_completed_today,
     get_habit_checkpoint_style,
+    get_users_needing_ai_welcome_nudge,
 )
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from adam_messages import (
@@ -556,6 +560,84 @@ async def run_day_progress_check(bot):
 
 # Старую отдельную вечернюю сверку 22:30 намеренно не запускаем:
 # в 19:00 пользователь получает единую картину по главной + второстепенным задачам.
+
+# =====================================
+# ЗНАКОМСТВО С ADAM (просьба пользователя)
+# =====================================
+# Если человек за первые минуты после регистрации так и не написал ADAM
+# ни разу — не увидел/не заметил ни бейдж непрочитанного на кнопке ИИ, ни
+# подсказку онбординга (app.js::PRODUCT_ONBOARDING_STEPS[10]) — догоняем
+# его тут же в боте коротким приглашением начать диалог.
+
+AI_WELCOME_NUDGE_TEXT = (
+    "Привет! Я Adam, твой личный ментор и напарник по привычкам: можем "
+    "выстроить режим, прокачать дисциплину или просто поболтать о том, "
+    "что сейчас мешает двигаться вперёд. С какой цели начнём?"
+)
+
+
+def _ai_welcome_keyboard():
+    if not WEBAPP_URL:
+        return None
+    # web_app=WebAppInfo (не обычная url-кнопка) — та же причина, что и у
+    # streak_scheduler.py::_countdown_keyboard: открывает Mini App с
+    # сохранённой авторизацией Telegram, а не внешний браузер без initData.
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💬 Написать ADAM", web_app=WebAppInfo(url=f"{WEBAPP_URL}/coach"))]
+        ]
+    )
+
+
+async def run_ai_welcome_nudge(bot):
+    """Тикает каждую минуту; сама функция берёт только тех, кто
+    зарегистрировался 4-30 минут назад и ещё ни разу не писал ADAM (см.
+    db/ai.py::get_users_needing_ai_welcome_nudge). Разовое сообщение
+    НАВСЕГДА — claim_notification(..., day="once", ...), а не day=today:
+    обычный day=today-ключ подходит для ЕЖЕДНЕВНО повторяющихся
+    уведомлений (risk23, morning_6 и т.п.), а это приглашение должно уйти
+    только один раз в жизни пользователя, иначе на следующий день
+    claim_notification снова бы "разрешил" отправку под новым днём."""
+    if not bot:
+        return
+
+    scope = notification_scope(bot)
+    sent = 0
+
+    for telegram_id in get_users_needing_ai_welcome_nudge():
+        try:
+            settings = get_settings(telegram_id)
+            # Нет отдельной категории под "знакомство с AI" — используем
+            # "habits" как ближайшую: важна в первую очередь проверка
+            # ОБЩЕГО тумблера reminders внутри reminder_category_enabled,
+            # выключивший все напоминания точно не должен получать и это.
+            if not reminder_category_enabled(settings, "habits"):
+                continue
+
+            now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+            if in_quiet_hours(settings, now_local):
+                continue
+
+            if not claim_notification(telegram_id, "once", "ai_welcome_nudge", scope):
+                continue
+
+            try:
+                await bot.send_message(
+                    telegram_id,
+                    AI_WELCOME_NUDGE_TEXT,
+                    reply_markup=_ai_welcome_keyboard(),
+                )
+            except Exception:
+                release_notification(telegram_id, "once", "ai_welcome_nudge", scope)
+                raise
+            sent += 1
+
+        except Exception as e:
+            log_error("ai_welcome_nudge", e, telegram_id)
+
+    if sent:
+        logger.info(f"Знакомство с ADAM (новые пользователи без диалога): отправлено {sent} сообщений")
+
 
 # =====================================
 # ПЕРИОДИЧЕСКИЕ МОТИВАЦИОННЫЕ СООБЩЕНИЯ

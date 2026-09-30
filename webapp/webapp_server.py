@@ -341,6 +341,9 @@ def _shape_user(telegram_id, user, is_admin=False):
         "archetype": (ARCHETYPES.get(user["archetype"]) if user and "archetype" in user.keys() and user["archetype"] else None),
         "xp_boosted": is_xp_booster_active(telegram_id),
         "xp_boost_until": user["bonus_2x_xp_until"] if user and "bonus_2x_xp_until" in user.keys() else None,
+        # Бейдж непрочитанного на кнопке ИИ (просьба пользователя) — пока
+        # человек ни разу не писал ADAM. См. db/ai.py::claim_ai_first_message.
+        "ai_intro_shown": bool(user["ai_intro_shown"]) if user and "ai_intro_shown" in user.keys() else False,
     }
 
 

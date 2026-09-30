@@ -1370,25 +1370,35 @@
   // первого шага, а с того, до которого тот уже дошёл по факту.
   let onboardingReplayPending = false;
 
-  // 9 шагов (было 7 — просьба пользователя добавить подсказки и про
-  // Магазин ADAM, и про Настройки в Профиле, раз уж там теперь свои
-  // компактные кнопки-переходы).
+  // 10 шагов (было 9 — просьба пользователя закончить тур отдельным,
+  // более подробным шагом про чат с ADAM: акцент на AI-наставнике и на
+  // том, чтобы человек реально начал диалог, а не просто узнал, где
+  // находится кнопка).
   const PRODUCT_ONBOARDING_STEPS = {
     1: { target: '#addHabitTrigger', title: 'Начни с одной привычки', text: 'Нажми сюда, чтобы добавить первую.', icon: '🎯' },
     2: { target: '.habits-panel', title: 'Твои привычки', text: 'Список появится здесь — нажимай на привычку, чтобы отметить её выполненной сегодня.', icon: '✅' },
     3: { target: '#mainGoalEditor', title: 'Главное дело на сегодня', text: 'Одна задача, которую точно сделаешь.', icon: '✨' },
     4: { target: '#addPlanTaskTrigger', title: 'Второстепенные задачи', text: 'Кроме главного дела можно добавить ещё несколько — необязательных, но чтобы не забыть.', icon: '📝' },
-    5: { target: '[data-tab="calendar"]', title: 'Календарь', text: 'Здесь виден твой прогресс по дням.', icon: '📅' },
-    6: { target: '[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.', icon: '🏆' },
-    7: { target: '[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь.', icon: '👤' },
+    // Баг, найденный попутно: '[data-tab="calendar"]' сам по себе матчит
+    // ПЕРВЫЙ элемент с таким атрибутом в DOM — а это <section class=
+    // "tab-panel" data-tab="calendar">, а не кнопка вкладки (та же атрибут-
+    // связка есть и у .tab-bar__item ниже по разметке). Из-за этого
+    // прожектор шагов 5-7 обводил всю страницу раздела целиком вместо
+    // маленькой иконки внизу — .tab-bar__item делает селектор однозначным.
+    5: { target: '.tab-bar__item[data-tab="calendar"]', title: 'Календарь', text: 'Здесь виден твой прогресс по дням.', icon: '📅' },
+    6: { target: '.tab-bar__item[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.', icon: '🏆' },
+    7: { target: '.tab-bar__item[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь.', icon: '👤' },
     8: { target: '#openShopBtn', title: 'ADAM Store', text: 'Алмазы, Premium и улучшения для ADAM — здесь же можно вознаградить себя.', icon: '🛍️' },
     9: { target: '#openSettingsBtn', title: 'Настройки', text: 'Прогресс, достижения, персонализация и всё остальное — одной кнопкой.', icon: '⚙️' },
+    10: { target: '#aiCoachBtn', title: 'ADAM — твой личный ИИ-наставник', text: 'Планирует день, разбирает проблемы, следит за прогрессом и просто поддержит разговор. Напиши хотя бы пару сообщений — и сразу увидишь, чем он полезен.', icon: '✦' },
   };
   // Вкладка, на которой живёт цель каждого шага — нужно, чтобы кнопки
   // "Назад"/"Далее" внутри подсказки (просьба пользователя: "переходить
   // между шагами") сами переключали вкладку, а не просто молча не находили
-  // цель на неактивной вкладке.
-  const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'home', 4: 'home', 5: 'calendar', 6: 'rating', 7: 'profile', 8: 'profile', 9: 'profile' };
+  // цель на неактивной вкладке. У шага 10 цель (#aiCoachBtn) — часть
+  // постоянной нижней навигации, как и у шагов 5-7, поэтому вкладка не
+  // важна — оставляем ту же, что и у шага 9, чтобы не дёргать её лишний раз.
+  const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'home', 4: 'home', 5: 'calendar', 6: 'rating', 7: 'profile', 8: 'profile', 9: 'profile', 10: 'profile' };
   const CONTEXT_TAB_STAGE = { calendar: 5, rating: 6, profile: 7 };
 
   function clearProductOnboardingTarget() {
@@ -1551,6 +1561,9 @@
     productOnboardingTimers = [];
     if (state) state.show_app_tour = false;
     api('/api/tour/seen', { method: 'POST' }).catch(() => {});
+    // Бейдж на кнопке ИИ условлен и на show_app_tour (см. renderPlayerCard) —
+    // без этого вызова он появился бы только после следующей перезагрузки.
+    renderPlayerCard();
   }
 
   // Переход на конкретный шаг онбординга вручную (кнопки "Назад"/"Далее" в
@@ -1608,14 +1621,20 @@
       } else {
         // Просьба пользователя: на последнем шаге снизу должна быть кнопка
         // "Вперёд" — завершает тур (а не просто повисает без выхода).
+        // Последний шаг теперь про чат с ADAM (просьба: акцент на AI и
+        // на том, чтобы человек реально начал диалог) — финиш ведёт прямо
+        // в /coach, а не просто закрывает подсказку тостом.
         const finish = document.createElement('button');
         finish.type = 'button';
         finish.className = 'product-onboarding-hint__action product-onboarding-hint__action--primary product-onboarding-hint__action--finish';
-        finish.textContent = 'Вперёд';
+        finish.textContent = 'Написать ADAM →';
         finish.addEventListener('click', () => {
           hideProductHint();
           finishStartOnboarding();
-          showToast('Готово! Теперь ты знаешь, где что находится 🎉', 'success');
+          haptic('light');
+          const overlay = document.getElementById('loadingOverlay');
+          if (overlay) overlay.hidden = false;
+          setTimeout(() => { window.location.href = '/coach'; }, 60);
         });
         actions.appendChild(finish);
       }
@@ -2171,6 +2190,15 @@
         // имя/приветствие визуально и по кликам перекрывает кнопку.
         adminBtn.closest(".player-card")?.classList.toggle("has-admin-btn", !!u.is_admin);
     }
+
+    // Бейдж непрочитанного на кнопке ИИ (просьба пользователя): только
+    // после того, как стартовый тур закрыт/пройден (иначе дублирует
+    // прожектор шага 10, который и так указывает на эту же кнопку) И
+    // пользователь ни разу не писал ADAM. renderPlayerCard зовётся и из
+    // loadBootstrap, и из applyActionPatch — единая точка, актуальна сразу
+    // после любого действия, а не только после полной перезагрузки.
+    const aiBadge = document.getElementById("aiCoachBadge");
+    if (aiBadge) aiBadge.hidden = !!u.ai_intro_shown || !!state.show_app_tour;
 
     const xpIntoLevel = Math.max(0, Math.min(99.999, (u.total_xp ?? u.xp ?? 0) % 100));
     document.getElementById("xpLabel").textContent = `${Math.floor(xpIntoLevel)} / 100 XP`;

@@ -5,6 +5,7 @@ API endpoints для мини-приложения AI-наставника.
 Эндпоинты:
   POST /api/ai/chat        — отправить сообщение AI, получить ответ
   GET  /api/ai/history     — загрузить историю чата
+  POST /api/ai/clear       — удалить всю переписку с ADAM
   POST /api/ai/feedback    — оценить ответ (👍/👎)
   POST /api/ai/tip         — получить совет дня
 """
@@ -16,6 +17,7 @@ from datetime import date
 from db import (
     add_ai_message,
     get_ai_history,
+    clear_ai_history,
     get_progress,
     get_habits,
     save_ai_feedback,
@@ -372,6 +374,34 @@ async def get_ai_history_miniapp(request):
     return web.json_response({
         "history": safe_history
     })
+
+
+@routes.post("/api/ai/clear")
+async def ai_clear_history_miniapp(request):
+    """
+    Полностью удалить переписку с ADAM (кнопка 🧹 "Новый диалог").
+
+    Раньше эта кнопка чистила только экран (sessionStorage) — сама
+    история на сервере оставалась и подтягивалась обратно при следующей
+    загрузке /api/ai/history, из-за чего "очистка" выглядела нерабочей
+    (жалоба пользователя). db.clear_ai_history уже существовала, но
+    нигде не вызывалась ни ботом, ни Mini App.
+
+    Request JSON: {"init_data": "..."}
+    """
+    from webapp.auth_helpers import authenticate
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+
+    init_data = data.get("init_data", "")
+    user_id, _is_admin = await authenticate(init_data)
+
+    clear_ai_history(user_id)
+
+    return web.json_response({"ok": True})
 
 
 @routes.post("/api/ai/feedback")
