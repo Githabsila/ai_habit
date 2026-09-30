@@ -1178,13 +1178,21 @@
     setTimeout(() => { overlay.hidden = true; }, 300);
   }
 
-  // ===================== СТАРТОВЫЙ КВИЗ (ВОЗРАСТ / ЦЕЛЬ) =====================
-  // Просьба пользователя: 2 коротких шага с уже готовыми вариантами ответа
-  // (без свободного ввода), ПЕРЕД app-tour — по образцу популярных
-  // фитнес-приложений. Ответы сохраняются на сервере (см. /api/start-quiz/seen,
-  // db/users.py::mark_start_quiz_seen) и один раз за всё время аккаунта.
+  // ===================== СТАРТОВЫЙ КВИЗ + ВОРОНКА (ВОЗРАСТ/ЦЕЛЬ/ОТЗЫВЫ/РЕФЕРАЛ/ПОДПИСКА) =====================
+  // Просьба пользователя: короткие шаги с уже готовыми вариантами ответа
+  // (без свободного ввода) ПЕРЕД app-tour — по образцу популярных
+  // фитнес-приложений. Первые 2 шага (возраст/цель) обязательны и
+  // сохраняются на сервере (см. /api/start-quiz/seen,
+  // db/users.py::mark_start_quiz_seen), следующие 3 (отзывы/реферал/
+  // подписка) — информационные, "Далее" там всегда активна. Отзывы — БЕЗ
+  // выдуманных чужих фото/имён с привязкой к несуществующим внешним
+  // рейтингам (это было бы введением в заблуждение) — только иллюстративные
+  // примеры. Подписка — пока ТОЛЬКО превью без реального списания Stars
+  // (SUBSCRIPTION_GATE_ENABLED осознанно остаётся выключен, просьба
+  // пользователя — сначала UI, включать биллинг будем отдельно и осознанно).
   const START_QUIZ_STEPS = [
     {
+      type: "choice",
       key: "age_range",
       title: "Сколько тебе лет?",
       options: [
@@ -1196,6 +1204,7 @@
       ],
     },
     {
+      type: "choice",
       key: "goal",
       title: "Зачем ты пришёл в ADAM?",
       options: [
@@ -1206,22 +1215,15 @@
         ["🚀", "Просто посмотреть", "explore"],
       ],
     },
+    { type: "testimonials", title: "С ADAM уже не одни" },
+    { type: "referral", title: "Позови друзей — бонус обоим" },
+    { type: "paywall", title: "ADAM после пробного периода" },
   ];
   let startQuizStep = 0;
   let startQuizAnswers = {};
   let startQuizShownThisSession = false;
 
-  function renderStartQuizStep() {
-    const step = START_QUIZ_STEPS[startQuizStep];
-    if (!step) return;
-    const title = document.getElementById("startQuizTitle");
-    const options = document.getElementById("startQuizOptions");
-    const back = document.getElementById("startQuizBack");
-    const fill = document.getElementById("startQuizProgressFill");
-    const continueBtn = document.getElementById("startQuizContinue");
-    if (title) title.textContent = step.title;
-    if (back) back.hidden = startQuizStep === 0;
-    if (fill) fill.style.width = `${((startQuizStep + 1) / START_QUIZ_STEPS.length) * 100}%`;
+  function renderStartQuizChoiceStep(step, options, continueBtn) {
     const selected = startQuizAnswers[step.key];
     if (options) {
       options.innerHTML = step.options.map((o) => {
@@ -1245,6 +1247,125 @@
       });
     }
     if (continueBtn) continueBtn.disabled = !selected;
+  }
+
+  // Иллюстративные примеры — намеренно без фото/фамилий реальных людей и
+  // без выдуманной привязки к внешним магазинам приложений (у Mini App его
+  // просто нет) — это была бы дезинформация.
+  function renderStartQuizTestimonialsStep(options) {
+    const items = [
+      ["🔥", "Настя", "Первый раз в жизни держу серию больше двух недель подряд."],
+      ["💪", "Игорь", "ИИ-наставник реально спрашивает, как дела — не просто галочки в чек-листе."],
+      ["🌱", "Марина", "Начала с одной привычки. Через месяц — уже три, и не бросила."],
+    ];
+    if (!options) return;
+    options.innerHTML = `<div class="start-quiz-testimonials">${items.map(([emoji, name, text]) => `
+      <div class="start-quiz-testimonial">
+        <div class="start-quiz-testimonial__avatar">${emoji}</div>
+        <div class="start-quiz-testimonial__body">
+          <div class="start-quiz-testimonial__name">${escapeHtml(name)}</div>
+          <div class="start-quiz-testimonial__text">${escapeHtml(text)}</div>
+        </div>
+      </div>`).join("")}</div>`;
+  }
+
+  // Ссылка и механика — те же, что уже реально начисляют XP в
+  // handlers/start.py (100 XP пригласившему, 50 приглашённому), просто
+  // впервые показаны в самом Mini App. Формат ссылки — как в уже
+  // существующем шаринге прогресса (achievementShareSend).
+  async function renderStartQuizReferralStep(options) {
+    if (!options) return;
+    const count = state?.user?.referrals || 0;
+    let refLink = state?.bot_username
+      ? `https://t.me/${state.bot_username}?start=${state?.user?.telegram_id || ""}`
+      : "";
+    if (!refLink) {
+      try {
+        const shareMeta = await api("/api/share-link", { timeoutMs: 10000 });
+        if (shareMeta?.url) refLink = shareMeta.url;
+      } catch (_) { /* остаёмся без ссылки — ниже есть запасной вариант */ }
+    }
+    if (!refLink) refLink = window.location.origin || window.location.href;
+    // Рендерим, только если пользователь не успел уйти на другой шаг, пока
+    // ждали /api/share-link (async).
+    if (START_QUIZ_STEPS[startQuizStep]?.type !== "referral") return;
+    options.innerHTML = `
+      <div class="start-quiz-referral">
+        <p class="start-quiz-referral__hint">За каждого друга, который перейдёт по твоей ссылке и начнёт пользоваться ADAM — тебе 100 XP, а ему 50 XP сразу на старте.</p>
+        <div class="start-quiz-referral__link-box">
+          <span class="start-quiz-referral__link">${escapeHtml(refLink)}</span>
+          <button type="button" class="start-quiz-referral__copy" id="startQuizRefCopy">Копировать</button>
+        </div>
+        <div class="start-quiz-referral__count">Уже приглашено: <b>${count}</b></div>
+        <button type="button" class="start-quiz-referral__share" id="startQuizRefShare">↗ Поделиться в Telegram</button>
+      </div>`;
+    document.getElementById("startQuizRefCopy")?.addEventListener("click", async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(refLink);
+        } else {
+          throw new Error("no_clipboard");
+        }
+        haptic("light");
+        showToast("Ссылка скопирована", "success");
+      } catch (_) {
+        showToast(refLink, "success", 6000);
+      }
+    });
+    document.getElementById("startQuizRefShare")?.addEventListener("click", () => {
+      const text = "Строю привычки вместе с ADAM — присоединяйся:";
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(text)}`;
+      if (tg && typeof tg.openTelegramLink === "function") {
+        tg.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, "_blank");
+      }
+      haptic("light");
+    });
+  }
+
+  // Честная превью-витрина: перечисляет РЕАЛЬНО существующие механики
+  // подписки (db/subscription.py — продолжение доступа после триала +
+  // закрытый канал за стрик), без выдуманных фич. Биллинг НЕ подключён —
+  // кнопка просто продолжает сценарий (просьба пользователя: сначала UI).
+  function renderStartQuizPaywallStep(options) {
+    if (!options) return;
+    const perks = [
+      "Продолжаешь пользоваться ADAM без ограничений после бесплатного 3-дневного пробного периода",
+      "Доступ в закрытый канал сообщества ADAM — после 2 дней ударного режима подряд",
+    ];
+    options.innerHTML = `
+      <div class="start-quiz-paywall">
+        <div class="start-quiz-paywall__badge">🚀 Скоро в ADAM</div>
+        <ul class="start-quiz-paywall__perks">${perks.map(p => `<li>${escapeHtml(p)}</li>`).join("")}</ul>
+        <div class="start-quiz-paywall__price">
+          <div class="start-quiz-paywall__price-row"><span>Первый месяц</span><b>$1.99</b></div>
+          <div class="start-quiz-paywall__price-row"><span>Далее</span><b>$5.99 / мес</b></div>
+        </div>
+        <p class="start-quiz-paywall__note">Пока ничего не списывается — это просто превью. Оплата появится в приложении позже.</p>
+      </div>`;
+  }
+
+  function renderStartQuizStep() {
+    const step = START_QUIZ_STEPS[startQuizStep];
+    if (!step) return;
+    const title = document.getElementById("startQuizTitle");
+    const options = document.getElementById("startQuizOptions");
+    const back = document.getElementById("startQuizBack");
+    const fill = document.getElementById("startQuizProgressFill");
+    const continueBtn = document.getElementById("startQuizContinue");
+    if (title) title.textContent = step.title;
+    if (back) back.hidden = startQuizStep === 0;
+    if (fill) fill.style.width = `${((startQuizStep + 1) / START_QUIZ_STEPS.length) * 100}%`;
+    if (continueBtn) continueBtn.textContent = startQuizStep === START_QUIZ_STEPS.length - 1 ? "Начать" : "Далее";
+    if (step.type === "choice") {
+      renderStartQuizChoiceStep(step, options, continueBtn);
+    } else {
+      if (step.type === "testimonials") renderStartQuizTestimonialsStep(options);
+      else if (step.type === "referral") renderStartQuizReferralStep(options);
+      else if (step.type === "paywall") renderStartQuizPaywallStep(options);
+      if (continueBtn) continueBtn.disabled = false;
+    }
   }
 
   function openStartQuiz() {
@@ -1283,7 +1404,8 @@
     });
     document.getElementById("startQuizContinue")?.addEventListener("click", async () => {
       const step = START_QUIZ_STEPS[startQuizStep];
-      if (!step || !startQuizAnswers[step.key]) return;
+      if (!step) return;
+      if (step.type === "choice" && !startQuizAnswers[step.key]) return;
       haptic("light");
       if (startQuizStep < START_QUIZ_STEPS.length - 1) {
         startQuizStep++;

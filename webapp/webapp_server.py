@@ -345,6 +345,10 @@ def _shape_user(telegram_id, user, is_admin=False):
         # Бейдж непрочитанного на кнопке ИИ (просьба пользователя) — пока
         # человек ни разу не писал ADAM. См. db/ai.py::claim_ai_first_message.
         "ai_intro_shown": bool(user["ai_intro_shown"]) if user and "ai_intro_shown" in user.keys() else False,
+        # Счётчик рефералов (db/users.py::add_referral, начисляется в
+        # handlers/start.py при переходе по инвайт-ссылке) — для экрана
+        # "Позови друзей" в стартовой воронке онбординга.
+        "referrals": user["referrals"] if user and "referrals" in user.keys() else 0,
     }
 
 

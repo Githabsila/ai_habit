@@ -67,3 +67,17 @@ async def test_bootstrap_exposes_show_start_quiz(client, uid):
     data = await r.json()
 
     assert data["show_start_quiz"] is True
+
+
+async def test_bootstrap_exposes_referrals_count(client, uid):
+    from db.users import add_referral
+
+    add_user(uid, "u", "Test")
+    add_referral(uid)
+    add_referral(uid)
+    headers = {"Authorization": f"tma {sign_init_data(uid)}"}
+
+    r = await client.get("/api/bootstrap", headers=headers)
+    data = await r.json()
+
+    assert data["user"]["referrals"] == 2
