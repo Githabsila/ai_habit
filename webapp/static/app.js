@@ -2033,6 +2033,7 @@
     el.hidden = false;
     requestAnimationFrame(() => el.classList.add('show'));
     document.getElementById('onboardingAddAnotherYes')?.addEventListener('click', () => {
+      haptic("light");
       hideProductHint();
       finishStartOnboarding();
       const trigger = document.getElementById('addHabitTrigger');
@@ -2044,6 +2045,7 @@
       }
     });
     document.getElementById('onboardingAddAnotherLater')?.addEventListener('click', () => {
+      haptic("light");
       hideProductHint();
       finishStartOnboarding();
     });
@@ -2085,10 +2087,10 @@
       renderAppTourStep(true);
       haptic("light");
     });
-    document.getElementById("appTourSkip")?.addEventListener("click", closeAppTour);
+    document.getElementById("appTourSkip")?.addEventListener("click", () => { haptic("light"); closeAppTour(); });
     // Просьба пользователя: крестик и "Пропустить" делали одно и то же
     // (закрывали подсказку) — оставляем только "Пропустить".
-    document.getElementById('productOnboardingHintSkip')?.addEventListener('click', skipProductOnboarding);
+    document.getElementById('productOnboardingHintSkip')?.addEventListener('click', () => { haptic("light"); skipProductOnboarding(); });
 
     // Контекстные подсказки по разделам — по факту первого перехода на
     // вкладку, независимо от того, идёт ли ещё стартовый сценарий (см.
@@ -2146,18 +2148,21 @@
     document.addEventListener("click", (e) => {
       const day = e.target.closest(".streak-day");
       if (!day) return;
+      haptic("light");
       showToast(day.getAttribute("title") || "День серии", "success", 1800);
     });
     document.getElementById("streakCelebrationContinue")?.addEventListener("click", () => {
+      haptic("light");
       closeStreakCelebration();
       if (pendingBonusIntro) {
         pendingBonusIntro = false;
         setTimeout(openBonusIntro, 380);
       }
     });
-    document.getElementById("doubleBonusContinue")?.addEventListener("click", closeBonusIntro);
-    document.getElementById("streakOnboardingContinue")?.addEventListener("click", closeStreakOnboarding);
+    document.getElementById("doubleBonusContinue")?.addEventListener("click", () => { haptic("light"); closeBonusIntro(); });
+    document.getElementById("streakOnboardingContinue")?.addEventListener("click", () => { haptic("light"); closeStreakOnboarding(); });
     document.getElementById("shareAchievementBtn")?.addEventListener("click", () => {
+      haptic("light");
       const days = Number(state?.streak?.days || 0);
       openAchievementShare({
         title: "Ударный режим",
@@ -2165,6 +2170,7 @@
       });
     });
     document.getElementById("achievementShareClose")?.addEventListener("click", () => {
+      haptic("light");
       const overlay = document.getElementById("achievementShareOverlay");
       if (!overlay) return;
       overlay.classList.remove("show");
@@ -2265,6 +2271,7 @@
     });
     document.querySelectorAll("[data-weekly-reward]").forEach(btn => {
       btn.addEventListener("click", async () => {
+        haptic("light");
         try {
           await api("/api/streak/weekly-reward", {
             method: "POST",
@@ -2331,6 +2338,7 @@
       // возвращаем клики точечно самой кнопке — иначе "Отменить" не нажимается.
       btn.style.cssText = "margin-left:10px;background:none;border:none;color:inherit;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer;padding:6px 4px;pointer-events:auto;touch-action:manipulation;";
       btn.addEventListener("click", () => {
+        haptic("light");
         clearTimeout(toastTimer);
         el.classList.remove("is-visible");
         toastActive = false;
@@ -2597,6 +2605,7 @@
           <button type="button" class="struggling-habit-banner__close" aria-label="Закрыть">✕</button>
         `;
         strugglingBanner.querySelector(".struggling-habit-banner__close")?.addEventListener("click", () => {
+          haptic("light");
           try { sessionStorage.setItem("dismissedStruggle_" + top.habit_id, "1"); } catch (_) {}
           strugglingBanner.hidden = true;
         });
@@ -3256,6 +3265,62 @@
         <span>${label}</span>
       </div>`;
 
+    // График "% выполнено" за последние 14 дней (просьба пользователя:
+    // графики в календаре). byDay построен из state.calendar_events, а он
+    // приходит с бэкенда БЕЗ ограничения по месяцу (db/calendar.py::get_calendar
+    // отдаёт всю историю) — поэтому тренд корректен даже в первые дни месяца,
+    // когда часть окна приходится на предыдущий. Один ряд, одна цель (доля
+    // выполненного) — легенда не нужна (см. dataviz: заголовок сам называет
+    // серию), подписи только у крайних и сегодняшнего дня (не на каждом баре).
+    const TREND_DAYS = 14;
+    const trendDays = [];
+    for (let i = TREND_DAYS - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+      const info = byDay[key] || { completed: 0, total: 0 };
+      const percent = info.total ? Math.round((info.completed / info.total) * 100) : 0;
+      trendDays.push({ key, date: d, percent, info });
+    }
+    const trendChart = (() => {
+      const W = 350, H = 92, padBottom = 18, padTop = 6;
+      const barGap = 4;
+      const barW = (W - barGap * (TREND_DAYS - 1)) / TREND_DAYS;
+      const plotH = H - padBottom - padTop;
+      const bars = trendDays.map((d, i) => {
+        const x = i * (barW + barGap);
+        const h = Math.max(2, (d.percent / 100) * plotH);
+        const y = H - padBottom - h;
+        const isToday = d.key === todayKey;
+        const fill = d.percent > 0 ? "var(--gold)" : "var(--border)";
+        return `<rect class="cal-trend-bar__rect ${isToday ? "is-today" : ""}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${fill}"></rect>`;
+      }).join("");
+      const buttons = trendDays.map((d, i) => {
+        const x = i * (barW + barGap);
+        const label = d.info.total ? `${d.info.completed} из ${d.info.total} выполнено` : "Нет отметок";
+        return `<button type="button" class="cal-trend-bar" data-cal-day="${d.key}" title="${d.key}: ${label}"
+                  style="left:${(x / W * 100).toFixed(2)}%;width:${(barW / W * 100).toFixed(2)}%;"></button>`;
+      }).join("");
+      const firstLabel = trendDays[0].date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+      return `
+        <div class="calendar-trend" role="img" aria-label="Процент выполненных привычек за последние 14 дней">
+          <div class="calendar-trend__head">
+            <span>Прогресс за 14 дней</span>
+          </div>
+          <div class="calendar-trend__chart">
+            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="calendar-trend__svg">
+              <line x1="0" y1="${(H - padBottom).toFixed(1)}" x2="${W}" y2="${(H - padBottom).toFixed(1)}" class="calendar-trend__baseline"></line>
+              ${bars}
+            </svg>
+            <div class="calendar-trend__hit">${buttons}</div>
+          </div>
+          <div class="calendar-trend__axis">
+            <span>${escapeHtml(firstLabel)}</span>
+            <span>Сегодня: ${todayPercent}%</span>
+          </div>
+        </div>`;
+    })();
+
     const cells = [];
     for (let i = 0; i < cellsCount; i++) {
       const dayNumber = i - firstWeekday + 1;
@@ -3307,6 +3372,8 @@
           ${stat(`${completion}%`, "за месяц")}
         </div>
 
+        ${trendChart}
+
         <div class="calendar-weekdays">
           <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span>
           <span>Пт</span><span>Сб</span><span>Вс</span>
@@ -3338,6 +3405,7 @@
     // Детальная карточка выбранного дня.
     grid.querySelectorAll("[data-cal-day]").forEach(btn => {
       btn.addEventListener("click", () => {
+        haptic("light");
         const key = btn.dataset.calDay;
         const info = byDay[key] || { completed: 0, total: 0 };
         const d = new Date(`${key}T12:00:00`);
@@ -3446,6 +3514,7 @@ function initSubpageOverlay(overlayId, triggerId, closeId, backdropId) {
     hideProductHint();
   };
   const close = () => {
+    haptic("light");
     overlay.classList.remove("is-open");
     overlay.setAttribute("aria-hidden", "true");
     setTimeout(() => { if (!overlay.classList.contains("is-open")) overlay.hidden = true; }, 300);
@@ -3486,6 +3555,7 @@ function closeAllSubpageOverlays() {
 function openAddCollapse(collapseId) {
   const collapse = document.getElementById(collapseId);
   if (!collapse) return;
+  haptic("light");
   const trigger = collapse.querySelector(".add-collapse__trigger");
   const form = collapse.querySelector("form");
   if (trigger) trigger.hidden = true;
@@ -3741,6 +3811,7 @@ function initDailyQuestActions() {
   const overlay = document.getElementById("dailyQuestsOverlay");
   const closeQuestsOverlay = () => {
     if (!overlay) return;
+    haptic("light");
     overlay.classList.remove("is-open");
     overlay.setAttribute("aria-hidden", "true");
     // Держим overlay в DOM до окончания transform/opacity transition,
@@ -3772,6 +3843,7 @@ function initHabitActions() {
   const priorityBtn = document.getElementById("newHabitPriorityBtn");
   if (priorityBtn) {
     priorityBtn.addEventListener("click", () => {
+      haptic("light");
       const pressed = priorityBtn.getAttribute("aria-pressed") === "true";
       priorityBtn.setAttribute("aria-pressed", pressed ? "false" : "true");
       // Фон кнопки принудительно перекрашен сайтовым правилом для <button>
@@ -3788,13 +3860,14 @@ function initHabitActions() {
   const advToggle = document.getElementById("newHabitAdvancedToggle");
   const advPanel = document.getElementById("newHabitAdvanced");
   if (advToggle && advPanel) {
-    advToggle.addEventListener("click", () => { advPanel.hidden = !advPanel.hidden; });
+    advToggle.addEventListener("click", () => { haptic("light"); advPanel.hidden = !advPanel.hidden; });
   }
   const filterRow = document.getElementById("habitFilterRow");
   if (filterRow) {
     filterRow.addEventListener("click", (e) => {
       const chip = e.target.closest(".habit-filter-chip");
       if (!chip) return;
+      haptic("light");
       activeHabitFilter = chip.dataset.category || "";
       renderHabits();
     });
@@ -4270,6 +4343,7 @@ function initPlanActions() {
 
     const actionBtn = e.target.closest("button[data-action]");
     if (actionBtn) {
+      haptic("light");
       const taskId = li.dataset.id;
       try {
         if (actionBtn.dataset.action === "edit") {
@@ -4801,6 +4875,7 @@ function initRatingScopeSwitch() {
   switcher.addEventListener("click", (e) => {
     const btn = e.target.closest(".rating-scope-btn");
     if (!btn) return;
+    haptic("light");
     switcher.querySelectorAll(".rating-scope-btn").forEach(b => b.classList.toggle("is-active", b === btn));
     const isSeason = btn.dataset.scope === "season";
     document.getElementById("ratingPodium").hidden = isSeason;
@@ -4865,6 +4940,7 @@ function initRatingActions() {
     }
     const reactBtn = e.target.closest("[data-react-target]");
     if (reactBtn) {
+      haptic("light");
       const targetId = Number(reactBtn.dataset.reactTarget);
       reactPickerForId = reactPickerForId === targetId ? null : targetId;
       renderRating();
@@ -4889,6 +4965,7 @@ function initProgressActions() {
   const resultBox = document.getElementById("progressAiResult");
   if (!btn) return;
   btn.addEventListener("click", async () => {
+    haptic("light");
     btn.disabled = true;
     const originalText = btn.textContent;
     btn.textContent = "🤖 Анализирую...";
@@ -5096,6 +5173,7 @@ async function initChangelogCheck() {
     sheet.setAttribute("aria-hidden", "false");
 
     const close = async () => {
+      haptic("light");
       sheet.classList.remove("is-open");
       sheet.setAttribute("aria-hidden", "true");
       setTimeout(() => { sheet.hidden = true; }, 230);
@@ -5585,6 +5663,7 @@ function initDataSupportActions() {
   // Уведомления "в 100 раз лучше": не чёрный ящик — история реально
   // отправленных плановых сообщений, а не только "включено/выключено".
   document.getElementById("notificationHistoryBtn")?.addEventListener("click", async (e) => {
+    haptic("light");
     const box = document.getElementById("notificationHistoryBox");
     if (!box.hidden) { box.hidden = true; return; }
     box.hidden = false;
