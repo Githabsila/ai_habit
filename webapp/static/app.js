@@ -3084,6 +3084,10 @@ function initTabs() {
     if (!btn) return;
     const tab = btn.dataset.tab;
     if (!tab) return;
+    // См. closeAllSubpageOverlays() — забытый открытым оверлей иначе
+    // молча переживает переключение вкладки и выныривает поверх экрана
+    // при возврате.
+    closeAllSubpageOverlays();
     // Фидбек: чернение экрана на скролле было частично починено (см.
     // initScrollPerfGuard), но не исчезло — видео и повтор жалобы после
     // фикса показывают, что чёрные кадры ловятся и на ПЕРЕКЛЮЧЕНИИ ВКЛАДОК:
@@ -3150,6 +3154,13 @@ function initSubpageOverlay(overlayId, triggerId, closeId, backdropId) {
     requestAnimationFrame(() => overlay.classList.add("is-open"));
     overlay.setAttribute("aria-hidden", "false");
     haptic("light");
+    // Открытая подстраница ложится ПОВЕРХ текущей цели подсказки
+    // онбординга (жалоба пользователя: тур выглядит зависшим) — сама
+    // подсказка технически ещё "видима" (offsetParent цели не null, её
+    // просто закрыл оверлей), поэтому автогашение в initTabs (по
+    // offsetParent) тут не срабатывает. Гасим явно при открытии любой
+    // подстраницы, а не только при уходе на другую нижнюю вкладку.
+    hideProductHint();
   };
   const close = () => {
     overlay.classList.remove("is-open");
@@ -3165,6 +3176,24 @@ function initSubpageOverlays() {
   initSubpageOverlay("shopOverlay", "openShopBtn", "shopOverlayClose", "shopOverlayBackdrop");
   initSubpageOverlay("statsOverlay", "openStatsBtn", "statsOverlayClose", "statsOverlayBackdrop");
   initSubpageOverlay("settingsOverlay", "openSettingsBtn", "settingsOverlayClose", "settingsOverlayBackdrop");
+}
+
+// Баг (жалоба пользователя: "онбординг дальше не хочет продолжаться" +
+// ощущение лага): Магазин/Настройки/Прогресс физически лежат ВНУТРИ
+// <section data-tab="profile"> — переключение НИЖНЕЙ вкладки прячет их
+// вместе со всей секцией через ancestor [hidden], но не сбрасывает их
+// собственное "is-open" состояние (initSubpageOverlay.close() дергается
+// только явным крестиком/бэкдропом). Открыл Настройки → ушёл на Календарь →
+// вернулся в Профиль — Настройки как ни в чём не бывало выныривают поверх
+// экрана, закрывая собой в том числе цели шагов 8-9 онбординга
+// (#openShopBtn/#openSettingsBtn), из-за чего "Далее" внутри подсказки
+// не находит видимую цель и тур выглядит зависшим.
+function closeAllSubpageOverlays() {
+  document.querySelectorAll(".subpage-overlay.is-open").forEach((overlay) => {
+    overlay.classList.remove("is-open");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { if (!overlay.classList.contains("is-open")) overlay.hidden = true; }, 300);
+  });
 }
 
 // ===================== СВОРАЧИВАЕМЫЕ ФОРМЫ ДОБАВЛЕНИЯ =====================
