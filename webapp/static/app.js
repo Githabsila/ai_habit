@@ -642,10 +642,27 @@
     const tier = state.user?.league_tier;
     if (!tier) { el.hidden = true; return; }
     el.hidden = false;
+    // Просьба пользователя: графики везде — вместо голой строки текста
+    // визуальный прогресс-бар до следующей лиги (progress_pct уже считался
+    // на бэкенде, см. db/leagues.py::get_league_progress).
     const progress = state.user?.league_progress;
-    el.textContent = progress
-      ? `${tier} · до «${progress.next_tier}» ещё ${progress.xp_needed} XP`
-      : `${tier} · максимальная лига`;
+    if (progress) {
+      el.innerHTML = `
+        <div class="league-progress__head">
+          <span>${escapeHtml(tier)}</span>
+          <span>до «${escapeHtml(progress.next_tier)}» — ${progress.xp_needed} XP</span>
+        </div>
+        <div class="league-progress__track"><div class="league-progress__fill" style="width:${Math.max(3, progress.progress_pct)}%"></div></div>
+      `;
+    } else {
+      el.innerHTML = `
+        <div class="league-progress__head">
+          <span>${escapeHtml(tier)}</span>
+          <span>максимальная лига</span>
+        </div>
+        <div class="league-progress__track"><div class="league-progress__fill league-progress__fill--max" style="width:100%"></div></div>
+      `;
+    }
   }
 
   // Roadmap #48 — светлая/тёмная тема. Ставим на <html> (не <body>,
@@ -4746,6 +4763,78 @@ function stabilizeFirstPaint(extraTargets) {
 }
 
 // ===================== ПРОГРЕСС + AI-АНАЛИЗ =====================
+// Просьба пользователя: графики везде, по образцу референсов — плавная
+// растущая кривая. Копим прирост Adam Coin ДЕНЬ ЗА ДНЁМ за последние 30
+// дней (а не абсолютный total_xp за всю историю) — честная и куда более
+// наглядная метрика роста, чем один раз выведенное большое число.
+function renderProgressGrowthChart(daily) {
+  const container = document.getElementById("progressGrowthChart");
+  if (!container) return;
+  const DAYS = 30;
+  const byDate = {};
+  (daily || []).forEach(d => { byDate[d.date] = d; });
+  const series = [];
+  const today = new Date();
+  for (let i = DAYS - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+    series.push({ date: key, xp: Number(byDate[key]?.xp || 0) });
+  }
+  if (!series.some(s => s.xp > 0)) { container.hidden = true; return; }
+  container.hidden = false;
+
+  let running = 0;
+  const cumulative = series.map(s => { running += s.xp; return running; });
+  const total = running;
+
+  const W = 350, H = 130, padTop = 16, padBottom = 6, padX = 4;
+  const maxVal = Math.max(1, ...cumulative);
+  const stepX = (W - padX * 2) / (series.length - 1);
+  const points = cumulative.map((v, i) => [
+    padX + i * stepX,
+    padTop + (1 - v / maxVal) * (H - padTop - padBottom),
+  ]);
+
+  // Сглаженная кривая через кубические Безье по серединам соседних точек —
+  // тот же эффект плавного роста, что и в референсах, а не ломаная линия.
+  const linePath = points.reduce((acc, [x, y], i, arr) => {
+    if (i === 0) return `M${x.toFixed(1)},${y.toFixed(1)}`;
+    const [px, py] = arr[i - 1];
+    const mx = ((px + x) / 2).toFixed(1);
+    return `${acc} C${mx},${py.toFixed(1)} ${mx},${y.toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}`;
+  }, "");
+  const last = points[points.length - 1];
+  const first = points[0];
+  const areaPath = `${linePath} L${last[0].toFixed(1)},${(H - padBottom).toFixed(1)} L${first[0].toFixed(1)},${(H - padBottom).toFixed(1)} Z`;
+
+  const firstLabel = series[0].date.slice(5).split("-").reverse().join(".");
+
+  container.innerHTML = `
+    <div class="progress-growth__head">
+      <span>Рост Adam Coin за 30 дней</span>
+      <b>+${total}</b>
+    </div>
+    <div class="progress-growth__chart">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="progress-growth__svg">
+        <defs>
+          <linearGradient id="progressGrowthFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--primary)" stop-opacity=".38"></stop>
+            <stop offset="100%" stop-color="var(--primary)" stop-opacity="0"></stop>
+          </linearGradient>
+        </defs>
+        <path d="${areaPath}" fill="url(#progressGrowthFill)"></path>
+        <path d="${linePath}" fill="none" stroke="var(--primary-light)" stroke-width="2.5" stroke-linecap="round"></path>
+        <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="4" fill="var(--primary-light)"></circle>
+      </svg>
+    </div>
+    <div class="progress-growth__axis">
+      <span>${escapeHtml(firstLabel)}</span>
+      <span>Сегодня</span>
+    </div>
+  `;
+}
+
 async function loadProgressStats() {
   try {
     const data = await api("/api/progress/stats");
@@ -4753,6 +4842,7 @@ async function loadProgressStats() {
     document.getElementById("progressStatCompleted").textContent = w.completed || 0;
     document.getElementById("progressStatActiveDays").textContent = `${w.active_days || 0}/7`;
     document.getElementById("progressStatXp").textContent = w.xp || 0;
+    renderProgressGrowthChart(data.daily);
 
     // Roadmap #29 — "я сейчас vs я месяц назад".
     const cmp = data.comparison;

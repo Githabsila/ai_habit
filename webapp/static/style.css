@@ -6933,6 +6933,33 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   letter-spacing:.035em;
 }
 
+/* График роста Adam Coin за 30 дней — просьба пользователя: графики
+   везде. См. app.js::renderProgressGrowthChart. */
+.progress-growth{
+  margin:14px 0;
+  padding:14px 14px 10px;
+  border-radius:16px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.06);
+}
+.progress-growth[hidden]{display:none}
+.progress-growth__head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  margin-bottom:6px;
+  font-size:11.5px;font-weight:700;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.03em;
+}
+.progress-growth__head b{
+  font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:800;
+  color:var(--primary-light);text-transform:none;letter-spacing:0;
+}
+.progress-growth__chart{height:130px}
+.progress-growth__svg{display:block;width:100%;height:100%}
+.progress-growth__axis{
+  display:flex;justify-content:space-between;
+  margin-top:4px;font-size:10.5px;color:var(--text-muted);
+}
+
 .progress-insight{
   margin:0 0 10px;
   padding:12px 14px;
@@ -6948,6 +6975,25 @@ section[data-tab="profile"] .section-heading h2::first-letter{
   border-color:rgba(139,108,255,.22);
   background:rgba(139,108,255,.06);
   color:#cfc6ff;
+}
+
+/* Прогресс лиги — визуальный бар вместо голой строки (просьба
+   пользователя: графики везде). См. app.js::renderLeagueInfo. */
+.league-progress__head{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:8px;font-size:12.5px;
+}
+.league-progress__head span:first-child{font-weight:700;color:var(--text,#fff)}
+.league-progress__track{
+  height:7px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;
+}
+.league-progress__fill{
+  height:100%;border-radius:99px;
+  background:linear-gradient(90deg,#FF8A00,#EF4444);
+  transition:width .4s cubic-bezier(.2,.8,.2,1);
+}
+.league-progress__fill--max{
+  background:linear-gradient(90deg,#FFD54F,#FF8A00);
 }
 
 /* Roadmap #26 — тепловая карта года (GitHub-style). */
@@ -10258,6 +10304,7 @@ body{
 :root[data-mode="light"] .daily-quests-modal,
 :root[data-mode="light"] .year-heatmap,
 :root[data-mode="light"] .progress-insight,
+:root[data-mode="light"] .progress-growth,
 :root[data-mode="light"] .streak-metric,
 :root[data-mode="light"] .frame-choice,
 :root[data-mode="light"] .shop-head,

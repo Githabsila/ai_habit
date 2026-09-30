@@ -48,7 +48,7 @@ from db import (
     restore_streak_free,
     should_show_onboarding, onboarding_message, mark_onboarding_seen, consume_completion_event,
     create_daily_tasks, get_daily_tasks, claim_daily_bonus,
-    get_weekly_summary, get_statistics,
+    get_weekly_summary, get_statistics, get_daily_statistics,
     get_progress_comparison, get_streak_forecast,
     get_milestones, save_milestones, toggle_milestone,
     reset_progress,
@@ -1577,6 +1577,9 @@ async def progress_stats_route(request):
         "forecast": get_streak_forecast(telegram_id),
         # Roadmap #27 — статистические корреляции между привычками.
         "correlations": get_habit_correlations(telegram_id),
+        # Дневной ряд за 30 дней — график роста в Профиле (просьба
+        # пользователя: графики везде, по образцу референсов).
+        "daily": get_daily_statistics(telegram_id, 30),
     })
 
 @routes.get("/api/export/habits.csv")

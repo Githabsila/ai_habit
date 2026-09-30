@@ -8,6 +8,7 @@ from db import (
     add_user, check_achievements, get_achievements, ACHIEVEMENT_ICONS,
     get_progress_comparison, get_streak_forecast,
     get_monthly_habit_breakdown, add_habit, get_habits, complete_habit, log_daily_habits,
+    add_statistics, get_daily_statistics,
 )
 from db.core import connect
 
@@ -206,6 +207,64 @@ async def test_monthly_habit_analysis_sends_and_dedups(monkeypatch, uid):
 
     assert len(bot.sent) == 1
     assert "разбор месяца" in bot.sent[0][1]
+
+
+# =====================================
+# ДНЕВНОЙ РЯД ДЛЯ ГРАФИКА РОСТА В ПРОФИЛЕ
+# =====================================
+
+def _insert_stat_row(user_id, days_ago, completed, xp):
+    conn = connect()
+    day = str(date.today() - timedelta(days=days_ago))
+    conn.execute(
+        "INSERT INTO statistics(user_id, completed, gained_xp, stat_date) VALUES (?, ?, ?, ?)",
+        (user_id, completed, xp, day),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_get_daily_statistics_groups_multiple_events_per_day(uid):
+    add_user(uid, "u", "Test")
+    # add_statistics пишет отдельную строку на каждое событие — за один
+    # день может накопиться несколько строк (несколько привычек/задач).
+    _insert_stat_row(uid, 0, 1, 10)
+    _insert_stat_row(uid, 0, 1, 15)
+    _insert_stat_row(uid, 1, 1, 20)
+
+    daily = get_daily_statistics(uid, days=30)
+
+    assert len(daily) == 2
+    today_row = daily[-1]
+    assert today_row["completed"] == 2
+    assert today_row["xp"] == 25
+
+
+def test_get_daily_statistics_excludes_old_rows_outside_window(uid):
+    add_user(uid, "u", "Test")
+    _insert_stat_row(uid, 0, 1, 10)
+    _insert_stat_row(uid, 40, 1, 999)
+
+    daily = get_daily_statistics(uid, days=30)
+
+    assert len(daily) == 1
+    assert daily[0]["xp"] == 10
+
+
+def test_get_daily_statistics_empty_for_new_user(uid):
+    add_user(uid, "u", "Test")
+    assert get_daily_statistics(uid) == []
+
+
+async def test_api_progress_stats_includes_daily_series(client, uid):
+    add_user(uid, "u", "Test")
+    add_statistics(uid, 1, 30)
+
+    headers = await _headers(uid)
+    r = await client.get("/api/progress/stats", headers=headers)
+    assert r.status == 200
+    data = await r.json()
+    assert data["daily"] == [{"date": str(date.today()), "completed": 1, "xp": 30}]
 
 
 async def test_api_progress_stats_includes_comparison_and_forecast(client, uid):

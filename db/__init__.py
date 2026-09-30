@@ -162,6 +162,7 @@ from .statistics import (
     add_statistics,
     get_statistics,
     get_weekly_summary,
+    get_daily_statistics,
 )
 
 from .daily_tasks import (
@@ -349,7 +350,7 @@ __all__ = [
     "toggle_daily_task",
     "get_plan_tasks_needing_reminder", "mark_plan_task_reminder_sent",
     "get_plans_needing_goal_reminder", "mark_goal_reminder_sent",
-    "add_statistics", "get_statistics", "get_weekly_summary",
+    "add_statistics", "get_statistics", "get_weekly_summary", "get_daily_statistics",
     "create_daily_tasks", "get_daily_tasks", "update_daily_task",
     "check_achievements", "get_achievements", "ACHIEVEMENT_ICONS",
     "update_calendar", "get_calendar", "get_progress_comparison",
