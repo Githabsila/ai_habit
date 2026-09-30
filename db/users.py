@@ -84,6 +84,27 @@ def mark_handle_intro_seen(user_id):
     conn.close()
 
 
+def should_show_start_quiz(user_id):
+    user = get_user(user_id)
+    if not user or "start_quiz_seen" not in user.keys():
+        return False
+    return not bool(user["start_quiz_seen"])
+
+
+def mark_start_quiz_seen(user_id, age_range=None, goal=None):
+    age_range = str(age_range)[:20] if age_range else None
+    goal = str(goal)[:40] if goal else None
+    conn = connect()
+    conn.execute(
+        "UPDATE users SET start_quiz_seen=1, "
+        "onboarding_age_range=COALESCE(?,onboarding_age_range), "
+        "onboarding_goal=COALESCE(?,onboarding_goal) WHERE telegram_id=?",
+        (age_range, goal, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def _ensure_admin_premium(telegram_id):
     """Администраторы бота (config.ADMIN_IDS) всегда получают Premium
     навсегда, без покупки — вызывается при каждом add_user (idempotent),

@@ -59,6 +59,7 @@ from db import (
     get_subscription_status, try_grant_channel_access, bot_access_allowed,
     should_show_app_tour, mark_app_tour_seen,
     should_show_handle_intro, mark_handle_intro_seen,
+    should_show_start_quiz, mark_start_quiz_seen,
     log_self_reward, get_self_reward_history, get_self_reward_stats, SELF_REWARD_COST,
     increment_habit_progress, get_weekly_progress,
     add_habit_note, get_recent_habit_notes,
@@ -454,6 +455,7 @@ async def bootstrap(request):
         },
         "show_app_tour": should_show_app_tour(telegram_id),
         "show_handle_intro": should_show_handle_intro(telegram_id),
+        "show_start_quiz": should_show_start_quiz(telegram_id),
         "self_reward_cost": SELF_REWARD_COST,
         "product_onboarding": get_onboarding_state(telegram_id),
         "settings": {
@@ -1166,6 +1168,18 @@ async def onboarding_restart_route(request):
 async def handle_intro_seen(request):
     telegram_id, _ = await _authenticate(request)
     mark_handle_intro_seen(telegram_id)
+    return web.json_response({"ok": True})
+
+@routes.post("/api/start-quiz/seen")
+async def start_quiz_seen(request):
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    age_range = body.get("age_range")
+    goal = body.get("goal")
+    mark_start_quiz_seen(telegram_id, age_range=age_range, goal=goal)
     return web.json_response({"ok": True})
 
 @routes.post("/api/self-reward")

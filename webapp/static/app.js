@@ -726,7 +726,7 @@
     renderPetWidget();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
-    maybeShowAppTour();
+    maybeShowStartQuiz();
     maybeShowStreakOnboarding();
     stabilizeFirstPaint();
     // Warm the profile data in the background. This makes a later tap on
@@ -1176,6 +1176,139 @@
     overlay.classList.remove("show");
     overlay.setAttribute("aria-hidden", "true");
     setTimeout(() => { overlay.hidden = true; }, 300);
+  }
+
+  // ===================== СТАРТОВЫЙ КВИЗ (ВОЗРАСТ / ЦЕЛЬ) =====================
+  // Просьба пользователя: 2 коротких шага с уже готовыми вариантами ответа
+  // (без свободного ввода), ПЕРЕД app-tour — по образцу популярных
+  // фитнес-приложений. Ответы сохраняются на сервере (см. /api/start-quiz/seen,
+  // db/users.py::mark_start_quiz_seen) и один раз за всё время аккаунта.
+  const START_QUIZ_STEPS = [
+    {
+      key: "age_range",
+      title: "Сколько тебе лет?",
+      options: [
+        ["До 18", "under18"],
+        ["18–24", "18-24"],
+        ["25–34", "25-34"],
+        ["35–44", "35-44"],
+        ["45 и старше", "45plus"],
+      ],
+    },
+    {
+      key: "goal",
+      title: "Зачем ты пришёл в ADAM?",
+      options: [
+        ["🎯", "Выработать привычку", "habit"],
+        ["💪", "Прокачать дисциплину", "discipline"],
+        ["🔥", "Не срывать серию", "streak"],
+        ["✦", "Общаться с ИИ-наставником", "ai"],
+        ["🚀", "Просто посмотреть", "explore"],
+      ],
+    },
+  ];
+  let startQuizStep = 0;
+  let startQuizAnswers = {};
+  let startQuizShownThisSession = false;
+
+  function renderStartQuizStep() {
+    const step = START_QUIZ_STEPS[startQuizStep];
+    if (!step) return;
+    const title = document.getElementById("startQuizTitle");
+    const options = document.getElementById("startQuizOptions");
+    const back = document.getElementById("startQuizBack");
+    const fill = document.getElementById("startQuizProgressFill");
+    const continueBtn = document.getElementById("startQuizContinue");
+    if (title) title.textContent = step.title;
+    if (back) back.hidden = startQuizStep === 0;
+    if (fill) fill.style.width = `${((startQuizStep + 1) / START_QUIZ_STEPS.length) * 100}%`;
+    const selected = startQuizAnswers[step.key];
+    if (options) {
+      options.innerHTML = step.options.map((o) => {
+        const hasIcon = o.length === 3;
+        const icon = hasIcon ? o[0] : "";
+        const label = hasIcon ? o[1] : o[0];
+        const value = hasIcon ? o[2] : o[1];
+        const isSel = selected === value;
+        return `<button type="button" class="start-quiz-option ${isSel ? "is-selected" : ""}" data-value="${value}">
+          <span class="start-quiz-option__dot"></span>
+          <span class="start-quiz-option__label">${escapeHtml(label)}</span>
+          ${icon ? `<span class="start-quiz-option__icon">${icon}</span>` : ""}
+        </button>`;
+      }).join("");
+      options.querySelectorAll(".start-quiz-option").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          startQuizAnswers[step.key] = btn.dataset.value;
+          haptic("light");
+          renderStartQuizStep();
+        });
+      });
+    }
+    if (continueBtn) continueBtn.disabled = !selected;
+  }
+
+  function openStartQuiz() {
+    const overlay = document.getElementById("startQuizOverlay");
+    if (!overlay) { maybeShowAppTour(); return; }
+    startQuizStep = 0;
+    startQuizAnswers = {};
+    renderStartQuizStep();
+    overlay.hidden = false;
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    overlay.setAttribute("aria-hidden", "false");
+    haptic("light");
+  }
+
+  function closeStartQuiz() {
+    const overlay = document.getElementById("startQuizOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { overlay.hidden = true; }, 280);
+  }
+
+  function maybeShowStartQuiz() {
+    if (!state?.show_start_quiz) { maybeShowAppTour(); return; }
+    if (startQuizShownThisSession) return;
+    startQuizShownThisSession = true;
+    openStartQuiz();
+  }
+
+  function initStartQuiz() {
+    document.getElementById("startQuizBack")?.addEventListener("click", () => {
+      if (startQuizStep === 0) return;
+      startQuizStep--;
+      haptic("light");
+      renderStartQuizStep();
+    });
+    document.getElementById("startQuizContinue")?.addEventListener("click", async () => {
+      const step = START_QUIZ_STEPS[startQuizStep];
+      if (!step || !startQuizAnswers[step.key]) return;
+      haptic("light");
+      if (startQuizStep < START_QUIZ_STEPS.length - 1) {
+        startQuizStep++;
+        renderStartQuizStep();
+        return;
+      }
+      const continueBtn = document.getElementById("startQuizContinue");
+      if (continueBtn) continueBtn.disabled = true;
+      try {
+        await api("/api/start-quiz/seen", {
+          method: "POST",
+          body: JSON.stringify({
+            age_range: startQuizAnswers.age_range || null,
+            goal: startQuizAnswers.goal || null,
+          }),
+        });
+      } catch (e) {
+        // Не блокируем прохождение онбординга из-за сетевой ошибки —
+        // ответы необязательны для остального сценария.
+      } finally {
+        if (state) state.show_start_quiz = false;
+        closeStartQuiz();
+        maybeShowAppTour();
+      }
+    });
   }
 
   // ===================== ОБУЧЕНИЕ ПРИ ПЕРВОМ ВХОДЕ =====================
@@ -5489,6 +5622,7 @@ async function boot() {
     try {
         if (!preBootstrapInitDone) {
             initTelegram();
+            initStartQuiz();
             initAppTour();
             initHandleIntro();
             initSelfRewardActions();

@@ -152,6 +152,18 @@ def create_tables():
     if "handle_intro_seen" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN handle_intro_seen INTEGER DEFAULT 0")
 
+    # Стартовый квиз "сколько лет / зачем пришёл" — 2-шаговый экран ПЕРЕД
+    # app-tour (просьба пользователя, по образцу конкурентов): возраст и
+    # цель дальше используются, чтобы ADAM обращался уместнее в первом
+    # приветствии AI-чата. Один раз за всё время аккаунта, как и
+    # app_tour_seen/handle_intro_seen выше.
+    if "start_quiz_seen" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN start_quiz_seen INTEGER DEFAULT 0")
+    if "onboarding_age_range" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN onboarding_age_range TEXT")
+    if "onboarding_goal" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN onboarding_goal TEXT")
+
     # ---------------- ПОДПИСКА: триал → оплата → закрытый канал (пром 13) ----------------
     # Отдельно от "Premium" (косметический тариф выше) — это доступ к
     # самому боту после 3-дневного триала. subscription_paid_until=NULL

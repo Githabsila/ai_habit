@@ -13008,6 +13008,54 @@ body{
 .handle-intro-continue{margin-top:8px;width:100%}
 @media(max-width:380px){.handle-intro-card{padding:28px 20px 22px}.handle-intro-title{font-size:19px}}
 
+/* Стартовый квиз (возраст/цель) — полноэкранный шаг ПЕРЕД app-tour. */
+.start-quiz-overlay{
+  position:fixed;inset:0;z-index:10150;display:flex;flex-direction:column;
+  background:
+    radial-gradient(480px 280px at 20% -10%,rgba(139,92,246,.20),transparent 60%),
+    radial-gradient(420px 260px at 100% 110%,rgba(255,150,45,.14),transparent 62%),
+    linear-gradient(170deg,#171320,#0c0b12);
+  opacity:0;transition:opacity .3s ease;
+}
+.start-quiz-overlay.show{opacity:1}
+.start-quiz-overlay[hidden]{display:none}
+.start-quiz-card{
+  flex:1 1 auto;display:flex;flex-direction:column;
+  padding:calc(env(safe-area-inset-top,0px) + 20px) 22px calc(env(safe-area-inset-bottom,0px) + 22px);
+  max-width:480px;width:100%;margin:0 auto;box-sizing:border-box;
+}
+.start-quiz-topbar{display:flex;align-items:center;gap:14px;margin-bottom:26px}
+.start-quiz-back{
+  flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);color:#cfcbe0;font-size:16px;line-height:1;cursor:pointer;
+  display:grid;place-items:center;
+}
+.start-quiz-back[hidden]{visibility:hidden}
+.start-quiz-progress{flex:1 1 auto;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+.start-quiz-progress__fill{height:100%;width:50%;border-radius:99px;background:linear-gradient(90deg,#FF8A00,#EF4444);transition:width .35s cubic-bezier(.2,.8,.2,1)}
+.start-quiz-title{font:800 24px 'Space Grotesk',sans-serif;letter-spacing:-.02em;color:#fff;margin:6px 0 22px;text-align:left}
+.start-quiz-options{display:flex;flex-direction:column;gap:12px;flex:1 1 auto}
+.start-quiz-option{
+  display:flex;align-items:center;gap:12px;text-align:left;width:100%;
+  padding:16px;border-radius:18px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.03);color:#e4e1f0;font-size:15px;font-weight:600;cursor:pointer;
+  transition:border-color .2s ease,background .2s ease,transform .15s ease;
+}
+.start-quiz-option__label{flex:1 1 auto}
+.start-quiz-option__dot{
+  flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.24);
+  display:grid;place-items:center;transition:border-color .2s ease;
+}
+.start-quiz-option__dot::after{content:"";width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#FF8A00,#EF4444);opacity:0;transform:scale(.4);transition:opacity .15s ease,transform .15s ease}
+.start-quiz-option__icon{flex:0 0 auto;font-size:18px;width:22px;text-align:center}
+.start-quiz-option.is-selected{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.10)}
+.start-quiz-option.is-selected .start-quiz-option__dot{border-color:#EF4444}
+.start-quiz-option.is-selected .start-quiz-option__dot::after{opacity:1;transform:scale(1)}
+.start-quiz-option:active{transform:scale(.98)}
+.start-quiz-continue{margin-top:18px;width:100%}
+.start-quiz-continue:disabled{opacity:.4;pointer-events:none}
+@media(max-width:380px){.start-quiz-title{font-size:21px}}
+
 /* Пакеты алмазов и Premium — ярче обычной карточки магазина, в духе
    красочных тарифных карточек подписки (просьба пользователя). */
 #shopList .shop-item--diamond{
