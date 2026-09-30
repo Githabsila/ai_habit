@@ -473,7 +473,7 @@
           }
           const newLevel = state.user.level;
           if (knownLevel !== null && newLevel > knownLevel) {
-            showLevelUp(newLevel);
+            showLevelUp(newLevel, knownLevel);
           }
           knownLevel = newLevel;
           renderAll();
@@ -3646,7 +3646,7 @@ function applyActionPatch(result) {
     // сразу, а не при следующей случайной полной перезагрузке.
     const newLevel = state.user.level;
     if (knownLevel !== null && newLevel > knownLevel) {
-      showLevelUp(newLevel);
+      showLevelUp(newLevel, knownLevel);
     }
     knownLevel = newLevel;
   }
@@ -4592,6 +4592,18 @@ function initPlanActions() {
 }
 
   // ===================== LEVEL UP =====================
+  // Рубеж уровня (10/20/30...) — просьба пользователя: на круглых уровнях
+  // более "эпичный" момент вместо обычного тоста, в духе LVL-экранов из
+  // референсов. Фон — художественно сгенерированный градиент+свечение по
+  // тиру (CSS, не фотография) — готовый набор, переиспользуется на всех
+  // будущих рубежах без доп. затрат на генерацию картинок под каждый.
+  const LEVEL_MILESTONE_TIERS = [
+    { name: "🥉 Бронза", text: "Первый настоящий рубеж позади.", a: "#2a1608", b: "#100a06", glow: "rgba(255,138,61,.42)", glowStrong: "rgba(255,138,61,.65)", accent: "#FF8A3D" },
+    { name: "🥈 Серебро", text: "Дисциплина уже не случайность — это ты.", a: "#171b24", b: "#0a0c10", glow: "rgba(180,200,224,.36)", glowStrong: "rgba(180,200,224,.6)", accent: "#C9D6E8" },
+    { name: "🥇 Золото", text: "Ты сильнее, чем месяц назад.", a: "#2a2007", b: "#100c04", glow: "rgba(240,180,41,.42)", glowStrong: "rgba(240,180,41,.68)", accent: "#FFD54F" },
+    { name: "💎 Платина", text: "Немногие заходят так далеко.", a: "#07242a", b: "#040e10", glow: "rgba(45,212,191,.40)", glowStrong: "rgba(45,212,191,.65)", accent: "#2DD4BF" },
+    { name: "👑 Легенда", text: "Легенда ADAM. Продолжай.", a: "#1c0a2a", b: "#0b0410", glow: "rgba(167,139,250,.44)", glowStrong: "rgba(167,139,250,.7)", accent: "#A78BFA" },
+  ];
   let levelUpTimer = null;
 
   function burstCoins() {
@@ -4608,12 +4620,34 @@ function initPlanActions() {
     }
   }
 
-  function showLevelUp(level) {
+  function showLevelUp(level, previousLevel) {
     const overlay = document.getElementById("levelupOverlay");
     const value = document.getElementById("levelupValue");
     if (!overlay || !value) return;
 
     value.textContent = level;
+    // Рубеж — если пересекли границу десятка (а не просто "уровень кратен
+    // 10"): так его не пропустит тот, кто получил сразу несколько уровней
+    // за раз (например, с 9 сразу на 12) и всё равно должен увидеть момент.
+    const tierIndex = Math.floor(level / 10) - 1;
+    const isMilestone = tierIndex >= 0 && Math.floor(level / 10) > Math.floor((previousLevel || 0) / 10);
+    overlay.classList.toggle("is-milestone", isMilestone);
+
+    if (isMilestone) {
+      const tier = LEVEL_MILESTONE_TIERS[Math.min(tierIndex, LEVEL_MILESTONE_TIERS.length - 1)];
+      overlay.style.setProperty("--tier-a", tier.a);
+      overlay.style.setProperty("--tier-b", tier.b);
+      overlay.style.setProperty("--tier-glow", tier.glow);
+      overlay.style.setProperty("--tier-glow-strong", tier.glowStrong);
+      overlay.style.setProperty("--tier-accent", tier.accent);
+      const num = document.getElementById("levelupMilestoneNum");
+      const tierLabel = document.getElementById("levelupMilestoneTier");
+      const text = document.getElementById("levelupMilestoneText");
+      if (num) num.textContent = level;
+      if (tierLabel) tierLabel.textContent = tier.name;
+      if (text) text.textContent = tier.text;
+    }
+
     overlay.hidden = false;
     overlay.classList.add("show");
     burstCoins();
@@ -4621,11 +4655,16 @@ function initPlanActions() {
       try { tg.HapticFeedback.notificationOccurred("success"); } catch (e) {}
     }
 
-    clearTimeout(levelUpTimer);
-    levelUpTimer = setTimeout(() => {
+    const dismiss = () => {
       overlay.classList.remove("show");
-      setTimeout(() => { overlay.hidden = true; }, 300);
-    }, 2200);
+      setTimeout(() => { overlay.hidden = true; overlay.classList.remove("is-milestone"); }, 300);
+    };
+    clearTimeout(levelUpTimer);
+    levelUpTimer = setTimeout(dismiss, isMilestone ? 4500 : 2200);
+    const continueBtn = document.getElementById("levelupMilestoneContinue");
+    if (continueBtn) {
+      continueBtn.onclick = () => { haptic("light"); clearTimeout(levelUpTimer); dismiss(); };
+    }
   }
 
   // ===================== BOOT =====================

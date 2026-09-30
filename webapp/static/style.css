@@ -2013,6 +2013,69 @@ body {
   font-size: 16px;
 }
 
+/* Рубеж уровня (10/20/30...) — просьба пользователя: более "эпичный"
+   момент на круглых уровнях. Художественно генерируем сами (CSS-градиент
+   + свечение по тиру), а не фото — готовый набор на переиспользование,
+   без интеграции с генерацией картинок. См. app.js::LEVEL_MILESTONE_TIERS. */
+.levelup-overlay.is-milestone{
+  background:
+    radial-gradient(70% 55% at 50% 26%, var(--tier-glow,rgba(255,180,60,.38)), transparent 72%),
+    linear-gradient(175deg, var(--tier-a,#1a140a), var(--tier-b,#0c0a08) 75%);
+}
+.levelup-milestone{
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 28px;
+  max-width: 380px;
+}
+.levelup-overlay.is-milestone .levelup-milestone{ display: flex; }
+.levelup-overlay.is-milestone .levelup-card{ display: none; }
+.levelup-milestone__badge{
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 16px;
+  animation: levelupPop .6s cubic-bezier(.2,.9,.2,1);
+}
+.levelup-milestone__lvl{
+  font: 800 22px 'Space Grotesk', sans-serif;
+  letter-spacing: .1em;
+  color: var(--tier-accent,#FFD54F);
+  opacity: .85;
+}
+.levelup-milestone__num{
+  font: 800 68px 'Space Grotesk', sans-serif;
+  letter-spacing: -.02em;
+  color: #fff;
+  text-shadow: 0 0 30px var(--tier-glow-strong, rgba(255,180,60,.6));
+}
+.levelup-milestone__tier{
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tier-accent,#FFD54F);
+  margin-bottom: 16px;
+}
+.levelup-milestone__text{
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #E4E1F0;
+  margin-bottom: 30px;
+}
+.levelup-milestone__continue{
+  border: 0;
+  border-radius: 16px;
+  padding: 15px 34px;
+  font-weight: 800;
+  font-size: 14px;
+  color: #0c0a08;
+  cursor: pointer;
+  background: var(--tier-accent,#FFD54F);
+  box-shadow: 0 14px 34px rgba(0,0,0,.35);
+}
+.levelup-milestone__continue:active{ transform: translateY(1px); }
+
 .levelup-level span{
   color: var(--gold-2);
   font-weight: 700;
