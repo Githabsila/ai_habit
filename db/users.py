@@ -106,14 +106,19 @@ def mark_start_quiz_seen(user_id, age_range=None, goal=None):
 
 
 def reset_onboarding(user_id):
-    """Админ-утилита: чтобы разработчик/тестировщик мог заново пройти
-    стартовый квиз (включая тест-архетип) на своём аккаунте после того,
-    как уже отмечен как start_quiz_seen=1 — иначе maybeShowStartQuiz()
-    в app.js больше не откроет его сам."""
+    """Админ-утилита: чтобы разработчик/тестировщик мог заново пройти ВЕСЬ
+    онбординг на своём аккаунте — и стартовый квиз (включая тест-архетип),
+    и контекстные подсказки по интерфейсу. Без сброса app_tour_seen/
+    onboarding_stage подсказки продолжились бы с той стадии, на которой
+    тестировщик остановился в прошлый раз (жалоба: "подсказки начались не
+    с 1, а с 3") — ровно то, что уже решает db/product_experience.py::
+    restart_onboarding() для кнопки "Показать подсказки заново" в
+    Настройках; здесь то же самое плюс сброс полей стартового квиза."""
     conn = connect()
     conn.execute(
         "UPDATE users SET start_quiz_seen=0, onboarding_age_range=NULL, "
-        "onboarding_goal=NULL, archetype=NULL WHERE telegram_id=?",
+        "onboarding_goal=NULL, archetype=NULL, app_tour_seen=0, "
+        "onboarding_stage=0, onboarding_started_at=NULL WHERE telegram_id=?",
         (user_id,),
     )
     conn.commit()

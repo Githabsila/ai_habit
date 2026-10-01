@@ -2021,6 +2021,24 @@
     if (!step || !el) return;
     const target = document.querySelector(step.target);
     if (!target || target.offsetParent === null) return;
+    // Жалоба пользователя: переход между шагами подсказки выглядел резко —
+    // прожектор и карточка СРАЗУ прыгали на новые координаты, потому что
+    // showOnboardingSpotlight() ниже только добавляет .show, а при переходе
+    // между шагами (goToOnboardingStage зовёт showProductHint снова, БЕЗ
+    // промежуточного hideProductHint) .show уже стоял от предыдущего шага —
+    // значит позиция менялась мгновенно (см. комментарий в style.css про
+    // transition только на opacity) при полной непрозрачности. Если это
+    // смена шага, а не первое открытие — гасим текущий кадр здесь, тогда
+    // уже существующая 380ms-пауза ниже (ждёт scrollIntoView) попутно даёт
+    // время на fade-out, и новый шаг появляется плавным кроссфейдом, а не
+    // скачком. Живой скролл (scheduleSpotlightReflow) сюда не попадает —
+    // он вызывает positionOnboardingSpotlight() напрямую, не через эту
+    // функцию, так что мгновенное слежение за пальцем не трогаем.
+    const spotlightForFade = document.getElementById('onboardingSpotlight');
+    if (spotlightForFade && spotlightForFade.classList.contains('show')) {
+      spotlightForFade.classList.remove('show');
+      el.classList.remove('show');
+    }
     clearProductOnboardingTarget();
     productHintTarget = target;
     activeHintStage = stage;

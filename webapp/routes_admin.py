@@ -222,9 +222,10 @@ async def admin_unban_route(request):
 
 @routes.post("/api/admin/user/{telegram_id}/reset-onboarding")
 async def admin_reset_onboarding_route(request):
-    """Для разработчика/тестировщика — повторно увидеть стартовый квиз
-    (включая тест-архетип) после того, как он уже был пройден и
-    start_quiz_seen=1 больше не даёт app.js показать его сам."""
+    """Для разработчика/тестировщика — повторно увидеть ВЕСЬ онбординг
+    (стартовый квиз с тест-архетипом + контекстные подсказки по интерфейсу)
+    с шага 1, а не с той стадии, на которой тестировщик остановился в
+    прошлый раз."""
     await _authenticate_admin(request)
     telegram_id = int(request.match_info["telegram_id"])
     reset_onboarding(telegram_id)
