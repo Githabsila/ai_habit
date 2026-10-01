@@ -105,6 +105,21 @@ def mark_start_quiz_seen(user_id, age_range=None, goal=None):
     conn.close()
 
 
+def reset_onboarding(user_id):
+    """Админ-утилита: чтобы разработчик/тестировщик мог заново пройти
+    стартовый квиз (включая тест-архетип) на своём аккаунте после того,
+    как уже отмечен как start_quiz_seen=1 — иначе maybeShowStartQuiz()
+    в app.js больше не откроет его сам."""
+    conn = connect()
+    conn.execute(
+        "UPDATE users SET start_quiz_seen=0, onboarding_age_range=NULL, "
+        "onboarding_goal=NULL, archetype=NULL WHERE telegram_id=?",
+        (user_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
 def _ensure_admin_premium(telegram_id):
     """Администраторы бота (config.ADMIN_IDS) всегда получают Premium
     навсегда, без покупки — вызывается при каждом add_user (idempotent),

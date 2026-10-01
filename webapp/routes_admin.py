@@ -26,6 +26,7 @@ from db import (
     get_user, get_users_count,
     ban_user, unban_user,
     give_premium_admin, give_xp_admin,
+    reset_onboarding,
     get_pending_users, set_access_status,
     get_users_by_tags, get_all_users,
     get_users_by_segment, SEGMENT_LABELS,
@@ -217,6 +218,17 @@ async def admin_unban_route(request):
     telegram_id = int(request.match_info["telegram_id"])
     unban_user(telegram_id)
     return web.json_response({"ok": True, "banned": False})
+
+
+@routes.post("/api/admin/user/{telegram_id}/reset-onboarding")
+async def admin_reset_onboarding_route(request):
+    """Для разработчика/тестировщика — повторно увидеть стартовый квиз
+    (включая тест-архетип) после того, как он уже был пройден и
+    start_quiz_seen=1 больше не даёт app.js показать его сам."""
+    await _authenticate_admin(request)
+    telegram_id = int(request.match_info["telegram_id"])
+    reset_onboarding(telegram_id)
+    return web.json_response({"ok": True})
 
 
 @routes.post("/api/admin/user/{telegram_id}/premium")

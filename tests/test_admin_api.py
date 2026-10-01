@@ -85,6 +85,37 @@ async def test_admin_can_ban_and_unban_another_user(client, uid, monkeypatch):
     assert get_user(target)["banned"] == 0
 
 
+async def test_admin_can_reset_onboarding(client, uid, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "ADMIN_IDS", [uid])
+    monkeypatch.setattr("webapp.routes_admin.ADMIN_IDS", [uid])
+    add_user(uid, "admin", "Admin")
+    target = uid + 1
+    add_user(target, "tester", "Tester")
+    from db import mark_start_quiz_seen, set_archetype
+    mark_start_quiz_seen(target, age_range="25-34", goal="habit")
+    set_archetype(target, "strategist")
+    headers = await _admin_headers(client, uid)
+
+    r = await client.post(f"/api/admin/user/{target}/reset-onboarding", headers=headers)
+
+    assert r.status == 200
+    target_row = get_user(target)
+    assert target_row["start_quiz_seen"] == 0
+    assert target_row["onboarding_age_range"] is None
+    assert target_row["onboarding_goal"] is None
+    assert target_row["archetype"] is None
+
+
+async def test_regular_user_gets_403_on_reset_onboarding(client, uid):
+    add_user(uid, "tester", "Test")
+    headers = await _admin_headers(client, uid)
+
+    r = await client.post(f"/api/admin/user/{uid}/reset-onboarding", headers=headers)
+
+    assert r.status == 403
+
+
 async def test_admin_can_give_xp(client, uid, monkeypatch):
     import config
     monkeypatch.setattr(config, "ADMIN_IDS", [uid])
