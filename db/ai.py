@@ -270,6 +270,30 @@ def get_error_stats(hours=24, limit=5):
     return {"total": total, "by_scope": by_scope, "hours": hours}
 
 
+def get_recent_errors(scope=None, hours=24, limit=50):
+    """Сырые записи error_log для разбора конкретных ошибок — get_error_stats
+    выше даёт только сводку "сколько по каждому scope", без текста самой
+    ошибки. Нужна для диагностики всплесков, которые шлёт ежедневная
+    сводка/алерт (admin_digest_scheduler.py, error_alert_scheduler.py)."""
+    conn = connect()
+    cursor = conn.cursor()
+    if scope:
+        cursor.execute("""
+            SELECT scope, error, user_id, created_at FROM error_log
+            WHERE created_at >= datetime('now', ?) AND scope = ?
+            ORDER BY id DESC LIMIT ?
+        """, (f"-{hours} hours", scope, limit))
+    else:
+        cursor.execute("""
+            SELECT scope, error, user_id, created_at FROM error_log
+            WHERE created_at >= datetime('now', ?)
+            ORDER BY id DESC LIMIT ?
+        """, (f"-{hours} hours", limit))
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
 def claim_ai_first_message(user_id):
     """Атомарно отмечает первое обработанное сообщение AI.
 

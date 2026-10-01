@@ -27,6 +27,7 @@ from db import (
     ban_user, unban_user,
     give_premium_admin, give_xp_admin,
     reset_onboarding,
+    get_error_stats, get_recent_errors,
     get_pending_users, set_access_status,
     get_users_by_tags, get_all_users,
     get_users_by_segment, SEGMENT_LABELS,
@@ -175,6 +176,28 @@ async def admin_churn_risk_route(request):
     тире + список самых 'горящих'."""
     await _authenticate_admin(request)
     return web.json_response(get_churn_risk_report())
+
+
+@routes.get("/api/admin/server-errors")
+async def admin_server_errors_route(request):
+    """Сырые записи error_log (db/ai.py::log_error) — ежедневная сводка/
+    алерт (🩺 Мониторинг ошибок) даёт только счётчик по scope, без текста
+    самой ошибки. ?scope=habit_checkpoint_10 фильтрует по конкретному
+    тегу, без параметра — последние ошибки по всем scope."""
+    await _authenticate_admin(request)
+    scope = request.query.get("scope") or None
+    try:
+        hours = min(int(request.query.get("hours", 24)), 24 * 30)
+    except (TypeError, ValueError):
+        hours = 24
+    try:
+        limit = min(int(request.query.get("limit", 50)), 500)
+    except (TypeError, ValueError):
+        limit = 50
+    return web.json_response({
+        "stats": get_error_stats(hours=hours),
+        "errors": get_recent_errors(scope=scope, hours=hours, limit=limit),
+    })
 
 
 @routes.get("/api/admin/client-errors")

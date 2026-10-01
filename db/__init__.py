@@ -203,6 +203,7 @@ from .ai import (
     cache_set,
     log_error,
     get_error_stats,
+    get_recent_errors,
 )
 
 from .shop import (
@@ -358,7 +359,7 @@ __all__ = [
     "add_ai_message", "get_ai_history", "get_ai_message_text", "clear_ai_history", "save_ai_feedback", "get_ai_feedback_stats",
     "save_feedback_reason", "get_recent_negative_reasons",
     "get_user_profile", "update_user_profile", "get_proactive_topic", "bump_profile_counter",
-    "cache_get", "cache_set", "log_error", "get_error_stats",
+    "cache_get", "cache_set", "log_error", "get_error_stats", "get_recent_errors",
     "get_shop_items", "buy_shop_item", "get_user_items",
     "has_item", "get_item_owner_ids", "update_theme", "get_theme",
     "get_color_mode", "update_color_mode", "VALID_COLOR_MODES",

@@ -85,6 +85,36 @@ async def test_admin_can_ban_and_unban_another_user(client, uid, monkeypatch):
     assert get_user(target)["banned"] == 0
 
 
+async def test_admin_can_view_server_errors(client, uid, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "ADMIN_IDS", [uid])
+    monkeypatch.setattr("webapp.routes_admin.ADMIN_IDS", [uid])
+    add_user(uid, "admin", "Admin")
+    from db import log_error
+    log_error("habit_checkpoint_10", "bot was blocked by the user", 555)
+    log_error("morning_ping", "chat not found", 556)
+    headers = await _admin_headers(client, uid)
+
+    r = await client.get("/api/admin/server-errors?scope=habit_checkpoint_10", headers=headers)
+
+    assert r.status == 200
+    data = await r.json()
+    assert data["stats"]["total"] >= 2
+    assert len(data["errors"]) == 1
+    assert data["errors"][0]["scope"] == "habit_checkpoint_10"
+    assert data["errors"][0]["error"] == "bot was blocked by the user"
+    assert data["errors"][0]["user_id"] == 555
+
+
+async def test_regular_user_gets_403_on_server_errors(client, uid):
+    add_user(uid, "tester", "Test")
+    headers = await _admin_headers(client, uid)
+
+    r = await client.get("/api/admin/server-errors", headers=headers)
+
+    assert r.status == 403
+
+
 async def test_admin_can_reset_onboarding(client, uid, monkeypatch):
     import config
     monkeypatch.setattr(config, "ADMIN_IDS", [uid])
