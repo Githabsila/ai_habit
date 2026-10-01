@@ -13192,7 +13192,14 @@ body{
 .start-quiz-option.is-selected .start-quiz-option__dot{border-color:#EF4444}
 .start-quiz-option.is-selected .start-quiz-option__dot::after{opacity:1;transform:scale(1)}
 .start-quiz-option:active{transform:scale(.98)}
-.start-quiz-continue{margin-top:18px;width:100%}
+.start-quiz-continue{
+  /* .app-tour-next даёт flex:1 1 auto — рассчитан на горизонтальный ряд
+     кнопок (.app-tour-actions), а не на колоночную раскладку квиза: без
+     явного сброса кнопка росла по высоте, деля с .start-quiz-options
+     оставшееся вертикальное место, и становилась огромной (жалоба
+     пользователя на скриншоте с реального устройства). */
+  flex:0 0 auto;margin-top:18px;width:100%;
+}
 .start-quiz-continue:disabled{opacity:.4;pointer-events:none}
 @media(max-width:380px){.start-quiz-title{font-size:21px}}
 
