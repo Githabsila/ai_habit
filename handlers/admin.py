@@ -405,10 +405,12 @@ async def admin_stats(callback: CallbackQuery):
 
     # Общий текст со scheduler'ом ежедневной автосводки — одна и та же
     # логика для кнопки "по запросу" и для проактивной рассылки, см.
-    # admin_digest_scheduler.py.
-    from admin_digest_scheduler import build_stats_report
+    # admin_digest_scheduler.py. Два отдельных сообщения (статистика, потом
+    # мониторинг ошибок) — то же самое разделение, что и в автосводке.
+    from admin_digest_scheduler import build_stats_report, build_error_monitoring_report
 
     await callback.message.answer(build_stats_report(), parse_mode="HTML")
+    await callback.message.answer(build_error_monitoring_report(), parse_mode="HTML")
     await callback.answer()
 
 

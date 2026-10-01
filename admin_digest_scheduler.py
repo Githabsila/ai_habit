@@ -53,14 +53,6 @@ def build_stats_report():
         if fb["total"] else "оценок пока нет"
     )
 
-    errors = get_error_stats(hours=24)
-    err_line = (
-        f"⚠️ {errors['total']} за 24ч (" + ", ".join(
-            f"{row['scope']}: {row['cnt']}" for row in errors["by_scope"]
-        ) + ")"
-        if errors["total"] else "за 24ч ошибок не было ✅"
-    )
-
     access_counts = get_access_status_counts()
     pending_n = access_counts.get("pending", 0)
     new_n = access_counts.get("new", 0)
@@ -135,22 +127,49 @@ def build_stats_report():
 🤖 Расход AI-квоты чата сегодня: <b>{ai_ceiling_line}</b> · оценки ответов: {fb_line}
 
 📬 Напоминания за 24ч: {notif_line}
-
-🩺 Мониторинг ошибок: <b>{err_line}</b>
 """.strip()
 
 
+def build_error_monitoring_report():
+    """Просьба пользователя: мониторинг ошибок должен приходить ОТДЕЛЬНЫМ
+    уведомлением после сообщения статистики, а не последней строкой внутри
+    него — иначе в длинной сводке его легко проглядеть, хотя по смыслу это
+    самая "тревожная" и требующая внимания часть. Раньше жила последней
+    строкой в build_stats_report() выше, теперь — отдельное сообщение."""
+    errors = get_error_stats(hours=24)
+    err_line = (
+        f"⚠️ {errors['total']} за 24ч (" + ", ".join(
+            f"{row['scope']}: {row['cnt']}" for row in errors["by_scope"]
+        ) + ")"
+        if errors["total"] else "за 24ч ошибок не было ✅"
+    )
+    return f"🩺 <b>Мониторинг ошибок</b>\n\n{err_line}"
+
+
 async def run_admin_daily_digest(bot):
-    """Раз в день (см. main.py: cron hour=DIGEST_HOUR_UTC) шлёт эту сводку
-    всем админам — не дожидаясь, пока кто-то из них сам зайдёт в /admin."""
+    """Раз в день (см. main.py: cron hour=DIGEST_HOUR_UTC) шлёт сводку всем
+    админам — не дожидаясь, пока кто-то из них сам зайдёт в /admin. Статистика
+    и мониторинг ошибок — два ОТДЕЛЬНЫХ сообщения (просьба пользователя),
+    ошибки идут вторым, следом за статистикой."""
     try:
-        text = build_stats_report()
+        stats_text = build_stats_report()
     except Exception as e:
         logger.exception("Не удалось построить ежедневную сводку")
-        text = f"🩺 Не удалось построить ежедневную сводку статистики: {e}"
+        stats_text = f"🩺 Не удалось построить ежедневную сводку статистики: {e}"
+
+    try:
+        errors_text = build_error_monitoring_report()
+    except Exception as e:
+        logger.exception("Не удалось построить отчёт по ошибкам")
+        errors_text = f"🩺 Не удалось построить отчёт по мониторингу ошибок: {e}"
 
     for admin_id in ADMIN_IDS:
         try:
-            await bot.send_message(admin_id, text, parse_mode="HTML")
+            await bot.send_message(admin_id, stats_text, parse_mode="HTML")
         except Exception:
             logger.warning(f"Не удалось отправить ежедневную сводку админу {admin_id}")
+            continue
+        try:
+            await bot.send_message(admin_id, errors_text, parse_mode="HTML")
+        except Exception:
+            logger.warning(f"Не удалось отправить отчёт по ошибкам админу {admin_id}")
