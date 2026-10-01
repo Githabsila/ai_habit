@@ -1195,18 +1195,82 @@
     setTimeout(() => { overlay.hidden = true; }, 300);
   }
 
-  // ===================== СТАРТОВЫЙ КВИЗ + ВОРОНКА (ВОЗРАСТ/ЦЕЛЬ/ОТЗЫВЫ/РЕФЕРАЛ/ПОДПИСКА) =====================
+  // Вопросы теста на архетип (Стратег/Марафонец/Спринтер/Исследователь) —
+  // раньше жили только в Настройках (см. initArchetypeQuizActions ниже),
+  // теперь это и есть "первый тест" прямо в онбординге (просьба
+  // пользователя). Объявлены здесь (а не рядом со старым использованием),
+  // потому что START_QUIZ_STEPS ниже строится из этого массива при первом
+  // же выполнении файла — объявление должно идти раньше по тексту.
+  const ARCHETYPE_QUIZ_QUESTIONS = [
+    {
+      q: "Как ты предпочитаешь идти к цели?",
+      options: [
+        ["Продуманный план наперёд", "strategist"],
+        ["Ровный темп, день за днём", "marathoner"],
+        ["Короткие мощные рывки", "sprinter"],
+        ["Пробую разное по ходу", "explorer"],
+      ],
+    },
+    {
+      q: "Что мотивирует сильнее всего?",
+      options: [
+        ["Видеть прогресс к большой цели", "strategist"],
+        ["Не прерывать серию ни на день", "marathoner"],
+        ["Азарт прямо здесь и сейчас", "sprinter"],
+        ["Новизна и разнообразие", "explorer"],
+      ],
+    },
+    {
+      q: "Пропустил день — что делаешь?",
+      options: [
+        ["Разбираю, что пошло не так", "strategist"],
+        ["Просто продолжаю с завтра", "marathoner"],
+        ["Наверстываю вдвойне", "sprinter"],
+        ["Пробую заменить на другое", "explorer"],
+      ],
+    },
+    {
+      q: "Идеальная привычка — это та, что...",
+      options: [
+        ["Ведёт к измеримому результату", "strategist"],
+        ["Стала частью рутины, без усилий", "marathoner"],
+        ["Даёт быстрый результат", "sprinter"],
+        ["Интересно пробовать", "explorer"],
+      ],
+    },
+  ];
+
+  // Резервные подписи на случай, если /api/settings/archetype не ответит
+  // (офлайн и т.п.) — должны совпадать с db/users.py::ARCHETYPES.
+  const ARCHETYPE_LABELS = {
+    strategist: "🎯 Стратег",
+    marathoner: "🧗 Марафонец",
+    sprinter: "🏃 Спринтер",
+    explorer: "🔭 Исследователь",
+  };
+
+  // Короткие честные описания результата — выведены из смысла самих
+  // вопросов выше, без придуманных внешних характеристик.
+  const ARCHETYPE_BLURBS = {
+    strategist: "Ты любишь чёткий план — и это сила. ADAM будет помогать раскладывать большие цели на понятные шаги.",
+    marathoner: "Для тебя главное — не прерывать серию. ADAM будет держать твой ритм и напоминать вовремя.",
+    sprinter: "Тебя заряжают короткие мощные рывки. ADAM будет подкидывать вызовы и быстрые победы.",
+    explorer: "Тебе интересно пробовать новое. ADAM поможет находить свежие привычки и не заскучать.",
+  };
+
+  // ===================== СТАРТОВЫЙ КВИЗ + ВОРОНКА (ВОЗРАСТ/ЦЕЛЬ/АРХЕТИП/ОТЗЫВЫ/РЕФЕРАЛ/ПОДПИСКА) =====================
   // Просьба пользователя: короткие шаги с уже готовыми вариантами ответа
   // (без свободного ввода) ПЕРЕД app-tour — по образцу популярных
-  // фитнес-приложений. Первые 2 шага (возраст/цель) обязательны и
-  // сохраняются на сервере (см. /api/start-quiz/seen,
-  // db/users.py::mark_start_quiz_seen), следующие 3 (отзывы/реферал/
-  // подписка) — информационные, "Далее" там всегда активна. Отзывы — БЕЗ
-  // выдуманных чужих фото/имён с привязкой к несуществующим внешним
-  // рейтингам (это было бы введением в заблуждение) — только иллюстративные
-  // примеры. Подписка — пока ТОЛЬКО превью без реального списания Stars
-  // (SUBSCRIPTION_GATE_ENABLED осознанно остаётся выключен, просьба
-  // пользователя — сначала UI, включать биллинг будем отдельно и осознанно).
+  // фитнес-приложений. Первые 2 шага (возраст/цель) + 4 вопроса архетипа
+  // обязательны и сохраняются на сервере (см. /api/start-quiz/seen,
+  // db/users.py::mark_start_quiz_seen, /api/settings/archetype), следующие
+  // 3 (отзывы/реферал/подписка) — информационные, "Далее" там всегда
+  // активна. Отзывы — БЕЗ выдуманных чужих фото/имён с привязкой к
+  // несуществующим внешним рейтингам (это было бы введением в заблуждение) —
+  // только иллюстративные примеры. Подписка — пока ТОЛЬКО превью без
+  // реального списания Stars (SUBSCRIPTION_GATE_ENABLED осознанно остаётся
+  // выключен, просьба пользователя — сначала UI, включать биллинг будем
+  // отдельно и осознанно).
   const START_QUIZ_STEPS = [
     {
       type: "choice",
@@ -1232,10 +1296,20 @@
         ["🚀", "Просто посмотреть", "explore"],
       ],
     },
+    ...ARCHETYPE_QUIZ_QUESTIONS.map((q, i) => ({
+      type: "choice",
+      key: `archetype_q${i}`,
+      title: q.q,
+      options: q.options,
+    })),
+    { type: "archetype_result", title: "Твой архетип" },
     { type: "testimonials", title: "С ADAM уже не одни" },
     { type: "referral", title: "Позови друзей — бонус обоим" },
     { type: "paywall", title: "ADAM после пробного периода" },
   ];
+  let startQuizArchetypeKey = null;
+  let startQuizArchetypeLabel = null;
+  let startQuizArchetypeComputed = false;
   let startQuizStep = 0;
   let startQuizAnswers = {};
   let startQuizShownThisSession = false;
@@ -1341,6 +1415,58 @@
     });
   }
 
+  // Результат теста архетипа — считаем один раз (не на каждый возврат на
+  // этот шаг кнопкой "Назад"/"Далее"), сохраняем на сервере через тот же
+  // /api/settings/archetype, что и версия теста в Настройках. Кнопка
+  // "Написать Адаму" — просьба пользователя "вовлечение в общение с
+  // ИИ-Адамом важно очень": вместо того чтобы просто показать результат,
+  // сразу даём один тап до настоящего персонального первого ответа ADAM
+  // (не блокируем сам квиз сетевым вызовом — переход на /coach с
+  // параметрами, первое сообщение формирует и шлёт уже ai_coach.js).
+  async function renderStartQuizArchetypeResultStep(options) {
+    if (!options) return;
+    if (!startQuizArchetypeComputed) {
+      options.innerHTML = `<div class="start-quiz-archetype-loading">Считаю результат…</div>`;
+      const tally = {};
+      ARCHETYPE_QUIZ_QUESTIONS.forEach((_, i) => {
+        const value = startQuizAnswers[`archetype_q${i}`];
+        if (value) tally[value] = (tally[value] || 0) + 1;
+      });
+      const winner = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0] || "explorer";
+      let label = ARCHETYPE_LABELS[winner] || winner;
+      try {
+        const res = await api("/api/settings/archetype", { method: "POST", body: JSON.stringify({ archetype: winner }) });
+        if (res?.archetype) label = res.archetype;
+        if (state.user) state.user.archetype = label;
+        const openBtn = document.getElementById("archetypeQuizBtn");
+        if (openBtn) openBtn.textContent = label;
+      } catch (_) { /* не критично — локально архетип уже известен, просто не сохранился на сервере */ }
+      startQuizArchetypeKey = winner;
+      startQuizArchetypeLabel = label;
+      startQuizArchetypeComputed = true;
+      // Пользователь мог уйти на другой шаг, пока ждали ответ сервера.
+      if (START_QUIZ_STEPS[startQuizStep]?.type !== "archetype_result") return;
+    }
+    const key = startQuizArchetypeKey;
+    const label = startQuizArchetypeLabel || ARCHETYPE_LABELS[key] || key;
+    const blurb = ARCHETYPE_BLURBS[key] || "";
+    options.innerHTML = `
+      <div class="start-quiz-archetype-result">
+        <div class="start-quiz-archetype-result__label">Твой архетип</div>
+        <div class="start-quiz-archetype-result__value">${escapeHtml(label)}</div>
+        <p class="start-quiz-archetype-result__blurb">${escapeHtml(blurb)}</p>
+        <button type="button" class="start-quiz-archetype-result__chat" id="startQuizArchetypeChat">✦ Написать Адаму</button>
+      </div>`;
+    document.getElementById("startQuizArchetypeChat")?.addEventListener("click", () => {
+      haptic("light");
+      const overlay = document.getElementById("loadingOverlay");
+      if (overlay) overlay.hidden = false;
+      const goalKey = startQuizAnswers.goal || "";
+      const url = `/coach?intro=archetype&a=${encodeURIComponent(key)}&g=${encodeURIComponent(goalKey)}`;
+      setTimeout(() => { window.location.href = url; }, 60);
+    });
+  }
+
   // Честная превью-витрина: перечисляет РЕАЛЬНО существующие механики
   // подписки (db/subscription.py — продолжение доступа после триала +
   // закрытый канал за стрик), без выдуманных фич. Биллинг НЕ подключён —
@@ -1378,7 +1504,8 @@
     if (step.type === "choice") {
       renderStartQuizChoiceStep(step, options, continueBtn);
     } else {
-      if (step.type === "testimonials") renderStartQuizTestimonialsStep(options);
+      if (step.type === "archetype_result") renderStartQuizArchetypeResultStep(options);
+      else if (step.type === "testimonials") renderStartQuizTestimonialsStep(options);
       else if (step.type === "referral") renderStartQuizReferralStep(options);
       else if (step.type === "paywall") renderStartQuizPaywallStep(options);
       if (continueBtn) continueBtn.disabled = false;
@@ -1390,6 +1517,9 @@
     if (!overlay) { maybeShowAppTour(); return; }
     startQuizStep = 0;
     startQuizAnswers = {};
+    startQuizArchetypeKey = null;
+    startQuizArchetypeLabel = null;
+    startQuizArchetypeComputed = false;
     renderStartQuizStep();
     overlay.hidden = false;
     requestAnimationFrame(() => overlay.classList.add("show"));
@@ -5465,46 +5595,9 @@ function initReminderSettingsActions() {
 
 // Roadmap #39 — короткий тест на архетип личности. Подсчёт целиком на
 // клиенте (4 вопроса, каждый вариант тянет к одному из 4 архетипов),
-// на сервер уходит только готовый ключ-результат.
-const ARCHETYPE_QUIZ_QUESTIONS = [
-  {
-    q: "Как ты предпочитаешь идти к цели?",
-    options: [
-      ["Продуманный план наперёд", "strategist"],
-      ["Ровный темп, день за днём", "marathoner"],
-      ["Короткие мощные рывки", "sprinter"],
-      ["Пробую разное по ходу", "explorer"],
-    ],
-  },
-  {
-    q: "Что мотивирует сильнее всего?",
-    options: [
-      ["Видеть прогресс к большой цели", "strategist"],
-      ["Не прерывать серию ни на день", "marathoner"],
-      ["Азарт прямо здесь и сейчас", "sprinter"],
-      ["Новизна и разнообразие", "explorer"],
-    ],
-  },
-  {
-    q: "Пропустил день — что делаешь?",
-    options: [
-      ["Разбираю, что пошло не так", "strategist"],
-      ["Просто продолжаю с завтра", "marathoner"],
-      ["Наверстываю вдвойне", "sprinter"],
-      ["Пробую заменить на другое", "explorer"],
-    ],
-  },
-  {
-    q: "Идеальная привычка — это та, что...",
-    options: [
-      ["Ведёт к измеримому результату", "strategist"],
-      ["Стала частью рутины, без усилий", "marathoner"],
-      ["Даёт быстрый результат", "sprinter"],
-      ["Интересно пробовать", "explorer"],
-    ],
-  },
-];
-
+// на сервер уходит только готовый ключ-результат. ARCHETYPE_QUIZ_QUESTIONS
+// теперь объявлен выше (см. комментарий там) — он же используется для
+// версии теста, встроенной в стартовый онбординг-квиз.
 function initArchetypeQuizActions() {
   const openBtn = document.getElementById("archetypeQuizBtn");
   const overlay = document.getElementById("archetypeQuizOverlay");

@@ -13243,6 +13243,24 @@ body.onboarding-scroll-lock{
   color:#cfcbe0;border-radius:16px;padding:14px 18px;font-weight:800;font-size:14px;cursor:pointer;
 }
 
+/* Результат теста-архетипа внутри онбординга (та же логика подсчёта и тот
+   же /api/settings/archetype, что и версия в Настройках — см. app.js
+   renderStartQuizArchetypeResultStep). */
+.start-quiz-archetype-loading{padding:30px 0;text-align:center;color:#8b879b;font-size:13px}
+.start-quiz-archetype-result{text-align:center;padding:6px 0}
+.start-quiz-archetype-result__label{font-size:11px;color:#8b879b;margin-bottom:6px}
+.start-quiz-archetype-result__value{
+  font-family:'Space Grotesk', sans-serif;
+  font-size:26px;font-weight:800;color:#fff;
+  margin-bottom:14px;
+}
+.start-quiz-archetype-result__blurb{color:#B8B4C8;font-size:14px;line-height:1.55;margin:0 0 20px}
+.start-quiz-archetype-result__chat{
+  width:100%;border:0;border-radius:16px;padding:14px 18px;font-weight:800;font-size:14px;color:#fff;cursor:pointer;
+  background:linear-gradient(135deg,#FF8A00,#EF4444);
+}
+.start-quiz-archetype-result__chat:active{transform:scale(.98)}
+
 /* Превью подписки (без биллинга) */
 .start-quiz-paywall__badge{
   display:inline-block;padding:6px 12px;border-radius:99px;font-size:12px;font-weight:800;margin-bottom:16px;

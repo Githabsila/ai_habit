@@ -4,6 +4,38 @@ try {
     if (lowPower) document.documentElement.classList.add('performance-lite');
 } catch (e) {}
 const tg = window.Telegram.WebApp;
+// Тот же фоллбэк, что и в app.js::initData() — настоящий telegram-web-app.js
+// заполняет tg.initData только внутри реального клиента Telegram; при
+// прямом переходе по ссылке (в т.ч. из онбординга index.html на /coach)
+// initData иногда нужно брать из URL. Без этого была ошибка "Не получилось
+// подтвердить, что это ты" при переходе сразу после теста архетипа.
+function getInitData() {
+    try {
+        if (typeof tg.initData === "string" && tg.initData) return tg.initData;
+    } catch (e) {}
+    try {
+        const hashParams = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : location.hash);
+        const hashData = hashParams.get("tgWebAppData");
+        if (hashData) return hashData;
+        const queryData = new URLSearchParams(location.search).get("tgWebAppData");
+        if (queryData) return queryData;
+    } catch (e) {}
+    return tg.initData || "";
+}
+// Тот же приём, что и app.js::waitForInitData — реальный telegram-web-app.js
+// иногда ещё не успел проставить tg.initData (а то и URL уже подчистил)
+// ровно в момент первого запроса сразу после mount; без короткого опроса
+// самый первый fetch случайно ловил 401 ("Не получилось подтвердить, что
+// это ты"), хотя через доли секунды initData уже был на месте.
+async function waitForInitData(timeoutMs = 3000) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        const value = getInitData();
+        if (value) return value;
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return getInitData();
+}
 // Светлая тема убрана по решению пользователя — приложение (включая этот
 // чат) развивается только в тёмных тонах, независимо от того, что могло
 // быть сохранено в настройках раньше.
@@ -345,12 +377,12 @@ function AiChat() {
     useEffect(() => { saveStoredMessages(messages); }, [messages]);
     const loadHistory = useCallback(async () => {
         try {
-            const res = await fetch('/api/ai/history?init_data=' + encodeURIComponent(tg.initData) + '&limit=50');
+            const res = await fetch('/api/ai/history?init_data=' + encodeURIComponent(getInitData()) + '&limit=50');
             if (!res.ok)
-                return;
+                return false;
             const data = await res.json();
             if (!Array.isArray(data.history))
-                return;
+                return false;
             const normalized = data.history.map((m, i) => ({
                 id: m.id || `history-${i}`,
                 role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -360,14 +392,57 @@ function AiChat() {
             }));
             if (normalized.length)
                 setMessages(normalized);
+            return normalized.length > 0;
         }
-        catch (e) { }
+        catch (e) { return false; }
     }, []);
+    // Переход из онбординга (см. app.js renderStartQuizArchetypeResultStep)
+    // открывает /coach?intro=archetype&a=<архетип>&g=<цель> — первое
+    // сообщение формируем и шлём от имени пользователя сами, чтобы сразу
+    // показать настоящий персональный ответ ADAM, а не просто пустой чат.
+    // Только если у пользователя ДЕЙСТВИТЕЛЬНО ещё нет истории — иначе по
+    // прямой ссылке повторно заспамили бы диалог при каждом заходе.
+    const sentOnboardingIntroRef = useRef(false);
     useEffect(() => {
-        fetch('/api/ai/quota', { headers: { 'X-Telegram-Init-Data': tg.initData } })
-            .then(r => r.json()).then(setQuota).catch(() => { });
-        if (!loadStoredMessages().length)
-            loadHistory();
+        (async () => {
+            // Ждём initData ДО первого запроса — см. комментарий у
+            // waitForInitData. Без этого параллельные quota/history запросы
+            // с mount иногда уходили раньше, чем initData был готов.
+            await waitForInitData();
+            fetch('/api/ai/quota', { headers: { 'X-Telegram-Init-Data': getInitData() } })
+                .then(r => r.json()).then(setQuota).catch(() => { });
+            const maybeSendOnboardingIntro = (hasHistory) => {
+                if (hasHistory || sentOnboardingIntroRef.current)
+                    return;
+                const params = new URLSearchParams(location.search);
+                if (params.get('intro') !== 'archetype')
+                    return;
+                sentOnboardingIntroRef.current = true;
+                const archetypeLabels = { strategist: 'Стратег', marathoner: 'Марафонец', sprinter: 'Спринтер', explorer: 'Исследователь' };
+                const goalLabels = { habit: 'выработать привычку', discipline: 'прокачать дисциплину', streak: 'не срывать серию', ai: 'общаться с ИИ-наставником', explore: 'просто посмотреть' };
+                const archetypeText = archetypeLabels[params.get('a') || ''];
+                const goalText = goalLabels[params.get('g') || ''];
+                let text = 'Привет! Я только что прошёл тест в ADAM';
+                if (archetypeText)
+                    text += ` — мой архетип «${archetypeText}»`;
+                if (goalText)
+                    text += `, цель — ${goalText}`;
+                text += '. С чего мне начать?';
+                // ВАЖНО: чистим URL ПОСЛЕ вызова sendText, а не до — sendText
+                // синхронно читает getInitData() в момент вызова (до первого
+                // await внутри), а в этой тестовой среде initData иногда
+                // доступен ТОЛЬКО через ?tgWebAppData= в URL; если стереть
+                // параметр раньше, первый реальный запрос уйдёт с пустым
+                // init_data и получит 401 (нашли при локальном тестировании).
+                sendText(text);
+                history.replaceState(null, '', location.pathname);
+            };
+            if (loadStoredMessages().length) {
+                maybeSendOnboardingIntro(true);
+            } else {
+                loadHistory().then(maybeSendOnboardingIntro);
+            }
+        })();
         const onOnline = () => setOnline(true), onOffline = () => setOnline(false);
         window.addEventListener('online', onOnline);
         window.addEventListener('offline', onOffline);
@@ -404,7 +479,7 @@ function AiChat() {
         try {
             const res = await fetch('/api/ai/chat', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ init_data: tg.initData, message: text })
+                body: JSON.stringify({ init_data: getInitData(), message: text })
             });
             const data = await res.json();
             if (!res.ok) {
@@ -451,7 +526,7 @@ function AiChat() {
         setMessages(p => p.map(m => m.id === id ? { ...m, rated: rating } : m));
         vibrate('light');
         try {
-            const body = { init_data: tg.initData, message_id: id, rating };
+            const body = { init_data: getInitData(), message_id: id, rating };
             if (reason) body.reason = reason;
             const res = await fetch('/api/ai/feedback', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -501,7 +576,7 @@ function AiChat() {
     };
     const addHabit = async (id, habit) => {
         try {
-            const res = await fetch('/api/ai/habit/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ init_data: tg.initData, habit_title: habit }) });
+            const res = await fetch('/api/ai/habit/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ init_data: getInitData(), habit_title: habit }) });
             if (!res.ok)
                 throw new Error();
             setMessages(p => p.map(m => m.id === id ? { ...m, habit: null } : m));
@@ -518,7 +593,7 @@ function AiChat() {
         setLoading(true);
         vibrate('light');
         try {
-            const res = await fetch('/api/ai/tip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ init_data: tg.initData }) });
+            const res = await fetch('/api/ai/tip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ init_data: getInitData() }) });
             const data = await res.json();
             setMessages(p => [...p, { id: Date.now(), role: 'assistant', text: '✦ Совет дня\n\n' + (data.tip || 'Сделай сегодня один маленький шаг в сторону своей цели.'), time: formatTime(), canRate: false, isNew: true }]);
         }
@@ -544,7 +619,7 @@ function AiChat() {
                 await fetch('/api/ai/clear', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ init_data: tg.initData }),
+                    body: JSON.stringify({ init_data: getInitData() }),
                 });
             } catch (e) { /* экран уже очищен — молча пробуем позже, не блокируем пользователя */ }
         };
