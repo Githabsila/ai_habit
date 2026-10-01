@@ -1,15 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
 
-<script>
-window.onerror = function(msg, url, line, col, error) {
-    document.body.innerHTML = 
-        '<pre style="color:#ff6b6b;padding:20px;white-space:pre-wrap;font-size:14px;">' +
-        'JS Error: ' + msg + '\nStr: ' + line + ':' + col +
-        '</pre>';
-};
-</script>
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -20,6 +11,18 @@ window.onerror = function(msg, url, line, col, error) {
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script>
     window.onerror = function(msg, url, line, col, error) {
+        // Жалоба пользователя: сворачивал Mini App из раздела ИИ (не
+        // закрывая) и при возврате видел пустой экран с "JS Error: Script
+        // error.". "Script error." + line/col=0 — непрозрачная ошибка из
+        // кросс-доменного скрипта (telegram.org/js/telegram-web-app.js,
+        // который Telegram сам пересчитывает при возврате из фона) —
+        // браузер прячет реальные детали по CORS, в этой записи нет НИ
+        // ОДНОГО полезного для диагностики байта. Этот обработчик стирал
+        // ВЕСЬ контент страницы (document.body.innerHTML) ради такой
+        // ошибки — чат с ADAM пропадал целиком, хотя сам React-чат мог
+        // прекрасно продолжать работать. Игнорируем именно эту форму,
+        // оставляя видимым реальный краш с настоящим сообщением/строкой.
+        if (msg === 'Script error.' && !line && !col) return true;
         document.body.innerHTML =
             '<pre style="color:#ff6b6b;padding:20px;white-space:pre-wrap;font-size:14px;">' +
             'JS Error: ' + msg + '\nStr: ' + line + ':' + col +
