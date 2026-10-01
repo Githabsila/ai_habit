@@ -1715,16 +1715,45 @@
     // сразу, вторая из которых при скролле заметно отставала (лаг JS).
   }
 
+  // Просьба пользователя (видео с реального устройства): пока открыта
+  // подсказка онбординга, фон не должен листаться и реагировать на тапы —
+  // доступны только кнопки самой подсказки и подсвеченная цель. Блокируем
+  // через position:fixed на body (надёжно гасит и touch-скролл, не только
+  // колесо/трекпад) — тот же приём, что и у модалок с фиксированным фоном.
+  // scrollLockActive защищает от повторного вызова при переключении между
+  // шагами подсказки (goToOnboardingStage вызывает showProductHint снова,
+  // БЕЗ промежуточного hideProductHint) — иначе второй лок прочитал бы
+  // window.scrollY уже как 0 (страница и так заблокирована) и страницу
+  // визуально дёрнуло бы в самый верх.
+  let scrollLockY = 0;
+  let scrollLockActive = false;
+  function lockBackgroundScroll() {
+    if (scrollLockActive) return;
+    scrollLockActive = true;
+    scrollLockY = window.scrollY || window.pageYOffset || 0;
+    document.body.classList.add('onboarding-scroll-lock');
+    document.body.style.top = `-${scrollLockY}px`;
+  }
+  function unlockBackgroundScroll() {
+    if (!scrollLockActive) return;
+    scrollLockActive = false;
+    document.body.classList.remove('onboarding-scroll-lock');
+    document.body.style.top = '';
+    window.scrollTo(0, scrollLockY);
+  }
+
   function showOnboardingSpotlight(target) {
     const spotlight = document.getElementById('onboardingSpotlight');
     if (!spotlight || !target) return;
     positionOnboardingSpotlight(target);
     spotlight.hidden = false;
     requestAnimationFrame(() => spotlight.classList.add('show'));
+    lockBackgroundScroll();
   }
 
   function hideOnboardingSpotlight() {
     const spotlight = document.getElementById('onboardingSpotlight');
+    unlockBackgroundScroll();
     if (!spotlight) return;
     spotlight.classList.remove('show');
     setTimeout(() => { if (!spotlight.classList.contains('show')) spotlight.hidden = true; }, 340);

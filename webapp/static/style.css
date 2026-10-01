@@ -11837,11 +11837,20 @@ body{
    подсказка не блокирует остальной интерфейс, это не модалка. */
 .onboarding-spotlight{position:fixed;inset:0;z-index:1690;pointer-events:none}
 .onboarding-spotlight[hidden]{display:none}
+/* Просьба пользователя: пока подсказка открыта, фон не должен реагировать
+   на тапы — только кнопки подсказки и подсвеченная цель (она и так сидит
+   выше по z-index, см. .product-onboarding-target). Сам контейнер
+   остаётся pointer-events:none (чтобы вырез вокруг цели не перехватывал
+   клик), а перехватывают именно 4 затемнённые полосы вокруг неё. */
+body.onboarding-scroll-lock{
+  position:fixed;left:0;right:0;overflow:hidden;
+}
 .onboarding-spotlight__panel{
   position:fixed;top:0;left:0;width:0;height:0;
   background:rgba(8,6,16,.52);
   backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
   opacity:0;
+  pointer-events:auto;
   /* ВАЖНО: transition только на opacity, НЕ на top/left/width/height.
      Раньше позиция панелей тоже была "transition" — при обычном скролле
      JS пересчитывает прямоугольник на каждый кадр (см. scheduleSpotlightReflow
