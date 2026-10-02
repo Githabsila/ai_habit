@@ -17,6 +17,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.exceptions import TelegramForbiddenError
 from config import WEBAPP_URL
 
 from db import (
@@ -41,6 +42,7 @@ from db import (
     get_streak_reengagement_state, has_completed_today,
     get_habit_checkpoint_style,
     get_users_needing_ai_welcome_nudge,
+    is_bot_blocked, mark_bot_blocked,
 )
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from adam_messages import (
@@ -326,6 +328,15 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
 
     for user in users:
         telegram_id = user["telegram_id"]
+
+        # Найдено при разборе мониторинга ошибок: без этой проверки каждый
+        # прогон (и у всех 4 habit_checkpoint_*, и у morning_ping) заново
+        # пытался писать уже заблокировавшим бота пользователям — Telegram
+        # отвечает Forbidden на КАЖДУЮ такую попытку, это не временный сбой.
+        # См. db/users.py::mark_bot_blocked/is_bot_blocked.
+        if is_bot_blocked(telegram_id):
+            continue
+
         settings = get_settings(telegram_id)
         if not reminder_category_enabled(settings, "habits"):
             continue
@@ -434,6 +445,13 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
 
             sent += 1
             logger.info("%s: отправлено %s", label, telegram_id)
+        except TelegramForbiddenError as e:
+            # Постоянный отказ (бот заблокирован/пользователь удалён) — не
+            # временный сбой, повторять нет смысла. Помечаем один раз, чтобы
+            # следующие прогоны (все 4 habit_checkpoint_* + morning_ping)
+            # больше не тратили запрос и не писали ту же ошибку снова.
+            mark_bot_blocked(telegram_id)
+            log_error(kind, e, telegram_id)
         except Exception as e:
             log_error(kind, e, telegram_id)
 

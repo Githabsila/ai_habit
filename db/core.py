@@ -182,6 +182,16 @@ def create_tables():
     if "last_seen" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP")
 
+    # Найдено при разборе ежедневного мониторинга ошибок: morning_ping и
+    # habit_checkpoint_* каждый тик заново пытались слать уже заблокировавшим
+    # бота пользователям (Telegram отвечает Forbidden на КАЖДУЮ попытку
+    # навсегда, не разово) — та же пара пользователей давала одинаковую
+    # ошибку по 4 раза в каждое окно каждого из 5 job'ов. NULL — не
+    # заблокирован, timestamp — когда это обнаружили (см. db/users.py::
+    # mark_bot_blocked, используется в coach.py/morning_ping.py).
+    if "bot_blocked_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN bot_blocked_at TIMESTAMP")
+
     # Roadmap #39 — архетип личности, определяется один раз коротким тестом
     # при онбординге/из профиля (см. db/personality.py).
     if "archetype" not in users_columns:

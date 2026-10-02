@@ -9,7 +9,13 @@
 """
 from datetime import datetime
 
-from db import add_user, add_habit, get_habits, complete_habit, update_habit_checkpoint_style
+from aiogram.exceptions import TelegramForbiddenError
+from aiogram.methods import SendMessage
+
+from db import (
+    add_user, add_habit, get_habits, complete_habit, update_habit_checkpoint_style,
+    is_bot_blocked, mark_bot_blocked,
+)
 
 
 class FakeBot:
@@ -18,6 +24,20 @@ class FakeBot:
 
     async def send_message(self, chat_id, text, **kwargs):
         self.sent.append((chat_id, text))
+
+
+class ForbiddenBot:
+    """Эмулирует 'бот заблокирован' — реальный сценарий из мониторинга
+    ошибок (Telegram отвечает так на КАЖДУЮ попытку, не временный сбой)."""
+
+    def __init__(self):
+        self.sent = []
+
+    async def send_message(self, chat_id, text, **kwargs):
+        raise TelegramForbiddenError(
+            method=SendMessage(chat_id=chat_id, text=text),
+            message="Forbidden: bot was blocked by the user",
+        )
 
 
 def _freeze(monkeypatch, hour, minute=0):
@@ -262,3 +282,45 @@ async def test_checkpoint_17_and_22_use_independent_dedup_keys(monkeypatch, uid)
     bot22 = FakeBot()
     await coach.run_habit_checkpoint_22(bot22)
     assert len(bot22.sent) == 1
+
+
+# =====================================
+# Найдено при разборе мониторинга ошибок: 29 ошибок/24ч, все — "Forbidden:
+# bot was blocked by the user" от одних и тех же пары пользователей,
+# повторявшиеся КАЖДЫЙ тик в окне каждого из 5 job'ов (morning_ping +
+# 4 habit_checkpoint_*), потому что раньше ничего не запоминало отказ.
+# =====================================
+
+async def test_checkpoint_skips_user_already_marked_bot_blocked(monkeypatch, uid):
+    import coach
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Пить воду")
+    mark_bot_blocked(uid)
+    _patch_user(monkeypatch, uid)
+    _freeze(monkeypatch, 17, 0)
+
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_17(bot)
+
+    assert bot.sent == []
+
+
+async def test_checkpoint_marks_bot_blocked_on_forbidden_and_stops_retrying(monkeypatch, uid):
+    import coach
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Пить воду")
+    _patch_user(monkeypatch, uid)
+    _freeze(monkeypatch, 17, 0)
+
+    assert not is_bot_blocked(uid)
+    bot = ForbiddenBot()
+    await coach.run_habit_checkpoint_17(bot)
+    assert is_bot_blocked(uid)
+
+    # Следующий прогон (в т.ч. другого job'а — тот же механизм) больше не
+    # должен пытаться писать: ни claim_notification, ни send_message.
+    bot2 = ForbiddenBot()
+    await coach.run_habit_checkpoint_22(bot2)
+    assert bot2.sent == []

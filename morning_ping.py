@@ -9,7 +9,9 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, release_notification, notification_scope, in_time_window, reminder_category_enabled, in_quiet_hours
+from aiogram.exceptions import TelegramForbiddenError
+
+from db import get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, release_notification, notification_scope, in_time_window, reminder_category_enabled, in_quiet_hours, is_bot_blocked, mark_bot_blocked
 from multi_agent import generate_morning_message
 from alerts import notify_admins
 
@@ -28,6 +30,13 @@ async def run_morning_ping(bot):
 
     for user in users:
         telegram_id = user["telegram_id"]
+
+        # Найдено при разборе мониторинга ошибок: без этой проверки каждый
+        # прогон заново пытался писать уже заблокировавшим бота пользователям —
+        # Telegram отвечает Forbidden на КАЖДУЮ такую попытку, это не
+        # временный сбой. См. db/users.py::mark_bot_blocked/is_bot_blocked.
+        if is_bot_blocked(telegram_id):
+            continue
 
         settings = get_settings(telegram_id)
         if not reminder_category_enabled(settings, "habits"):
@@ -67,6 +76,13 @@ async def run_morning_ping(bot):
                 raise
             sent += 1
 
+        except TelegramForbiddenError as e:
+            # Постоянный отказ (бот заблокирован/пользователь удалён) — не
+            # временный сбой, повторять нет смысла. Помечаем один раз, чтобы
+            # следующие прогоны (и остальные job'ы — habit_checkpoint_* и
+            # т.д.) больше не тратили запрос и не писали ту же ошибку снова.
+            mark_bot_blocked(telegram_id)
+            log_error("morning_ping", e, telegram_id)
         except Exception as e:
             failed += 1
             logger.warning(f"Не удалось отправить утреннее сообщение {telegram_id}: {e}")

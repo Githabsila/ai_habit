@@ -125,6 +125,52 @@ def reset_onboarding(user_id):
     conn.close()
 
 
+# =====================================
+# ЗАБЛОКИРОВАЛ БОТА (Telegram Forbidden)
+# =====================================
+# Найдено при разборе ежедневного мониторинга ошибок: без этого каждый
+# рассылочный job (morning_ping, habit_checkpoint_*, стрик-напоминания и
+# т.д.) заново пытался писать одним и тем же двум пользователям, которые
+# уже заблокировали бота — Telegram на КАЖДУЮ такую попытку отвечает
+# Forbidden, это не временный сбой. Отмечаем один раз, дальше рассылки
+# просто пропускают таких пользователей, не тратя запрос и не засоряя
+# error_log одной и той же ошибкой по многу раз в день.
+
+def mark_bot_blocked(user_id):
+    conn = connect()
+    conn.execute(
+        "UPDATE users SET bot_blocked_at=COALESCE(bot_blocked_at, CURRENT_TIMESTAMP) "
+        "WHERE telegram_id=?",
+        (user_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def is_bot_blocked(user_id):
+    conn = connect()
+    row = conn.execute(
+        "SELECT bot_blocked_at FROM users WHERE telegram_id=?", (user_id,)
+    ).fetchone()
+    conn.close()
+    return bool(row and row["bot_blocked_at"])
+
+
+def clear_bot_blocked(user_id):
+    """Любое входящее сообщение/колбэк ОТ пользователя боту — надёжное
+    доказательство, что бот снова не заблокирован (вызывается из
+    middlewares/access_control.py на каждый апдейт). Без этого однажды
+    заблокировавший и потом вернувшийся пользователь остался бы помечен
+    заблокированным навсегда и больше никогда не получал бы рассылки."""
+    conn = connect()
+    conn.execute(
+        "UPDATE users SET bot_blocked_at=NULL WHERE telegram_id=? AND bot_blocked_at IS NOT NULL",
+        (user_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
 def _ensure_admin_premium(telegram_id):
     """Администраторы бота (config.ADMIN_IDS) всегда получают Premium
     навсегда, без покупки — вызывается при каждом add_user (idempotent),

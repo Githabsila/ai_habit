@@ -2,7 +2,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
 
 from config import ADMIN_IDS
-from db import bot_access_allowed, get_subscription_status, touch_last_seen
+from db import bot_access_allowed, get_subscription_status, touch_last_seen, clear_bot_blocked
 from keyboards import subscription_buy_keyboard
 
 # Пром 13: колбэки, которые обязаны проходить даже для заблокированного
@@ -31,6 +31,14 @@ class AccessControlMiddleware(BaseMiddleware):
         # вдруг не получится записать (например гонка до add_user).
         try:
             touch_last_seen(user_id)
+        except Exception:
+            pass
+        # Любой апдейт ОТ пользователя боту — доказательство, что бот снова
+        # доступен (см. db/users.py::clear_bot_blocked). Без этого вернувшийся
+        # после разблокировки пользователь остался бы помечен заблокированным
+        # и больше никогда не получал бы рассылок.
+        try:
+            clear_bot_blocked(user_id)
         except Exception:
             pass
         if user_id in ADMIN_IDS:
