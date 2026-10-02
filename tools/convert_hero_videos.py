@@ -13,6 +13,12 @@ moov-атом в начале файла (начинает играть, не д
     py tools/convert_hero_videos.py C:\\путь\\к\\папке\\с\\клипами
     py tools/convert_hero_videos.py C:\\клипы --pingpong     # петля вперёд-назад
     py tools/convert_hero_videos.py C:\\клипы --only peak ended
+    py tools/convert_hero_videos.py C:\\клипы --crop-y 0.25  # клип 9:16: срезать больше снизу
+    py tools/convert_hero_videos.py C:\\клипы --poster       # подложка = первый кадр клипа
+
+Если нейросеть изменила кадрирование (обрезала или приблизила картинку),
+используйте --poster: иначе при появлении видео поверх картинки будет
+заметный «скачок» зума.
 
 Готовые файлы кладутся в webapp/static/assets/hero/{ключ}.mp4 — сервер сам
 заметит их и начнёт отдавать hero.video; для состояний без файла остаётся
@@ -51,12 +57,18 @@ def find_source(folder, key):
     return None
 
 
-def build_filter(width, height, fps, pingpong):
-    # Центрированный кроп до 2:3 (если клип другого формата), затем масштаб.
-    base = (
-        f"crop='min(iw,ih*2/3)':'min(ih,iw*3/2)',"
-        f"scale={width}:{height}:flags=lanczos,fps={fps},format=yuv420p"
+def crop_scale(width, height, crop_y=0.5):
+    # Кроп до 2:3 (если клип другого формата), затем масштаб. По горизонтали
+    # всегда по центру; по вертикали crop_y: 0 — срезать только снизу, 0.5 —
+    # поровну сверху и снизу, 1 — только сверху.
+    return (
+        f"crop=w='min(iw,ih*2/3)':h='min(ih,iw*3/2)':x='(iw-out_w)/2':y='(ih-out_h)*{crop_y}',"
+        f"scale={width}:{height}:flags=lanczos"
     )
+
+
+def build_filter(width, height, fps, pingpong, crop_y=0.5):
+    base = f"{crop_scale(width, height, crop_y)},fps={fps},format=yuv420p"
     if not pingpong:
         return base
     # Вперёд, затем тот же клип задом наперёд: конец стыкуется с началом без
@@ -68,7 +80,7 @@ def convert(ffmpeg, src, dst, args):
     cmd = [
         ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
         "-t", str(args.seconds), "-i", str(src),
-        "-vf", build_filter(args.width, args.height, args.fps, args.pingpong),
+        "-vf", build_filter(args.width, args.height, args.fps, args.pingpong, args.crop_y),
         "-an",
         "-c:v", "libx264", "-profile:v", "main", "-level", "3.1",
         "-pix_fmt", "yuv420p", "-crf", str(args.crf), "-preset", "slow",
@@ -76,6 +88,27 @@ def convert(ffmpeg, src, dst, args):
         str(dst),
     ]
     subprocess.run(cmd, check=True)
+
+
+def make_poster(ffmpeg, src, dst, args):
+    """Первый кадр клипа с тем же кропом -> {ключ}.webp (картинка-подложка).
+    Нужна, когда кадрирование клипа не совпадает с исходной картинкой
+    (нейросеть обрезала/приблизила): иначе при появлении видео поверх
+    картинки был бы заметный «скачок» зума."""
+    try:
+        from PIL import Image
+    except ImportError:
+        sys.exit("Для --poster нужен Pillow: py -m pip install pillow")
+    tmp = dst.with_suffix(".poster.png")
+    subprocess.run([
+        ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", str(src),
+        "-vf", crop_scale(args.poster_width, args.poster_width * 3 // 2, args.crop_y),
+        "-frames:v", "1", str(tmp),
+    ], check=True)
+    try:
+        Image.open(tmp).convert("RGB").save(dst, "WEBP", quality=82, method=6)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def main():
@@ -88,7 +121,18 @@ def main():
     parser.add_argument("--width", type=int, default=480)
     parser.add_argument("--height", type=int, default=720)
     parser.add_argument("--fps", type=int, default=24)
+    parser.add_argument(
+        "--crop-y", type=float, default=0.5,
+        help="если клип не 2:3 (например 9:16), откуда срезать лишнее по вертикали: "
+             "0 — только снизу, 0.5 — поровну (по умолчанию), 1 — только сверху. "
+             "Если голова у верхнего края — уменьшите (0.25)",
+    )
     parser.add_argument("--crf", type=int, default=27, help="качество H.264: меньше — лучше и тяжелее (по умолчанию 27)")
+    parser.add_argument(
+        "--poster", action="store_true",
+        help="заодно заменить картинку-подложку {ключ}.webp первым кадром клипа (с тем же кропом)",
+    )
+    parser.add_argument("--poster-width", type=int, default=600, help="ширина подложки (высота = 3/2 ширины)")
     args = parser.parse_args()
 
     if not args.folder.is_dir():
@@ -108,6 +152,10 @@ def main():
         size = dst.stat().st_size
         note = "  <- тяжеловато, поднимите --crf (28–30) или сократите --seconds" if size > WARN_BYTES else ""
         print(f"  {key:11s} {src.name} -> {dst.name}  {size / 1024:.0f} КБ{note}")
+        if args.poster:
+            poster = args.out / f"{key}.webp"
+            make_poster(ffmpeg, src, poster, args)
+            print(f"  {'':11s} подложка {poster.name}  {poster.stat().st_size / 1024:.0f} КБ")
         done += 1
     print(f"Готово: {done}, пропущено: {missing}.")
 

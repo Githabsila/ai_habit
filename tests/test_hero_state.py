@@ -276,6 +276,16 @@ def test_converter_pingpong_filter_appends_reverse_concat():
     assert "reverse" in looped and "concat=n=2" in looped
 
 
+def test_converter_crop_bias_moves_vertical_crop():
+    """Клип 9:16 обрезается до 2:3 по вертикали: crop_y задаёт, откуда срезать
+    (0.5 — поровну; меньше — больше снизу, чтобы не резать голову)."""
+    converter = _load_converter()
+    assert "(ih-out_h)*0.5" in converter.build_filter(480, 720, 24, pingpong=False)
+    assert "(ih-out_h)*0.25" in converter.build_filter(480, 720, 24, pingpong=False, crop_y=0.25)
+    # Подложка (--poster) режется тем же кропом, что и видео.
+    assert converter.crop_scale(600, 900, 0.25) in converter.build_filter(600, 900, 24, False, 0.25)
+
+
 async def test_bootstrap_and_complete_both_return_hero(client, uid):
     add_user(uid, "u", "Test")
     headers = await _headers(uid)
