@@ -2989,7 +2989,7 @@
         strugglingBanner.hidden = false;
         strugglingBanner.innerHTML = `
           <span class="struggling-habit-banner__icon">🤖</span>
-          <span class="struggling-habit-banner__text">«${escapeHtml(top.title)}» не получается ${top.missed} из последних дней — может, снизить планку (реже в неделю или счётчик поменьше)?</span>
+          <span class="struggling-habit-banner__text">«${escapeHtml(top.title)}» не получается ${top.missed} из последних дней — может, снизить планку?</span>
           <button type="button" class="struggling-habit-banner__close" aria-label="Закрыть">✕</button>
         `;
         strugglingBanner.querySelector(".struggling-habit-banner__close")?.addEventListener("click", () => {
