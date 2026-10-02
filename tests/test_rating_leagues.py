@@ -12,6 +12,7 @@ from db import (
     get_rating_league, get_rating_league_for_viewer,
     RATING_LEAGUES, RATING_LEAGUE_MIN_STREAK,
 )
+from db.leagues import MIN_RATING_LEAGUE_SIZE
 from db.core import connect
 
 from tests.conftest import sign_init_data
@@ -24,6 +25,18 @@ def _fresh_rating_cache():
     # < 5с после другого теста с тем же диапазоном streak, получил бы его
     # устаревшие данные без только что добавленных пользователей.
     clear_rating_cache()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _isolated_streaks():
+    # БД общая на весь прогон, а размер лиги теперь влияет на результат
+    # (см. MIN_RATING_LEAGUE_SIZE) — пользователи с серией из чужих тестов
+    # исказили бы подсчёт, поэтому обнуляем серии перед каждым тестом.
+    conn = connect()
+    conn.execute("UPDATE users SET streak=0")
+    conn.commit()
+    conn.close()
     yield
 
 
@@ -98,25 +111,22 @@ def test_viewer_at_threshold_appears_in_newcomers(uid):
     assert any(r["telegram_id"] == uid for r in rows)
 
 
-def test_rating_only_includes_same_league(uid):
+def test_rating_only_includes_same_league_when_it_is_big_enough(uid):
     # Большие несовпадающие смещения — не uid+1/uid+2: счётчик fixture'ы
     # `uid` общий на весь тестовый прогон, и маленькое смещение в одном
     # тесте может случайно совпасть со значением uid, выданным СЛЕДУЮЩЕМУ
     # тесту тем же счётчиком.
-    other_league_uid = uid + 100_000
-    same_league_uid = uid + 200_000
     add_user(uid, "u", "Test")
-    add_user(other_league_uid, "u2", "Other")
-    add_user(same_league_uid, "u3", "Same")
     _set_streak(uid, 20)               # Продвинутые (14-30)
-    _set_streak(other_league_uid, 5)   # Ученики (4-7) — должен быть исключён
-    _set_streak(same_league_uid, 25)   # Продвинутые — должен попасть
+    other_league_uid = _make_peers(uid, 1, [5])[0]   # Ученики (4-7) — должен быть исключён
+    same_league = _make_peers(uid, 2, [25] * (MIN_RATING_LEAGUE_SIZE - 1))  # Продвинутые — должны попасть
 
-    _league, rows = get_rating(uid, limit=1000)
+    league, rows = get_rating(uid, limit=1000)
     ids = {r["telegram_id"] for r in rows}
     assert uid in ids
-    assert same_league_uid in ids
+    assert set(same_league) <= ids
     assert other_league_uid not in ids
+    assert "merged_from" not in league
 
 
 def test_rating_excludes_banned_users(uid):
@@ -147,15 +157,129 @@ def test_rating_ordered_by_streak_then_xp_within_league(uid):
 
 
 # =====================================
+# Мало игроков в лиге -> подмешиваем лиги ниже
+# (жалоба: серия стала 31, лига "Мастера" 31-60 опустела, "все пропали")
+# =====================================
+
+def _make_peers(uid_, group, streaks):
+    """Игроки для теста с заданными сериями. id уникальны для КАЖДОГО теста
+    (uid * 1000 + группа * 100 + i), а не uid + смещение: счётчик `uid`
+    общий на прогон, и пересекающиеся диапазоны пиров соседних тестов
+    переносили бы забаненных/чужие данные из предыдущего теста в следующий."""
+    ids = []
+    for i, st in enumerate(streaks):
+        peer = uid_ * 1000 + group * 100 + i
+        add_user(peer, f"p{i}", f"Peer{i}")
+        _set_streak(peer, st)
+        ids.append(peer)
+    return ids
+
+
+def test_small_league_is_widened_with_lower_leagues(uid):
+    add_user(uid, "u", "Me")
+    _set_streak(uid, 35)  # Мастера (31-60) — в одиночку
+    # 14-30: двое, 8-13: двое -> суммарно 5 (я + 4) — на этом расширение
+    # останавливается, лига 4-7 уже не нужна.
+    close = _make_peers(uid, 1, [20, 18, 10, 9])
+    too_low = _make_peers(uid, 2, [5])[0]
+
+    league, rows = get_rating(uid, limit=1000)
+
+    ids = [r["telegram_id"] for r in rows]
+    assert league["name"] == "🥇 Мастера"          # лига зрителя не меняется
+    assert league["merged_from"] == "⚡ В темпе"
+    assert league["merged_min_streak"] == 8
+    assert ids[0] == uid                            # сам он по серии первый
+    assert set(close) <= set(ids)
+    assert too_low not in ids
+
+
+def test_widening_stops_at_first_lower_league_that_is_enough(uid):
+    add_user(uid, "u", "Me")
+    _set_streak(uid, 35)
+    _make_peers(uid, 1, [20, 19, 18, 17])  # одна лига ниже даёт нужные 5
+    deeper = _make_peers(uid, 2, [9])[0]    # на лигу глубже — не нужен
+
+    league, rows = get_rating(uid, limit=1000)
+
+    assert league["merged_from"] == "🥈 Продвинутые"
+    assert deeper not in {r["telegram_id"] for r in rows}
+
+
+def test_league_big_enough_is_not_widened(uid):
+    add_user(uid, "u", "Me")
+    _set_streak(uid, 35)
+    _make_peers(uid, 1, [40] * (MIN_RATING_LEAGUE_SIZE - 1))
+    lower = _make_peers(uid, 2, [20])[0]
+
+    league, rows = get_rating(uid, limit=1000)
+
+    assert "merged_from" not in league
+    assert lower not in {r["telegram_id"] for r in rows}
+
+
+def test_widening_never_pulls_in_higher_leagues(uid):
+    add_user(uid, "u", "Me")
+    _set_streak(uid, 5)  # Ученики (4-7)
+    higher = _make_peers(uid, 1, [40])[0]
+
+    league, rows = get_rating(uid, limit=1000)
+
+    assert higher not in {r["telegram_id"] for r in rows}
+    assert league["merged_from"] == "🌱 Новички"
+
+
+def test_lowest_league_is_never_widened(uid):
+    add_user(uid, "u", "Me")
+    _set_streak(uid, 2)
+
+    league, rows = get_rating(uid, limit=1000)
+
+    assert league["name"] == "🌱 Новички"
+    assert "merged_from" not in league
+    assert [r["telegram_id"] for r in rows] == [uid]
+
+
+def test_widened_league_info_survives_the_cache(uid):
+    add_user(uid, "u", "Me")
+    _set_streak(uid, 35)
+    _make_peers(uid, 1, [20, 19, 18, 17])
+
+    first, _ = get_rating(uid, limit=1000)
+    second, _ = get_rating(uid, limit=1000)  # из кэша
+
+    assert first["merged_from"] == second["merged_from"] == "🥈 Продвинутые"
+
+
+def test_widening_ignores_banned_users_when_counting(uid):
+    add_user(uid, "u", "Me")
+    _set_streak(uid, 35)
+    banned = _make_peers(uid, 1, [40] * MIN_RATING_LEAGUE_SIZE)
+    conn = connect()
+    conn.executemany("UPDATE users SET banned=1 WHERE telegram_id=?", [(b,) for b in banned])
+    conn.commit()
+    conn.close()
+
+    league, rows = get_rating(uid, limit=1000)
+
+    # Забаненные не считаются: в лиге по факту один зритель — расширяемся
+    # вниз, а самих забаненных в рейтинге нет.
+    assert league.get("merged_from")
+    assert not ({r["telegram_id"] for r in rows} & set(banned))
+
+
+# =====================================
 # РОУТ /api/bootstrap-secondary?section=rating
 # =====================================
 
 async def test_rating_route_includes_league_and_scoped_leaderboard(client, uid):
-    other_uid = uid + 100_000
     add_user(uid, "u", "Test")
-    add_user(other_uid, "u2", "Other")
     _set_streak(uid, 20)
-    _set_streak(other_uid, 5)  # другая лига — не должен попасть в ответ
+    # В лиге зрителя должно быть достаточно игроков, иначе к ней подмешаются
+    # лиги ниже (см. MIN_RATING_LEAGUE_SIZE) — а здесь проверяем именно
+    # разделение по лигам.
+    _make_peers(uid, 1, [25] * (MIN_RATING_LEAGUE_SIZE - 1))
+    other_uid = _make_peers(uid, 2, [5])[0]  # другая лига — не должен попасть в ответ
 
     headers = await _headers(uid)
     r = await client.get("/api/bootstrap-secondary?section=rating", headers=headers)
@@ -163,6 +287,7 @@ async def test_rating_route_includes_league_and_scoped_leaderboard(client, uid):
     body = await r.json()
 
     assert body["rating_league"]["name"] == "🥈 Продвинутые"
+    assert "merged_from" not in body["rating_league"]
     ids = {row["telegram_id"] for row in body["leaderboard"]}
     assert uid in ids
     assert other_uid not in ids
@@ -174,3 +299,17 @@ async def test_rating_route_new_user_previews_newcomers_league(client, uid):
     r = await client.get("/api/bootstrap-secondary?section=rating", headers=headers)
     body = await r.json()
     assert body["rating_league"]["name"] == "🌱 Новички"
+
+
+async def test_rating_route_reports_widened_league(client, uid):
+    add_user(uid, "u", "Me")
+    _set_streak(uid, 35)
+    _make_peers(uid, 1, [20, 19, 18, 17])
+
+    headers = await _headers(uid)
+    r = await client.get("/api/bootstrap-secondary?section=rating", headers=headers)
+    body = await r.json()
+
+    assert body["rating_league"]["name"] == "🥇 Мастера"
+    assert body["rating_league"]["merged_from"] == "🥈 Продвинутые"
+    assert len(body["leaderboard"]) == 5

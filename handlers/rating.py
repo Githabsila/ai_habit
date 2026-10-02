@@ -27,6 +27,8 @@ async def rating(callback: CallbackQuery):
     badge_owner_ids = get_item_owner_ids(BADGE_ITEM_ID)
 
     text = f"🏆 <b>Рейтинг · {league['name']}</b>\n\n"
+    if league.get("merged_from"):
+        text += f"<i>В твоей лиге пока мало игроков — добавлены игроки из лиги {league['merged_from']}.</i>\n\n"
 
     medals = ["🥇", "🥈", "🥉"]
 

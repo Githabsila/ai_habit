@@ -3284,6 +3284,16 @@
         leagueEl.hidden = true;
       }
     }
+    // Если в лиге зрителя мало игроков, сервер добавил игроков из лиг ниже
+    // (db/leagues.py::MIN_RATING_LEAGUE_SIZE) — говорим об этом прямо.
+    const leagueNoteEl = document.getElementById("ratingHeroLeagueNote");
+    if (leagueNoteEl) {
+      const merged = state.rating_league && state.rating_league.merged_from;
+      leagueNoteEl.textContent = merged
+        ? `В твоей лиге пока мало игроков — добавили игроков из лиги ${merged} (серия от ${state.rating_league.merged_min_streak}).`
+        : "";
+      leagueNoteEl.hidden = !merged;
+    }
 
     let rows = Array.isArray(state.leaderboard) ? state.leaderboard.slice() : [];
     if (count) count.textContent = rows.length;
@@ -3372,14 +3382,13 @@
     }).join("");
 
     // Жалоба пользователя: "после обновления все пользователи в рейтинге
-    // пропали". На деле рейтинг персональный — только игроки из той же
-    // лиги по серии (db/leagues.py), а при переходе на новый диапазон (серия
-    // стала 31 → лига "Мастера" 31–60) человек может оказаться в ней один.
-    // Раньше это выглядело как пустой/сломанный экран без объяснений.
+    // пропали" — при переходе на новый диапазон серии (31 → лига "Мастера")
+    // человек оказывался в лиге один. Теперь сервер добавляет игроков из лиг
+    // ниже, пока не наберётся минимум (db/leagues.py::MIN_RATING_LEAGUE_SIZE),
+    // поэтому один в списке зритель остаётся лишь тогда, когда серия 2+ дня
+    // сейчас вообще только у него — это и объясняем.
     if (rows.length === 1 && rows[0].telegram_id === myId) {
-      const league = state.rating_league;
-      const range = league ? (league.max_streak ? `${league.min_streak}–${league.max_streak}` : `${league.min_streak}+`) : "";
-      list.innerHTML = `<li class="empty-hint">Ты пока один в своей лиге${league ? ` «${escapeHtml(league.name)}» (серия ${range} дн.)` : ""}. Рейтинг показывает только тех, у кого серия в том же диапазоне — как только кто-то дойдёт до неё, он появится здесь. Остальные игроки никуда не пропали: они в соседних лигах.</li>`;
+      list.innerHTML = `<li class="empty-hint">Пока ты единственный, у кого серия 2 дня подряд и больше. Как только кто-то ещё наберёт серию, он появится здесь.</li>`;
     }
   }
 

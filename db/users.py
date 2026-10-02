@@ -744,8 +744,13 @@ def get_rating(user_id, limit=10):
     """Рейтинг игроков ИЗ ТОЙ ЖЕ лиги (streak-диапазон), что и viewer
     (user_id) — "рейтинг у каждого свой". См. db/leagues.py для того, как
     это заодно исключает тех, кто попробовал один раз и не вернулся, и
-    возвращает вернувшихся только после 2 дней новой серии."""
-    from .leagues import get_rating_league_for_viewer
+    возвращает вернувшихся только после 2 дней новой серии.
+
+    Если в лиге зрителя меньше MIN_RATING_LEAGUE_SIZE игроков, к ней
+    добавляются игроки из лиг ниже; тогда в возвращаемом описании лиги есть
+    ключи merged_from (название самой нижней добавленной лиги) и
+    merged_min_streak."""
+    from .leagues import get_rating_league_for_viewer, RATING_LEAGUES, MIN_RATING_LEAGUE_SIZE
 
     conn = connect()
     cursor = conn.cursor()
@@ -761,9 +766,32 @@ def get_rating(user_id, limit=10):
     cached = _RATING_CACHE.get(league["index"])
     if cached is not None and now - cached["at"] <= _RATING_CACHE_TTL_SECONDS:
         conn.close()
-        return league, cached["data"][:limit]
+        return cached["league"], cached["data"][:limit]
 
-    if league["max_streak"] is None:
+    # Если в лиге зрителя меньше MIN_RATING_LEAGUE_SIZE игроков — расширяем
+    # диапазон вниз, лига за лигой (см. комментарий у MIN_RATING_LEAGUE_SIZE).
+    floor_index = league["index"]
+    min_streak = league["min_streak"]
+    max_streak = league["max_streak"]
+    while floor_index > 0:
+        if max_streak is None:
+            cursor.execute("SELECT COUNT(*) FROM users WHERE banned=0 AND streak >= ?", (min_streak,))
+        else:
+            cursor.execute(
+                "SELECT COUNT(*) FROM users WHERE banned=0 AND streak BETWEEN ? AND ?",
+                (min_streak, max_streak),
+            )
+        if cursor.fetchone()[0] >= MIN_RATING_LEAGUE_SIZE:
+            break
+        floor_index -= 1
+        min_streak = RATING_LEAGUES[floor_index][0]
+
+    if floor_index != league["index"]:
+        # Имя/диапазон лиги остаются зрителя; отдельно сообщаем, откуда
+        # добавлены игроки, чтобы интерфейс мог это объяснить.
+        league = dict(league, merged_from=RATING_LEAGUES[floor_index][2], merged_min_streak=min_streak)
+
+    if max_streak is None:
         cursor.execute("""
             SELECT u.telegram_id, u.username, u.first_name, u.handle, u.xp, u.level, u.streak,
                    u.avatar_id, u.frame_id, u.total_xp,
@@ -772,7 +800,7 @@ def get_rating(user_id, limit=10):
             LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id
             WHERE u.banned=0 AND u.streak >= ?
             ORDER BY u.streak DESC, u.xp DESC
-        """, (league["min_streak"],))
+        """, (min_streak,))
     else:
         cursor.execute("""
             SELECT u.telegram_id, u.username, u.first_name, u.handle, u.xp, u.level, u.streak,
@@ -782,11 +810,11 @@ def get_rating(user_id, limit=10):
             LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id
             WHERE u.banned=0 AND u.streak BETWEEN ? AND ?
             ORDER BY u.streak DESC, u.xp DESC
-        """, (league["min_streak"], league["max_streak"]))
+        """, (min_streak, max_streak))
 
     data = cursor.fetchall()
     conn.close()
-    _RATING_CACHE[league["index"]] = {"data": data, "at": now}
+    _RATING_CACHE[league["index"]] = {"data": data, "at": now, "league": league}
     return league, data[:limit]
 
 
