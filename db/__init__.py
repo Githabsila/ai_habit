@@ -78,6 +78,7 @@ from .seasons import (
 )
 
 from .pets import get_pet, feed_pet, PET_STAGES
+from .hero import get_hero_state, HERO_KEYS
 
 from .teams import (
     create_team, join_team, leave_team, get_my_team,
@@ -320,6 +321,7 @@ __all__ = [
     "get_rank_overtakes_and_update_snapshot",
     "clear_season_leaderboard_cache",
     "get_pet", "feed_pet", "PET_STAGES",
+    "get_hero_state", "HERO_KEYS",
     "create_team", "join_team", "leave_team", "get_my_team",
     "MAX_TEAM_MEMBERS", "MAX_TEAM_NAME_LENGTH",
     "log_activity_event", "get_friend_activity_feed", "EVENT_LABELS",

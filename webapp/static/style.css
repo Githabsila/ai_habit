@@ -13320,3 +13320,74 @@ body.onboarding-scroll-lock{
     linear-gradient(145deg,rgba(42,28,20,.98),rgba(20,15,12,.98)) !important;
   box-shadow:0 14px 30px rgba(255,157,52,.14);
 }
+
+/* ===== Аватар-наставник ADAM вместо питомца-птенца =====
+   Картинка и текст зависят от состояния серии (db/hero.py::get_hero_state,
+   app.js::renderHeroWidget). data-tone: calm — фирменный синий, gold — пик,
+   warn — серия под угрозой, dim — оборвалась/долгий перерыв, hope —
+   возвращение. Без blur/backdrop-filter и бесконечных анимаций — на слабых
+   Android WebView они уже ломали отрисовку; единственная анимация — разовое
+   проявление картинки при смене состояния (в .performance-lite отключена). */
+.hero-widget,
+.hero-lightbox{
+  --hero-accent:#4da3ff;
+  --hero-accent-soft:rgba(77,163,255,.28);
+}
+.hero-widget[data-tone="gold"],.hero-lightbox[data-tone="gold"]{--hero-accent:#ffc83d;--hero-accent-soft:rgba(255,200,61,.42)}
+.hero-widget[data-tone="warn"],.hero-lightbox[data-tone="warn"]{--hero-accent:#ff9a3d;--hero-accent-soft:rgba(255,154,61,.42)}
+.hero-widget[data-tone="dim"],.hero-lightbox[data-tone="dim"]{--hero-accent:#7d8bb3;--hero-accent-soft:rgba(125,139,179,.30)}
+.hero-widget[data-tone="hope"],.hero-lightbox[data-tone="hope"]{--hero-accent:#ffd27a;--hero-accent-soft:rgba(255,210,122,.40)}
+
+.hero-widget{
+  display:flex;align-items:center;gap:14px;
+  margin-bottom:16px;padding:12px;
+  border-radius:22px;
+  border:1px solid var(--hero-accent-soft);
+  background:linear-gradient(145deg,rgba(18,24,44,.96),rgba(10,12,22,.98));
+  box-shadow:0 10px 28px rgba(0,0,0,.23),inset 0 1px 0 rgba(255,255,255,.045);
+  isolation:isolate;
+}
+.hero-widget[hidden]{display:none !important}
+.hero-widget__portrait{
+  flex:0 0 auto;position:relative;
+  width:92px;height:138px;margin:0;padding:0;
+  border:1px solid var(--hero-accent-soft);border-radius:16px;
+  overflow:hidden;background:#05070f;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.hero-widget__portrait img{display:block;width:100%;height:100%;object-fit:cover}
+.hero-widget__portrait img.is-fresh{animation:heroFadeIn .45s ease-out both}
+@keyframes heroFadeIn{from{opacity:0}to{opacity:1}}
+.performance-lite .hero-widget__portrait img.is-fresh{animation:none}
+.hero-widget.is-no-image .hero-widget__portrait{display:none}
+.hero-widget__body{flex:1;min-width:0}
+.hero-widget__kicker{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--hero-accent);margin-bottom:4px}
+.hero-widget__name{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:800;line-height:1.2;color:#fff;margin-bottom:4px}
+.hero-widget__caption{font-size:12px;line-height:1.4;color:rgba(255,255,255,.72);margin-bottom:10px}
+.hero-widget__bar{height:6px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;margin-bottom:5px}
+.hero-widget__bar-fill{display:block;width:0;height:100%;border-radius:999px;background:var(--hero-accent);transition:width .3s ease}
+.hero-widget__hint{font-size:11px;color:var(--text-muted,#9D9DB3)}
+
+.hero-lightbox{
+  position:fixed;inset:0;z-index:5000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));
+  background:rgba(4,6,14,.98);
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.hero-lightbox[hidden]{display:none !important}
+.hero-lightbox__img{
+  display:block;width:auto;height:auto;
+  max-width:min(88vw,440px);max-height:68vh;
+  border-radius:22px;
+  border:1px solid var(--hero-accent);
+  box-shadow:0 12px 32px rgba(0,0,0,.55);
+}
+.hero-lightbox__caption{
+  display:flex;flex-direction:column;gap:4px;
+  max-width:min(88vw,440px);text-align:center;
+  font-size:13px;line-height:1.45;color:rgba(255,255,255,.78);
+}
+.hero-lightbox__caption b{font-family:'Space Grotesk',sans-serif;font-size:18px;color:#fff}
+.hero-lightbox__close{font-size:11px;color:rgba(255,255,255,.4)}

@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261002_LEAGUE_MERGE_V20">
+<link rel="stylesheet" href="/static/style.css?v=20261002_HERO_AVATAR_V21">
 </head>
 <body>
 
@@ -403,17 +403,22 @@ class="habit-add-form__submit">
   <div class="streak-metric"><span>🏆</span><b id="profileMetricReward">—</b><small>статус</small></div>
 </div>
 
-<!-- Промт: питомец (прогресс по привычкам) переехал сюда с главного
-     экрана — вся "прогрессная" информация теперь собрана в Профиле,
-     Главная осталась только с "Сегодня" / ударным днём / планом.
-     Разметка и id не менялись — app.js::renderPetWidget их не знает,
-     откуда он рендерится. -->
-<div class="pet-widget" id="petWidget" hidden>
-  <div class="pet-widget__emoji" id="petWidgetEmoji">🥚</div>
-  <div class="pet-widget__body">
-    <div class="pet-widget__name" id="petWidgetName">Яйцо</div>
-    <div class="pet-widget__bar"><div class="pet-widget__bar-fill" id="petWidgetBarFill"></div></div>
-    <div class="pet-widget__hint" id="petWidgetHint"></div>
+<!-- Аватар-наставник ADAM вместо питомца-птенца (эмодзи 🥚→🐣→🐥→🦅).
+     Картинка зависит от состояния серии: старт / первые дни / стабильный
+     рост / пик / серия под угрозой / оборвалась / долгий перерыв /
+     возвращение. Состояние считает сервер (db/hero.py::get_hero_state →
+     state.hero), рисует app.js::renderHeroWidget. Тап по картинке —
+     увеличенный вид (#heroLightbox ниже, рядом с остальными оверлеями). -->
+<div class="hero-widget" id="heroWidget" data-tone="calm" hidden>
+  <button type="button" class="hero-widget__portrait" id="heroWidgetPortrait" aria-label="Открыть картинку ADAM">
+    <img id="heroWidgetImg" alt="ADAM" width="600" height="900" decoding="async">
+  </button>
+  <div class="hero-widget__body">
+    <div class="hero-widget__kicker">ADAM · НАСТАВНИК</div>
+    <div class="hero-widget__name" id="heroWidgetTitle">Старт</div>
+    <div class="hero-widget__caption" id="heroWidgetCaption"></div>
+    <div class="hero-widget__bar"><div class="hero-widget__bar-fill" id="heroWidgetBarFill"></div></div>
+    <div class="hero-widget__hint" id="heroWidgetHint"></div>
   </div>
 </div>
 
@@ -1072,6 +1077,15 @@ class="habit-add-form__submit">
   </div>
 </div>
 
+<div class="hero-lightbox" id="heroLightbox" data-tone="calm" hidden role="dialog" aria-modal="true" aria-label="ADAM">
+  <img class="hero-lightbox__img" id="heroLightboxImg" alt="ADAM" decoding="async">
+  <div class="hero-lightbox__caption">
+    <b id="heroLightboxTitle"></b>
+    <span id="heroLightboxText"></span>
+  </div>
+  <div class="hero-lightbox__close" aria-hidden="true">Нажми, чтобы закрыть</div>
+</div>
+
 <div class="start-quiz-overlay" id="startQuizOverlay" hidden aria-hidden="true">
   <div class="start-quiz-card" role="dialog" aria-modal="true" aria-labelledby="startQuizTitle">
     <div class="start-quiz-topbar">
@@ -1146,7 +1160,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
-<script type="module" src="/static/app.js?v=20261002_LEAGUE_MERGE_V22"></script>
+<script type="module" src="/static/app.js?v=20261002_HERO_AVATAR_V23"></script>
 
 </body>
 </html>

@@ -621,29 +621,76 @@
     }).join("");
   }
 
-  // Roadmap #11 — виртуальный питомец.
-  function renderPetWidget() {
-    const wrap = document.getElementById("petWidget");
+  // Аватар-наставник ADAM вместо питомца-птенца (эмодзи 🥚→🐣→🐥→🦅). Картинка
+  // зависит от состояния серии, а не от очков заботы: старт / первые дни /
+  // стабильный рост / пик / серия под угрозой / оборвалась / долгий перерыв /
+  // возвращение. Состояние целиком считает сервер (db/hero.py::get_hero_state
+  // → state.hero) — здесь только отрисовка, никакой своей логики порогов.
+  function renderHeroWidget() {
+    const wrap = document.getElementById("heroWidget");
     if (!wrap) return;
-    const pet = state.pet;
-    if (!pet) { wrap.hidden = true; return; }
+    const hero = state?.hero;
+    if (!hero) { wrap.hidden = true; return; }
     wrap.hidden = false;
-    document.getElementById("petWidgetEmoji").textContent = pet.emoji;
-    document.getElementById("petWidgetName").textContent = pet.stage_name;
-    const bar = document.getElementById("petWidgetBarFill");
-    const hint = document.getElementById("petWidgetHint");
-    if (pet.is_max_stage) {
-      bar.style.width = "100%";
-      hint.textContent = "Максимальная стадия — легенда!";
-    } else {
-      const prevThreshold = PET_STAGE_THRESHOLDS.filter(t => t <= pet.care_points).slice(-1)[0] || 0;
-      const span = pet.next_stage_points - prevThreshold;
-      const into = pet.care_points - prevThreshold;
-      bar.style.width = `${Math.min(100, Math.round(100 * into / span))}%`;
-      hint.textContent = `Ещё ${pet.next_stage_points - pet.care_points} привычек до ${pet.next_stage_emoji}`;
+    wrap.dataset.tone = hero.tone || "calm";
+    wrap.dataset.state = hero.key || "";
+
+    const img = document.getElementById("heroWidgetImg");
+    if (img && img.getAttribute("src") !== hero.image) {
+      wrap.classList.remove("is-no-image");
+      img.onerror = () => wrap.classList.add("is-no-image");
+      img.src = hero.image;
+      // Разовое проявление при смене состояния (в лайт-режиме анимации нет).
+      img.classList.remove("is-fresh");
+      void img.offsetWidth;
+      img.classList.add("is-fresh");
+    }
+    const title = document.getElementById("heroWidgetTitle");
+    const caption = document.getElementById("heroWidgetCaption");
+    if (title) title.textContent = hero.title || "";
+    if (caption) caption.textContent = hero.caption || "";
+
+    const bar = document.getElementById("heroWidgetBarFill");
+    const hint = document.getElementById("heroWidgetHint");
+    const progress = hero.progress || {};
+    if (bar) bar.style.width = `${Math.max(0, Math.min(100, Number(progress.percent) || 0))}%`;
+    if (hint) {
+      const days = Number(hero.streak) || 0;
+      hint.textContent = progress.to == null
+        ? `🔥 ${days} · максимальная форма`
+        : `🔥 ${days} · до «${progress.next_title}» ещё ${progress.days_left} дн.`;
     }
   }
-  const PET_STAGE_THRESHOLDS = [0, 10, 30, 70, 150];
+
+  // Тап по картинке героя — увеличенный вид с подписью; любой тап закрывает.
+  function initHeroWidget() {
+    const portrait = document.getElementById("heroWidgetPortrait");
+    const box = document.getElementById("heroLightbox");
+    if (!portrait || !box) return;
+    const close = () => { box.hidden = true; };
+    portrait.addEventListener("click", () => {
+      const hero = state?.hero;
+      if (!hero) return;
+      haptic("light");
+      document.getElementById("heroLightboxImg").src = hero.image;
+      document.getElementById("heroLightboxTitle").textContent = hero.title || "";
+      document.getElementById("heroLightboxText").textContent = hero.caption || "";
+      box.dataset.tone = hero.tone || "calm";
+      box.hidden = false;
+    });
+    box.addEventListener("click", close);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+  }
+
+  // Герой «вырос» (серия перешла в следующую полосу: старт → первые дни →
+  // стабильный рост → пик) — вместо прежнего тоста «Питомец вырос».
+  function announceHeroGrowth(previous, current) {
+    if (!previous || !current) return;
+    if (!(Number(current.band) > Number(previous.band))) return;
+    setTimeout(() => {
+      showToast(`✨ ADAM стал сильнее: «${current.title}»`, "praise", 4000);
+    }, 1200);
+  }
 
   // Roadmap #13 — тир лиги + прогресс до следующего, в профиле.
   function renderLeagueInfo() {
@@ -750,7 +797,7 @@
     applyColorMode();
     applyLanguage();
     applyGender();
-    renderPetWidget();
+    renderHeroWidget();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
     maybeShowStartQuiz();
@@ -907,7 +954,7 @@
               } else {
                 setTimeout(loadCalendarLater, 900);
               }
-              stabilizeFirstPaint(["shopList", "achievementList", "achievementArchiveList", "petWidget"]);
+              stabilizeFirstPaint(["shopList", "achievementList", "achievementArchiveList", "heroWidget"]);
             } else if (key === "rating") {
               state.leaderboard = data.leaderboard || [];
               state.rating_league = data.rating_league || null;
@@ -3860,12 +3907,6 @@ async function celebrateHabitCompletion(result) {
     setTimeout(() => showToast(result.month_end_reward.message, "praise", 5500),
       result.perfect_day_message ? 6800 : 2400);
   }
-  // Roadmap #11 — питомец эволюционировал.
-  if (result.pet && result.pet.evolved) {
-    setTimeout(() => {
-      showToast(`${result.pet.emoji} Питомец вырос: ${result.pet.stage_name}!`, "praise", 4000);
-    }, 1200);
-  }
   // Roadmap #7 — цепочки привычек: мягкая подсказка "сделал А → предложи Б".
   if (result.chain_suggestion) {
     setTimeout(() => {
@@ -3877,7 +3918,7 @@ async function celebrateHabitCompletion(result) {
 // Раньше ЛЮБАЯ отметка привычки (в том числе просто +1 к счётчику, ещё
 // не закрывающий цель) вызывала await loadBootstrap() — это отдельный
 // сетевой запрос ЗА ВСЕМ главным экраном разом, плюс renderAll()
-// перерисовывает буквально все секции (план дня, квесты, лигу, питомца,
+// перерисовывает буквально все секции (план дня, квесты, лигу, героя,
 // настройки темы/языка/пола, проверки обучения) — хотя от отметки ОДНОЙ
 // привычки могли измениться только: сам пользователь (xp/уровень/монеты),
 // сама эта привычка, квесты дня. /api/habits/{id}/complete и /progress
@@ -3927,6 +3968,8 @@ function applyActionPatch(result) {
   if (result.streak) state.streak = result.streak;
   if (result.monthly_progress) state.monthly_progress = result.monthly_progress;
   if (result.pet) state.pet = result.pet;
+  const previousHero = state.hero;
+  if (result.hero) state.hero = result.hero;
 
   renderPlayerCard();
   if (result.habit && !habitPatched) renderHabits();
@@ -3934,7 +3977,10 @@ function applyActionPatch(result) {
   renderStreak();
   renderBoosterBanner();
   if (result.daily_quests) renderDailyQuests();
-  if (result.pet) renderPetWidget();
+  if (result.hero) {
+    renderHeroWidget();
+    announceHeroGrowth(previousHero, result.hero);
+  }
   stabilizeFirstPaint();
 }
 
@@ -6177,6 +6223,7 @@ async function boot() {
             initThemeActions();
             initStreakUI();
             initStreakPopupClick();
+            initHeroWidget();
             initProgressActions();
             preBootstrapInitDone = true;
         }

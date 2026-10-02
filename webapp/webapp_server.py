@@ -74,7 +74,7 @@ from db import (
     get_struggling_habits, suggest_optimal_reminder_time,
     get_habit_correlations,
     set_archetype, ARCHETYPES,
-    get_pet,
+    get_pet, get_hero_state,
     get_season_leaderboard, get_season_rank,
     create_team, join_team, leave_team, get_my_team,
     get_friend_activity_feed,
@@ -468,6 +468,8 @@ async def bootstrap(request):
         "user": _shape_user(telegram_id, user, is_admin),
         "daily_quests": get_daily_quests(telegram_id),
         "pet": get_pet(telegram_id),
+        # Аватар-наставник: картинка зависит от состояния серии (db/hero.py).
+        "hero": get_hero_state(telegram_id),
         "monthly_progress": get_monthly_progress(telegram_id),
         "habits": [_shape_habit(h, telegram_id) for h in habits],
         # Roadmap #22 — привычки, проваленные несколько дней подряд, для
@@ -1003,6 +1005,7 @@ async def complete_habit_route(request):
         "chain_suggestion": success.get("chain_suggestion"),
         "xp_boosted": success.get("xp_boosted", False),
         "pet": success.get("pet"),
+        "hero": get_hero_state(telegram_id),
     })
 
 
@@ -1094,6 +1097,7 @@ async def habit_progress_route(request):
         "chain_suggestion": result.get("chain_suggestion"),
         "xp_boosted": result.get("xp_boosted", False),
         "pet": result.get("pet"),
+        "hero": get_hero_state(telegram_id),
     })
 
 
