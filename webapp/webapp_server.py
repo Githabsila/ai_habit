@@ -78,7 +78,7 @@ from db import (
     create_team, join_team, leave_team, get_my_team,
     get_friend_activity_feed,
     get_notification_history,
-    log_client_error,
+    log_client_error, is_opaque_client_error,
     export_full_account_data, request_account_deletion,
     get_unseen_changelog_entries, mark_changelog_seen,
     add_perf_event,
@@ -1679,6 +1679,10 @@ async def client_error_route(request):
 
     message = (body.get("message") or "").strip()
     if not message:
+        return web.Response(status=204)
+    # Защита от старых закэшированных клиентов, которые ещё шлют "Script
+    # error." без стека — см. db/client_errors.py::is_opaque_client_error.
+    if is_opaque_client_error(message, body.get("stack")):
         return web.Response(status=204)
 
     try:

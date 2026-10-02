@@ -36,6 +36,20 @@ def uid():
     return next(_uid_counter)
 
 
+@pytest.fixture
+def clean_error_tables():
+    """БД общая на весь прогон, а get_error_stats/get_client_error_stats —
+    глобальные агрегаты по всем пользователям: тесту, который проверяет
+    итоговые числа/текст отчёта, нужна пустая стартовая точка."""
+    from db.core import connect
+
+    conn = connect()
+    conn.execute("DELETE FROM client_errors")
+    conn.execute("DELETE FROM error_log")
+    conn.commit()
+    conn.close()
+
+
 def sign_init_data(telegram_id, first_name="Tester", username="tester"):
     """Подписывает валидный Telegram initData тем же алгоритмом, что
     webapp/telegram_auth.py::validate_init_data — для HTTP-тестов

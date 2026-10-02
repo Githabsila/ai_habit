@@ -1146,6 +1146,13 @@ def create_tables():
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_client_errors_created ON client_errors(created_at)"
     )
+    # Раньше в url писался полный location.href — вместе с #tgWebAppData=
+    # (подписанные initData пользователя). Новые записи чистятся при вставке
+    # (db/client_errors.py), здесь — разовая зачистка уже сохранённых.
+    cursor.execute(
+        "UPDATE client_errors SET url = substr(url, 1, instr(url, '#') - 1) "
+        "WHERE url LIKE '%#%'"
+    )
 
     # ---------------- Улучшение #4 (фидбек): пол для согласования обращения ----------------
     # 'm'/'f'/NULL (не определён/не задан явно). NULL — не то же самое, что

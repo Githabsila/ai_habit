@@ -26,6 +26,12 @@
   // на сессию — чтобы цикл ошибок (например, в setInterval) не заспамил себя.
   let _clientErrorsSent = 0;
   function reportClientError(message, stack) {
+    // "Script error." без стека — заглушка браузера для исключения из
+    // скрипта с другого домена (telegram.org/js/telegram-web-app.js): ни
+    // строки, ни реального текста, диагностировать нечего, а при
+    // сворачивании/возврате в Mini App их приходит пачка. Не тратим на них
+    // лимит сессии, который нужен настоящим ошибкам.
+    if (String(message || "").trim() === "Script error." && !stack) return;
     if (_clientErrorsSent >= 5) return;
     _clientErrorsSent += 1;
     try {
@@ -36,14 +42,18 @@
         body: JSON.stringify({
           message: String(message || "").slice(0, 500),
           stack: stack ? String(stack).slice(0, 4000) : null,
-          url: location.href,
+          // Без location.hash: там #tgWebAppData= с подписанными initData.
+          url: location.origin + location.pathname,
         }),
         keepalive: true,
       }).catch(() => {});
     } catch (_) {}
   }
   window.addEventListener("error", (e) => {
-    reportClientError(e.message, e.error && e.error.stack);
+    // Когда у ошибки нет объекта Error (а значит и стека) — хотя бы
+    // файл:строка:колонка, чтобы запись можно было привязать к месту в коде.
+    const where = e.filename ? e.filename + ":" + e.lineno + ":" + e.colno : null;
+    reportClientError(e.message, (e.error && e.error.stack) || where);
   });
   window.addEventListener("unhandledrejection", (e) => {
     const reason = e.reason;

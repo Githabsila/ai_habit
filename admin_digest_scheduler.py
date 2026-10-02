@@ -9,6 +9,7 @@
 админов сам не откроет статистику. Эта рассылка — то же самое, но
 проактивно, раз в день.
 """
+import html
 import logging
 
 from config import ADMIN_IDS, AI_GLOBAL_DAILY_UNIT_CEILING, AI_DAILY_TOKEN_CEILING
@@ -16,6 +17,7 @@ from db import (
     get_all_users_info,
     get_ai_feedback_stats,
     get_error_stats,
+    get_client_error_stats,
     get_access_status_counts,
     get_dau,
     get_subscription_conversion,
@@ -130,20 +132,50 @@ def build_stats_report():
 """.strip()
 
 
+_JS_ERROR_PREVIEW_LEN = 140
+
+
 def build_error_monitoring_report():
     """Просьба пользователя: мониторинг ошибок должен приходить ОТДЕЛЬНЫМ
     уведомлением после сообщения статистики, а не последней строкой внутри
     него — иначе в длинной сводке его легко проглядеть, хотя по смыслу это
     самая "тревожная" и требующая внимания часть. Раньше жила последней
-    строкой в build_stats_report() выше, теперь — отдельное сообщение."""
-    errors = get_error_stats(hours=24)
-    err_line = (
-        f"⚠️ {errors['total']} за 24ч (" + ", ".join(
-            f"{row['scope']}: {row['cnt']}" for row in errors["by_scope"]
+    строкой в build_stats_report() выше, теперь — отдельное сообщение.
+
+    В нём ВСЕ ошибки разом: серверные (error_log — упавшие job'ы, обработчики)
+    и клиентские JS-ошибки с устройств (client_errors — раньше их можно было
+    увидеть только вручную, открыв админ-панель). Уходит только админам
+    (ADMIN_IDS, см. run_admin_daily_digest). Текст JS-ошибок приходит с
+    клиента — обязательно экранируем под parse_mode='HTML'."""
+    server = get_error_stats(hours=24)
+    server_line = (
+        f"⚠️ {server['total']} за 24ч (" + ", ".join(
+            f"{html.escape(str(row['scope']))}: {row['cnt']}" for row in server["by_scope"]
         ) + ")"
-        if errors["total"] else "за 24ч ошибок не было ✅"
+        if server["total"] else "за 24ч ошибок не было ✅"
     )
-    return f"🩺 <b>Мониторинг ошибок</b>\n\n{err_line}"
+
+    client = get_client_error_stats(hours=24, limit=5)
+    if client["total"]:
+        client_head = f"⚠️ {client['total']} за 24ч у {client['users']} польз."
+        client_rows = "".join(
+            f"\n• {html.escape(_shorten(row['message'], _JS_ERROR_PREVIEW_LEN))} — {row['cnt']}×"
+            for row in client["top"]
+        )
+        client_line = client_head + client_rows
+    else:
+        client_line = "за 24ч ошибок не было ✅"
+
+    return (
+        "🩺 <b>Мониторинг ошибок</b>\n\n"
+        f"🖥 <b>Сервер:</b> {server_line}\n\n"
+        f"📱 <b>Устройства (JS):</b> {client_line}"
+    )
+
+
+def _shorten(text, limit):
+    text = " ".join(str(text or "").split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 async def run_admin_daily_digest(bot):
@@ -155,13 +187,13 @@ async def run_admin_daily_digest(bot):
         stats_text = build_stats_report()
     except Exception as e:
         logger.exception("Не удалось построить ежедневную сводку")
-        stats_text = f"🩺 Не удалось построить ежедневную сводку статистики: {e}"
+        stats_text = f"🩺 Не удалось построить ежедневную сводку статистики: {html.escape(str(e))}"
 
     try:
         errors_text = build_error_monitoring_report()
     except Exception as e:
         logger.exception("Не удалось построить отчёт по ошибкам")
-        errors_text = f"🩺 Не удалось построить отчёт по мониторингу ошибок: {e}"
+        errors_text = f"🩺 Не удалось построить отчёт по мониторингу ошибок: {html.escape(str(e))}"
 
     for admin_id in ADMIN_IDS:
         try:

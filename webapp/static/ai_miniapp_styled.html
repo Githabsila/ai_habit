@@ -23,6 +23,22 @@
         // прекрасно продолжать работать. Игнорируем именно эту форму,
         // оставляя видимым реальный краш с настоящим сообщением/строкой.
         if (msg === 'Script error.' && !line && !col) return true;
+        // Настоящая ошибка: до этого она только рисовалась на экране
+        // пользователя и админ о ней не узнавал. Best-effort — сбой самой
+        // отправки не должен мешать показу краш-экрана ниже.
+        try {
+            var tgApp = window.Telegram && window.Telegram.WebApp;
+            fetch('/api/client-error', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'tma ' + ((tgApp && tgApp.initData) || '') },
+                body: JSON.stringify({
+                    message: String(msg || '').slice(0, 500),
+                    stack: (error && error.stack) || (url ? url + ':' + line + ':' + col : null),
+                    url: location.origin + location.pathname
+                }),
+                keepalive: true
+            }).catch(function () {});
+        } catch (_) {}
         document.body.innerHTML =
             '<pre style="color:#ff6b6b;padding:20px;white-space:pre-wrap;font-size:14px;">' +
             'JS Error: ' + msg + '\nStr: ' + line + ':' + col +
@@ -31,7 +47,7 @@
     </script>
     <script src="/static/vendor/react.production.min.js?v=2"></script>
     <script src="/static/vendor/react-dom.production.min.js?v=2"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
     <style>
     :root{
         --bg:#07040E;
