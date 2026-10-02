@@ -2987,11 +2987,25 @@
         strugglingBanner.hidden = true;
       } else {
         strugglingBanner.hidden = false;
+        // Тап по тексту подсказки открывает чат с ADAM, и обсуждение решения
+        // начинается сразу: ai_coach.js по ?intro=struggle сам отправляет
+        // первое сообщение про эту привычку (см. maybeSendIntro там). Кнопка
+        // ✕ — отдельная, закрывает подсказку на сегодня и чат не открывает.
         strugglingBanner.innerHTML = `
-          <span class="struggling-habit-banner__icon">🤖</span>
-          <span class="struggling-habit-banner__text">«${escapeHtml(top.title)}» не получается ${top.missed} из последних дней — Может уменьшим нагрузку или обсудим решение 📩 ?</span>
+          <button type="button" class="struggling-habit-banner__open" aria-label="Обсудить с ADAM">
+            <span class="struggling-habit-banner__icon">🤖</span>
+            <span class="struggling-habit-banner__text">«${escapeHtml(top.title)}» не получается ${top.missed} из последних дней — Может уменьшим нагрузку или обсудим решение 📩 ?</span>
+          </button>
           <button type="button" class="struggling-habit-banner__close" aria-label="Закрыть">✕</button>
         `;
+        strugglingBanner.querySelector(".struggling-habit-banner__open")?.addEventListener("click", () => {
+          haptic("light");
+          const overlay = document.getElementById("loadingOverlay");
+          if (overlay) overlay.hidden = false;
+          const title = String(top.title || "").slice(0, 80);
+          const url = `/coach?intro=struggle&t=${encodeURIComponent(title)}&m=${encodeURIComponent(String(top.missed))}`;
+          setTimeout(() => { window.location.href = url; }, 60);
+        });
         strugglingBanner.querySelector(".struggling-habit-banner__close")?.addEventListener("click", () => {
           haptic("light");
           try { sessionStorage.setItem("dismissedStruggle_" + top.habit_id, "1"); } catch (_) {}

@@ -13446,3 +13446,16 @@ body.onboarding-scroll-lock{
 .player-card__ring-wrap.level-ring-v32 > .level-ring__badge small{
   text-shadow:0 4px 10px rgba(0,0,0,.4);
 }
+
+/* Подсказка про проваливаемую привычку: тап по тексту открывает чат с ADAM
+   (app.js, ?intro=struggle в ai_coach.js). Кнопка-обёртка — сброс браузерных
+   стилей <button>; иконка и текст внутри оформлены прежними правилами. */
+.struggling-habit-banner__open{
+  flex:1;min-width:0;
+  display:flex;align-items:flex-start;gap:10px;
+  margin:0;padding:0;border:0;background:none;
+  color:inherit;font:inherit;text-align:left;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.struggling-habit-banner__open:active{opacity:.72}

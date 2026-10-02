@@ -422,9 +422,32 @@ function AiChat() {
             fetch('/api/ai/quota', { headers: { 'X-Telegram-Init-Data': getInitData() } })
                 .then(r => r.json()).then(setQuota).catch(() => { });
             const maybeSendOnboardingIntro = (hasHistory) => {
-                if (hasHistory || sentOnboardingIntroRef.current)
+                if (sentOnboardingIntroRef.current)
                     return;
                 const params = new URLSearchParams(location.search);
+                // Тап по подсказке «привычка не получается» в Mini App
+                // (app.js, #strugglingHabitBanner) открывает
+                // /coach?intro=struggle&t=<название>&m=<сколько дней>.
+                // В отличие от онбординга, это явное действие пользователя —
+                // шлём первое сообщение ВСЕГДА, даже если история уже есть
+                // (повторно по перезагрузке оно не уйдёт: URL чистим ниже).
+                if (params.get('intro') === 'struggle') {
+                    sentOnboardingIntroRef.current = true;
+                    const habitTitle = (params.get('t') || '').trim().slice(0, 80);
+                    const missed = parseInt(params.get('m'), 10);
+                    if (habitTitle) {
+                        let text = `Мне сложно держать привычку «${habitTitle}»`;
+                        if (missed > 0 && missed <= 31)
+                            text += ` — не получается ${missed} из последних дней`;
+                        text += '. Давай вместе разберёмся, как уменьшить нагрузку или упростить её. Что предложишь?';
+                        // Как и в онбординге ниже: URL чистим ПОСЛЕ sendText.
+                        sendText(text);
+                    }
+                    history.replaceState(null, '', location.pathname);
+                    return;
+                }
+                if (hasHistory)
+                    return;
                 if (params.get('intro') !== 'archetype')
                     return;
                 sentOnboardingIntroRef.current = true;
