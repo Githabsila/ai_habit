@@ -11,6 +11,7 @@ APP_JS = Path(__file__).resolve().parent.parent / "webapp" / "static" / "app.js"
 
 def test_struggling_hint_does_not_mention_removed_features():
     js = APP_JS.read_text(encoding="utf-8")
-    assert "может, снизить планку?" in js
+    assert "— Может уменьшим нагрузку или обсудим решение 📩 ?</span>" in js
+    assert "снизить планку" not in js
     assert "реже в неделю" not in js
     assert "счётчик поменьше" not in js
