@@ -64,7 +64,7 @@ async def test_planned_time_reminder_fires_only_at_matching_minute(monkeypatch, 
     add_user(uid, "u", "Test")
     add_habit(uid, "Зарядка", planned_time="07:00")
 
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(coach, "get_timezone", lambda _uid: "UTC")
 
@@ -87,7 +87,7 @@ async def test_planned_time_reminder_fires_at_matching_minute_once(monkeypatch, 
     add_user(uid, "u", "Test")
     add_habit(uid, "Зарядка", planned_time="07:00")
 
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(coach, "get_timezone", lambda _uid: "UTC")
 
@@ -119,7 +119,7 @@ async def test_planned_time_reminder_skips_completed_habit(monkeypatch, uid):
     habit_id = get_habits(uid)[0]["id"]
     complete_habit(habit_id)
 
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(coach, "get_timezone", lambda _uid: "UTC")
 

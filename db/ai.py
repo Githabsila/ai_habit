@@ -249,6 +249,17 @@ def log_error(scope, error, user_id=None):
     conn.commit()
     conn.close()
 
+    # Постоянный отказ Telegram ("bot was blocked by the user") — запоминаем,
+    # чтобы рассылки больше не стучались к этому пользователю каждый тик. Все
+    # job'ы с `except ...: log_error(kind, e, uid)` получают это автоматически.
+    if user_id is not None:
+        try:
+            from .users import is_bot_forbidden_error, mark_bot_blocked
+            if is_bot_forbidden_error(error):
+                mark_bot_blocked(user_id)
+        except Exception:
+            pass
+
 
 def get_error_stats(hours=24, limit=5):
     """Сводка ошибок за последние N часов — для админ-панели."""

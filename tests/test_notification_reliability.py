@@ -85,7 +85,7 @@ async def test_broadcast_dedup_sends_once_for_same_day_key(monkeypatch, uid):
     import coach
 
     add_user(uid, "u", "Test")
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
 
     bot = FakeBot()
@@ -99,7 +99,7 @@ async def test_broadcast_skips_users_with_reminders_disabled(monkeypatch, uid):
     import coach
 
     add_user(uid, "u", "Test")
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 0})
 
     bot = FakeBot()
@@ -118,7 +118,7 @@ async def test_week_end_ping_praises_when_all_habits_done_today(monkeypatch, uid
     from adam_messages import WEEK_END_ALL_DONE_TEMPLATES, MOTIVATION_EMOJIS
 
     add_user(uid, "u", "Test")
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(coach, "get_incomplete_habits", lambda _uid: [])
 
@@ -135,7 +135,7 @@ async def test_week_end_ping_uses_default_wording_when_habits_left(monkeypatch, 
     from adam_messages import WEEK_END_TEMPLATES, MOTIVATION_EMOJIS
 
     add_user(uid, "u", "Test")
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(coach, "get_incomplete_habits", lambda _uid: [{"title": "Разминка"}])
 
@@ -155,7 +155,7 @@ async def test_weekly_report_skips_when_reminders_disabled(monkeypatch, uid):
     import coach
 
     add_user(uid, "u", "Test")
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 0})
     monkeypatch.setattr(
         coach, "get_weekly_summary",
@@ -172,7 +172,7 @@ async def test_weekly_report_dedup_sends_once_per_week(monkeypatch, uid):
     import coach
 
     add_user(uid, "u", "Test")
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(
         coach, "get_weekly_summary",
@@ -194,7 +194,7 @@ async def test_weekly_habit_analysis_dedup_skips_second_ai_call(monkeypatch, uid
     import coach
 
     add_user(uid, "u", "Test")
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(
         coach, "get_weekly_habit_breakdown",
@@ -230,7 +230,7 @@ async def test_day_progress_check_retries_after_send_failure(monkeypatch, uid):
     add_user(uid, "u", "Test")
     set_daily_main_goal(uid, "Сделать важное дело")  # остаётся невыполненной
 
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(coach, "get_timezone", lambda _uid: "UTC")
 
@@ -259,7 +259,7 @@ async def test_day_progress_check_dedup_after_successful_send(monkeypatch, uid):
     add_user(uid, "u", "Test")
     set_daily_main_goal(uid, "Сделать важное дело")
 
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(coach, "get_timezone", lambda _uid: "UTC")
 
@@ -284,7 +284,7 @@ async def test_day_progress_check_dedup_after_successful_send(monkeypatch, uid):
 async def test_streak_risk_23_fires_when_scheduler_tick_is_late(monkeypatch, uid):
     import streak_scheduler
 
-    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda: [uid])
+    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda **_kw: [uid])
     monkeypatch.setattr(streak_scheduler, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(streak_scheduler, "get_timezone", lambda _uid: "UTC")
     monkeypatch.setattr(streak_scheduler, "has_completed_today", lambda _uid: False)
@@ -306,7 +306,7 @@ async def test_streak_risk_23_fires_when_scheduler_tick_is_late(monkeypatch, uid
 async def test_streak_risk_skips_users_with_reminders_disabled(monkeypatch, uid):
     import streak_scheduler
 
-    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda: [uid])
+    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda **_kw: [uid])
     monkeypatch.setattr(streak_scheduler, "get_settings", lambda _uid: {"reminders": 0})
     monkeypatch.setattr(streak_scheduler, "get_timezone", lambda _uid: "UTC")
     monkeypatch.setattr(streak_scheduler, "has_completed_today", lambda _uid: False)

@@ -99,7 +99,7 @@ async def test_scheduler_job_skips_during_quiet_hours(monkeypatch, uid):
     add_user(uid, "u", "Test")
     set_quiet_hours(uid, 22, 7)
 
-    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda: [uid])
+    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda **_kw: [uid])
     monkeypatch.setattr(streak_scheduler, "get_timezone", lambda _uid: "UTC")
     monkeypatch.setattr(streak_scheduler, "has_completed_today", lambda _uid: False)
 

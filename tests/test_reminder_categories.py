@@ -79,7 +79,7 @@ async def test_scheduler_job_skips_when_its_category_disabled(monkeypatch, uid):
     set_daily_main_goal(uid, "Сделать важное дело")
 
     # -- streak (должен молчать) --
-    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda: [uid])
+    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda **_kw: [uid])
     monkeypatch.setattr(streak_scheduler, "get_timezone", lambda _uid: "UTC")
     monkeypatch.setattr(streak_scheduler, "has_completed_today", lambda _uid: False)
 
@@ -95,7 +95,7 @@ async def test_scheduler_job_skips_when_its_category_disabled(monkeypatch, uid):
     assert streak_bot.sent == []
 
     # -- habits (должен сработать как обычно) --
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_timezone", lambda _uid: "UTC")
 
     class FrozenDatetimeHabits(datetime):

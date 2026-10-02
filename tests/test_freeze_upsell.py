@@ -54,7 +54,7 @@ class FakeBot:
 
 
 def _freeze_it_2300(monkeypatch, streak_scheduler, uid_list):
-    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda: uid_list)
+    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda **_kw: uid_list)
     monkeypatch.setattr(streak_scheduler, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(streak_scheduler, "get_timezone", lambda _uid: "UTC")
     monkeypatch.setattr(streak_scheduler, "has_completed_today", lambda _uid: False)

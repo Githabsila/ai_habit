@@ -206,15 +206,31 @@ def get_users_count():
     return count
 
 
-def get_all_users():
+def get_all_users(include_blocked=True):
+    """Все пользователи. include_blocked=False — без тех, кто заблокировал
+    бота (см. mark_bot_blocked): так делают рассылочные job'ы, иначе на каждого
+    заблокировавшего каждый тик каждого job'а уходит заведомо проваливающийся
+    запрос и пишется ошибка. Обслуживание данных (новый день, статистика,
+    рассылки админа) оставляет True — они не должны терять этих пользователей."""
     conn = connect()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM users ORDER BY id")
+    if include_blocked:
+        cursor.execute("SELECT * FROM users ORDER BY id")
+    else:
+        cursor.execute("SELECT * FROM users WHERE bot_blocked_at IS NULL ORDER BY id")
     users = cursor.fetchall()
 
     conn.close()
     return users
+
+
+def is_bot_forbidden_error(exc):
+    """True, если Telegram отказал в отправке насовсем (бот заблокирован
+    пользователем, аккаунт удалён) — это TelegramForbiddenError, а не
+    временный сбой сети. Проверка по имени класса, чтобы слой db не зависел
+    от aiogram."""
+    return type(exc).__name__ == "TelegramForbiddenError"
 
 
 def get_all_users_info():

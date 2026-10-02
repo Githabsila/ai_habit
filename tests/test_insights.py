@@ -189,7 +189,7 @@ async def test_monthly_habit_analysis_sends_and_dedups(monkeypatch, uid):
     import coach
 
     add_user(uid, "u", "Test")
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1, "reminders_digests": 1})
     monkeypatch.setattr(
         coach, "get_monthly_habit_breakdown",

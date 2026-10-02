@@ -33,7 +33,7 @@ TRIAL_REMINDER_HOUR = 12
 async def run_trial_reminders(bot):
     """Раз в день (в TRIAL_REMINDER_HOUR по локальному времени пользователя)
     отправляет ОДНО сообщение, релевантное текущему состоянию триала/подписки."""
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
 
     for user in users:

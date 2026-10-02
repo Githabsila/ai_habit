@@ -116,7 +116,7 @@ async def run_weekly_report(bot):
     текста тут достаточно и без LLM, а недельная рассылка по всем
     пользователям — не место экономить на количестве, а место экономить
     на токенах."""
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
     # Глобальный cron (один момент времени для всех, не по локальному часу
     # пользователя), поэтому ключ дедупликации — просто текущая неделя, а
@@ -179,7 +179,7 @@ async def run_task_reminder_check(bot):
     прогон пользователю может уйти несколько сообщений — по одному на
     каждую просроченную привычку/задачу плюс, при необходимости, одно
     про общую цель дня."""
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
 
     for user in users:
@@ -258,7 +258,7 @@ async def run_planned_time_reminders(bot):
     """Раз в минуту (main.py) — у кого из привычек planned_time совпало
     с текущей локальной минутой пользователя, тот ещё не выполнен и по
     нему сегодня ещё не напоминали."""
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
 
     for user in users:
@@ -323,7 +323,7 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
     send_message(); если Telegram временно отвечал ошибкой, уведомление
     помечалось как уже отправленное и пользователь больше его не получал.
     """
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
 
     for user in users:
@@ -495,7 +495,7 @@ async def run_habit_checkpoint_22(bot):
 
 async def run_day_progress_check(bot):
     """19:00 — единая сверка главной и второстепенных задач."""
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
 
     for user in users:
@@ -668,7 +668,7 @@ async def _broadcast(bot, text_fn, job_name, day_key):
     дубля: любое повторное/наложившееся срабатывание cron-job'а (напр. на
     границе misfire_grace_time) рассылало это сообщение ВСЕМ пользователям
     ещё раз."""
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
     scope = notification_scope(bot)
 
@@ -702,7 +702,7 @@ async def run_week_end_ping(bot):
     привычки за день уже закрыты, хвалим за финиш, а не подгоняем "сделать
     ещё шаг" (см. format_week_end_message)."""
     week_key = datetime.now().strftime("%G-W%V")
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
     scope = notification_scope(bot)
 
@@ -782,7 +782,7 @@ async def run_weekly_habit_analysis(bot):
     отдельно (habit_logs, см. db/habits.py) и просим AI дать конкретную
     персонализированную обратную связь по самой проседающей привычке —
     например предложить сократить время, чтобы вернуться в ритм."""
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
     week_key = datetime.now().strftime("%G-W%V")
     scope = notification_scope(bot)
@@ -834,7 +834,7 @@ async def run_monthly_habit_analysis(bot):
     """Раз в месяц (1-го числа, см. main.py) — тот же разбор, что и
     еженедельный, но с фокусом на месячный тренд, а не на один провальный
     день недели."""
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
     month_key = datetime.now().strftime("%Y-%m")
     scope = notification_scope(bot)

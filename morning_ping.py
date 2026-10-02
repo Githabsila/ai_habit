@@ -24,7 +24,7 @@ FALLBACK_TEXT = (
 
 
 async def run_morning_ping(bot):
-    users = get_all_users()
+    users = get_all_users(include_blocked=False)
     sent = 0
     failed = 0
 

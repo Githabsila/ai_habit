@@ -54,7 +54,7 @@ def _freeze(monkeypatch, hour, minute=0):
 def _patch_user(monkeypatch, uid):
     import coach
 
-    monkeypatch.setattr(coach, "get_all_users", lambda: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
     monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(coach, "get_timezone", lambda _uid: "UTC")
 

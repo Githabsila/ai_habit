@@ -4,6 +4,7 @@ import logging
 import random
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from config import WEBAPP_URL
 
@@ -18,9 +19,20 @@ from db import (
     get_users_near_personal_record,
     get_rank_overtakes_and_update_snapshot,
     get_gender, gender_forms,
+    is_bot_blocked, mark_bot_blocked,
 )
 
 logger = logging.getLogger("streak_scheduler")
+
+
+def _on_forbidden(uid, label):
+    """Постоянный отказ Telegram (бот заблокирован пользователем): запоминаем,
+    чтобы следующие тики этого и остальных job'ов не стучались к нему заново
+    (раньше каждую минуту окна — повторная ошибка с трейсбеком), и пишем одну
+    короткую строку вместо трейсбека. Флаг снимется сам, когда пользователь
+    снова напишет боту (middlewares/access_control.py)."""
+    mark_bot_blocked(uid)
+    logger.warning("%s: бот заблокирован пользователем %s — рассылки ему отключены", label, uid)
 
 async def run_streak_rollover(bot=None):
     try:
@@ -184,7 +196,7 @@ async def run_streak_risk_notifications(bot):
 
     scope = notification_scope(bot)
 
-    for uid in get_streak_users():
+    for uid in get_streak_users(include_blocked=False):
         try:
             settings = get_settings(uid)
             if not reminder_category_enabled(settings, "streak"):
@@ -244,6 +256,8 @@ async def run_streak_risk_notifications(bot):
                 _run_countdown(bot, uid, sent.message_id, tz_name, now.date())
             )
             _active_countdowns[(uid, sent.message_id)] = task
+        except TelegramForbiddenError:
+            _on_forbidden(uid, "streak-risk")
         except Exception:
             logger.exception("Ошибка streak-risk для %s", uid)
 
@@ -334,7 +348,7 @@ async def run_streak_reengagement_notifications(bot):
     if not bot:
         return
 
-    for uid in get_streak_users():
+    for uid in get_streak_users(include_blocked=False):
         try:
             settings = get_settings(uid)
             if not reminder_category_enabled(settings, "streak"):
@@ -385,6 +399,8 @@ async def run_streak_reengagement_notifications(bot):
             except Exception:
                 release_notification(uid, day, kind, scope)
                 raise
+        except TelegramForbiddenError:
+            _on_forbidden(uid, "streak-reengagement")
         except Exception:
             logger.exception("Ошибка streak-reengagement для %s", uid)
 
@@ -393,7 +409,7 @@ async def run_weekly_streak_bonus(bot):
     if not bot:
         return
     scope = notification_scope(bot)
-    for uid in get_streak_users():
+    for uid in get_streak_users(include_blocked=False):
         try:
             # Раньше этот job вообще не смотрел на настройки напоминаний —
             # награда за неделю без пропусков приходила даже тем, кто
@@ -422,6 +438,8 @@ async def run_weekly_streak_bonus(bot):
             except Exception:
                 release_notification(uid, day, "weekly_bonus", scope)
                 raise
+        except TelegramForbiddenError:
+            _on_forbidden(uid, "weekly-streak-bonus")
         except Exception:
             logger.exception("Ошибка weekly streak bonus для %s", uid)
 
@@ -436,6 +454,8 @@ async def run_personal_record_notifications(bot):
     scope = notification_scope(bot)
     for row in get_users_near_personal_record():
         uid = row["user_id"]
+        if is_bot_blocked(uid):
+            continue
         try:
             settings = get_settings(uid)
             if not reminder_category_enabled(settings, "streak"):
@@ -460,6 +480,8 @@ async def run_personal_record_notifications(bot):
             except Exception:
                 release_notification(uid, day, "personal_record", scope)
                 raise
+        except TelegramForbiddenError:
+            _on_forbidden(uid, "personal-record")
         except Exception:
             logger.exception("Ошибка personal-record для %s", uid)
 
@@ -498,6 +520,8 @@ async def run_rank_overtaken_notifications(bot):
     scope = notification_scope(bot)
     for item in overtaken:
         uid = item["user_id"]
+        if is_bot_blocked(uid):
+            continue
         try:
             settings = get_settings(uid)
             if not reminder_category_enabled(settings, "streak"):
@@ -520,5 +544,7 @@ async def run_rank_overtaken_notifications(bot):
             except Exception:
                 release_notification(uid, day, "rank_overtaken", scope)
                 raise
+        except TelegramForbiddenError:
+            _on_forbidden(uid, "rank-overtaken")
         except Exception:
             logger.exception("Ошибка rank-overtaken пуша для %s", uid)

@@ -79,7 +79,7 @@ class FakeBot:
 async def test_reengagement_scheduler_silent_when_streak_is_healthy(monkeypatch, uid):
     import streak_scheduler
 
-    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda: [uid])
+    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda **_kw: [uid])
     monkeypatch.setattr(streak_scheduler, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(streak_scheduler, "get_timezone", lambda _uid: "UTC")
     monkeypatch.setattr(streak_scheduler, "has_completed_today", lambda _uid: False)
@@ -104,7 +104,7 @@ async def test_reengagement_scheduler_silent_when_streak_is_healthy(monkeypatch,
 async def test_reengagement_scheduler_still_fires_for_a_real_gap(monkeypatch, uid):
     import streak_scheduler
 
-    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda: [uid])
+    monkeypatch.setattr(streak_scheduler, "get_streak_users", lambda **_kw: [uid])
     monkeypatch.setattr(streak_scheduler, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(streak_scheduler, "get_timezone", lambda _uid: "UTC")
     monkeypatch.setattr(streak_scheduler, "has_completed_today", lambda _uid: False)

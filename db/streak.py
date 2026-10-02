@@ -880,11 +880,16 @@ def get_freeze_upsell_eligibility(user_id):
     return {"streak": int(row["streak"] or 0), "xp": int(row["xp"] or 0), "freeze_balance": int(row["freeze_balance"] or 0)}
 
 
-def get_streak_users():
+def get_streak_users(include_blocked=True):
+    """Пользователи с привычками. include_blocked=False — без тех, кто
+    заблокировал бота (db.users.mark_bot_blocked): так делают рассылочные
+    job'ы. Админские выборки оставляют True и по-прежнему видят всех."""
     conn = connect()
     c = conn.cursor()
-    c.execute("""SELECT u.telegram_id FROM users u
-                 WHERE EXISTS(SELECT 1 FROM habits h WHERE h.user_id=u.telegram_id)""")
+    blocked_filter = "" if include_blocked else "AND u.bot_blocked_at IS NULL"
+    c.execute(f"""SELECT u.telegram_id FROM users u
+                 WHERE EXISTS(SELECT 1 FROM habits h WHERE h.user_id=u.telegram_id)
+                 {blocked_filter}""")
     ids = [r["telegram_id"] for r in c.fetchall()]
     conn.close()
     return ids
