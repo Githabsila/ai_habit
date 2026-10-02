@@ -3370,6 +3370,17 @@
         </div>` : ""}
       </li>`;
     }).join("");
+
+    // Жалоба пользователя: "после обновления все пользователи в рейтинге
+    // пропали". На деле рейтинг персональный — только игроки из той же
+    // лиги по серии (db/leagues.py), а при переходе на новый диапазон (серия
+    // стала 31 → лига "Мастера" 31–60) человек может оказаться в ней один.
+    // Раньше это выглядело как пустой/сломанный экран без объяснений.
+    if (rows.length === 1 && rows[0].telegram_id === myId) {
+      const league = state.rating_league;
+      const range = league ? (league.max_streak ? `${league.min_streak}–${league.max_streak}` : `${league.min_streak}+`) : "";
+      list.innerHTML = `<li class="empty-hint">Ты пока один в своей лиге${league ? ` «${escapeHtml(league.name)}» (серия ${range} дн.)` : ""}. Рейтинг показывает только тех, у кого серия в том же диапазоне — как только кто-то дойдёт до неё, он появится здесь. Остальные игроки никуда не пропали: они в соседних лигах.</li>`;
+    }
   }
 
   // Должен совпадать с db/reactions.py::REACTION_EMOJIS.
@@ -3780,6 +3791,33 @@ function closeAddCollapse(collapseId) {
 }
 
 // ===================== HABIT ACTIONS =====================
+// Мгновенный (оптимистичный) вид строки привычки на тап — до ответа
+// сервера. Для обычной привычки сразу ставит "выполнено"; для счётчика
+// (кнопка вида "2/5") прибавляет единицу и, если цель достигнута, тоже
+// отмечает выполненной. Возвращает функцию отката на случай ошибки запроса.
+// Настоящее состояние всё равно приходит из ответа сервера и подменяет
+// строку целиком (applyActionPatch → renderSingleHabit).
+function applyOptimisticHabitTap(li, btn) {
+  const prevLabel = btn.textContent;
+  const prevWasCounter = btn.classList.contains("habit-item__check--counter");
+  const m = /^\s*(\d+)\s*\/\s*(\d+)\s*$/.exec(prevLabel);
+  const nextCount = m ? Number(m[1]) + 1 : null;
+  const completes = !m || nextCount >= Number(m[2]);
+  if (completes) {
+    li.classList.add("is-done");
+    btn.classList.remove("habit-item__check--counter");
+    btn.textContent = "✓";
+  } else {
+    btn.textContent = `${nextCount}/${m[2]}`;
+  }
+  return () => {
+    li.classList.remove("is-done");
+    if (prevWasCounter) btn.classList.add("habit-item__check--counter");
+    btn.textContent = prevLabel;
+    btn.disabled = false;
+  };
+}
+
 // Общая "победная" реакция после выполнения привычки — вызывается и из
 // /complete, и из /progress (когда счётчик как раз достиг цели), чтобы не
 // дублировать монеты/streak/идеальный-день/цепочку в двух местах.
@@ -4192,20 +4230,30 @@ function initHabitActions() {
       return;
     }
 
+    // Жалоба пользователя: отклик на выполнение привычки приходит с задержкой
+    // около секунды. Раньше вибрация и галочка появлялись только ПОСЛЕ ответа
+    // сервера (а он в другом полушарии: сеть туда-обратно + обработка) — тап
+    // ощущался "мёртвым". Теперь отвечаем на касание сразу, оптимистично, а
+    // ответ сервера лишь уточняет итог (монеты, серия, квесты). Если запрос
+    // упал — откатываем вид обратно, чтобы не врать пользователю.
+    let rollbackOptimistic = null;
     try {
       if (action === "complete") {
         btn.disabled = true;
-        const result = await api(`/api/habits/${habitId}/complete`, { method: "POST" });
         haptic("medium");
+        rollbackOptimistic = applyOptimisticHabitTap(li, btn);
+        const result = await api(`/api/habits/${habitId}/complete`, { method: "POST" });
         applyActionPatch(result);
         await celebrateHabitCompletion(result);
       } else if (action === "progress") {
         btn.disabled = true;
+        haptic("light");
+        rollbackOptimistic = applyOptimisticHabitTap(li, btn);
         // Roadmap #1 — счётчик: +1 к прогрессу. Если это нажатие как раз
         // закрыло цель, ответ содержит те же поля, что и /complete (монеты,
         // streak и т.д.) — празднуем точно так же.
         const result = await api(`/api/habits/${habitId}/progress`, { method: "POST" });
-        haptic(result.just_completed ? "medium" : "light");
+        if (result.just_completed) haptic("medium");
         applyActionPatch(result);
         if (result.just_completed) {
           await celebrateHabitCompletion(result);
@@ -4218,6 +4266,7 @@ function initHabitActions() {
         deleteHabitWithUndo(habitId);
       }
     } catch (err) {
+      if (rollbackOptimistic) rollbackOptimistic();
       showToast(friendlyError(err), "error");
       await loadBootstrap();
     }

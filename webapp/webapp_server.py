@@ -1,3 +1,4 @@
+import asyncio
 import gzip
 import json
 import logging
@@ -239,6 +240,28 @@ async def _push(app, telegram_id, text):
         await bot.send_message(telegram_id, text, parse_mode="HTML")
     except Exception:
         logger.warning(f"Не удалось отправить push-уведомление {telegram_id}", exc_info=True)
+
+
+# Сильные ссылки на фоновые задачи: без них event loop держит задачу лишь
+# слабой ссылкой, и сборщик мусора может убить её посреди отправки.
+_background_tasks = set()
+
+
+def _spawn_background(coro):
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
+def _push_in_background(app, telegram_id, text):
+    """Жалоба пользователя: отклик на отметку привычки приходит с задержкой
+    около секунды. Часть этой секунды — сам запрос ждал, пока бот отправит
+    поздравление в Telegram (сервер в США, у Telegram своя сеть) — хотя
+    клиенту это сообщение для ответа не нужно: оно уходит в чат с ботом, а
+    Mini App получает всё необходимое из JSON. Поэтому отправка идёт в фоне,
+    а ответ — сразу. _push сам глотает и логирует любые сбои доставки."""
+    _spawn_background(_push(app, telegram_id, text))
 
 # ====================== MIDDLEWARE ======================
 
@@ -873,11 +896,19 @@ async def _maybe_push_first_win(app, telegram_id, result_type):
     bot = app.get("bot")
     if bot is None:
         return
-    try:
-        await bot.send_message(telegram_id, text, parse_mode="HTML", reply_markup=markup)
-        mark_first_win_push_sent(telegram_id)
-    except Exception:
-        logger.warning("Не удалось отправить first-win push пользователю %s", telegram_id, exc_info=True)
+
+    async def _send():
+        try:
+            await bot.send_message(telegram_id, text, parse_mode="HTML", reply_markup=markup)
+            mark_first_win_push_sent(telegram_id)
+        except Exception:
+            logger.warning("Не удалось отправить first-win push пользователю %s", telegram_id, exc_info=True)
+
+    # Сетевая отправка — в фоне (см. _push_in_background): запрос на отметку
+    # привычки/задачи не должен ждать Telegram. Заявка (claim) и проверка
+    # онбординга выше остаются синхронными, чтобы гонки двух быстрых тапов
+    # по-прежнему не давали два одинаковых сообщения.
+    _spawn_background(_send())
 
 
 @routes.post("/api/habits/{habit_id}/complete")
@@ -897,7 +928,7 @@ async def complete_habit_route(request):
     if event:
         try:
             phrase = event["message"]
-            await _push(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{phrase}")
+            _push_in_background(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{phrase}")
         except Exception:
             logger.exception("Не удалось отправить streak-сообщение")
 
@@ -912,7 +943,7 @@ async def complete_habit_route(request):
         try:
             invite = await try_grant_channel_access(bot, telegram_id)
             if invite:
-                await _push(
+                _push_in_background(
                     request.app, telegram_id,
                     f"🔑 Ты выполнил нужную серию ударного режима подряд — вот ссылка в закрытый канал: {invite}",
                 )
@@ -942,7 +973,7 @@ async def complete_habit_route(request):
             diamonds=month_reward_event["diamonds"],
         )
         try:
-            await _push(request.app, telegram_id, f"💎 {month_reward_message}")
+            _push_in_background(request.app, telegram_id, f"💎 {month_reward_message}")
         except Exception:
             logger.exception("Не удалось отправить сообщение о награде месяца")
 
@@ -1020,7 +1051,7 @@ async def habit_progress_route(request):
     streak = get_streak_status(telegram_id)
     if event:
         try:
-            await _push(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{event['message']}")
+            _push_in_background(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{event['message']}")
         except Exception:
             logger.exception("Не удалось отправить streak-сообщение")
 
@@ -1029,7 +1060,7 @@ async def habit_progress_route(request):
         try:
             invite = await try_grant_channel_access(bot, telegram_id)
             if invite:
-                await _push(
+                _push_in_background(
                     request.app, telegram_id,
                     f"🔑 Ты выполнил нужную серию ударного режима подряд — вот ссылка в закрытый канал: {invite}",
                 )
