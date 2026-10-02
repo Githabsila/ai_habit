@@ -13411,3 +13411,38 @@ body.onboarding-scroll-lock{
   transition:opacity .35s ease;
 }
 .hero-lightbox__video.is-playing{opacity:1}
+
+/* =========================================================
+   Кольцо уровня: свечение без CSS-filter
+   Жалоба (второй раз): вокруг кольца уровня проступает светлый квадрат.
+   Причина воспроизведена: filter:drop-shadow на самой дуге
+   (.level-ring__fill) рисуется отдельным прямоугольным слоем 104x104
+   поверх анимированного фона шапки (.player-card__aurora) — при
+   отключении только этого фильтра квадрат исчезает. Прошлый фикс убрал
+   фильтр с контейнера, но не с дуги и не с бейджа.
+   Теперь: фильтров на кольце нет; свечение — две полупрозрачные более
+   толстые дуги (.level-ring__glow в index.html), которые двигаются
+   синхронно с основной (app.js::renderPlayerCard). Цифра уровня получает
+   мягкую тень через text-shadow вместо filter на всём контейнере.
+   ========================================================= */
+.player-card__ring-wrap.level-ring-v32 > svg.level-ring circle.level-ring__fill,
+.player-card__ring-wrap.level-ring-v32 > svg.level-ring circle.level-ring__fill.is-progressing{
+  filter:none !important;
+  -webkit-filter:none !important;
+}
+.player-card__ring-wrap.level-ring-v32 > svg.level-ring circle.level-ring__glow{
+  stroke-width:13px !important;
+  opacity:.24 !important;
+}
+.player-card__ring-wrap.level-ring-v32 > svg.level-ring circle.level-ring__glow--wide{
+  stroke-width:19px !important;
+  opacity:.10 !important;
+}
+.player-card__ring-wrap.level-ring-v32 > .level-ring__badge{
+  filter:none !important;
+  -webkit-filter:none !important;
+}
+.player-card__ring-wrap.level-ring-v32 > .level-ring__badge span,
+.player-card__ring-wrap.level-ring-v32 > .level-ring__badge small{
+  text-shadow:0 4px 10px rgba(0,0,0,.4);
+}

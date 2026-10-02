@@ -2871,21 +2871,31 @@
       // Анимация остаётся только для реального изменения XP.
       const offset = RING_CIRCUMFERENCE * (1 - xpIntoLevel / 100);
       const initialized = ringFill.dataset.ringInitialized === "1";
+      // Основная дуга + дуги-свечение (.level-ring__glow, см. index.html) —
+      // двигаем все вместе, чтобы свечение не отставало от дуги.
+      const ringParts = [ringFill, ...document.querySelectorAll(".level-ring__glow")];
 
       if (!initialized) {
-        ringFill.style.transition = "none";
-        ringFill.style.strokeDashoffset = String(offset);
+        ringParts.forEach((part) => {
+          part.style.transition = "none";
+          part.style.strokeDashoffset = String(offset);
+        });
         ringFill.dataset.ringInitialized = "1";
         void ringFill.getBoundingClientRect();
-        ringFill.style.transition = "";
-        ringFill.classList.remove("is-progressing");
+        ringParts.forEach((part) => {
+          part.style.transition = "";
+          part.classList.remove("is-progressing");
+        });
       } else {
-        ringFill.classList.add("is-progressing");
+        ringParts.forEach((part) => part.classList.add("is-progressing"));
         requestAnimationFrame(() => {
-          ringFill.style.strokeDashoffset = String(offset);
+          ringParts.forEach((part) => { part.style.strokeDashoffset = String(offset); });
         });
         clearTimeout(ringFill._progressTimer);
-        ringFill._progressTimer = setTimeout(() => ringFill.classList.remove("is-progressing"), 760);
+        ringFill._progressTimer = setTimeout(
+          () => ringParts.forEach((part) => part.classList.remove("is-progressing")),
+          760,
+        );
       }
     }
   }
