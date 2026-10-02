@@ -192,10 +192,88 @@ def test_hero_payload_shape(uid):
     hero = get_hero_state(uid, now=MORNING)
     assert set(hero) == {
         "key", "title", "caption", "tone", "streak", "band",
-        "counted_today", "image", "progress",
+        "counted_today", "image", "video", "progress",
     }
     assert hero["image"].startswith(f"/static/assets/hero/{hero['key']}.webp?v=")
     assert set(hero["progress"]) == {"from", "to", "days_left", "next_title", "percent"}
+
+
+# =====================================
+# Видео-петля (необязательная) и раздача файлов героя
+# =====================================
+
+def test_video_is_none_when_no_clip_exists(uid, monkeypatch, tmp_path):
+    monkeypatch.setattr("db.hero.HERO_ASSETS_DIR", tmp_path)
+    (tmp_path / "start.webp").write_bytes(b"abc")
+    _seed(uid)
+    hero = get_hero_state(uid, now=MORNING)
+    assert hero["video"] is None
+    # В версию входит размер файла: замена картинки сама сбрасывает кэш.
+    assert hero["image"] == "/static/assets/hero/start.webp?v=1-3"
+
+
+def test_video_url_appears_when_clip_exists(uid, monkeypatch, tmp_path):
+    monkeypatch.setattr("db.hero.HERO_ASSETS_DIR", tmp_path)
+    (tmp_path / "start.webp").write_bytes(b"abc")
+    (tmp_path / "start.mp4").write_bytes(b"0123456789")
+    _seed(uid)
+    hero = get_hero_state(uid, now=MORNING)
+    assert hero["video"] == "/static/assets/hero/start.mp4?v=1-10"
+
+
+def test_video_is_per_state(uid, monkeypatch, tmp_path):
+    """Клип есть только у «peak» — у остальных состояний video = None."""
+    monkeypatch.setattr("db.hero.HERO_ASSETS_DIR", tmp_path)
+    (tmp_path / "peak.mp4").write_bytes(b"x" * 7)
+    _seed(uid, streak=40, days={0: "completed", 1: "completed"})
+    assert get_hero_state(uid, now=MORNING)["video"] == "/static/assets/hero/peak.mp4?v=1-7"
+    other = uid + 500_000
+    _seed(other, streak=5, days={0: "completed", 1: "completed"})
+    assert get_hero_state(other, now=MORNING)["video"] is None
+
+
+async def test_hero_assets_are_cached_long_but_other_static_is_not(client):
+    r = await client.get("/static/assets/hero/start.webp?v=1-1")
+    assert r.status == 200
+    assert "immutable" in r.headers["Cache-Control"]
+    # Прочая статика по-прежнему без кэша (иначе WebView держал бы старый код).
+    r2 = await client.get("/static/assets/logo.svg")
+    assert "no-store" in r2.headers["Cache-Control"]
+
+
+async def test_hero_assets_support_range_requests(client):
+    """Видео iOS/Android берут кусками (Range) — раздача обязана отвечать 206."""
+    r = await client.get("/static/assets/hero/start.webp", headers={"Range": "bytes=0-9"})
+    assert r.status == 206
+    assert r.headers["Content-Range"].startswith("bytes 0-9/")
+    assert len(await r.read()) == 10
+
+
+def _load_converter():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "convert_hero_videos", ROOT / "tools" / "convert_hero_videos.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_converter_keys_match_hero_states():
+    """tools/convert_hero_videos.py ищет клипы по ключам состояний — они
+    должны совпадать с db.hero.HERO_KEYS, иначе часть клипов молча
+    пропустится."""
+    assert set(_load_converter().KEYS) == set(HERO_KEYS)
+
+
+def test_converter_pingpong_filter_appends_reverse_concat():
+    converter = _load_converter()
+    plain = converter.build_filter(480, 720, 24, pingpong=False)
+    looped = converter.build_filter(480, 720, 24, pingpong=True)
+    assert "scale=480:720" in plain and "reverse" not in plain
+    assert looped.startswith(plain)
+    assert "reverse" in looped and "concat=n=2" in looped
 
 
 async def test_bootstrap_and_complete_both_return_hero(client, uid):
@@ -224,7 +302,8 @@ def test_index_html_has_hero_markup_used_by_app_js():
     for element_id in (
         "heroWidget", "heroWidgetImg", "heroWidgetTitle", "heroWidgetCaption",
         "heroWidgetBarFill", "heroWidgetHint", "heroWidgetPortrait",
-        "heroLightbox", "heroLightboxImg", "heroLightboxTitle", "heroLightboxText",
+        "heroLightbox", "heroLightboxFrame", "heroLightboxImg",
+        "heroLightboxTitle", "heroLightboxText",
     ):
         assert f'id="{element_id}"' in html, element_id
         assert f'"{element_id}"' in js, element_id

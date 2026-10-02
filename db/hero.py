@@ -22,15 +22,27 @@
 Пороги серий намеренно совпадают с тем, что уже есть в приложении: 14 дней —
 первая рамка-награда (db/streak.py::MILESTONES), 31+ — лига «Мастера»
 (db/leagues.py::RATING_LEAGUES).
+
+К каждому состоянию можно добавить необязательную видео-петлю
+webapp/static/assets/hero/{ключ}.mp4 (готовить: tools/convert_hero_videos.py).
+Если файл есть, в ответе появляется hero["video"] и фронт играет его поверх
+картинки; если нет — просто картинка.
 """
 from datetime import date, datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .core import connect
 from .streak import FREE_RESTORE_GRACE_DAYS, day_key, get_timezone
 
-# Менять при замене картинок в webapp/static/assets/hero/ — это значение
-# уходит в ?v=… и сбрасывает кэш Telegram WebView.
+# Файлы героя лежат в webapp/static/assets/hero/: {ключ}.webp — картинка
+# (обязательна), {ключ}.mp4 — необязательная видео-петля того же состояния.
+# Если mp4 нет, hero["video"] = None и фронт показывает просто картинку.
+HERO_ASSETS_DIR = Path(__file__).resolve().parent.parent / "webapp" / "static" / "assets" / "hero"
+
+# Ручная «соль» версии — на случай, если нужно принудительно сбросить кэш
+# всех файлов героя. Обычно трогать не нужно: в ?v=… уже входит размер файла,
+# так что замена картинки/видео сбрасывает кэш Telegram WebView сама.
 HERO_ASSET_VERSION = 1
 
 # (минимальная серия, ключ) — «обычные» состояния по возрастанию серии.
@@ -94,6 +106,17 @@ HERO_STATES = {
 HERO_KEYS = tuple(HERO_STATES)
 
 _COUNTED = ("completed", "freeze")
+
+
+def _asset_url(key, ext):
+    """URL файла героя с версией (соль + размер файла) или None, если файла
+    нет. Раздаётся с долгим кэшем (см. error_middleware), поэтому версия в
+    ссылке обязательна — иначе замена файла не дошла бы до пользователей."""
+    try:
+        size = (HERO_ASSETS_DIR / f"{key}.{ext}").stat().st_size
+    except OSError:
+        return None
+    return f"/static/assets/hero/{key}.{ext}?v={HERO_ASSET_VERSION}-{size}"
 
 
 def _band_index(streak):
@@ -219,6 +242,7 @@ def get_hero_state(user_id, now=None):
         # (at_risk/ended/…) на него не влияют.
         "band": _band_index(streak),
         "counted_today": counted_today,
-        "image": f"/static/assets/hero/{key}.webp?v={HERO_ASSET_VERSION}",
+        "image": _asset_url(key, "webp") or f"/static/assets/hero/{key}.webp?v={HERO_ASSET_VERSION}",
+        "video": _asset_url(key, "mp4"),
         "progress": _band_progress(streak),
     }

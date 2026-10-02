@@ -660,14 +660,133 @@
         ? `🔥 ${days} · максимальная форма`
         : `🔥 ${days} · до «${progress.next_title}» ещё ${progress.days_left} дн.`;
     }
+    syncHeroVideo();
+  }
+
+  // ----- Видео-петля героя (необязательна) -----
+  // Если для состояния лежит {ключ}.mp4 (см. db/hero.py), сервер отдаёт
+  // hero.video, и поверх картинки играет беззвучная петля. Картинка остаётся
+  // подложкой и запасным вариантом: нет файла / ошибка / слабое устройство —
+  // просто статика, как раньше. Ограничения из-за нагрева телефона и
+  // нестабильной отрисовки Android WebView: видео создаётся только когда
+  // карточка реально на экране, играет не дольше HERO_VIDEO_MAX_PLAY_MS за
+  // один показ и ставится на паузу, как только карточка ушла с экрана или
+  // приложение свернули.
+  const HERO_VIDEO_MAX_PLAY_MS = 30000;
+  const heroMotion = { video: null, visible: false, capped: false, timer: null };
+
+  function heroMotionAllowed() {
+    try {
+      if (document.documentElement.classList.contains("performance-lite")) return false;
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
+      if (navigator.connection && navigator.connection.saveData) return false;
+    } catch (_) {}
+    return true;
+  }
+
+  function createHeroVideo(hero, className) {
+    const v = document.createElement("video");
+    v.className = className;
+    v.muted = true;
+    v.defaultMuted = true;
+    v.loop = true;
+    v.playsInline = true;
+    // Атрибуты (а не только свойства) нужны iOS, чтобы видео играло без
+    // жеста пользователя и не уходило в полноэкранный плеер.
+    v.setAttribute("muted", "");
+    v.setAttribute("playsinline", "");
+    v.setAttribute("webkit-playsinline", "");
+    v.setAttribute("aria-hidden", "true");
+    v.disablePictureInPicture = true;
+    v.preload = "auto";
+    v.poster = hero.image;
+    v.dataset.src = hero.video;
+    v.src = hero.video;
+    // Показываем видео только когда кадры реально пошли — до этого видна
+    // картинка, без чёрной вспышки.
+    v.addEventListener("playing", () => v.classList.add("is-playing"));
+    v.addEventListener("error", () => v.remove());
+    return v;
+  }
+
+  function dropHeroVideo() {
+    clearTimeout(heroMotion.timer);
+    heroMotion.timer = null;
+    if (heroMotion.video) {
+      heroMotion.video.pause();
+      heroMotion.video.remove();
+      heroMotion.video = null;
+    }
+  }
+
+  // Приводит видео в карточке к актуальному состоянию героя: создаёт (когда
+  // карточка видна и видео разрешено), заменяет при смене состояния,
+  // убирает, если для состояния видео нет.
+  function syncHeroVideo() {
+    const portrait = document.getElementById("heroWidgetPortrait");
+    const hero = state?.hero;
+    const wanted = portrait && hero && hero.video && heroMotionAllowed() ? hero.video : null;
+    if (!wanted || !heroMotion.visible) {
+      if (!wanted || heroMotion.video?.dataset.src !== wanted) dropHeroVideo();
+      return;
+    }
+    if (!heroMotion.video || heroMotion.video.dataset.src !== wanted) {
+      dropHeroVideo();
+      heroMotion.video = createHeroVideo(hero, "hero-widget__video");
+      portrait.appendChild(heroMotion.video);
+    }
+    updateHeroMotion();
+  }
+
+  function updateHeroMotion() {
+    const v = heroMotion.video;
+    if (!v) return;
+    const lightboxOpen = !document.getElementById("heroLightbox")?.hidden;
+    const shouldPlay = heroMotion.visible && !document.hidden && !lightboxOpen && !heroMotion.capped;
+    if (shouldPlay) {
+      const p = v.play();
+      if (p && p.catch) p.catch(() => {});
+      if (!heroMotion.timer) {
+        heroMotion.timer = setTimeout(() => {
+          heroMotion.timer = null;
+          heroMotion.capped = true;
+          updateHeroMotion();
+        }, HERO_VIDEO_MAX_PLAY_MS);
+      }
+    } else {
+      v.pause();
+      clearTimeout(heroMotion.timer);
+      heroMotion.timer = null;
+    }
   }
 
   // Тап по картинке героя — увеличенный вид с подписью; любой тап закрывает.
   function initHeroWidget() {
     const portrait = document.getElementById("heroWidgetPortrait");
     const box = document.getElementById("heroLightbox");
+    const wrap = document.getElementById("heroWidget");
     if (!portrait || !box) return;
-    const close = () => { box.hidden = true; };
+
+    // Видео в карточке играет, только пока карточка на экране (вкладка
+    // «Профиль» открыта и карточка прокручена в видимую область).
+    if (wrap && "IntersectionObserver" in window) {
+      new IntersectionObserver((entries) => {
+        const entry = entries[entries.length - 1];
+        heroMotion.visible = !!entry && entry.isIntersecting;
+        if (!heroMotion.visible) heroMotion.capped = false;
+        syncHeroVideo();
+        updateHeroMotion();
+      }, { threshold: 0.5 }).observe(wrap);
+    } else {
+      heroMotion.visible = true;
+    }
+    document.addEventListener("visibilitychange", updateHeroMotion);
+
+    const closeLightbox = () => {
+      box.hidden = true;
+      box.querySelector(".hero-lightbox__video")?.remove();
+      updateHeroMotion();
+    };
     portrait.addEventListener("click", () => {
       const hero = state?.hero;
       if (!hero) return;
@@ -676,10 +795,18 @@
       document.getElementById("heroLightboxTitle").textContent = hero.title || "";
       document.getElementById("heroLightboxText").textContent = hero.caption || "";
       box.dataset.tone = hero.tone || "calm";
+      box.querySelector(".hero-lightbox__video")?.remove();
       box.hidden = false;
+      updateHeroMotion(); // ставит на паузу видео карточки под оверлеем
+      if (hero.video && heroMotionAllowed()) {
+        const v = createHeroVideo(hero, "hero-lightbox__video");
+        document.getElementById("heroLightboxFrame")?.appendChild(v);
+        const p = v.play();
+        if (p && p.catch) p.catch(() => {});
+      }
     });
-    box.addEventListener("click", close);
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    box.addEventListener("click", closeLightbox);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
   }
 
   // Герой «вырос» (серия перешла в следующую полосу: старт → первые дни →

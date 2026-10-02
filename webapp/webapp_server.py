@@ -293,6 +293,12 @@ async def error_middleware(request, handler):
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
+        elif request.path.startswith("/static/assets/hero/"):
+            # Картинки и видео героя версионируются прямо в ссылке (?v=…, см.
+            # db/hero.py::_asset_url). Видео тяжёлые — с no-store они качались
+            # бы заново при каждом показе карточки, а iOS Safari ещё и плохо
+            # играет медиа с no-store.
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         elif request.path.startswith("/static/"):
             # JS/CSS URLs are versioned in index.html; long caching avoids
             # re-downloading ~100KB+ of assets on every Mini App open.
