@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261003_FRIENDS_V25">
+<link rel="stylesheet" href="/static/style.css?v=20261003_FOLLOWS_V26">
 </head>
 <body>
 
@@ -671,6 +671,12 @@ class="habit-add-form__submit">
   </div>
 
   <div class="settings-row">
+    <span>👁 Кому видна моя статистика</span>
+    <button type="button" class="settings-quiet-toggle" id="statsVisibilityToggle">Подписчикам</button>
+  </div>
+  <p class="theme-picker__hint">Подписчики видят прогресс за неделю и достижения, друзья (взаимная подписка) — ещё и расширенную статистику. Названия привычек не видны никому.</p>
+
+  <div class="settings-row">
     <span>🗒️ Точка дня по привычкам</span>
   </div>
   <div class="ai-style-picker" id="habitCheckpointStylePicker">
@@ -893,6 +899,38 @@ class="habit-add-form__submit">
     <ul class="friends-list" id="remindFriendsList"></ul>
     <div class="feedback-actions feedback-actions--single">
       <button type="button" class="freeze-purchase-back" id="remindFriendsClose">Не сейчас</button>
+    </div>
+  </section>
+</div>
+
+<!-- Профиль другого игрока (как в Duolingo): подписки/подписчики, график опыта
+     за неделю в сравнении с тобой, обзор, достижения. Что видно — зависит от
+     того, подписан ли ты на него и подписан ли он на тебя (db/profiles.py).
+     Живёт вне #app, потому что открывается и из Рейтинга, и из карточки
+     «Друзья», и из списков подписок. Рисует app.js::renderUserProfile. -->
+<div class="subpage-overlay up-overlay" id="userProfileOverlay" hidden aria-hidden="true">
+  <div class="subpage-overlay__backdrop" id="userProfileBackdrop"></div>
+  <div class="subpage-overlay__panel">
+    <div class="subpage-overlay__header">
+      <button type="button" class="subpage-overlay__back" id="userProfileClose" aria-label="Закрыть">←</button>
+      <h2 class="subpage-overlay__title" id="userProfileTitle">Профиль</h2>
+    </div>
+    <div class="subpage-overlay__body up-body" id="userProfileBody"></div>
+  </div>
+</div>
+
+<!-- «Подписки» / «Подписчики» — свои списки, с кнопкой «Подписаться в ответ». -->
+<div class="feedback-sheet" id="followListSheet" hidden aria-hidden="true">
+  <div class="feedback-sheet__backdrop" id="followListBackdrop"></div>
+  <section class="feedback-card follow-list-card" role="dialog" aria-modal="true" aria-label="Подписки и подписчики">
+    <div class="freeze-purchase-card__handle"></div>
+    <div class="follow-tabs" id="followTabs">
+      <button type="button" class="follow-tab" data-follow-kind="following">Подписки <b id="followTabFollowing">0</b></button>
+      <button type="button" class="follow-tab" data-follow-kind="followers">Подписчики <b id="followTabFollowers">0</b></button>
+    </div>
+    <ul class="friends-list follow-list" id="followList"></ul>
+    <div class="feedback-actions feedback-actions--single">
+      <button type="button" class="freeze-purchase-back" id="followListClose">Закрыть</button>
     </div>
   </section>
 </div>
@@ -1205,7 +1243,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
-<script type="module" src="/static/app.js?v=20261003_FRIENDS_V29"></script>
+<script type="module" src="/static/app.js?v=20261003_FOLLOWS_V30"></script>
 
 </body>
 </html>

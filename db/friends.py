@@ -1,10 +1,10 @@
 """
 Друзья и «Напомнить друзьям» (по мотивам Duolingo).
 
-Друг = тот, кого добавили по личной ссылке (таблица friendships, симметричная:
-две строки на пару) + участники твоей команды (db/teams.py — они вступили по
-коду друга). Обмен реакциями друзьями НЕ делает: это слишком слабый сигнал,
-чтобы присылать человеку напоминания.
+Друг = ВЗАИМНАЯ подписка (db/follows.py: ссылка «Добавить друга» или подписка
+в ответ) + участники твоей команды (db/teams.py — они вступили по коду
+друга). Обмен реакциями друзьями НЕ делает, как и односторонняя подписка:
+это слишком слабый сигнал, чтобы присылать человеку напоминания.
 
 «Напомнить»: после первой отметки привычки за день Mini App предлагает
 подтолкнуть друзей, которые сегодня ещё ничего не отмечали. Правила, чтобы
@@ -26,7 +26,6 @@ from zoneinfo import ZoneInfo
 
 from .core import connect
 
-MAX_FRIENDS = 200
 MAX_NUDGES_PER_DAY = 3
 # Окно местного времени получателя, когда напоминать можно: [8:00; 22:00).
 NUDGE_HOUR_FROM = 8
@@ -60,62 +59,35 @@ def _local_day(user_id):
 # ---------------------------------------------------------------------------
 
 def add_friendship(user_id, friend_id):
-    """Дружба взаимная: достаточно, что один дал ссылку, а второй по ней
-    перешёл. True — дружба создана только что; False — нельзя (сам с собой,
-    нет такого пользователя, бан, лимит) или уже были друзьями."""
-    if not user_id or not friend_id or user_id == friend_id:
-        return False
-    conn = connect()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT telegram_id FROM users WHERE telegram_id IN (?, ?) AND banned=0",
-            (user_id, friend_id),
-        )
-        if len({row["telegram_id"] for row in cursor.fetchall()}) != 2:
-            return False
-        for uid in (user_id, friend_id):
-            cursor.execute("SELECT COUNT(*) AS n FROM friendships WHERE user_id=?", (uid,))
-            if int(cursor.fetchone()["n"] or 0) >= MAX_FRIENDS:
-                return False
-        cursor.execute(
-            "SELECT 1 FROM friendships WHERE user_id=? AND friend_id=?", (user_id, friend_id)
-        )
-        if cursor.fetchone():
-            return False
-        cursor.execute("INSERT OR IGNORE INTO friendships(user_id, friend_id) VALUES (?, ?)", (user_id, friend_id))
-        cursor.execute("INSERT OR IGNORE INTO friendships(user_id, friend_id) VALUES (?, ?)", (friend_id, user_id))
-        conn.commit()
-        return True
-    finally:
-        conn.close()
+    """Дружба по ссылке — взаимная подписка разом (db/follows.py::make_friends).
+    True — пара стала друзьями только что; False — нельзя (сам с собой, нет
+    такого пользователя, бан, блокировка, лимит) или уже были друзьями."""
+    from .follows import make_friends
+    return make_friends(user_id, friend_id)
 
 
 def remove_friendship(user_id, friend_id):
-    """Удаляет дружбу с обеих сторон. True, если что-то было удалено."""
-    conn = connect()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "DELETE FROM friendships WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)",
-            (user_id, friend_id, friend_id, user_id),
-        )
-        removed = cursor.rowcount > 0
-        conn.commit()
-        return removed
-    finally:
-        conn.close()
+    """Убирает подписки с обеих сторон. True, если что-то было удалено."""
+    from .follows import remove_mutual
+    return remove_mutual(user_id, friend_id)
 
 
 def get_friend_sources(user_id):
-    """{friend_id: "friend" | "team"} — явные друзья (новые сверху), затем
-    участники команды. Если человек и то и другое — считается явным другом."""
+    """{friend_id: "friend" | "team"} — друзья (ВЗАИМНАЯ подписка, новые
+    сверху), затем участники команды. Если человек и то и другое — считается
+    другом. Тот, на кого ты просто подписан, другом не считается."""
     conn = connect()
     try:
         cursor = conn.cursor()
         sources = {}
         cursor.execute(
-            "SELECT friend_id FROM friendships WHERE user_id=? ORDER BY created_at DESC, rowid DESC",
+            """
+            SELECT f.followee_id AS friend_id
+            FROM follows f
+            JOIN follows r ON r.follower_id = f.followee_id AND r.followee_id = f.follower_id
+            WHERE f.follower_id=?
+            ORDER BY f.created_at DESC, f.rowid DESC
+            """,
             (user_id,),
         )
         for row in cursor.fetchall():
@@ -129,6 +101,16 @@ def get_friend_sources(user_id):
             )
             for row in cursor.fetchall():
                 sources.setdefault(row["user_id"], "team")
+        # Блокировка сильнее общей команды: заблокированный (в любую сторону)
+        # не считается другом и не получает/не шлёт напоминания.
+        if sources:
+            cursor.execute(
+                "SELECT blocked_id AS other FROM user_blocks WHERE blocker_id=? "
+                "UNION SELECT blocker_id AS other FROM user_blocks WHERE blocked_id=?",
+                (user_id, user_id),
+            )
+            for row in cursor.fetchall():
+                sources.pop(row["other"], None)
         return sources
     finally:
         conn.close()
@@ -241,6 +223,8 @@ def _friend_entry(row, state, source):
         "telegram_id": row["telegram_id"],
         "first_name": row["first_name"] or row["username"] or "Друг",
         "handle": _display(row, "handle"),
+        "avatar_id": _display(row, "avatar_id") or "default",
+        "frame_id": _display(row, "frame_id") or "default",
         "streak": int(row["streak"] or 0),
         "state": state,
         "can_remove": source == "friend",

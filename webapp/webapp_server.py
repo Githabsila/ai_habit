@@ -79,8 +79,11 @@ from db import (
     get_season_leaderboard, get_season_rank,
     create_team, join_team, leave_team, get_my_team,
     get_friend_activity_feed,
-    get_friends_overview, send_nudge, cancel_nudge, remove_friendship, claim_remind_prompt,
+    get_friends_overview, send_nudge, cancel_nudge, claim_remind_prompt,
     friend_nudges_enabled, set_friend_nudges, mark_bot_blocked, is_bot_forbidden_error,
+    follow, unfollow, get_relation, get_counts, list_follows, find_user_by_handle,
+    block_user, unblock_user, report_user, REPORT_REASONS, get_player_profile,
+    get_stats_visibility, set_stats_visibility, is_bot_blocked, is_blocked_between,
     get_notification_history,
     log_client_error, is_opaque_client_error,
     export_full_account_data, request_account_deletion,
@@ -512,6 +515,7 @@ async def bootstrap(request):
             "language": get_language(telegram_id),
             "gender": get_gender(telegram_id),
             "friend_nudges": friend_nudges_enabled(settings_row),
+            "stats_visibility": get_stats_visibility(settings_row),
             "quiet_hours": (
                 {"start": settings_row["quiet_hours_start"], "end": settings_row["quiet_hours_end"]}
                 if settings_row and "quiet_hours_start" in settings_row.keys()
@@ -1469,7 +1473,8 @@ async def send_reaction_route(request):
         target_id = int(request.match_info["telegram_id"])
     except ValueError:
         return web.json_response({"error": "invalid_target"}, status=400)
-    if get_user(target_id) is None:
+    if get_user(target_id) is None or is_blocked_between(telegram_id, target_id):
+        # Заблокированному — то же «не найден», без намёка на блокировку.
         return web.json_response({"error": "not_found"}, status=404)
     try:
         body = await request.json()
@@ -1512,6 +1517,7 @@ async def friends_route(request):
     return web.json_response({
         "friends": overview["friends"],
         "viewer_done": overview["viewer_done"],
+        "counts": get_counts(telegram_id),
         "invite_url": f"https://t.me/{username}?start=friend_{telegram_id}" if username else None,
         "nudges_enabled": friend_nudges_enabled(get_settings(telegram_id)),
     })
@@ -1565,16 +1571,214 @@ async def friend_nudge_route(request):
 
 @routes.post("/api/friends/{telegram_id}/remove")
 async def friend_remove_route(request):
-    """Убрать друга (только добавленного по ссылке; участники команды
-    уходят вместе с выходом из команды)."""
+    """Отписаться от друга (как в Duolingo — в одну сторону: он остаётся
+    твоим подписчиком, но вы больше не друзья; участники команды уходят
+    вместе с выходом из команды)."""
     telegram_id, _ = await _authenticate(request)
     try:
         target_id = int(request.match_info["telegram_id"])
     except ValueError:
         return web.json_response({"error": "invalid_target"}, status=400)
-    if not remove_friendship(telegram_id, target_id):
+    if not unfollow(telegram_id, target_id):
         return web.json_response({"error": "not_found"}, status=404)
     return web.json_response({"ok": True})
+
+
+# ====================== ПОДПИСКИ И ПРОФИЛИ ======================
+# Подписаться можно на любого игрока (например, на топ рейтинга); взаимная
+# подписка = друзья (db/follows.py). Что видно в чужом профиле — db/profiles.py.
+
+REPORT_REASON_LABELS = {
+    "spam": "спам",
+    "abuse": "оскорбления",
+    "fake": "фейк / подделка",
+    "other": "другое",
+}
+
+
+def _target_id_or_none(request):
+    try:
+        return int(request.match_info["telegram_id"])
+    except (KeyError, ValueError):
+        return None
+
+
+def _display_name(user_row, fallback="Игрок"):
+    if user_row is None:
+        return fallback
+    return user_row["first_name"] or user_row["username"] or fallback
+
+
+async def _send_social_push(app, target_id, text):
+    """Пуш о подписке. Уважает общий тумблер напоминаний и блокировку
+    бота; любые сбои доставки глотаем — подписке они не помеха."""
+    bot = app.get("bot")
+    if bot is None:
+        return
+    settings_row = get_settings(target_id)
+    if not settings_row or not settings_row["reminders"] or is_bot_blocked(target_id):
+        return
+    markup = None
+    if WEBAPP_URL:
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+        markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="🔥 Открыть ADAM", web_app=WebAppInfo(url=WEBAPP_URL)),
+        ]])
+    try:
+        await bot.send_message(target_id, text, parse_mode="HTML", reply_markup=markup)
+    except Exception as exc:
+        if is_bot_forbidden_error(exc):
+            mark_bot_blocked(target_id)
+        else:
+            logger.warning(f"Не удалось отправить пуш о подписке {target_id}", exc_info=True)
+
+
+def _follow_response(viewer_id, target_id):
+    return {
+        "ok": True,
+        "relation": get_relation(viewer_id, target_id),
+        "counts": get_counts(target_id),
+    }
+
+
+@routes.get("/api/users/search")
+async def user_search_route(request):
+    """Поиск игрока по точному @нику — чтобы подписаться на того, кого
+    увидел в рейтинге или кого назвали, без ссылки."""
+    telegram_id, _ = await _authenticate(request)
+    found = find_user_by_handle(request.rel_url.query.get("handle", ""))
+    if found is None or get_relation(telegram_id, found["telegram_id"])["blocked_me"]:
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response({"user": found})
+
+
+@routes.get("/api/users/{telegram_id}/profile")
+async def user_profile_route(request):
+    telegram_id, _ = await _authenticate(request)
+    target_id = _target_id_or_none(request)
+    if target_id is None:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    profile = get_player_profile(telegram_id, target_id)
+    if profile is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response(profile)
+
+
+@routes.post("/api/users/{telegram_id}/follow")
+async def user_follow_route(request):
+    telegram_id, _ = await _authenticate(request)
+    target_id = _target_id_or_none(request)
+    if target_id is None:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    result = follow(telegram_id, target_id)
+    if "error" in result:
+        status = 404 if result["error"] == "not_found" else 400
+        return web.json_response({"error": result["error"]}, status=status)
+    if result["notify"]:
+        name = html.escape(_display_name(get_user(telegram_id)))
+        if result["notify"] == "friends":
+            text = (f"🤝 <b>{name}</b> подписался(ась) на тебя в ответ — теперь вы друзья в ADAM! "
+                    "Смотрите, кто сегодня отметился, и подталкивайте друг друга.")
+        else:
+            text = f"👤 <b>{name}</b> подписался(ась) на тебя в ADAM."
+        _spawn_background(_send_social_push(request.app, target_id, text))
+    return web.json_response(_follow_response(telegram_id, target_id))
+
+
+@routes.post("/api/users/{telegram_id}/unfollow")
+async def user_unfollow_route(request):
+    telegram_id, _ = await _authenticate(request)
+    target_id = _target_id_or_none(request)
+    if target_id is None:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    unfollow(telegram_id, target_id)
+    return web.json_response(_follow_response(telegram_id, target_id))
+
+
+@routes.get("/api/follows")
+async def follows_list_route(request):
+    """Мои «Подписки» (kind=following) и «Подписчики» (kind=followers).
+    Чужие списки не отдаём — кто на кого подписан, видит только сам человек."""
+    telegram_id, _ = await _authenticate(request)
+    kind = request.rel_url.query.get("kind", "")
+    if kind not in ("followers", "following"):
+        return web.json_response({"error": "invalid_kind"}, status=400)
+    return web.json_response({
+        "kind": kind,
+        "users": list_follows(telegram_id, kind),
+        "counts": get_counts(telegram_id),
+    })
+
+
+@routes.post("/api/users/{telegram_id}/block")
+async def user_block_route(request):
+    telegram_id, _ = await _authenticate(request)
+    target_id = _target_id_or_none(request)
+    if target_id is None or not block_user(telegram_id, target_id):
+        return web.json_response({"error": "invalid_target"}, status=400)
+    return web.json_response(_follow_response(telegram_id, target_id))
+
+
+@routes.post("/api/users/{telegram_id}/unblock")
+async def user_unblock_route(request):
+    telegram_id, _ = await _authenticate(request)
+    target_id = _target_id_or_none(request)
+    if target_id is None:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    unblock_user(telegram_id, target_id)
+    return web.json_response(_follow_response(telegram_id, target_id))
+
+
+@routes.post("/api/users/{telegram_id}/report")
+async def user_report_route(request):
+    """Жалоба на игрока — сохраняется и уходит админам в бот."""
+    telegram_id, _ = await _authenticate(request)
+    target_id = _target_id_or_none(request)
+    if target_id is None:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    reason = body.get("reason")
+    comment = body.get("comment")
+    result = report_user(telegram_id, target_id, reason, comment)
+    if "error" in result:
+        status = 404 if result["error"] == "not_found" else 400
+        return web.json_response({"error": result["error"]}, status=status)
+
+    bot = request.app.get("bot")
+    if bot is not None:
+        reporter, target = get_user(telegram_id), get_user(target_id)
+        message = (
+            "🚩 Жалоба на игрока\n"
+            f"От: {_display_name(reporter)} (ID {telegram_id})\n"
+            f"На: {_display_name(target)} (ID {target_id}, @{target['handle'] if target else '—'})\n"
+            f"Причина: {REPORT_REASON_LABELS.get(reason, reason)}"
+        )
+        if comment:
+            message += f"\n\n{str(comment).strip()[:500]}"
+        for admin_id in ADMIN_IDS:
+            try:
+                await bot.send_message(chat_id=admin_id, text=message)
+            except Exception:
+                logger.warning(f"Не удалось доставить жалобу админу {admin_id}")
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/settings/stats-visibility")
+async def set_stats_visibility_route(request):
+    """Кому видна моя статистика: "subscribers" (подписчикам — частично,
+    друзьям — полностью) или "friends" (только друзьям)."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    value = body.get("visibility")
+    if not set_stats_visibility(telegram_id, value):
+        return web.json_response({"error": "invalid_visibility"}, status=400)
+    return web.json_response({"ok": True, "visibility": value})
 
 
 @routes.post("/api/settings/friend-nudges")

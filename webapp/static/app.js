@@ -3533,7 +3533,7 @@
         const rank = idx + 1, isMe = r.telegram_id === myId, name = r.first_name || r.username || "Игрок";
         const {ss, status} = getStatus(r);
         const frame = ss.temp_frame || "none";
-        return `<div class="rating-podium-card rank-${rank} ${isMe ? "is-me" : ""}">
+        return `<div class="rating-podium-card rank-${rank} ${isMe ? "is-me" : ""}" data-profile-id="${Number(r.telegram_id)}">
           <div class="rating-podium-card__crown">${medal[idx]}</div>
           <div class="rating-podium-card__avatar frame-${escapeHtml(r.frame_id || frame)}">${String(r.avatar_id || "default").startsWith("upload:") ? `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(String(r.avatar_id).split(":")[1])}.jpg" alt="">` : escapeHtml((name[0] || "A").toUpperCase())}</div>
           <div class="rating-podium-card__rank">#${rank}</div>
@@ -3560,7 +3560,7 @@
       const rank = i + 4, isMe = r.telegram_id === myId, name = r.first_name || r.username || "Игрок";
       const {ss, status} = getStatus(r);
       const frame = ss.temp_frame || "none";
-      return `<li class="rating-item ${isMe ? "is-me" : ""} rank-${rank}">
+      return `<li class="rating-item ${isMe ? "is-me" : ""} rank-${rank}" data-profile-id="${Number(r.telegram_id)}">
         <span class="rating-item__rank">${rank}</span>
         <span class="rating-avatar frame-${escapeHtml(r.frame_id || frame)}">${String(r.avatar_id || "default").startsWith("upload:") ? `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(String(r.avatar_id).split(":")[1])}.jpg" alt="" loading="lazy">` : escapeHtml((name[0] || "A").toUpperCase())}</span>
         <span class="rating-item__name">
@@ -5021,6 +5021,13 @@ function initPlanActions() {
     unavailable: "Can't send a reminder right now",
     not_friends: "This person is no longer your friend",
     delivery_failed: "Couldn't deliver the reminder — try again later",
+    self: "That's you 🙂",
+    blocked: "You blocked this player — unblock first",
+    limit: "You've reached the follow limit",
+    invalid_reason: "Pick a reason for the report",
+    already_reported: "You already reported this player today",
+    invalid_kind: "Couldn't open the list",
+    invalid_visibility: "Couldn't save the setting",
     invalid_format: "Only latin letters, digits and \"_\", 3 to 20 characters",
     taken: "This handle is already taken",
     not_enough_xp: "Not enough Adam Coin",
@@ -5061,6 +5068,13 @@ function initPlanActions() {
         unavailable: "Сейчас напомнить не получится",
         not_friends: "Этот человек больше не в друзьях",
         delivery_failed: "Не получилось доставить напоминание — попробуй позже",
+        self: "Это ты сам(а) 🙂",
+        blocked: "Ты заблокировал(а) этого игрока — сначала разблокируй",
+        limit: "Достигнут предел подписок",
+        invalid_reason: "Выбери, на что жалоба",
+        already_reported: "Ты уже жаловался(ась) на этого игрока сегодня",
+        invalid_kind: "Не получилось открыть список",
+        invalid_visibility: "Не получилось сохранить настройку",
         invalid_format: "Только латиница, цифры и «_», от 3 до 20 символов",
         taken: "Этот ник уже занят",
         not_enough_xp: "Не хватает Adam Coin",
@@ -5455,9 +5469,22 @@ let friendsData = null;
 let remindSheetFriends = [];
 let remindSheetTimer = null;
 
-function friendRowHtml(f, { viewerDone = true, showRemove = false } = {}) {
+// Аватар игрока: загруженное фото или первая буква имени (та же логика, что в
+// рейтинге). Рамка — класс frame-<id> из магазина.
+function avatarInner(user) {
+  const id = String(user.avatar_id || "default");
+  if (id.startsWith("upload:")) {
+    return `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(id.split(":")[1])}.jpg" alt="" loading="lazy">`;
+  }
+  return escapeHtml(String(user.first_name || "Д").trim().charAt(0).toUpperCase() || "Д");
+}
+
+function avatarFrameClass(user) {
+  return `frame-${escapeHtml(String(user.frame_id || "default"))}`;
+}
+
+function friendRowHtml(f, { viewerDone = true } = {}) {
   const id = Number(f.telegram_id);
-  const initial = escapeHtml(String(f.first_name || "Д").trim().charAt(0).toUpperCase() || "Д");
   const meta = [
     f.handle ? `@${escapeHtml(f.handle)}` : "",
     Number(f.streak) > 0 ? `🔥 ${Number(f.streak)}` : "",
@@ -5470,17 +5497,14 @@ function friendRowHtml(f, { viewerDone = true, showRemove = false } = {}) {
   } else if (f.state === "done") {
     action = `<span class="friend-row__tag">✓ Отмечено</span>`;
   }
-  const remove = showRemove && f.can_remove
-    ? `<button type="button" class="friend-row__remove" data-friend-remove="${id}" aria-label="Убрать из друзей">✕</button>`
-    : "";
   return `
-    <li class="friend-row" data-friend-id="${id}">
-      <span class="friend-row__avatar">${initial}</span>
+    <li class="friend-row" data-friend-id="${id}" data-profile-id="${id}">
+      <span class="friend-row__avatar ${avatarFrameClass(f)}">${avatarInner(f)}</span>
       <span class="friend-row__info">
         <span class="friend-row__name">${escapeHtml(f.first_name || "Друг")}</span>
         ${meta ? `<span class="friend-row__meta">${meta}</span>` : ""}
       </span>
-      ${action}${remove}
+      ${action}
     </li>`;
 }
 
@@ -5490,20 +5514,33 @@ function renderFriendsCard() {
   if (!friendsData) { box.hidden = true; return; }
   box.hidden = false;
   const friends = friendsData.friends || [];
+  const counts = friendsData.counts || { followers: 0, following: 0 };
   const waiting = friends.some(f => f.state === "can_remind");
   let hint = "";
   if (!friends.length) {
-    hint = "Добавь друга по ссылке — вы увидите, кто сегодня отметился, и сможете подталкивать друг друга.";
+    hint = "Друзья — это взаимная подписка. Добавь друга по ссылке или найди по @нику и подпишись: если он подпишется в ответ, вы увидите статистику друг друга и сможете подталкивать друг друга.";
   } else if (waiting && !friendsData.viewer_done) {
     hint = "Отметь свою привычку — и сможешь напомнить друзьям, которые ещё не начали день.";
   }
+  const typedSearch = document.getElementById("friendsSearchInput")?.value || "";
   box.innerHTML = `
     <div class="friends-card__head">
       <div class="friends-card__title">👥 Друзья</div>
       <button type="button" class="friends-card__add" id="friendsAddBtn">＋ Добавить</button>
     </div>
+    <div class="friends-card__counts">
+      <button type="button" class="friends-card__count" data-follow-kind="following"><b>${Number(counts.following)}</b> Подписки</button>
+      <button type="button" class="friends-card__count" data-follow-kind="followers"><b>${Number(counts.followers)}</b> Подписчики</button>
+    </div>
+    <form class="friends-card__search" id="friendsSearchForm" autocomplete="off">
+      <input type="text" id="friendsSearchInput" class="friends-card__input" placeholder="Найти игрока по @нику" maxlength="40" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button type="submit" class="friends-card__find">Найти</button>
+    </form>
     ${hint ? `<div class="friends-card__hint">${hint}</div>` : ""}
-    ${friends.length ? `<ul class="friends-list">${friends.map(f => friendRowHtml(f, { viewerDone: !!friendsData.viewer_done, showRemove: true })).join("")}</ul>` : ""}`;
+    ${friends.length ? `<ul class="friends-list">${friends.map(f => friendRowHtml(f, { viewerDone: !!friendsData.viewer_done })).join("")}</ul>` : ""}`;
+  // Перерисовка (например, после отметки привычки) не должна стирать то, что
+  // человек уже набрал в поиске.
+  if (typedSearch) document.getElementById("friendsSearchInput").value = typedSearch;
 }
 
 async function loadFriendsCard() {
@@ -5650,17 +5687,21 @@ function initFriendsActions() {
       await nudgeFriend(Number(nudgeBtn.dataset.nudge), nudgeBtn);
       return;
     }
-    const removeBtn = e.target.closest("[data-friend-remove]");
-    if (removeBtn) {
-      if (!confirm("Убрать из друзей?")) return;
-      try {
-        await api(`/api/friends/${Number(removeBtn.dataset.friendRemove)}/remove`, { method: "POST" });
-        haptic("light");
-        await loadFriendsCard();
-      } catch (err) {
-        showToast(friendlyError(err), "error");
-      }
+    const countBtn = e.target.closest("[data-follow-kind]");
+    if (countBtn) {
+      await openFollowList(countBtn.dataset.followKind);
+      return;
     }
+    // Тап по строке друга (мимо кнопок) — его профиль.
+    const row = e.target.closest("[data-profile-id]");
+    if (row && !e.target.closest("button, input, form")) {
+      await openUserProfile(Number(row.dataset.profileId));
+    }
+  });
+  card?.addEventListener("submit", async (e) => {
+    if (!e.target.closest("#friendsSearchForm")) return;
+    e.preventDefault();
+    await searchPlayerByHandle(document.getElementById("friendsSearchInput")?.value || "");
   });
 
   document.getElementById("remindFriendsList")?.addEventListener("click", async (e) => {
@@ -5669,6 +5710,411 @@ function initFriendsActions() {
   });
   document.getElementById("remindFriendsClose")?.addEventListener("click", closeRemindSheet);
   document.getElementById("remindFriendsBackdrop")?.addEventListener("click", closeRemindSheet);
+}
+
+// ===================== ПОДПИСКИ И ПРОФИЛИ ИГРОКОВ =====================
+// Как в Duolingo: подписаться можно на любого (например, на топ рейтинга),
+// взаимная подписка = друзья. В чужом профиле видно ровно то, что разрешает
+// сервер (db/profiles.py::VISIBLE_SECTIONS): без подписки — только базовое,
+// подписчику — график недели, обзор, достижения, другу — ещё и расширенная
+// статистика. Названия привычек сервер не отдаёт никому.
+let profileData = null;
+let profileReportOpen = false;
+let followListKind = "following";
+let followListData = null;
+
+const REPORT_REASONS_UI = [
+  ["spam", "Спам"],
+  ["abuse", "Оскорбления"],
+  ["fake", "Фейк / подделка"],
+  ["other", "Другое"],
+];
+
+// Что делает основная кнопка на профиле/в списке при данном отношении.
+function relationAction(rel) {
+  if (rel.blocked_by_me) return { act: "unblock", label: "Разблокировать", cls: "ghost" };
+  if (rel.friends) return { act: "unfollow", label: "🤝 Друзья", cls: "friends" };
+  if (rel.following) return { act: "unfollow", label: "✓ Вы подписаны", cls: "following" };
+  if (rel.followed_by) return { act: "follow", label: "Подписаться в ответ", cls: "primary" };
+  return { act: "follow", label: "Подписаться", cls: "primary" };
+}
+
+function niceChartStep(raw) {
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const f = raw / pow;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pow;
+}
+
+// Линейный график опыта за 7 дней: у владельца профиля и (если есть) у тебя.
+function weekChartSvg(chart) {
+  const W = 340, H = 186, L = 38, R = 14, T = 12, B = 30;
+  const target = (chart.target || []).map(Number);
+  const viewer = chart.viewer ? chart.viewer.map(Number) : null;
+  const labels = chart.labels || [];
+  const max = Math.max(1, ...target, ...(viewer || []));
+  const step = Math.max(1, niceChartStep(max / 3)); // опыт целый — дробных делений не бывает
+  const top = step * 3;
+  const x = (i) => L + (W - L - R) * (labels.length > 1 ? i / (labels.length - 1) : 0.5);
+  const y = (v) => T + (H - T - B) * (1 - v / top);
+  const grid = [0, 1, 2, 3].map((k) => {
+    const v = step * k;
+    return `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="up-chart__grid"/>` +
+      `<text x="${L - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" class="up-chart__tick">${v}</text>`;
+  }).join("");
+  const xLabels = labels.map((l, i) =>
+    `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" class="up-chart__label">${escapeHtml(l)}</text>`).join("");
+  const line = (values, cls) =>
+    `<polyline points="${values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")}" class="up-chart__line ${cls}"/>` +
+    values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4.5" class="up-chart__dot ${cls}"/>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" class="up-chart" role="img" aria-label="Опыт за неделю">` +
+    `${grid}${xLabels}${viewer ? line(viewer, "up-chart--viewer") : ""}${line(target, "up-chart--target")}</svg>`;
+}
+
+function weekBarsHtml(labels, values) {
+  const nums = values.map(Number);
+  const max = Math.max(1, ...nums);
+  return `<div class="up-bars">${nums.map((v, i) => `
+    <div class="up-bars__col"><span class="up-bars__val">${v}</span>
+      <span class="up-bars__bar" style="height:${Math.max(4, Math.round(54 * v / max))}px"></span>
+      <span class="up-bars__label">${escapeHtml(labels[i] || "")}</span></div>`).join("")}</div>`;
+}
+
+function renderUserProfile() {
+  const p = profileData;
+  const body = document.getElementById("userProfileBody");
+  const title = document.getElementById("userProfileTitle");
+  if (!p || !body) return;
+  const rel = p.relation || {};
+  const name = p.first_name || "Игрок";
+  if (title) title.textContent = p.handle ? `@${p.handle}` : name;
+  const since = /^\d{4}/.test(String(p.member_since || "")) ? `В ADAM с ${String(p.member_since).slice(0, 4)} года` : "";
+  const sections = new Set(p.sections || []);
+
+  const countsHtml = rel.self
+    ? `<button type="button" class="up-count" data-up-list="following"><b>${Number(p.following)}</b><span>Подписки</span></button>
+       <button type="button" class="up-count" data-up-list="followers"><b>${Number(p.followers)}</b><span>Подписчики</span></button>`
+    : `<div class="up-count"><b>${Number(p.following)}</b><span>Подписки</span></div>
+       <div class="up-count"><b>${Number(p.followers)}</b><span>Подписчики</span></div>`;
+
+  let action = "";
+  if (!rel.self) {
+    const a = relationAction(rel);
+    action = `<button type="button" class="up-btn up-btn--${a.cls}" data-up="${a.act}">${a.label}</button>`;
+  }
+
+  let html = `
+    <section class="up-hero">
+      <div class="up-avatar ${avatarFrameClass(p)}">${avatarInner(p)}</div>
+      <div class="up-name">${escapeHtml(name)}${p.badge ? " 🏅" : ""}</div>
+      ${p.handle ? `<div class="up-handle">@${escapeHtml(p.handle)}</div>` : ""}
+      <div class="up-meta">${[since, p.league_tier ? escapeHtml(p.league_tier) : "", Number(p.streak) > 0 ? `🔥 ${Number(p.streak)}` : ""].filter(Boolean).join(" · ")}</div>
+    </section>
+    <div class="up-counts">${countsHtml}</div>
+    ${action}`;
+
+  if (sections.has("chart") && p.chart) {
+    const c = p.chart;
+    const allZero = [...c.target, ...(c.viewer || [])].every((v) => !Number(v));
+    html += `
+      <section class="up-card">
+        <div class="up-card__title">Прогресс за неделю</div>
+        ${weekChartSvg(c)}
+        ${allZero ? `<div class="up-note">За эту неделю опыта пока нет.</div>` : ""}
+        <div class="up-legend">
+          <div class="up-legend__row"><i class="up-legend__dot up-legend__dot--target"></i><span>${escapeHtml(name)}</span><b>Опыт: ${Number(c.target_total)}</b></div>
+          ${c.viewer ? `<div class="up-legend__row"><i class="up-legend__dot up-legend__dot--viewer"></i><span>Вы</span><b>Опыт: ${Number(c.viewer_total)}</b></div>` : ""}
+        </div>
+      </section>`;
+  }
+  if (sections.has("overview") && p.overview) {
+    const o = p.overview;
+    html += `
+      <section class="up-card">
+        <div class="up-card__title">Обзор</div>
+        <div class="up-grid">
+          <div class="up-stat"><span>🔥</span><b>${Number(o.streak)}</b><small>дней подряд</small></div>
+          <div class="up-stat"><span>📈</span><b>${Number(o.best_streak)}</b><small>лучшая серия</small></div>
+          <div class="up-stat"><span>🏆</span><b>${escapeHtml(String(o.league).replace(/^\S+\s/, ""))}</b><small>лига</small></div>
+          <div class="up-stat"><span>⚡</span><b>${Number(o.total_xp)}</b><small>очков всего</small></div>
+          <div class="up-stat"><span>⭐</span><b>${Number(o.level)}</b><small>уровень</small></div>
+          <div class="up-stat"><span>✅</span><b>${Number(o.total_completed)}</b><small>отмечено</small></div>
+        </div>
+      </section>`;
+  }
+  if (sections.has("achievements") && p.achievements) {
+    html += `
+      <section class="up-card">
+        <div class="up-card__title">Достижения${p.achievements_count ? ` · ${Number(p.achievements_count)}` : ""}</div>
+        ${p.achievements.length
+          ? `<div class="up-chips">${p.achievements.map((a) => `<span class="up-chip">${escapeHtml(a.icon || "🏅")} ${escapeHtml(a.title)}</span>`).join("")}</div>`
+          : `<div class="up-note">Пока нет достижений.</div>`}
+      </section>`;
+  }
+  if (sections.has("extended") && p.extended) {
+    const x = p.extended;
+    const today = x.today || {};
+    html += `
+      <section class="up-card up-card--friend">
+        <div class="up-card__title">Статистика друга</div>
+        <div class="up-grid">
+          <div class="up-stat"><span>${today.done ? "✅" : "⏳"}</span><b>${Number(today.completed)}/${Number(today.total)}</b><small>привычек сегодня</small></div>
+          <div class="up-stat"><span>🎯</span><b>${x.completion_rate_30d == null ? "—" : `${Number(x.completion_rate_30d)}%`}</b><small>выполнение за 30 дней</small></div>
+          <div class="up-stat"><span>📅</span><b>${Number(x.active_days_30)}/30</b><small>активных дней</small></div>
+          <div class="up-stat"><span>🏅</span><b>${x.season ? `#${Number(x.season.rank)}` : "—"}</b><small>место в сезоне</small></div>
+        </div>
+        <div class="up-card__subtitle">Отмечено привычек по дням</div>
+        ${weekBarsHtml(p.chart ? p.chart.labels : [], x.week_completed || [])}
+      </section>`;
+  }
+
+  // Подсказки про то, что откроется после подписки / взаимной подписки.
+  if (!rel.self && !rel.blocked_by_me) {
+    if (!sections.has("chart")) {
+      html += `<div class="up-lock">🔒 ${rel.following
+        ? `${escapeHtml(name)} открыл(а) статистику только друзьям. Когда подпишется в ответ — станете друзьями, и она откроется.`
+        : "Подпишись, чтобы видеть прогресс за неделю, обзор и достижения."}</div>`;
+    } else if (!sections.has("extended")) {
+      html += `<div class="up-lock">🤝 Когда ${escapeHtml(name)} подпишется в ответ, вы станете друзьями — откроется расширенная статистика, и вы сможете подталкивать друг друга.</div>`;
+    }
+  }
+
+  if (!rel.self) {
+    html += `
+      <div class="up-footer">
+        <button type="button" class="up-link" data-up="report-toggle">🚩 Пожаловаться</button>
+        <button type="button" class="up-link up-link--danger" data-up="${rel.blocked_by_me ? "unblock" : "block"}">${rel.blocked_by_me ? "Разблокировать" : "⛔ Заблокировать"}</button>
+      </div>`;
+    if (profileReportOpen) {
+      html += `
+        <section class="up-card up-report">
+          <div class="up-card__title">На что жалоба?</div>
+          <div class="up-report__reasons">${REPORT_REASONS_UI.map(([code, label]) =>
+            `<label class="up-report__reason"><input type="radio" name="upReportReason" value="${code}"> ${label}</label>`).join("")}</div>
+          <textarea id="upReportComment" class="up-report__comment" maxlength="500" placeholder="Комментарий (необязательно)"></textarea>
+          <button type="button" class="up-btn up-btn--primary" data-up="report-send">Отправить жалобу</button>
+        </section>`;
+    }
+  }
+  body.innerHTML = html;
+}
+
+async function openUserProfile(userId) {
+  const overlay = document.getElementById("userProfileOverlay");
+  if (!overlay) return;
+  haptic("light");
+  try {
+    profileData = await api(`/api/users/${Number(userId)}/profile`, { timeoutMs: 10000 });
+  } catch (err) {
+    showToast(err?.data?.error === "not_found" ? "Профиль недоступен" : friendlyError(err), "error");
+    return;
+  }
+  profileReportOpen = false;
+  closeFollowListSheet();
+  renderUserProfile();
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  const body = document.getElementById("userProfileBody");
+  if (body) body.scrollTop = 0;
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
+}
+
+function closeUserProfile() {
+  const overlay = document.getElementById("userProfileOverlay");
+  if (!overlay || overlay.hidden) return;
+  haptic("light");
+  overlay.classList.remove("is-open");
+  overlay.setAttribute("aria-hidden", "true");
+  setTimeout(() => { if (!overlay.classList.contains("is-open")) overlay.hidden = true; }, 300);
+  profileData = null;
+}
+
+// После подписки/отписки/блокировки меняется и то, что видно в профиле
+// (уровень доступа), и карточка «Друзья», и открытый список подписок.
+async function refreshAfterRelationChange() {
+  const tasks = [loadFriendsCard()];
+  if (profileData) {
+    tasks.push(api(`/api/users/${Number(profileData.telegram_id)}/profile`, { timeoutMs: 10000 })
+      .then((data) => { profileData = data; renderUserProfile(); })
+      .catch(() => closeUserProfile()));
+  }
+  const sheet = document.getElementById("followListSheet");
+  if (sheet && !sheet.hidden) tasks.push(loadFollowList(followListKind, { quiet: true }));
+  await Promise.allSettled(tasks);
+}
+
+async function changeRelation(userId, action, displayName) {
+  if (action === "unfollow" && !confirm(`Отписаться от ${displayName || "игрока"}?`)) return;
+  if (action === "block" && !confirm(`Заблокировать ${displayName || "игрока"}? Вы перестанете видеть профили друг друга, подписки будут сняты.`)) return;
+  try {
+    await api(`/api/users/${Number(userId)}/${action}`, { method: "POST" });
+    haptic(action === "follow" ? "medium" : "light");
+    if (action === "follow") showToast("Вы подписались ✓", "success");
+    await refreshAfterRelationChange();
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+  }
+}
+
+async function sendProfileReport() {
+  const p = profileData;
+  if (!p) return;
+  const reason = document.querySelector('input[name="upReportReason"]:checked')?.value;
+  if (!reason) { showToast("Выбери, на что жалоба", "error"); return; }
+  const comment = document.getElementById("upReportComment")?.value || "";
+  try {
+    await api(`/api/users/${Number(p.telegram_id)}/report`, {
+      method: "POST",
+      body: JSON.stringify({ reason, comment }),
+    });
+    haptic("medium");
+    showToast("Жалоба отправлена — спасибо", "success");
+    profileReportOpen = false;
+    renderUserProfile();
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+  }
+}
+
+async function searchPlayerByHandle(raw) {
+  const handle = String(raw || "").trim().replace(/^@/, "");
+  if (!handle) return;
+  try {
+    const data = await api(`/api/users/search?handle=${encodeURIComponent(handle)}`, { timeoutMs: 8000 });
+    await openUserProfile(data.user.telegram_id);
+  } catch (err) {
+    showToast(err?.data?.error === "not_found" ? "Игрок с таким @ником не найден" : friendlyError(err), "error");
+  }
+}
+
+// ---- «Подписки» / «Подписчики» ----
+function followRowHtml(u) {
+  const id = Number(u.telegram_id);
+  const a = relationAction(u);
+  const meta = [u.handle ? `@${escapeHtml(u.handle)}` : "", Number(u.streak) > 0 ? `🔥 ${Number(u.streak)}` : ""].filter(Boolean).join(" · ");
+  return `
+    <li class="friend-row" data-profile-id="${id}">
+      <span class="friend-row__avatar ${avatarFrameClass(u)}">${avatarInner(u)}</span>
+      <span class="friend-row__info">
+        <span class="friend-row__name">${escapeHtml(u.first_name || "Игрок")}</span>
+        ${meta ? `<span class="friend-row__meta">${meta}</span>` : ""}
+      </span>
+      <button type="button" class="friend-row__btn friend-row__btn--${a.cls}" data-follow-act="${a.act}" data-follow-id="${id}" data-follow-name="${escapeHtml(u.first_name || "игрока")}">${a.label}</button>
+    </li>`;
+}
+
+function renderFollowList() {
+  const list = document.getElementById("followList");
+  if (!list || !followListData) return;
+  const counts = followListData.counts || {};
+  const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = String(Number(value || 0)); };
+  setText("followTabFollowing", counts.following);
+  setText("followTabFollowers", counts.followers);
+  document.querySelectorAll("#followTabs [data-follow-kind]").forEach((tab) => {
+    tab.classList.toggle("is-active", tab.dataset.followKind === followListKind);
+  });
+  const users = followListData.users || [];
+  list.innerHTML = users.length
+    ? users.map(followRowHtml).join("")
+    : `<li class="empty-hint">${followListKind === "followers"
+        ? "Пока никто не подписан на тебя. Поделись ссылкой из карточки «Друзья»."
+        : "Ты ни на кого не подписан. Загляни в рейтинг — подпишись на тех, за кем хочется следить."}</li>`;
+}
+
+async function loadFollowList(kind, { quiet = false } = {}) {
+  followListKind = kind;
+  const list = document.getElementById("followList");
+  if (list && !quiet) list.innerHTML = `<li class="empty-hint">Загружаю…</li>`;
+  try {
+    followListData = await api(`/api/follows?kind=${encodeURIComponent(kind)}`, { timeoutMs: 8000 });
+    renderFollowList();
+  } catch (err) {
+    if (list && !quiet) list.innerHTML = "";
+    showToast(friendlyError(err), "error");
+  }
+}
+
+async function openFollowList(kind) {
+  const sheet = document.getElementById("followListSheet");
+  if (!sheet) return;
+  haptic("light");
+  sheet.hidden = false;
+  sheet.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => sheet.classList.add("is-open"));
+  await loadFollowList(kind === "followers" ? "followers" : "following");
+}
+
+function closeFollowListSheet() {
+  const sheet = document.getElementById("followListSheet");
+  if (!sheet || sheet.hidden) return;
+  sheet.classList.remove("is-open");
+  sheet.setAttribute("aria-hidden", "true");
+  setTimeout(() => { sheet.hidden = true; }, 230);
+}
+
+function initProfileOverlays() {
+  document.getElementById("userProfileClose")?.addEventListener("click", closeUserProfile);
+  document.getElementById("userProfileBackdrop")?.addEventListener("click", closeUserProfile);
+
+  document.getElementById("userProfileBody")?.addEventListener("click", async (e) => {
+    const listBtn = e.target.closest("[data-up-list]");
+    if (listBtn) { await openFollowList(listBtn.dataset.upList); return; }
+    const btn = e.target.closest("[data-up]");
+    if (!btn || !profileData) return;
+    const action = btn.dataset.up;
+    if (action === "report-toggle") {
+      haptic("light");
+      profileReportOpen = !profileReportOpen;
+      renderUserProfile();
+      if (profileReportOpen) document.querySelector(".up-report")?.scrollIntoView({ block: "center" });
+    } else if (action === "report-send") {
+      await sendProfileReport();
+    } else {
+      await changeRelation(profileData.telegram_id, action, profileData.first_name);
+    }
+  });
+
+  document.getElementById("followListClose")?.addEventListener("click", () => { haptic("light"); closeFollowListSheet(); });
+  document.getElementById("followListBackdrop")?.addEventListener("click", closeFollowListSheet);
+  document.getElementById("followTabs")?.addEventListener("click", async (e) => {
+    const tab = e.target.closest("[data-follow-kind]");
+    if (!tab) return;
+    haptic("light");
+    await loadFollowList(tab.dataset.followKind);
+  });
+  document.getElementById("followList")?.addEventListener("click", async (e) => {
+    const actBtn = e.target.closest("[data-follow-act]");
+    if (actBtn) {
+      await changeRelation(Number(actBtn.dataset.followId), actBtn.dataset.followAct, actBtn.dataset.followName);
+      return;
+    }
+    const row = e.target.closest("[data-profile-id]");
+    if (row) await openUserProfile(Number(row.dataset.profileId));
+  });
+}
+
+function initStatsVisibilityToggle() {
+  const toggle = document.getElementById("statsVisibilityToggle");
+  if (!toggle) return;
+  const value = () => (state?.settings?.stats_visibility === "friends" ? "friends" : "subscribers");
+  const render = () => {
+    toggle.textContent = value() === "friends" ? "Только друзьям" : "Подписчикам";
+    toggle.setAttribute("aria-pressed", value() === "friends" ? "true" : "false");
+  };
+  render();
+  toggle.addEventListener("click", async () => {
+    const next = value() === "friends" ? "subscribers" : "friends";
+    try {
+      const res = await api("/api/settings/stats-visibility", {
+        method: "POST",
+        body: JSON.stringify({ visibility: next }),
+      });
+      if (state.settings) state.settings.stats_visibility = res.visibility;
+      haptic("light");
+      render();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
 }
 
 function initFriendNudgesToggle() {
@@ -5788,7 +6234,13 @@ function initRatingActions() {
       const targetId = Number(reactBtn.dataset.reactTarget);
       reactPickerForId = reactPickerForId === targetId ? null : targetId;
       renderRating();
+      return;
     }
+    // Тап по самой строке игрока (мимо кнопок реакции) — его профиль, откуда
+    // можно подписаться.
+    if (e.target.closest("button, .rating-react-picker")) return;
+    const row = e.target.closest("[data-profile-id]");
+    if (row) openUserProfile(Number(row.dataset.profileId));
   });
 
   // Топ-3 живут в отдельном узком гриде подиума — полноразмерный пикер из
@@ -5797,7 +6249,11 @@ function initRatingActions() {
   // нельзя было поддержать с экрана рейтинга — у них не было этой кнопки).
   podium?.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-podium-react-target]");
-    if (!btn) return;
+    if (!btn) {
+      const card = e.target.closest("[data-profile-id]");
+      if (card) openUserProfile(Number(card.dataset.profileId));
+      return;
+    }
     const targetId = Number(btn.dataset.podiumReactTarget);
     btn.disabled = true;
     await sendReaction(targetId, "🔥");
@@ -5891,6 +6347,7 @@ function initSettingsActions() {
 
   initQuietHoursActions();
   initFriendNudgesToggle();
+  initStatsVisibilityToggle();
   initReminderSettingsActions();
   initHabitCheckpointStylePicker();
   initHomeLayoutActions();
@@ -6642,6 +7099,7 @@ async function boot() {
             initRatingActions();
             initRatingScopeSwitch();
             initFriendsActions();
+            initProfileOverlays();
             initArchetypeQuizActions();
             initPlanActions();
             initShopActions();

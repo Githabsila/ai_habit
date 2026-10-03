@@ -89,7 +89,8 @@ def test_cannot_befriend_self_or_missing_or_banned(uid):
 
 
 def test_friend_limit(uid, monkeypatch):
-    monkeypatch.setattr(friends, "MAX_FRIENDS", 1)
+    import db.follows as follows_module
+    monkeypatch.setattr(follows_module, "MAX_FOLLOWING", 1)
     a, b, c = _user(uid), _user(uid + 1), _user(uid + 2)
     assert add_friendship(a, b) is True
     assert add_friendship(a, c) is False
@@ -180,7 +181,7 @@ def test_unavailable_reason_is_not_leaked_in_overview(uid):
     set_friend_nudges(friend, False)
     entry = get_friends_overview(viewer)["friends"][0]
     assert entry["state"] == "unavailable"
-    assert set(entry) == {"telegram_id", "first_name", "handle", "streak", "state", "can_remove"}
+    assert set(entry) == {"telegram_id", "first_name", "handle", "avatar_id", "frame_id", "streak", "state", "can_remove"}
 
 
 # ---------------------------------------------------------------------------
@@ -375,11 +376,18 @@ async def test_nudge_route_marks_blocked_bot(client, uid):
     assert is_bot_blocked(friend)
 
 
-async def test_remove_route(client, uid):
+async def test_remove_route_unfollows_one_way(client, uid):
+    """Как в Duolingo: отписался ты — друг остаётся твоим подписчиком, но
+    вы больше не друзья."""
+    from db import get_relation
     me, friend = _user(uid), _user(uid + 1)
     _befriend(me, friend)
     r = await client.post(f"/api/friends/{friend}/remove", headers=_headers(me))
     assert r.status == 200
+    relation = get_relation(me, friend)
+    assert relation == {"following": False, "followed_by": True, "friends": False,
+                        "blocked_by_me": False, "blocked_me": False}
+    assert not are_friends(me, friend) and not are_friends(friend, me)
     r = await client.post(f"/api/friends/{friend}/remove", headers=_headers(me))
     assert r.status == 404
 

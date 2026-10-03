@@ -330,6 +330,13 @@ def create_tables():
     if "friend_nudges" not in settings_columns:
         cursor.execute("ALTER TABLE settings ADD COLUMN friend_nudges INTEGER DEFAULT 1")
 
+    # Кому видна моя статистика в профиле (db/profiles.py): 'subscribers' —
+    # всем, кто подписан на меня (частичная), друзьям (взаимная подписка)
+    # — расширенная; 'friends' — только друзьям, подписчики видят лишь
+    # публичный минимум.
+    if "stats_visibility" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN stats_visibility TEXT DEFAULT 'subscribers'")
+
     # ---------------- HABITS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS habits(
@@ -1043,6 +1050,57 @@ def create_tables():
         user_id INTEGER NOT NULL,
         day TEXT NOT NULL,
         PRIMARY KEY(user_id, day)
+    )
+    """)
+
+    # ---------------- Подписки (db/follows.py) — как в Duolingo ----------------
+    # follower_id подписан на followee_id. Друзья = ВЗАИМНАЯ подписка (обе
+    # строки). Ссылка «Добавить друга» создаёт обе строки сразу.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS follows(
+        follower_id INTEGER NOT NULL,
+        followee_id INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(follower_id, followee_id)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee_id)")
+    # Первая версия дружбы (friendships — две строки на пару) — это уже две
+    # взаимные подписки: переносим один раз и очищаем старую таблицу, иначе
+    # при следующем старте отписавшийся «воскресал» бы из неё.
+    cursor.execute("""
+        INSERT OR IGNORE INTO follows(follower_id, followee_id, created_at)
+        SELECT user_id, friend_id, created_at FROM friendships
+    """)
+    cursor.execute("DELETE FROM friendships")
+    # Пуш «подписался на тебя» уходит один раз на пару — иначе подписка/
+    # отписка по кругу превращалась бы в спам получателю.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS follow_notices(
+        follower_id INTEGER NOT NULL,
+        followee_id INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(follower_id, followee_id)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_blocks(
+        blocker_id INTEGER NOT NULL,
+        blocked_id INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(blocker_id, blocked_id)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_reports(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reporter_id INTEGER NOT NULL,
+        target_id INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        comment TEXT,
+        day TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(reporter_id, target_id, day)
     )
     """)
 

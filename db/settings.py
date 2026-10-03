@@ -343,6 +343,33 @@ def friend_nudges_enabled(settings_row):
     return bool(value) if value is not None else True
 
 
+STATS_VISIBILITY_VALUES = ("subscribers", "friends")
+
+
+def get_stats_visibility(settings_row):
+    """'subscribers' (по умолчанию) — статистику в профиле видят подписчики
+    (частично) и друзья (полностью); 'friends' — только друзья."""
+    if not settings_row:
+        return "subscribers"
+    try:
+        value = settings_row["stats_visibility"]
+    except (IndexError, KeyError):
+        return "subscribers"
+    return value if value in STATS_VISIBILITY_VALUES else "subscribers"
+
+
+def set_stats_visibility(user_id, value):
+    """False, если значение недопустимо."""
+    if value not in STATS_VISIBILITY_VALUES:
+        return False
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE settings SET stats_visibility=? WHERE user_id=?", (value, user_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
 def set_friend_nudges(user_id, enabled):
     conn = connect()
     cursor = conn.cursor()

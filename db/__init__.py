@@ -91,8 +91,16 @@ from .activity_feed import log_activity_event, get_friend_activity_feed, EVENT_L
 from .friends import (
     add_friendship, remove_friendship, are_friends, get_friend_sources,
     get_friends_overview, send_nudge, cancel_nudge, claim_remind_prompt,
-    MAX_FRIENDS, MAX_NUDGES_PER_DAY,
+    MAX_NUDGES_PER_DAY,
 )
+
+from .follows import (
+    follow, unfollow, make_friends, remove_mutual, get_relation, get_counts,
+    list_follows, find_user_by_handle, block_user, unblock_user, is_blocked_between,
+    report_user, MAX_FOLLOWING, REPORT_REASONS,
+)
+
+from .profiles import get_player_profile, VISIBLE_SECTIONS
 
 from .admin_support import (
     get_churn_risk_report, CHURN_RISK_LABELS,
@@ -131,7 +139,7 @@ from .settings import (
     get_color_mode, update_color_mode, VALID_COLOR_MODES,
     get_habit_checkpoint_style, update_habit_checkpoint_style,
     get_home_layout, update_home_habits_first, update_home_plan_hidden, VALID_HABIT_CHECKPOINT_STYLES,
-    friend_nudges_enabled, set_friend_nudges,
+    friend_nudges_enabled, set_friend_nudges, get_stats_visibility, set_stats_visibility,
 )
 
 from .habits import (
@@ -336,8 +344,13 @@ __all__ = [
     "log_activity_event", "get_friend_activity_feed", "EVENT_LABELS",
     "add_friendship", "remove_friendship", "are_friends", "get_friend_sources",
     "get_friends_overview", "send_nudge", "cancel_nudge", "claim_remind_prompt",
-    "MAX_FRIENDS", "MAX_NUDGES_PER_DAY",
+    "MAX_NUDGES_PER_DAY",
+    "follow", "unfollow", "make_friends", "remove_mutual", "get_relation", "get_counts",
+    "list_follows", "find_user_by_handle", "block_user", "unblock_user", "is_blocked_between",
+    "report_user", "MAX_FOLLOWING", "REPORT_REASONS",
+    "get_player_profile", "VISIBLE_SECTIONS",
     "friend_nudges_enabled", "set_friend_nudges",
+    "get_stats_visibility", "set_stats_visibility",
     "get_churn_risk_report", "CHURN_RISK_LABELS",
     "get_users_by_segment", "SEGMENT_LABELS",
     "get_user_support_card",

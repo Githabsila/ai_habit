@@ -67,5 +67,62 @@ def test_styles_for_every_new_block_exist():
 
 
 def test_asset_versions_were_bumped_together_with_the_change():
-    assert "style.css?v=20261003_FRIENDS_V25" in INDEX
-    assert "app.js?v=20261003_FRIENDS_V29" in INDEX
+    assert "style.css?v=20261003_FOLLOWS_V26" in INDEX
+    assert "app.js?v=20261003_FOLLOWS_V30" in INDEX
+
+
+# ---------------------------------------------------------------------------
+# Подписки и профиль игрока
+# ---------------------------------------------------------------------------
+
+def test_profile_overlay_and_follow_list_live_outside_the_tab_panels():
+    """Профиль открывается и из Рейтинга, и из карточки «Друзья», и из списков —
+    поэтому он не может лежать внутри вкладки (её [hidden] спрятал бы его)."""
+    for needle in ('id="userProfileOverlay"', 'id="userProfileBody"', 'id="userProfileClose"',
+                   'id="followListSheet"', 'id="followList"', 'id="followTabs"'):
+        assert needle in INDEX, needle
+    overlay = INDEX.index('id="userProfileOverlay"')
+    last_panel = INDEX.rindex('<section class="tab-panel"')
+    assert overlay > last_panel, "оверлей профиля должен быть после всех вкладок"
+
+
+def test_stats_visibility_setting_is_in_settings():
+    assert 'id="statsVisibilityToggle"' in INDEX
+    assert "Названия привычек не видны никому" in INDEX
+
+
+def test_rating_rows_open_the_profile():
+    assert APP_JS.count('data-profile-id="${Number(r.telegram_id)}"') == 2  # подиум + список
+    handler = APP_JS[APP_JS.index("function initRatingActions"):]
+    assert "openUserProfile(Number(row.dataset.profileId))" in handler
+    assert "openUserProfile(Number(card.dataset.profileId))" in handler
+
+
+def test_profile_actions_cover_follow_block_and_report():
+    body = APP_JS[APP_JS.index("function renderUserProfile"):APP_JS.index("async function openUserProfile")]
+    for action in ('data-up="${a.act}"', 'data-up="report-toggle"', 'data-up="report-send"'):
+        assert action in body, action
+    assert 'rel.blocked_by_me ? "unblock" : "block"' in body
+    relation = APP_JS[APP_JS.index("function relationAction"):APP_JS.index("function niceChartStep")]
+    for label in ("Подписаться в ответ", "✓ Вы подписаны", "🤝 Друзья", "Разблокировать"):
+        assert label in relation, label
+
+
+def test_profile_sections_are_driven_by_the_server_not_guessed():
+    body = APP_JS[APP_JS.index("function renderUserProfile"):APP_JS.index("async function openUserProfile")]
+    for section in ('sections.has("chart")', 'sections.has("overview")',
+                    'sections.has("achievements")', 'sections.has("extended")'):
+        assert section in body, section
+
+
+def test_new_error_codes_have_both_languages():
+    for code in ("self", "blocked", "limit", "invalid_reason", "already_reported",
+                 "invalid_kind", "invalid_visibility"):
+        assert len(re.findall(rf"\b{code}:", APP_JS)) >= 2, code
+
+
+def test_styles_for_profile_blocks_exist():
+    for selector in (".up-overlay", ".up-hero", ".up-avatar", ".up-btn--primary", ".up-btn--following",
+                     ".up-btn--friends", ".up-chart__line", ".up-legend", ".up-grid", ".up-lock",
+                     ".friends-card__search", ".follow-tab", ".friend-row__btn--following"):
+        assert selector in CSS, selector
