@@ -642,6 +642,11 @@ class="habit-add-form__submit">
     <span>📋 План дня на главной</span>
     <button type="button" class="settings-quiet-toggle" id="homePlanVisibleToggle" aria-pressed="true">Вкл</button>
   </div>
+  <div class="settings-row">
+    <span>📳 Вибрация при нажатиях</span>
+    <button type="button" class="settings-quiet-toggle" id="hapticsToggle" aria-pressed="true">Вкл</button>
+  </div>
+  <p class="theme-picker__hint">Мягкий отклик на кнопки, вкладки и награды. Настройка действует только на этом устройстве.</p>
 
   <div class="settings-row">
     <span>🎭 Стиль AI-наставника</span>
@@ -1298,7 +1303,8 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
-<script type="module" src="/static/app.js?v=20261003_GIFT_INBOX_V32"></script>
+<script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
+<script type="module" src="/static/app.js?v=20261003_HAPTICS_V33"></script>
 
 </body>
 </html>

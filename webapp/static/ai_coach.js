@@ -78,10 +78,9 @@ try {
 }
 catch (e) { }
 function goHome() {
-    try {
-        tg.HapticFeedback.impactOccurred('light');
+    if (window.AdamHaptics) {
+        window.AdamHaptics.tap();
     }
-    catch (e) { }
     window.location.href = '/';
 }
 try {
@@ -137,9 +136,15 @@ function formatTime(value) {
     const d = new Date(String(value).replace(' ', 'T') + (String(value).includes('Z') ? '' : 'Z'));
     return isNaN(d.getTime()) ? String(value).slice(-5) : d.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
 }
+// Вся логика — в haptics.js (мягкие эффекты, защита от «трели», выключатель
+// в настройках). Без модуля — хотя бы мягкий тап, без «тяжёлых» ударов.
 function vibrate(type = 'light') {
+    if (window.AdamHaptics) {
+        window.AdamHaptics.play(type);
+        return;
+    }
     try {
-        tg.HapticFeedback.impactOccurred(type);
+        tg.HapticFeedback.impactOccurred('soft');
     }
     catch (e) { }
 }

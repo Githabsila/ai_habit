@@ -380,9 +380,14 @@
     return initData();
   }
 
+  // Вся логика вибро-отклика живёт в haptics.js (мягкие эффекты, защита от
+  // «трели», выключатель в настройках). Здесь — тонкая обёртка со старым
+  // именем: light/medium/heavy и новые select/success/reward/warning.
   function haptic(style) {
+    if (window.AdamHaptics) { window.AdamHaptics.play(style); return; }
+    // haptics.js не загрузился — хотя бы мягкий тап, без «тяжёлых» ударов.
     if (tg && tg.HapticFeedback) {
-      try { tg.HapticFeedback.impactOccurred(style || "light"); } catch (e) {}
+      try { tg.HapticFeedback.impactOccurred("soft"); } catch (e) {}
     }
   }
 
@@ -1348,8 +1353,7 @@
     overlay.hidden = false;
     overlay.setAttribute("aria-hidden", "false");
     requestAnimationFrame(() => overlay.classList.add("show"));
-    haptic("medium");
-    try { if (navigator.vibrate) navigator.vibrate([35, 25, 55]); } catch (_) {}
+    haptic("success");
     playChime();
     const fire = document.getElementById("streakCelebrationFire");
     fire?.classList.remove("ignite");
@@ -1419,8 +1423,7 @@
     overlay.hidden = false;
     overlay.setAttribute("aria-hidden", "false");
     requestAnimationFrame(() => overlay.classList.add("show"));
-    haptic("medium");
-    try { if (navigator.vibrate) navigator.vibrate([30, 40, 30, 40, 70]); } catch (_) {}
+    haptic("confirm");
     playChime("bonus");
   }
 
@@ -2792,9 +2795,10 @@
     // привычку) сопровождаются вибрацией и мягким звуком — обычные тосты
     // (сохранено, ошибка и т.п.) молчат, чтобы не звенеть по любому поводу.
     if (kind === "praise") {
-      haptic("light");
-      try { if (navigator.vibrate) navigator.vibrate([25, 20, 25]); } catch (_) {}
+      haptic("reward");
       playChime();
+    } else if (kind === "error" && !document.hidden) {
+      haptic("warning");
     }
   }
 
@@ -3959,7 +3963,7 @@ function initTabs() {
     if (tab === "profile") {
       loadProgressStats();
     }
-    haptic("light");
+    haptic("select");
     scheduleDecorSettle();
   });
 }
@@ -4303,7 +4307,7 @@ function initDailyQuestActions() {
     btn.disabled = true;
     try {
       const result = await api("/api/month-quests/claim", { method: "POST", body: JSON.stringify({ at }) });
-      haptic("medium");
+      haptic("success");
       const r = result.reward;
       const parts = [`+${r.coins} Adam Coin`];
       if (r.diamonds) parts.push(`+${r.diamonds} 💎`);
@@ -5233,9 +5237,7 @@ function initPlanActions() {
     overlay.hidden = false;
     overlay.classList.add("show");
     burstCoins();
-    if (tg && tg.HapticFeedback) {
-      try { tg.HapticFeedback.notificationOccurred("success"); } catch (e) {}
-    }
+    haptic("success");
 
     const dismiss = () => {
       overlay.classList.remove("show");
@@ -6465,6 +6467,31 @@ function initShareHabitsToggle() {
   });
 }
 
+// «Вибрация» — настройка устройства, а не аккаунта: хранится в localStorage
+// (см. haptics.js), на сервер не уходит. Если модуль не загрузился, строка
+// просто прячется — переключать нечего.
+function initHapticsToggle() {
+  const toggle = document.getElementById("hapticsToggle");
+  if (!toggle) return;
+  const engine = window.AdamHaptics;
+  if (!engine) {
+    const row = toggle.closest(".settings-row");
+    if (row) row.hidden = true;
+    return;
+  }
+  const render = () => {
+    toggle.setAttribute("aria-pressed", engine.isEnabled() ? "true" : "false");
+    toggle.textContent = engine.isEnabled() ? "Вкл" : "Выкл";
+  };
+  render();
+  toggle.addEventListener("click", () => {
+    engine.setEnabled(!engine.isEnabled());
+    render();
+    // При включении сразу даём «пробный» отклик; при выключении — тишина.
+    haptic("confirm");
+  });
+}
+
 function initFriendNudgesToggle() {
   const toggle = document.getElementById("friendNudgesToggle");
   if (!toggle) return;
@@ -6689,7 +6716,7 @@ function initSettingsActions() {
     if (!window.confirm("Точно-точно? Это последнее предупреждение — восстановить аккаунт после этого будет невозможно.")) return;
     try {
       await api("/api/account/delete", { method: "POST" });
-      haptic("heavy");
+      haptic("warning");
       showToast("Аккаунт удалён", "success");
       if (tg && typeof tg.close === "function") {
         setTimeout(() => tg.close(), 1200);
@@ -6700,6 +6727,7 @@ function initSettingsActions() {
   });
 
   initQuietHoursActions();
+  initHapticsToggle();
   initFriendNudgesToggle();
   initStatsVisibilityToggle();
   initShareHabitsToggle();
