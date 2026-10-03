@@ -1097,6 +1097,15 @@ def create_tables():
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_gifts_from_day ON gifts(from_user_id, day)"
     )
+    # seen — видел ли получатель подарок внутри приложения (экран «Мне
+    # подарили»); 0 по умолчанию, поэтому подарки, отправленные до появления
+    # экрана, тоже один раз покажутся как новые.
+    cursor.execute("PRAGMA table_info(gifts)")
+    if "seen" not in {row[1] for row in cursor.fetchall()}:
+        cursor.execute("ALTER TABLE gifts ADD COLUMN seen INTEGER DEFAULT 0")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gifts_to_seen ON gifts(to_user_id, seen)"
+    )
 
     # ---------------- Подписки (db/follows.py) — как в Duolingo ----------------
     # follower_id подписан на followee_id. Друзья = ВЗАИМНАЯ подписка (обе

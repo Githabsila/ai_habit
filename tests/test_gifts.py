@@ -326,3 +326,105 @@ def test_gift_script_uses_the_server_options_and_confirms_before_paying():
 def test_gift_styles_exist():
     for selector in (".gift-card", ".gift-section", ".gift-row", ".gift-row__btn", ".gift-balances"):
         assert selector in CSS, selector
+
+
+# ---------------------------------------------------------------------------
+# «МНЕ ПОДАРИЛИ» (входящие)
+# ---------------------------------------------------------------------------
+
+def test_received_gifts_list_newest_first_with_sender_and_label(uid):
+    from db import get_received_gifts
+    sender, receiver = _pair(uid, coins=1000, diamonds=10)
+    send_gift(sender, receiver, "diamonds", amount=3)
+    send_gift(sender, receiver, "item", item_id=NEON)
+    received = get_received_gifts(receiver)
+    assert [g["label"] for g in received] == ["🪐 Рамка: Neon", "3 💎"]
+    assert received[0]["kind"] == "item" and received[0]["item_id"] == NEON
+    assert received[1]["kind"] == "diamonds" and received[1]["amount"] == 3
+    assert received[0]["from"]["first_name"] == "Дарящий" and received[0]["from"]["telegram_id"] == sender
+    assert all(g["seen"] is False for g in received)
+
+
+def test_received_gifts_are_private_to_the_recipient(uid):
+    from db import get_received_gifts
+    sender, receiver = _pair(uid)
+    send_gift(sender, receiver, "diamonds", amount=1)
+    assert len(get_received_gifts(receiver)) == 1
+    assert get_received_gifts(sender) == []          # отправитель своих «исходящих» тут не видит
+    stranger = uid + 2
+    add_user(stranger, "s", "Чужой")
+    assert get_received_gifts(stranger) == []
+
+
+def test_unseen_counter_and_marking_seen(uid):
+    from db import count_unseen_gifts, mark_gifts_seen, get_received_gifts
+    sender, receiver = _pair(uid, diamonds=10)
+    assert count_unseen_gifts(receiver) == 0
+    send_gift(sender, receiver, "diamonds", amount=1)
+    send_gift(sender, receiver, "diamonds", amount=3)
+    assert count_unseen_gifts(receiver) == 2 and count_unseen_gifts(sender) == 0
+    assert mark_gifts_seen(receiver) == 2
+    assert count_unseen_gifts(receiver) == 0 and all(g["seen"] for g in get_received_gifts(receiver))
+    assert mark_gifts_seen(receiver) == 0
+    send_gift(sender, receiver, "diamonds", amount=1)  # новый подарок снова «новый»
+    assert count_unseen_gifts(receiver) == 1
+
+
+def test_received_gift_survives_a_deleted_sender_and_item(uid):
+    from db import get_received_gifts
+    sender, receiver = _pair(uid)
+    send_gift(sender, receiver, "item", item_id=NEON)
+    conn = connect()
+    conn.execute("DELETE FROM users WHERE telegram_id=?", (sender,))
+    conn.commit()
+    conn.close()
+    gift = get_received_gifts(receiver)[0]
+    assert gift["from"]["first_name"] == "Игрок" and gift["label"] == "🪐 Рамка: Neon"
+
+
+def test_gifts_table_has_the_seen_column():
+    conn = connect()
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(gifts)").fetchall()}
+    conn.close()
+    assert "seen" in columns
+
+
+async def test_received_route_and_seen_route(client, uid):
+    sender, receiver = _pair(uid, diamonds=5)
+    send_gift(sender, receiver, "diamonds", amount=3)
+    data = await (await client.get("/api/gifts/received", headers=_headers(receiver))).json()
+    assert data["unseen"] == 1 and [g["label"] for g in data["gifts"]] == ["3 💎"]
+    assert (await client.get("/api/gifts/received", headers=_headers(sender))).status == 200
+    assert (await (await client.get("/api/gifts/received", headers=_headers(sender))).json())["gifts"] == []
+    r = await client.post("/api/gifts/seen", headers=_headers(receiver))
+    assert r.status == 200 and (await r.json()) == {"ok": True}
+    data = await (await client.get("/api/gifts/received", headers=_headers(receiver))).json()
+    assert data["unseen"] == 0 and data["gifts"][0]["seen"] is True
+
+
+async def test_bootstrap_reports_unseen_gifts(client, uid):
+    sender, receiver = _pair(uid, diamonds=5)
+    boot = await (await client.get("/api/bootstrap", headers=_headers(receiver))).json()
+    assert boot["gifts_unseen"] == 0
+    send_gift(sender, receiver, "diamonds", amount=1)
+    boot = await (await client.get("/api/bootstrap", headers=_headers(receiver))).json()
+    assert boot["gifts_unseen"] == 1
+
+
+def test_received_gifts_ui_is_wired_into_the_profile_and_startup():
+    nav = INDEX.index('id="openGiftsBtn"')
+    assert INDEX.index('id="openShopBtn"') < nav < INDEX.index('id="shopOverlay"'), "вход «Мои подарки» — в Профиле рядом с магазином"
+    for needle in ('id="giftsUnseenBadge"', 'id="receivedGiftsSheet"', 'id="receivedGiftsList"',
+                   'id="receivedGiftsClose"', 'id="receivedGiftsBackdrop"'):
+        assert needle in INDEX, needle
+    assert INDEX.index('id="receivedGiftsSheet"') > INDEX.rindex('<section class="tab-panel"')
+    for fn in ("async function openReceivedGifts", "function renderGiftsBadge", "function scheduleReceivedGiftsPrompt"):
+        assert fn in APP_JS, fn
+    assert "/api/gifts/received" in APP_JS and "/api/gifts/seen" in APP_JS
+    # Автопоказ при входе ждёт, пока уйдут стартовые и праздничные экраны.
+    assert "celebrationOverlayOpen()" in APP_JS[APP_JS.index("function scheduleReceivedGiftsPrompt"):]
+    assert "scheduleReceivedGiftsPrompt();" in APP_JS[APP_JS.index("initChangelogCheck();"):][:200]
+    # Бейдж обновляется при каждой полной перерисовке (новый bootstrap).
+    assert "renderGiftsBadge();" in APP_JS[APP_JS.index("function renderAll"):][:1200]
+    for selector in (".profile-nav-card__badge", ".received-gift__what", ".received-gift.is-new", ".received-gifts-card"):
+        assert selector in CSS, selector

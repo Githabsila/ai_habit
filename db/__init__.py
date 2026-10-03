@@ -104,6 +104,7 @@ from .profiles import get_player_profile, VISIBLE_SECTIONS
 
 from .gifts import (
     get_gift_options, send_gift, gifts_left_today,
+    get_received_gifts, count_unseen_gifts, mark_gifts_seen,
     GIFT_DIAMOND_AMOUNTS, MAX_GIFTS_PER_DAY, GIFTABLE_ITEM_TYPES,
 )
 
@@ -354,6 +355,7 @@ __all__ = [
     "report_user", "MAX_FOLLOWING", "REPORT_REASONS",
     "get_player_profile", "VISIBLE_SECTIONS",
     "get_gift_options", "send_gift", "gifts_left_today",
+    "get_received_gifts", "count_unseen_gifts", "mark_gifts_seen",
     "GIFT_DIAMOND_AMOUNTS", "MAX_GIFTS_PER_DAY", "GIFTABLE_ITEM_TYPES",
     "friend_nudges_enabled", "set_friend_nudges",
     "get_stats_visibility", "set_stats_visibility", "share_habits_enabled", "set_share_habits",

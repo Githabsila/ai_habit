@@ -987,6 +987,7 @@
     renderStreak();
     renderBoosterBanner();
     renderDailyQuests();
+    renderGiftsBadge();
     renderLeagueInfo();
     applyColorMode();
     applyLanguage();
@@ -5706,8 +5707,11 @@ function celebrationOverlayOpen() {
     const el = document.getElementById(id);
     return !!el && !el.hidden;
   })) return true;
+  // Шторки — по атрибуту hidden, а не по классу is-open: hidden снимается
+  // сразу при открытии, а is-open добавляется только на следующем кадре, и в
+  // этот зазор второе окно успело бы открыться поверх первого.
   return !!document.querySelector(
-    ".feedback-sheet.is-open, .freeze-purchase-sheet.is-open, .daily-quests-overlay.is-open"
+    ".feedback-sheet:not([hidden]), .freeze-purchase-sheet:not([hidden]), .daily-quests-overlay:not([hidden])"
   );
 }
 
@@ -6254,7 +6258,115 @@ async function sendGiftFromSheet(btn) {
   try { await loadGiftOptions(); } catch (_) { /* окно просто останется как было */ }
 }
 
+// ---- «Мне подарили» ----
+// Подарок приходит и push-ом в бота, но push можно пропустить, поэтому в
+// приложении есть и своё окно: само открывается при входе, если есть новые
+// (после праздничных экранов и «Что нового»), и всегда доступно из Профиля.
+let receivedGiftsTimer = null;
+
+function renderGiftsBadge() {
+  const badge = document.getElementById("giftsUnseenBadge");
+  if (!badge) return;
+  const n = Number(state?.gifts_unseen || 0);
+  badge.hidden = n <= 0;
+  badge.textContent = n > 99 ? "99+" : String(n);
+}
+
+function formatGiftWhen(createdAt) {
+  const d = new Date(String(createdAt).replace(" ", "T") + "Z");
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const dayStart = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  if (diffDays === 0) return `сегодня, ${time}`;
+  if (diffDays === 1) return `вчера, ${time}`;
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+}
+
+function receivedGiftRowHtml(g) {
+  const from = g.from || {};
+  const id = Number(from.telegram_id);
+  return `
+    <li class="friend-row received-gift${g.seen ? "" : " is-new"}" ${id ? `data-profile-id="${id}"` : ""}>
+      <span class="friend-row__avatar ${avatarFrameClass(from)}">${avatarInner(from)}</span>
+      <span class="friend-row__info">
+        <span class="friend-row__name">${escapeHtml(from.first_name || "Игрок")}${g.seen ? "" : ' <i class="received-gift__new">Новое</i>'}</span>
+        <span class="friend-row__meta">подарил(а) · ${escapeHtml(formatGiftWhen(g.created_at))}</span>
+      </span>
+      <span class="received-gift__what">${escapeHtml(g.label)}</span>
+    </li>`;
+}
+
+async function openReceivedGifts() {
+  const sheet = document.getElementById("receivedGiftsSheet");
+  const list = document.getElementById("receivedGiftsList");
+  if (!sheet || !list) return;
+  let data;
+  try {
+    data = await api("/api/gifts/received", { timeoutMs: 8000 });
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+    return;
+  }
+  const gifts = data.gifts || [];
+  const title = document.getElementById("receivedGiftsTitle");
+  if (title) title.textContent = data.unseen > 0 ? "Тебе подарили 🎉" : "Мои подарки";
+  list.innerHTML = gifts.length
+    ? gifts.map(receivedGiftRowHtml).join("")
+    : `<li class="empty-hint">Пока никто ничего не дарил. Друзьям можно дарить самому — кнопка «🎁 Подарить» в их профиле.</li>`;
+  haptic("light");
+  sheet.hidden = false;
+  sheet.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => sheet.classList.add("is-open"));
+  if (data.unseen > 0) {
+    // Показали — отмечаем; в списке «Новое» остаётся только на этот показ.
+    api("/api/gifts/seen", { method: "POST" }).catch(() => {});
+    if (state) state.gifts_unseen = 0;
+    renderGiftsBadge();
+  }
+}
+
+function closeReceivedGifts() {
+  const sheet = document.getElementById("receivedGiftsSheet");
+  if (!sheet || sheet.hidden) return;
+  sheet.classList.remove("is-open");
+  sheet.setAttribute("aria-hidden", "true");
+  setTimeout(() => { sheet.hidden = true; }, 230);
+}
+
+// После входа, если есть непросмотренные подарки: ждём, пока уйдут стартовые
+// и праздничные экраны (и «Что нового»), плюс пару секунд тишины.
+function scheduleReceivedGiftsPrompt() {
+  if (!(Number(state?.gifts_unseen) > 0)) return;
+  clearInterval(receivedGiftsTimer);
+  const startedAt = Date.now();
+  let quietTicks = 0;
+  receivedGiftsTimer = setInterval(() => {
+    if (Date.now() - startedAt > 3 * 60 * 1000) {
+      clearInterval(receivedGiftsTimer);
+      receivedGiftsTimer = null;
+      return;
+    }
+    if (celebrationOverlayOpen() || document.hidden) { quietTicks = 0; return; }
+    quietTicks += 1;
+    if (quietTicks < 3) return;
+    clearInterval(receivedGiftsTimer);
+    receivedGiftsTimer = null;
+    openReceivedGifts();
+  }, 800);
+}
+
 function initProfileOverlays() {
+  document.getElementById("openGiftsBtn")?.addEventListener("click", () => openReceivedGifts());
+  document.getElementById("receivedGiftsClose")?.addEventListener("click", () => { haptic("light"); closeReceivedGifts(); });
+  document.getElementById("receivedGiftsBackdrop")?.addEventListener("click", closeReceivedGifts);
+  document.getElementById("receivedGiftsList")?.addEventListener("click", async (e) => {
+    const row = e.target.closest("[data-profile-id]");
+    if (!row) return;
+    closeReceivedGifts();
+    await openUserProfile(Number(row.dataset.profileId));
+  });
   document.getElementById("giftClose")?.addEventListener("click", () => { haptic("light"); closeGiftSheet(); });
   document.getElementById("giftBackdrop")?.addEventListener("click", closeGiftSheet);
   document.getElementById("giftList")?.addEventListener("click", async (e) => {
@@ -7364,6 +7476,8 @@ async function boot() {
             initSettingsActions();
             initDataSupportActions();
             initChangelogCheck();
+            renderGiftsBadge();
+            scheduleReceivedGiftsPrompt();
             // Эти три читают state.settings/state.user СИНХРОННО в момент своей
             // инициализации (не только внутри later-колбэков) — как и
             // initSettingsActions/initDataSupportActions выше, обязаны идти

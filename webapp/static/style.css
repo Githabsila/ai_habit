@@ -13737,3 +13737,26 @@ button.up-count:active{opacity:.75}
 .gift-row__btn:active{opacity:.8}
 .gift-row__btn:disabled{opacity:.4;cursor:default}
 .gift-row__btn .stat-icon{width:13px;height:13px;vertical-align:-2px}
+
+/* =========================================================
+   «Мне подарили» (db/gifts.py::get_received_gifts): вход в Профиле со
+   счётчиком новых и окно с историей подарков.
+   ========================================================= */
+.profile-nav-card__badge{
+  flex:0 0 auto;min-width:22px;height:22px;padding:0 7px;margin-right:6px;border-radius:999px;
+  display:grid;place-items:center;background:#FF5C7A;color:#fff;font:800 11px 'Space Grotesk',sans-serif;
+}
+.profile-nav-card__badge[hidden]{display:none}
+.received-gifts-card{max-height:min(86vh,640px);overflow-y:auto;overscroll-behavior:contain}
+.received-gifts-card .friends-list{max-height:none;margin-bottom:14px}
+.received-gift__what{
+  flex:0 0 auto;max-width:46%;text-align:right;font:800 12.5px 'Space Grotesk',sans-serif;
+  color:#FFD54F;word-break:break-word;
+}
+.received-gift .friend-row__meta{white-space:normal}
+.received-gift.is-new{border-color:rgba(255,213,79,.4);background:rgba(255,213,79,.06)}
+.received-gift__new{
+  margin-left:4px;padding:1px 6px;border-radius:999px;background:#FF5C7A;color:#fff;
+  font:800 9.5px 'Space Grotesk',sans-serif;font-style:normal;vertical-align:1px;
+}
+:root[data-mode="light"] .received-gifts-card{--text:#FFFFFF;--text-muted:#9D9DB3}

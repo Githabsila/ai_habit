@@ -59,6 +59,85 @@ def gifts_left_today(sender_id):
     return max(0, MAX_GIFTS_PER_DAY - int(row["n"] or 0))
 
 
+# ---------------------------------------------------------------------------
+# ВХОДЯЩИЕ: экран «Мне подарили»
+# ---------------------------------------------------------------------------
+
+RECEIVED_LIMIT = 50
+
+
+def _received_label(row):
+    if row["kind"] == "diamonds":
+        return f"{int(row['amount'] or 1)} 💎"
+    return row["item_name"] or "Подарок"
+
+
+def get_received_gifts(user_id, limit=RECEIVED_LIMIT):
+    """Подарки, которые подарили ЭТОМУ пользователю, новые сверху. Видит их
+    только сам получатель. seen=False — ещё не показывали в приложении."""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT g.id, g.kind, g.item_id, g.amount, g.created_at, g.seen,
+                   u.telegram_id AS from_id, u.first_name, u.username, u.handle, u.avatar_id, u.frame_id,
+                   s.name AS item_name
+            FROM gifts g
+            LEFT JOIN users u ON u.telegram_id = g.from_user_id
+            LEFT JOIN shop_items s ON s.id = g.item_id
+            WHERE g.to_user_id=?
+            ORDER BY g.id DESC
+            LIMIT ?
+            """,
+            (user_id, int(limit)),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [
+        {
+            "id": r["id"],
+            "kind": r["kind"],
+            "label": _received_label(r),
+            "amount": int(r["amount"] or 1),
+            "item_id": r["item_id"],
+            "created_at": str(r["created_at"]),
+            "seen": bool(r["seen"]),
+            "from": {
+                "telegram_id": r["from_id"],
+                "first_name": r["first_name"] or r["username"] or "Игрок",
+                "handle": r["handle"],
+                "avatar_id": r["avatar_id"] or "default",
+                "frame_id": r["frame_id"] or "default",
+            },
+        }
+        for r in rows
+    ]
+
+
+def count_unseen_gifts(user_id):
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM gifts WHERE to_user_id=? AND seen=0", (user_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return int(row["n"] or 0)
+
+
+def mark_gifts_seen(user_id):
+    """Отмечает все подарки пользователя просмотренными; возвращает, сколько
+    было новых."""
+    conn = connect()
+    try:
+        cursor = conn.execute("UPDATE gifts SET seen=1 WHERE to_user_id=? AND seen=0", (user_id,))
+        changed = cursor.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    return changed
+
+
 def get_gift_options(sender_id, receiver_id):
     """Что можно подарить этому другу прямо сейчас — для окна подарка.
     {"error": "not_friends"} — если он не друг."""

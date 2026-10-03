@@ -58,7 +58,7 @@ from db import (
     get_bonus_window,
     get_secondary_task_praise_state, record_secondary_task_praise,
     get_month_quests, claim_month_chest,
-    get_gift_options, send_gift,
+    get_gift_options, send_gift, get_received_gifts, count_unseen_gifts, mark_gifts_seen,
     get_subscription_status, try_grant_channel_access, bot_access_allowed,
     should_show_app_tour, mark_app_tour_seen,
     should_show_handle_intro, mark_handle_intro_seen,
@@ -485,6 +485,8 @@ async def bootstrap(request):
         # Аватар-наставник: картинка зависит от состояния серии (db/hero.py).
         "hero": get_hero_state(telegram_id),
         "month_quests": get_month_quests(telegram_id),
+        # Сколько подаренного мне ещё не показывали (экран «Мне подарили»).
+        "gifts_unseen": count_unseen_gifts(telegram_id),
         "habits": [_shape_habit(h, telegram_id) for h in habits],
         # Roadmap #22 — привычки, проваленные несколько дней подряд, для
         # мягкой подсказки "может, снизить планку?".
@@ -1775,6 +1777,25 @@ async def user_report_route(request):
 
 
 GIFT_ERROR_STATUS = {"not_found": 404}
+
+
+@routes.get("/api/gifts/received")
+async def gifts_received_route(request):
+    """Экран «Мне подарили»: подарки, которые подарили мне (новые сверху),
+    и сколько из них я ещё не видел. Чужие подарки не отдаются."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({
+        "gifts": get_received_gifts(telegram_id),
+        "unseen": count_unseen_gifts(telegram_id),
+    })
+
+
+@routes.post("/api/gifts/seen")
+async def gifts_seen_route(request):
+    """Отметить подарки просмотренными (экран «Мне подарили» открыт)."""
+    telegram_id, _ = await _authenticate(request)
+    mark_gifts_seen(telegram_id)
+    return web.json_response({"ok": True})
 
 
 @routes.get("/api/gifts/options")
