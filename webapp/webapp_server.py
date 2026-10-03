@@ -58,6 +58,7 @@ from db import (
     get_bonus_window,
     get_secondary_task_praise_state, record_secondary_task_praise,
     get_month_quests, claim_month_chest,
+    get_gift_options, send_gift,
     get_subscription_status, try_grant_channel_access, bot_access_allowed,
     should_show_app_tour, mark_app_tour_seen,
     should_show_handle_intro, mark_handle_intro_seen,
@@ -1771,6 +1772,62 @@ async def user_report_route(request):
             except Exception:
                 logger.warning(f"Не удалось доставить жалобу админу {admin_id}")
     return web.json_response({"ok": True})
+
+
+GIFT_ERROR_STATUS = {"not_found": 404}
+
+
+@routes.get("/api/gifts/options")
+async def gift_options_route(request):
+    """Что можно подарить другу (?to=<id>): алмазы и косметика, баланс
+    отправителя, сколько подарков осталось сегодня. Только друзьям."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        target_id = int(request.rel_url.query.get("to", ""))
+    except ValueError:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    options = get_gift_options(telegram_id, target_id)
+    if "error" in options:
+        return web.json_response({"error": options["error"]}, status=GIFT_ERROR_STATUS.get(options["error"], 400))
+    return web.json_response(options)
+
+
+@routes.post("/api/users/{telegram_id}/gift")
+async def user_gift_route(request):
+    """Подарок другу: {"kind": "diamonds", "amount": 3} или {"kind": "item",
+    "item_id": 5}. Правила — в db/gifts.py (только друзьям, без очков, лимит
+    в день, платит отправитель)."""
+    telegram_id, is_admin = await _authenticate(request)
+    target_id = _target_id_or_none(request)
+    if target_id is None:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    result = send_gift(telegram_id, target_id, body.get("kind"), amount=body.get("amount"), item_id=body.get("item_id"))
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=400)
+
+    gift = result["gift"]
+    name = html.escape(_display_name(get_user(telegram_id)))
+    if gift["kind"] == "diamonds":
+        what = f"💎 {gift['amount']}"
+        hint = ""
+    else:
+        what = f"«{html.escape(str(gift['label']))}»"
+        # id 3 — значок: он сам появится в рейтинге; остальное (рамки, аватар,
+        # тема) включается в Профиле → Настройки.
+        hint = (" Значок уже виден в рейтинге." if gift["item_id"] == 3
+                else " Загляни в Профиль → Настройки, чтобы им воспользоваться.")
+    _spawn_background(_send_social_push(
+        request.app, target_id, f"🎁 <b>{name}</b> подарил(а) тебе {what}!{hint}"))
+    return web.json_response({
+        "ok": True,
+        "gift": gift,
+        "left_today": result["left_today"],
+        "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
+    })
 
 
 @routes.post("/api/settings/share-habits")

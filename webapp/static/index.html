@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261003_FOLLOWS_V26">
+<link rel="stylesheet" href="/static/style.css?v=20261003_FRIENDS_GIFTS_V27">
 </head>
 <body>
 
@@ -937,6 +937,22 @@ class="habit-add-form__submit">
   </section>
 </div>
 
+<!-- Подарок другу (db/gifts.py): алмазы и косметика за монеты отправителя.
+     Только друзьям (взаимная подписка), без очков, не больше 3 в день. -->
+<div class="feedback-sheet" id="giftSheet" hidden aria-hidden="true">
+  <div class="feedback-sheet__backdrop" id="giftBackdrop"></div>
+  <section class="feedback-card gift-card" role="dialog" aria-modal="true" aria-labelledby="giftTitle">
+    <div class="freeze-purchase-card__handle"></div>
+    <div class="feedback-card__icon">🎁</div>
+    <h3 id="giftTitle">Подарок</h3>
+    <div class="gift-balances" id="giftBalances"></div>
+    <div class="gift-body" id="giftList"></div>
+    <div class="feedback-actions feedback-actions--single">
+      <button type="button" class="freeze-purchase-back" id="giftClose">Закрыть</button>
+    </div>
+  </section>
+</div>
+
 <div class="freeze-purchase-sheet" id="freezePurchaseSheet" hidden aria-hidden="true">
   <div class="freeze-purchase-sheet__backdrop" id="freezePurchaseBackdrop"></div>
   <section class="freeze-purchase-card" role="dialog" aria-modal="true" aria-labelledby="freezePurchaseTitle">
@@ -1258,7 +1274,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
-<script type="module" src="/static/app.js?v=20261003_FOLLOWS_V30"></script>
+<script type="module" src="/static/app.js?v=20261003_FRIENDS_GIFTS_V31"></script>
 
 </body>
 </html>

@@ -5090,6 +5090,12 @@ function initPlanActions() {
     unavailable: "Can't send a reminder right now",
     not_friends: "This person is no longer your friend",
     delivery_failed: "Couldn't deliver the reminder — try again later",
+    daily_limit: "No more gifts today — try again tomorrow",
+    not_enough_diamonds: "Not enough diamonds",
+    already_owned: "Your friend already has this",
+    item_not_giftable: "This can't be sent as a gift",
+    invalid_amount: "You can't gift that many diamonds",
+    not_enough_coins: "Not enough Adam Coin",
     invalid_chest: "No such chest",
     not_reached: "The chest is still locked — complete more quests",
     already_claimed: "This chest is already open",
@@ -5140,6 +5146,12 @@ function initPlanActions() {
         unavailable: "Сейчас напомнить не получится",
         not_friends: "Этот человек больше не в друзьях",
         delivery_failed: "Не получилось доставить напоминание — попробуй позже",
+        daily_limit: "На сегодня подарки закончились — завтра снова можно",
+        not_enough_diamonds: "Не хватает алмазов",
+        already_owned: "У друга это уже есть",
+        item_not_giftable: "Такой подарок отправить нельзя",
+        invalid_amount: "Столько алмазов подарить нельзя",
+        not_enough_coins: "Не хватает Adam Coin",
         invalid_chest: "Такого сундука нет",
         not_reached: "Сундук ещё закрыт — выполни больше заданий",
         already_claimed: "Этот сундук уже открыт",
@@ -5875,6 +5887,10 @@ function renderUserProfile() {
   if (!rel.self) {
     const a = relationAction(rel);
     action = `<button type="button" class="up-btn up-btn--${a.cls}" data-up="${a.act}">${a.label}</button>`;
+    // Подарки — только друзьям (взаимная подписка); сервер проверяет это же.
+    if (rel.friends) {
+      action += `<button type="button" class="up-btn up-btn--gift" data-up="gift">🎁 Подарить</button>`;
+    }
   }
 
   let html = `
@@ -5967,7 +5983,7 @@ function renderUserProfile() {
         ? `${escapeHtml(name)} открыл(а) статистику только друзьям. Когда подпишется в ответ — станете друзьями, и она откроется.`
         : "Подпишись, чтобы видеть прогресс за неделю, обзор и достижения."}</div>`;
     } else if (!sections.has("extended")) {
-      html += `<div class="up-lock">🤝 Когда ${escapeHtml(name)} подпишется в ответ, вы станете друзьями — откроется расширенная статистика, и вы сможете подталкивать друг друга.</div>`;
+      html += `<div class="up-lock">🤝 Когда ${escapeHtml(name)} подпишется в ответ, вы станете друзьями — откроется расширенная статистика, и вы сможете подталкивать друг друга и дарить подарки.</div>`;
     }
   }
 
@@ -6144,7 +6160,108 @@ function closeFollowListSheet() {
   setTimeout(() => { sheet.hidden = true; }, 230);
 }
 
+// ---- Подарок другу ----
+// Варианты и баланс приходят с сервера (/api/gifts/options): что дарить можно,
+// что отправителю по карману, чем получатель уже владеет. Деньги списываются
+// только после подтверждения.
+let giftTarget = null;
+let giftOptions = null;
+
+function renderGiftSheet() {
+  const o = giftOptions;
+  const balances = document.getElementById("giftBalances");
+  const list = document.getElementById("giftList");
+  const title = document.getElementById("giftTitle");
+  if (!o || !list) return;
+  if (title) title.textContent = `Подарок для ${o.to.first_name}`;
+  if (balances) {
+    balances.innerHTML = `
+      <span>У тебя: ${ADAM_COIN_ICON} <b>${Number(o.balances.coins)}</b> · 💎 <b>${Number(o.balances.diamonds)}</b></span>
+      <span>Подарков сегодня: <b>${Number(o.left_today)}</b> из ${Number(o.max_per_day)}</span>`;
+  }
+  const noLeft = Number(o.left_today) <= 0;
+  list.innerHTML = `
+    <div class="gift-section">
+      <div class="gift-section__title">Алмазы</div>
+      <div class="gift-diamonds">${o.diamonds.map((d) => `
+        <button type="button" class="gift-row__btn" data-gift-kind="diamonds" data-gift-amount="${Number(d.amount)}"
+          ${d.affordable && !noLeft ? "" : "disabled"}>💎 ${Number(d.amount)}</button>`).join("")}</div>
+    </div>
+    <div class="gift-section">
+      <div class="gift-section__title">Предметы за Adam Coin <small>платишь ты, очки получателю не идут</small></div>
+      <ul class="gift-items">${o.items.map((it) => {
+        const disabled = noLeft || it.owned_by_receiver || !it.affordable;
+        const label = it.owned_by_receiver ? "Уже есть" : `${ADAM_COIN_ICON} ${Number(it.price)}`;
+        return `<li class="gift-row">
+          <span class="gift-row__name">${escapeHtml(it.name)}</span>
+          <button type="button" class="gift-row__btn" data-gift-kind="item" data-gift-item="${Number(it.id)}"
+            data-gift-label="${escapeHtml(it.name)}" data-gift-price="${Number(it.price)}" ${disabled ? "disabled" : ""}>${label}</button>
+        </li>`;
+      }).join("")}</ul>
+    </div>
+    ${noLeft ? `<div class="up-note">На сегодня подарки закончились — завтра снова можно.</div>` : ""}`;
+}
+
+async function loadGiftOptions() {
+  giftOptions = await api(`/api/gifts/options?to=${Number(giftTarget)}`, { timeoutMs: 8000 });
+  renderGiftSheet();
+}
+
+async function openGiftSheet(userId, name) {
+  const sheet = document.getElementById("giftSheet");
+  if (!sheet) return;
+  giftTarget = Number(userId);
+  try {
+    await loadGiftOptions();
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+    return;
+  }
+  haptic("light");
+  sheet.hidden = false;
+  sheet.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => sheet.classList.add("is-open"));
+}
+
+function closeGiftSheet() {
+  const sheet = document.getElementById("giftSheet");
+  if (!sheet || sheet.hidden) return;
+  sheet.classList.remove("is-open");
+  sheet.setAttribute("aria-hidden", "true");
+  setTimeout(() => { sheet.hidden = true; }, 230);
+}
+
+async function sendGiftFromSheet(btn) {
+  const kind = btn.dataset.giftKind;
+  const to = giftOptions?.to?.first_name || "другу";
+  let payload;
+  if (kind === "diamonds") {
+    payload = { kind, amount: Number(btn.dataset.giftAmount) };
+    if (!confirm(`Подарить ${to} 💎 ${payload.amount}? Они спишутся с твоего баланса.`)) return;
+  } else {
+    payload = { kind: "item", item_id: Number(btn.dataset.giftItem) };
+    if (!confirm(`Подарить ${to} «${btn.dataset.giftLabel}» за ${btn.dataset.giftPrice} Adam Coin? Монеты спишутся с тебя.`)) return;
+  }
+  btn.disabled = true;
+  try {
+    const result = await api(`/api/users/${Number(giftTarget)}/gift`, { method: "POST", body: JSON.stringify(payload) });
+    haptic("medium");
+    showToast(`🎁 Подарок для ${to} отправлен`, "praise", 3200);
+    applyActionPatch(result);
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+  }
+  try { await loadGiftOptions(); } catch (_) { /* окно просто останется как было */ }
+}
+
 function initProfileOverlays() {
+  document.getElementById("giftClose")?.addEventListener("click", () => { haptic("light"); closeGiftSheet(); });
+  document.getElementById("giftBackdrop")?.addEventListener("click", closeGiftSheet);
+  document.getElementById("giftList")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-gift-kind]");
+    if (btn && !btn.disabled) await sendGiftFromSheet(btn);
+  });
+
   document.getElementById("userProfileClose")?.addEventListener("click", closeUserProfile);
   document.getElementById("userProfileBackdrop")?.addEventListener("click", closeUserProfile);
 
@@ -6161,6 +6278,8 @@ function initProfileOverlays() {
       if (profileReportOpen) document.querySelector(".up-report")?.scrollIntoView({ block: "center" });
     } else if (action === "report-send") {
       await sendProfileReport();
+    } else if (action === "gift") {
+      await openGiftSheet(profileData.telegram_id, profileData.first_name);
     } else {
       await changeRelation(profileData.telegram_id, action, profileData.first_name);
     }

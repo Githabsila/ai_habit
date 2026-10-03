@@ -102,6 +102,11 @@ from .follows import (
 
 from .profiles import get_player_profile, VISIBLE_SECTIONS
 
+from .gifts import (
+    get_gift_options, send_gift, gifts_left_today,
+    GIFT_DIAMOND_AMOUNTS, MAX_GIFTS_PER_DAY, GIFTABLE_ITEM_TYPES,
+)
+
 from .admin_support import (
     get_churn_risk_report, CHURN_RISK_LABELS,
     get_users_by_segment, SEGMENT_LABELS,
@@ -348,6 +353,8 @@ __all__ = [
     "list_follows", "find_user_by_handle", "block_user", "unblock_user", "is_blocked_between",
     "report_user", "MAX_FOLLOWING", "REPORT_REASONS",
     "get_player_profile", "VISIBLE_SECTIONS",
+    "get_gift_options", "send_gift", "gifts_left_today",
+    "GIFT_DIAMOND_AMOUNTS", "MAX_GIFTS_PER_DAY", "GIFTABLE_ITEM_TYPES",
     "friend_nudges_enabled", "set_friend_nudges",
     "get_stats_visibility", "set_stats_visibility", "share_habits_enabled", "set_share_habits",
     "get_churn_risk_report", "CHURN_RISK_LABELS",
@@ -425,9 +432,13 @@ __all__ = [
     "mark_channel_access_granted", "try_grant_channel_access",
     "export_full_account_data", "request_account_deletion",
     "add_changelog_entry", "get_unseen_changelog_entries", "mark_changelog_seen",
+    "publish_release_notes", "RELEASE_NOTES",
     "log_self_reward", "get_self_reward_history", "get_self_reward_stats", "SELF_REWARD_COST",
 ]
 
 from .account import export_full_account_data, request_account_deletion
-from .changelog import add_changelog_entry, get_unseen_changelog_entries, mark_changelog_seen
+from .changelog import (
+    add_changelog_entry, get_unseen_changelog_entries, mark_changelog_seen,
+    publish_release_notes, RELEASE_NOTES,
+)
 from .self_rewards import log_self_reward, get_self_reward_history, get_self_reward_stats, DEFAULT_COST as SELF_REWARD_COST

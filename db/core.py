@@ -1078,6 +1078,26 @@ def create_tables():
     )
     """)
 
+    # ---------------- Подарки друзьям (db/gifts.py) ----------------
+    # Журнал подарков: он же основа суточного лимита отправителя. price —
+    # сколько Adam Coin отправитель заплатил (0 для алмазов).
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS gifts(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        from_user_id INTEGER NOT NULL,
+        to_user_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        item_id INTEGER,
+        amount INTEGER DEFAULT 1,
+        price INTEGER DEFAULT 0,
+        day TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gifts_from_day ON gifts(from_user_id, day)"
+    )
+
     # ---------------- Подписки (db/follows.py) — как в Duolingo ----------------
     # follower_id подписан на followee_id. Друзья = ВЗАИМНАЯ подписка (обе
     # строки). Ссылка «Добавить друга» создаёт обе строки сразу.

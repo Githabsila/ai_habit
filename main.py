@@ -11,7 +11,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 
 from config import BOT_TOKEN, WEBAPP_URL, PORT, ADMIN_IDS
-from db import create_tables, get_user, give_premium_admin, award_season_rewards
+from db import create_tables, get_user, give_premium_admin, award_season_rewards, publish_release_notes
 from bot_middlewares import retry_flood_control
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
@@ -61,6 +61,11 @@ logger = logging.getLogger("main")
 # ====================== ИНИЦИАЛИЗАЦИЯ БД ======================
 create_tables()
 logger.info("✅ База данных подключена")
+
+# «Что нового» про релиз: записи из db/changelog.py::RELEASE_NOTES добавляются
+# в журнал один раз (по заголовку), повторные запуски ничего не дублируют.
+for _title in publish_release_notes():
+    logger.info("📰 Опубликована запись «Что нового»: %s", _title)
 
 # Администраторы бота всегда получают Premium навсегда, без покупки.
 # add_user() уже делает это для НОВЫХ пользователей (db/users.py

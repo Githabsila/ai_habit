@@ -13706,3 +13706,34 @@ button.up-count:active{opacity:.75}
 .month-card__open:disabled{opacity:.55}
 .month-card__open:active{opacity:.85}
 .month-card__hint{margin-top:10px;font-size:11.5px;line-height:1.45;color:#9EA8BD;text-align:center}
+
+/* =========================================================
+   Подарок другу (db/gifts.py): окно с вариантами и кнопка в профиле.
+   ========================================================= */
+.up-btn--gift{margin-top:8px;background:rgba(255,213,79,.1);border-color:rgba(255,213,79,.4);color:#FFD54F}
+.gift-card{max-height:min(86vh,640px);overflow-y:auto;overscroll-behavior:contain}
+.gift-balances{
+  display:flex;flex-direction:column;align-items:center;gap:3px;margin:-2px 0 12px;
+  font-size:12px;color:#9EA8BD;text-align:center;
+}
+.gift-balances b{color:#EAE5FA}
+.gift-balances .stat-icon{width:14px;height:14px;vertical-align:-2px}
+.gift-body{display:flex;flex-direction:column;gap:14px;margin-bottom:14px}
+.gift-section__title{margin-bottom:8px;font:800 11px 'Space Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#9EA8BD}
+.gift-section__title small{display:block;margin-top:3px;letter-spacing:0;text-transform:none;font:500 10.5px 'Inter',sans-serif;color:#8A8FA3}
+.gift-diamonds{display:flex;gap:8px}
+.gift-diamonds .gift-row__btn{flex:1;height:40px;font-size:13px}
+.gift-items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.gift-row{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+}
+.gift-row__name{flex:1;min-width:0;font-size:12.5px;font-weight:700;color:#EAE5FA;word-break:break-word}
+.gift-row__btn{
+  flex:0 0 auto;min-width:74px;height:32px;padding:0 12px;border-radius:999px;cursor:pointer;
+  border:1px solid rgba(255,213,79,.4);background:rgba(255,213,79,.1);color:#FFD54F;
+  font:800 12px 'Space Grotesk',sans-serif;-webkit-tap-highlight-color:transparent;
+}
+.gift-row__btn:active{opacity:.8}
+.gift-row__btn:disabled{opacity:.4;cursor:default}
+.gift-row__btn .stat-icon{width:13px;height:13px;vertical-align:-2px}
