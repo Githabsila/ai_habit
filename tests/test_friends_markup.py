@@ -88,11 +88,27 @@ def test_profile_overlay_and_follow_list_live_outside_the_tab_panels():
 
 def test_stats_visibility_setting_is_in_settings():
     assert 'id="statsVisibilityToggle"' in INDEX
-    assert "Названия привычек не видны никому" in INDEX
+
+
+def test_sharing_habits_with_friends_is_an_explicit_opt_in():
+    assert 'id="shareHabitsToggle"' in INDEX
+    assert "По умолчанию выключено" in INDEX and "Подписчикам они недоступны никогда" in INDEX
+    assert "initShareHabitsToggle();" in APP_JS
+    # Блок привычек в профиле рисуется только если сервер сказал «показываем».
+    body = APP_JS[APP_JS.index("function renderUserProfile"):APP_JS.index("async function openUserProfile")]
+    assert "x.habits_shared && Array.isArray(x.habits)" in body
+    assert ".up-habit{" in CSS and ".up-goals{" in CSS
+
+
+def test_season_leaderboard_rows_open_the_profile_too():
+    season = APP_JS[APP_JS.index("function renderSeasonList"):APP_JS.index("function initRatingScopeSwitch")]
+    assert 'data-profile-id="${Number(r.telegram_id)}"' in season
+    handler = APP_JS[APP_JS.index("function initRatingActions"):]
+    assert 'getElementById("seasonRatingList")?.addEventListener("click"' in handler
 
 
 def test_rating_rows_open_the_profile():
-    assert APP_JS.count('data-profile-id="${Number(r.telegram_id)}"') == 2  # подиум + список
+    assert APP_JS.count('data-profile-id="${Number(r.telegram_id)}"') == 3  # подиум + список + сезон
     handler = APP_JS[APP_JS.index("function initRatingActions"):]
     assert "openUserProfile(Number(row.dataset.profileId))" in handler
     assert "openUserProfile(Number(card.dataset.profileId))" in handler

@@ -13,7 +13,10 @@
 Сам владелец может сузить доступ: stats_visibility='friends' (Настройки) —
 тогда подписчики видят лишь публичный минимум.
 
-Названия и тексты привычек/целей НЕ отдаются никому — только числа.
+Названия привычек и текст целей по умолчанию НЕ отдаются никому — только
+числа. Владелец может разрешить их ДРУЗЬЯМ (Настройки → «Показывать друзьям
+мои привычки и цели», settings.share_habits): тогда друзья видят список
+привычек со статусом на сегодня и цели. Подписчикам они недоступны никогда.
 """
 from datetime import date, timedelta
 
@@ -29,6 +32,9 @@ VISIBLE_SECTIONS = {
 RU_WEEKDAYS = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 CHART_DAYS = 7
 MAX_ACHIEVEMENTS = 12
+MAX_SHARED_HABITS = 20
+MAX_SHARED_TITLE = 80
+MAX_SHARED_GOALS = 500
 BADGE_ITEM_ID = 3  # как в webapp_server.py и db/public_profile.py
 
 
@@ -53,9 +59,28 @@ def _week_series(user_id, today):
     return days, xp, completed
 
 
+def _shared_habits(user_id):
+    """Привычки со статусом на сегодня и текст долгосрочных целей — только
+    когда владелец включил показ друзьям (см. _extended)."""
+    from .habits import get_habits
+    from .users import get_long_term_goals
+
+    habits = [
+        {
+            "title": str(h["title"] or "")[:MAX_SHARED_TITLE],
+            "done": bool(h["completed"]),
+            "skipped": bool(h["skip_reason"]) if "skip_reason" in h.keys() else False,
+        }
+        for h in get_habits(user_id)[:MAX_SHARED_HABITS]
+    ]
+    goals = (get_long_term_goals(user_id) or "").strip()[:MAX_SHARED_GOALS] or None
+    return habits, goals
+
+
 def _extended(user_id, completed_by_day):
     from .habits import get_progress
     from .seasons import get_season_rank
+    from .settings import get_settings, share_habits_enabled
     from .streak import has_completed_today
 
     progress = get_progress(user_id) or {}
@@ -73,7 +98,7 @@ def _extended(user_id, completed_by_day):
     finally:
         conn.close()
     total = int(row["total"] or 0)
-    return {
+    extended = {
         "today": {
             "completed": int(progress.get("completed", 0)),
             "total": int(progress.get("total", 0)),
@@ -83,7 +108,13 @@ def _extended(user_id, completed_by_day):
         "active_days_30": int(row["active_days"] or 0),
         "week_completed": completed_by_day,
         "season": get_season_rank(user_id),
+        "habits_shared": share_habits_enabled(get_settings(user_id)),
+        "habits": None,
+        "goals": None,
     }
+    if extended["habits_shared"]:
+        extended["habits"], extended["goals"] = _shared_habits(user_id)
+    return extended
 
 
 def get_player_profile(viewer_id, target_id):

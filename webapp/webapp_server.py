@@ -84,6 +84,7 @@ from db import (
     follow, unfollow, get_relation, get_counts, list_follows, find_user_by_handle,
     block_user, unblock_user, report_user, REPORT_REASONS, get_player_profile,
     get_stats_visibility, set_stats_visibility, is_bot_blocked, is_blocked_between,
+    share_habits_enabled, set_share_habits,
     get_notification_history,
     log_client_error, is_opaque_client_error,
     export_full_account_data, request_account_deletion,
@@ -516,6 +517,7 @@ async def bootstrap(request):
             "gender": get_gender(telegram_id),
             "friend_nudges": friend_nudges_enabled(settings_row),
             "stats_visibility": get_stats_visibility(settings_row),
+            "share_habits": share_habits_enabled(settings_row),
             "quiet_hours": (
                 {"start": settings_row["quiet_hours_start"], "end": settings_row["quiet_hours_end"]}
                 if settings_row and "quiet_hours_start" in settings_row.keys()
@@ -1764,6 +1766,20 @@ async def user_report_route(request):
             except Exception:
                 logger.warning(f"Не удалось доставить жалобу админу {admin_id}")
     return web.json_response({"ok": True})
+
+
+@routes.post("/api/settings/share-habits")
+async def set_share_habits_route(request):
+    """Показывать ли ДРУЗЬЯМ названия моих привычек и текст целей.
+    body: {"enabled": bool}. Подписчикам они недоступны в любом случае."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    enabled = bool(body.get("enabled"))
+    set_share_habits(telegram_id, enabled)
+    return web.json_response({"ok": True, "enabled": enabled})
 
 
 @routes.post("/api/settings/stats-visibility")

@@ -320,9 +320,63 @@ def test_extended_stats_for_friends_and_no_habit_titles_anywhere(uid):
         assert secret not in json.dumps(get_player_profile(viewer, owner), ensure_ascii=False)
 
 
+def test_habit_titles_and_goals_are_shared_only_with_friends_who_were_allowed(uid):
+    from db import set_share_habits
+    owner, friend, subscriber, stranger = _user(uid), _user(uid + 1), _user(uid + 2), _user(uid + 3)
+    make_friends(friend, owner)
+    follow(subscriber, owner)
+    done_title, open_title = "Холодный душ", "Читать 20 минут"
+    complete_habit(add_habit(owner, done_title))
+    add_habit(owner, open_title)
+    goals = "Пробежать марафон к декабрю"
+    _sql("UPDATE users SET long_term_goals=? WHERE telegram_id=?", (goals, owner))
+
+    # По умолчанию — выключено: даже друг видит только числа.
+    extended = get_player_profile(friend, owner)["extended"]
+    assert extended["habits_shared"] is False and extended["habits"] is None and extended["goals"] is None
+    assert done_title not in json.dumps(get_player_profile(friend, owner), ensure_ascii=False)
+
+    set_share_habits(owner, True)
+    shared = get_player_profile(friend, owner)["extended"]
+    by_title = {h["title"]: h for h in shared["habits"]}
+    assert by_title[done_title]["done"] is True and by_title[open_title]["done"] is False
+    assert shared["goals"] == goals and shared["habits_shared"] is True
+
+    # Подписчик и посторонний не видят их никогда — даже при включённом показе.
+    for viewer in (subscriber, stranger):
+        text = json.dumps(get_player_profile(viewer, owner), ensure_ascii=False)
+        assert done_title not in text and open_title not in text and goals not in text
+
+    set_share_habits(owner, False)
+    assert get_player_profile(friend, owner)["extended"]["habits"] is None
+
+
+def test_shared_habits_are_trimmed(uid):
+    from db import set_share_habits
+    owner, friend = _user(uid), _user(uid + 1)
+    make_friends(friend, owner)
+    set_share_habits(owner, True)
+    _sql("UPDATE users SET long_term_goals=? WHERE telegram_id=?", ("ц" * 900, owner))
+    for i in range(10):  # в приложении больше 10 привычек не бывает
+        add_habit(owner, "я" * 95 if i == 0 else f"Привычка {i}")
+    shared = get_player_profile(friend, owner)["extended"]
+    assert len(shared["goals"]) == 500
+    assert all(len(h["title"]) <= 80 for h in shared["habits"])
+
+
 # ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
+
+async def test_share_habits_setting_route(client, uid):
+    me = _user(uid)
+    r = await client.post("/api/settings/share-habits", json={"enabled": True}, headers=_headers(me))
+    assert (await r.json()) == {"ok": True, "enabled": True}
+    boot = await (await client.get("/api/bootstrap", headers=_headers(me))).json()
+    assert boot["settings"]["share_habits"] is True
+    r = await client.post("/api/settings/share-habits", json={"enabled": False}, headers=_headers(me))
+    assert (await r.json())["enabled"] is False
+
 
 def _bot():
     return SimpleNamespace(send_message=AsyncMock())

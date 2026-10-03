@@ -370,6 +370,28 @@ def set_stats_visibility(user_id, value):
     return True
 
 
+def share_habits_enabled(settings_row):
+    """Показывает ли человек друзьям названия привычек и текст целей.
+    По умолчанию — нет."""
+    if not settings_row:
+        return False
+    try:
+        return bool(settings_row["share_habits"])
+    except (IndexError, KeyError):
+        return False
+
+
+def set_share_habits(user_id, enabled):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE settings SET share_habits=? WHERE user_id=?",
+        (1 if enabled else 0, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def set_friend_nudges(user_id, enabled):
     conn = connect()
     cursor = conn.cursor()

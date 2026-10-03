@@ -13655,3 +13655,16 @@ button.up-count:active{opacity:.75}
 .follow-tab.is-active{border-color:rgba(139,108,255,.45);background:rgba(139,108,255,.16);color:#cfc6ff}
 .follow-list-card .friends-list{max-height:min(52vh,380px);overflow-y:auto;margin:0 0 14px;overscroll-behavior:contain}
 :root[data-mode="light"] .follow-list-card{--text:#FFFFFF;--text-muted:#9D9DB3}
+
+/* Профиль друга: привычки и цели (если владелец разрешил друзьям). */
+.up-habits{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.up-habit{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);
+  font-size:13px;color:#EAE5FA;
+}
+.up-habit__mark{flex:0 0 auto;width:20px;text-align:center;font-weight:800;color:#8A8FA3}
+.up-habit.is-done .up-habit__mark{color:#7be3a4}
+.up-habit.is-done .up-habit__title{color:#9EA8BD}
+.up-habit__title{min-width:0;word-break:break-word}
+.up-goals{font-size:13px;line-height:1.5;color:#EAE5FA;white-space:pre-line;word-break:break-word}

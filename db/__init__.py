@@ -140,6 +140,7 @@ from .settings import (
     get_habit_checkpoint_style, update_habit_checkpoint_style,
     get_home_layout, update_home_habits_first, update_home_plan_hidden, VALID_HABIT_CHECKPOINT_STYLES,
     friend_nudges_enabled, set_friend_nudges, get_stats_visibility, set_stats_visibility,
+    share_habits_enabled, set_share_habits,
 )
 
 from .habits import (
@@ -350,7 +351,7 @@ __all__ = [
     "report_user", "MAX_FOLLOWING", "REPORT_REASONS",
     "get_player_profile", "VISIBLE_SECTIONS",
     "friend_nudges_enabled", "set_friend_nudges",
-    "get_stats_visibility", "set_stats_visibility",
+    "get_stats_visibility", "set_stats_visibility", "share_habits_enabled", "set_share_habits",
     "get_churn_risk_report", "CHURN_RISK_LABELS",
     "get_users_by_segment", "SEGMENT_LABELS",
     "get_user_support_card",

@@ -337,6 +337,13 @@ def create_tables():
     if "stats_visibility" not in settings_columns:
         cursor.execute("ALTER TABLE settings ADD COLUMN stats_visibility TEXT DEFAULT 'subscribers'")
 
+    # Показывать ли ДРУЗЬЯМ (взаимная подписка) названия моих привычек и
+    # текст долгосрочных целей. По умолчанию выключено: названия бывают
+    # личными («бросить курить»), а числа — нет. Подписчикам не отдаётся
+    # никогда, даже при включённом показе.
+    if "share_habits" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN share_habits INTEGER DEFAULT 0")
+
     # ---------------- HABITS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS habits(

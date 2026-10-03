@@ -5865,6 +5865,24 @@ function renderUserProfile() {
         <div class="up-card__subtitle">Отмечено привычек по дням</div>
         ${weekBarsHtml(p.chart ? p.chart.labels : [], x.week_completed || [])}
       </section>`;
+    if (x.habits_shared && Array.isArray(x.habits)) {
+      html += `
+      <section class="up-card up-card--friend">
+        <div class="up-card__title">Привычки${rel.self ? " · так видят друзья" : ""}</div>
+        ${x.habits.length
+          ? `<ul class="up-habits">${x.habits.map((h) => `
+              <li class="up-habit${h.done ? " is-done" : ""}">
+                <span class="up-habit__mark">${h.done ? "✓" : (h.skipped ? "⏸" : "○")}</span>
+                <span class="up-habit__title">${escapeHtml(h.title)}</span>
+              </li>`).join("")}</ul>`
+          : `<div class="up-note">Привычек пока нет.</div>`}
+        ${x.goals ? `<div class="up-card__subtitle">Цели</div><div class="up-goals">${escapeHtml(x.goals)}</div>` : ""}
+      </section>`;
+    } else {
+      html += `<div class="up-lock">🙈 ${rel.self
+        ? "Друзья видят только числа. Названия привычек и цели можно открыть им в Настройках."
+        : `${escapeHtml(name)} не показывает друзьям названия привычек и цели.`}</div>`;
+    }
   }
 
   // Подсказки про то, что откроется после подписки / взаимной подписки.
@@ -6117,6 +6135,30 @@ function initStatsVisibilityToggle() {
   });
 }
 
+function initShareHabitsToggle() {
+  const toggle = document.getElementById("shareHabitsToggle");
+  if (!toggle) return;
+  const isOn = () => !!state?.settings?.share_habits;
+  const render = () => {
+    toggle.setAttribute("aria-pressed", isOn() ? "true" : "false");
+    toggle.textContent = isOn() ? "Вкл" : "Выкл";
+  };
+  render();
+  toggle.addEventListener("click", async () => {
+    try {
+      const res = await api("/api/settings/share-habits", {
+        method: "POST",
+        body: JSON.stringify({ enabled: !isOn() }),
+      });
+      if (state.settings) state.settings.share_habits = res.enabled;
+      haptic("light");
+      render();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
 function initFriendNudgesToggle() {
   const toggle = document.getElementById("friendNudgesToggle");
   if (!toggle) return;
@@ -6151,7 +6193,7 @@ function renderSeasonList() {
   }
   const myId = state.user.telegram_id;
   list.innerHTML = rows.map((r, i) => `
-    <li class="rating-item ${r.telegram_id === myId ? "is-me" : ""}">
+    <li class="rating-item ${r.telegram_id === myId ? "is-me" : ""}" data-profile-id="${Number(r.telegram_id)}">
       <span class="rating-item__rank">${i + 1}</span>
       <span class="rating-avatar">${escapeHtml((r.first_name || "A")[0].toUpperCase())}</span>
       <span class="rating-item__name"><span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(r.first_name || r.username || "Игрок")}</span>${r.handle ? `<span class="rating-item__handle">@${escapeHtml(r.handle)}</span>` : ""}</span></span>
@@ -6200,6 +6242,12 @@ function initRatingActions() {
   const list = document.getElementById("ratingList");
   const podium = document.getElementById("ratingPodium");
   if (!list) return;
+
+  // Сезонный лидерборд — тоже тап по игроку открывает профиль.
+  document.getElementById("seasonRatingList")?.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-profile-id]");
+    if (row) openUserProfile(Number(row.dataset.profileId));
+  });
 
   async function sendReaction(targetId, emoji) {
     try {
@@ -6348,6 +6396,7 @@ function initSettingsActions() {
   initQuietHoursActions();
   initFriendNudgesToggle();
   initStatsVisibilityToggle();
+  initShareHabitsToggle();
   initReminderSettingsActions();
   initHabitCheckpointStylePicker();
   initHomeLayoutActions();
