@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261003_STRUGGLE_CHAT_V24">
+<link rel="stylesheet" href="/static/style.css?v=20261003_FRIENDS_V25">
 </head>
 <body>
 
@@ -380,6 +380,10 @@ class="habit-add-form__submit">
 
 <div class="team-card" id="teamCard" hidden></div>
 
+<!-- Друзья (db/friends.py): кто сегодня отметился, кому можно напомнить,
+     «＋ Добавить» — личная ссылка-приглашение. Рисует app.js::renderFriendsCard. -->
+<div class="friends-card" id="friendsCard" hidden></div>
+
 <div class="rating-scope-switch" id="ratingScopeSwitch">
   <button type="button" class="rating-scope-btn is-active" data-scope="alltime">Всё время</button>
   <button type="button" class="rating-scope-btn" data-scope="season">🗓️ Сезон</button>
@@ -662,6 +666,11 @@ class="habit-add-form__submit">
   </div>
 
   <div class="settings-row">
+    <span>👋 Друзья могут напомнить</span>
+    <button type="button" class="settings-quiet-toggle" id="friendNudgesToggle" aria-pressed="true">Вкл</button>
+  </div>
+
+  <div class="settings-row">
     <span>🗒️ Точка дня по привычкам</span>
   </div>
   <div class="ai-style-picker" id="habitCheckpointStylePicker">
@@ -865,6 +874,25 @@ class="habit-add-form__submit">
     <div class="changelog-list" id="changelogList"></div>
     <div class="feedback-actions">
       <button type="button" class="feedback-send-btn" id="changelogClose" style="width:100%">Понятно</button>
+    </div>
+  </section>
+</div>
+
+<!-- «Напомнить друзьям» (по мотивам Duolingo): после первой отметки привычки
+     за день сервер присылает список друзей, которые ещё не отмечались
+     (result.remind_friends) — app.js::scheduleRemindFriends показывает это окно,
+     когда закончатся праздничные экраны. Вне #app по той же причине, что и
+     остальные fixed-шторки (см. комментарий выше про contain на .tab-panel). -->
+<div class="feedback-sheet" id="remindFriendsSheet" hidden aria-hidden="true">
+  <div class="feedback-sheet__backdrop" id="remindFriendsBackdrop"></div>
+  <section class="feedback-card remind-friends-card" role="dialog" aria-modal="true" aria-labelledby="remindFriendsTitle">
+    <div class="freeze-purchase-card__handle"></div>
+    <div class="feedback-card__icon">👋</div>
+    <h3 id="remindFriendsTitle">Напомнить друзьям</h3>
+    <p>У тебя сегодня уже есть отметка, а у этих друзей пока нет. Одно нажатие — и бот напомнит им.</p>
+    <ul class="friends-list" id="remindFriendsList"></ul>
+    <div class="feedback-actions feedback-actions--single">
+      <button type="button" class="freeze-purchase-back" id="remindFriendsClose">Не сейчас</button>
     </div>
   </section>
 </div>
@@ -1177,7 +1205,7 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
-<script type="module" src="/static/app.js?v=20261003_STRUGGLE_CHAT_V28"></script>
+<script type="module" src="/static/app.js?v=20261003_FRIENDS_V29"></script>
 
 </body>
 </html>

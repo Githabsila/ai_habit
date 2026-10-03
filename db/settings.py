@@ -328,3 +328,27 @@ def update_home_plan_hidden(user_id, plan_hidden):
     )
     conn.commit()
     conn.close()
+
+
+# «Напомнить друзьям» (db/friends.py): друзья могут подтолкнуть, если
+# человек сам не выключил это. По умолчанию включено.
+
+def friend_nudges_enabled(settings_row):
+    if not settings_row:
+        return True
+    try:
+        value = settings_row["friend_nudges"]
+    except (IndexError, KeyError):
+        return True
+    return bool(value) if value is not None else True
+
+
+def set_friend_nudges(user_id, enabled):
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE settings SET friend_nudges=? WHERE user_id=?",
+        (1 if enabled else 0, user_id),
+    )
+    conn.commit()
+    conn.close()

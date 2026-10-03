@@ -325,6 +325,11 @@ def create_tables():
     if "home_plan_hidden" not in settings_columns:
         cursor.execute("ALTER TABLE settings ADD COLUMN home_plan_hidden INTEGER DEFAULT 0")
 
+    # «Напомнить друзьям» (db/friends.py): тумблер «разрешить друзьям
+    # подталкивать меня». DEFAULT 1 — включено, как у остальных напоминаний.
+    if "friend_nudges" not in settings_columns:
+        cursor.execute("ALTER TABLE settings ADD COLUMN friend_nudges INTEGER DEFAULT 1")
+
     # ---------------- HABITS ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS habits(
@@ -1005,6 +1010,41 @@ def create_tables():
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_friend_reactions_to ON friend_reactions(to_user_id)"
     )
+
+    # ---------------- Друзья и «Напомнить друзьям» (db/friends.py) ----------------
+    # friendships — симметричная: на пару (A, B) две строки (A→B и B→A),
+    # поэтому «друзья пользователя» — один простой SELECT по user_id.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS friendships(
+        user_id INTEGER NOT NULL,
+        friend_id INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(user_id, friend_id)
+    )
+    """)
+    # day — локальный день ПОЛУЧАТЕЛЯ: «раз в день на пару» и «не больше N в
+    # день одному человеку» считаются по его календарю, а не отправителя.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS friend_nudges(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        from_user_id INTEGER NOT NULL,
+        to_user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(from_user_id, to_user_id, day)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_friend_nudges_to_day ON friend_nudges(to_user_id, day)"
+    )
+    # Окно «Напомнить друзьям» после отметки привычки — раз в день.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS friend_remind_prompts(
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        PRIMARY KEY(user_id, day)
+    )
+    """)
 
     # ---------------- Roadmap #41: feature flags ----------------
     cursor.execute("""

@@ -1,5 +1,6 @@
 import asyncio
 import gzip
+import html
 import json
 import logging
 import os
@@ -78,6 +79,8 @@ from db import (
     get_season_leaderboard, get_season_rank,
     create_team, join_team, leave_team, get_my_team,
     get_friend_activity_feed,
+    get_friends_overview, send_nudge, cancel_nudge, remove_friendship, claim_remind_prompt,
+    friend_nudges_enabled, set_friend_nudges, mark_bot_blocked, is_bot_forbidden_error,
     get_notification_history,
     log_client_error, is_opaque_client_error,
     export_full_account_data, request_account_deletion,
@@ -508,6 +511,7 @@ async def bootstrap(request):
             "home_layout": get_home_layout(telegram_id),
             "language": get_language(telegram_id),
             "gender": get_gender(telegram_id),
+            "friend_nudges": friend_nudges_enabled(settings_row),
             "quiet_hours": (
                 {"start": settings_row["quiet_hours_start"], "end": settings_row["quiet_hours_end"]}
                 if settings_row and "quiet_hours_start" in settings_row.keys()
@@ -1012,6 +1016,7 @@ async def complete_habit_route(request):
         "xp_boosted": success.get("xp_boosted", False),
         "pet": success.get("pet"),
         "hero": get_hero_state(telegram_id),
+        "remind_friends": _remind_friends_payload(telegram_id),
     })
 
 
@@ -1104,6 +1109,7 @@ async def habit_progress_route(request):
         "xp_boosted": result.get("xp_boosted", False),
         "pet": result.get("pet"),
         "hero": get_hero_state(telegram_id),
+        "remind_friends": _remind_friends_payload(telegram_id),
     })
 
 
@@ -1483,6 +1489,105 @@ async def send_reaction_route(request):
         except Exception:
             logger.exception("Не удалось отправить уведомление о реакции")
     return web.json_response({"ok": True})
+
+
+def _remind_friends_payload(telegram_id):
+    """Окно «Напомнить друзьям» в ответе на отметку привычки (см.
+    db/friends.py::claim_remind_prompt): None, если уже показывали сегодня
+    или напоминать некому. Сбой здесь не должен ронять саму отметку."""
+    try:
+        return claim_remind_prompt(telegram_id)
+    except Exception:
+        logger.exception("Не удалось собрать окно «Напомнить друзьям»")
+        return None
+
+
+@routes.get("/api/friends")
+async def friends_route(request):
+    """Карточка «Друзья» (вкладка Рейтинг): друзья и их состояние сегодня
+    + личная ссылка-приглашение."""
+    telegram_id, _ = await _authenticate(request)
+    overview = get_friends_overview(telegram_id)
+    username = await _get_bot_username(request.app.get("bot"))
+    return web.json_response({
+        "friends": overview["friends"],
+        "viewer_done": overview["viewer_done"],
+        "invite_url": f"https://t.me/{username}?start=friend_{telegram_id}" if username else None,
+        "nudges_enabled": friend_nudges_enabled(get_settings(telegram_id)),
+    })
+
+
+@routes.post("/api/friends/{telegram_id}/nudge")
+async def friend_nudge_route(request):
+    """«Напомнить» другу, который сегодня ещё не отмечался. Раз в день на
+    пару, только после собственной отметки — правила в db/friends.py."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        target_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return web.json_response({"error": "invalid_target"}, status=400)
+
+    result = send_nudge(telegram_id, target_id)
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=400)
+
+    bot = request.app.get("bot")
+    if bot is not None:
+        sender = get_user(telegram_id)
+        sender_name = html.escape(
+            ((sender["first_name"] if sender else None) or (sender["username"] if sender else None) or "Друг")
+        )
+        markup = None
+        if WEBAPP_URL:
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+            markup = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="🔥 Открыть ADAM", web_app=WebAppInfo(url=WEBAPP_URL)),
+            ]])
+        try:
+            await bot.send_message(
+                target_id,
+                f"👋 <b>{sender_name}</b> уже отметил(а) привычку в ADAM — а у тебя сегодня пока нет отметок. "
+                "Заходи, догоняй! 🔥",
+                parse_mode="HTML",
+                reply_markup=markup,
+            )
+        except Exception as exc:
+            # Не доставили — возвращаем возможность напомнить позже и
+            # честно говорим отправителю, что напоминание не ушло.
+            cancel_nudge(telegram_id, target_id)
+            if is_bot_forbidden_error(exc):
+                mark_bot_blocked(target_id)
+            else:
+                logger.warning(f"Не удалось отправить напоминание {telegram_id}->{target_id}", exc_info=True)
+            return web.json_response({"error": "delivery_failed"}, status=502)
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/friends/{telegram_id}/remove")
+async def friend_remove_route(request):
+    """Убрать друга (только добавленного по ссылке; участники команды
+    уходят вместе с выходом из команды)."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        target_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    if not remove_friendship(telegram_id, target_id):
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response({"ok": True})
+
+
+@routes.post("/api/settings/friend-nudges")
+async def set_friend_nudges_route(request):
+    """Разрешить/запретить друзьям подталкивать тебя. body: {"enabled": bool}."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    enabled = bool(body.get("enabled"))
+    set_friend_nudges(telegram_id, enabled)
+    return web.json_response({"ok": True, "enabled": enabled})
 
 
 @routes.get("/api/reactions")

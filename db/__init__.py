@@ -88,6 +88,12 @@ from .teams import (
 
 from .activity_feed import log_activity_event, get_friend_activity_feed, EVENT_LABELS
 
+from .friends import (
+    add_friendship, remove_friendship, are_friends, get_friend_sources,
+    get_friends_overview, send_nudge, cancel_nudge, claim_remind_prompt,
+    MAX_FRIENDS, MAX_NUDGES_PER_DAY,
+)
+
 from .admin_support import (
     get_churn_risk_report, CHURN_RISK_LABELS,
     get_users_by_segment, SEGMENT_LABELS,
@@ -125,6 +131,7 @@ from .settings import (
     get_color_mode, update_color_mode, VALID_COLOR_MODES,
     get_habit_checkpoint_style, update_habit_checkpoint_style,
     get_home_layout, update_home_habits_first, update_home_plan_hidden, VALID_HABIT_CHECKPOINT_STYLES,
+    friend_nudges_enabled, set_friend_nudges,
 )
 
 from .habits import (
@@ -327,6 +334,10 @@ __all__ = [
     "create_team", "join_team", "leave_team", "get_my_team",
     "MAX_TEAM_MEMBERS", "MAX_TEAM_NAME_LENGTH",
     "log_activity_event", "get_friend_activity_feed", "EVENT_LABELS",
+    "add_friendship", "remove_friendship", "are_friends", "get_friend_sources",
+    "get_friends_overview", "send_nudge", "cancel_nudge", "claim_remind_prompt",
+    "MAX_FRIENDS", "MAX_NUDGES_PER_DAY",
+    "friend_nudges_enabled", "set_friend_nudges",
     "get_churn_risk_report", "CHURN_RISK_LABELS",
     "get_users_by_segment", "SEGMENT_LABELS",
     "get_user_support_card",

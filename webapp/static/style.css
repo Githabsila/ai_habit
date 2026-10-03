@@ -13459,3 +13459,62 @@ body.onboarding-scroll-lock{
   -webkit-tap-highlight-color:transparent;
 }
 .struggling-habit-banner__open:active{opacity:.72}
+
+/* =========================================================
+   Друзья и «Напомнить друзьям» (db/friends.py)
+   Карточка на вкладке Рейтинг и окно после первой отметки дня.
+   Без blur/бесконечных анимаций — как и остальные новые блоки (слабые
+   Android WebView).
+   ========================================================= */
+.friends-card{
+  margin-bottom:14px;padding:16px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.07);
+  background:linear-gradient(145deg,rgba(35,31,48,.88),rgba(17,15,24,.88));
+}
+.friends-card[hidden]{display:none !important}
+.friends-card{border-radius:var(--duo-radius-lg,20px) !important;border:var(--duo-border-w,1px) solid rgba(139,92,246,.32) !important}
+:root[data-mode="light"] .friends-card,
+:root[data-mode="light"] .remind-friends-card{--text:#FFFFFF;--text-muted:#9D9DB3}
+.friends-card__head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.friends-card__title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:#fff}
+.friends-card__add{
+  flex:0 0 auto;height:32px;padding:0 14px;border-radius:999px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#8e70ff,#6847dc);color:#fff;
+  font:800 12px 'Space Grotesk',sans-serif;-webkit-tap-highlight-color:transparent;
+}
+.friends-card__add:active{opacity:.8}
+.friends-card__hint{font-size:11.5px;line-height:1.45;color:var(--text-muted,#9D9DB3);margin:-2px 0 12px}
+.friends-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.friend-row{
+  display:flex;align-items:center;gap:10px;min-width:0;
+  padding:8px 10px;border-radius:12px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+}
+.friend-row__avatar{
+  flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  background:linear-gradient(135deg,#8e70ff,#6847dc);color:#fff;
+  font:800 14px 'Space Grotesk',sans-serif;
+}
+.friend-row__info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.friend-row__name{
+  font-size:12.5px;font-weight:700;color:var(--text,#EAE5FA);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.friend-row__meta{font-size:10.5px;color:var(--text-muted,#9D9DB3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.friend-row__btn{
+  flex:0 0 auto;height:30px;padding:0 13px;border-radius:999px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#8e70ff,#6847dc);color:#fff;
+  font:800 11.5px 'Space Grotesk',sans-serif;-webkit-tap-highlight-color:transparent;
+}
+.friend-row__btn:active{opacity:.8}
+.friend-row__btn:disabled{opacity:.45;cursor:default}
+.friend-row__tag{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--text-muted,#9D9DB3);white-space:nowrap}
+.friend-row__tag--sent{color:#7be3a4}
+.friend-row__remove{
+  flex:0 0 auto;width:28px;height:28px;margin-right:-4px;border:0;border-radius:8px;
+  background:none;color:var(--text-muted,#9D9DB3);font-size:12px;opacity:.6;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.friend-row__remove:active{opacity:1}
+.remind-friends-card .friends-list{max-height:min(46vh,340px);overflow-y:auto;margin:0 0 14px;overscroll-behavior:contain}
+.feedback-actions--single{grid-template-columns:1fr}

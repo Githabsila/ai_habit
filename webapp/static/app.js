@@ -4064,6 +4064,15 @@ async function celebrateHabitCompletion(result) {
       showToast(`👉 Может, теперь «${result.chain_suggestion.title}»?`, "success", 4000);
     }, result.perfect_day_message ? 6800 : 2400);
   }
+  // «Напомнить друзьям»: сервер присылает окно один раз в день, и только
+  // если есть кому напомнить (db/friends.py::claim_remind_prompt). Заодно
+  // карточка «Друзья» узнаёт, что сегодня ты уже отметился — кнопки
+  // «Напомнить» в ней становятся активными без перезагрузки.
+  if (friendsData) {
+    friendsData.viewer_done = true;
+    renderFriendsCard();
+  }
+  if (result.remind_friends) scheduleRemindFriends(result.remind_friends);
 }
 
 // Раньше ЛЮБАЯ отметка привычки (в том числе просто +1 к счётчику, ещё
@@ -5006,6 +5015,12 @@ function initPlanActions() {
     already_reacted_today: "You already cheered this player today — try again tomorrow",
     invalid_reaction: "Couldn't send support",
     invalid_target: "Player not found",
+    sender_not_done: "Log one of your habits first — then you can nudge friends",
+    already_reminded: "You already nudged this friend today",
+    already_done: "Your friend already checked in today",
+    unavailable: "Can't send a reminder right now",
+    not_friends: "This person is no longer your friend",
+    delivery_failed: "Couldn't deliver the reminder — try again later",
     invalid_format: "Only latin letters, digits and \"_\", 3 to 20 characters",
     taken: "This handle is already taken",
     not_enough_xp: "Not enough Adam Coin",
@@ -5040,6 +5055,12 @@ function initPlanActions() {
         already_reacted_today: "Сегодня ты уже поддержал этого игрока — можно снова завтра",
         invalid_reaction: "Не получилось отправить поддержку",
         invalid_target: "Игрок не найден",
+        sender_not_done: "Сначала отметь свою привычку — и сможешь напомнить друзьям",
+        already_reminded: "Сегодня ты уже напоминал(а) этому другу",
+        already_done: "Друг уже отметился сегодня",
+        unavailable: "Сейчас напомнить не получится",
+        not_friends: "Этот человек больше не в друзьях",
+        delivery_failed: "Не получилось доставить напоминание — попробуй позже",
         invalid_format: "Только латиница, цифры и «_», от 3 до 20 символов",
         taken: "Этот ник уже занят",
         not_enough_xp: "Не хватает Adam Coin",
@@ -5345,7 +5366,8 @@ async function loadTeamAndSeason() {
       state.season = data;
       renderSeasonList();
     }).catch(err => console.error("loadSeason failed:", err));
-    await Promise.allSettled([teamPromise, seasonPromise]);
+    const friendsPromise = loadFriendsCard();
+    await Promise.allSettled([teamPromise, seasonPromise, friendsPromise]);
     return state;
   })();
   try {
@@ -5419,6 +5441,257 @@ function renderTeamCard() {
       haptic("light");
       await loadTeamAndSeason();
     } catch (err) { showToast(friendlyError(err), "error"); }
+  });
+}
+
+// ===================== ДРУЗЬЯ И «НАПОМНИТЬ ДРУЗЬЯМ» =====================
+// Друг — тот, кого добавили по личной ссылке, плюс участники команды (см.
+// db/friends.py). Карточка живёт на вкладке Рейтинг. После первой отметки
+// привычки за день сервер может прислать result.remind_friends — тогда
+// снизу выезжает окно «Напомнить друзьям» со списком тех, кто сегодня ещё
+// не отмечался (как в Duolingo). Причину «нельзя напомнить» сервер не
+// раскрывает, поэтому у таких друзей просто нет кнопки.
+let friendsData = null;
+let remindSheetFriends = [];
+let remindSheetTimer = null;
+
+function friendRowHtml(f, { viewerDone = true, showRemove = false } = {}) {
+  const id = Number(f.telegram_id);
+  const initial = escapeHtml(String(f.first_name || "Д").trim().charAt(0).toUpperCase() || "Д");
+  const meta = [
+    f.handle ? `@${escapeHtml(f.handle)}` : "",
+    Number(f.streak) > 0 ? `🔥 ${Number(f.streak)}` : "",
+  ].filter(Boolean).join(" · ");
+  let action = "";
+  if (f.state === "can_remind") {
+    action = `<button type="button" class="friend-row__btn" data-nudge="${id}"${viewerDone ? "" : " disabled"}>Напомнить</button>`;
+  } else if (f.state === "reminded") {
+    action = `<span class="friend-row__tag friend-row__tag--sent">Напомнили ✓</span>`;
+  } else if (f.state === "done") {
+    action = `<span class="friend-row__tag">✓ Отмечено</span>`;
+  }
+  const remove = showRemove && f.can_remove
+    ? `<button type="button" class="friend-row__remove" data-friend-remove="${id}" aria-label="Убрать из друзей">✕</button>`
+    : "";
+  return `
+    <li class="friend-row" data-friend-id="${id}">
+      <span class="friend-row__avatar">${initial}</span>
+      <span class="friend-row__info">
+        <span class="friend-row__name">${escapeHtml(f.first_name || "Друг")}</span>
+        ${meta ? `<span class="friend-row__meta">${meta}</span>` : ""}
+      </span>
+      ${action}${remove}
+    </li>`;
+}
+
+function renderFriendsCard() {
+  const box = document.getElementById("friendsCard");
+  if (!box) return;
+  if (!friendsData) { box.hidden = true; return; }
+  box.hidden = false;
+  const friends = friendsData.friends || [];
+  const waiting = friends.some(f => f.state === "can_remind");
+  let hint = "";
+  if (!friends.length) {
+    hint = "Добавь друга по ссылке — вы увидите, кто сегодня отметился, и сможете подталкивать друг друга.";
+  } else if (waiting && !friendsData.viewer_done) {
+    hint = "Отметь свою привычку — и сможешь напомнить друзьям, которые ещё не начали день.";
+  }
+  box.innerHTML = `
+    <div class="friends-card__head">
+      <div class="friends-card__title">👥 Друзья</div>
+      <button type="button" class="friends-card__add" id="friendsAddBtn">＋ Добавить</button>
+    </div>
+    ${hint ? `<div class="friends-card__hint">${hint}</div>` : ""}
+    ${friends.length ? `<ul class="friends-list">${friends.map(f => friendRowHtml(f, { viewerDone: !!friendsData.viewer_done, showRemove: true })).join("")}</ul>` : ""}`;
+}
+
+async function loadFriendsCard() {
+  try {
+    friendsData = await api("/api/friends", { timeoutMs: 8000 });
+    renderFriendsCard();
+  } catch (err) {
+    console.error("loadFriends failed:", err);
+  }
+}
+
+function setFriendState(friendId, nextState) {
+  const apply = (f) => { if (Number(f.telegram_id) === friendId) f.state = nextState; };
+  (friendsData?.friends || []).forEach(apply);
+  remindSheetFriends.forEach(apply);
+  renderFriendsCard();
+  renderRemindList();
+}
+
+async function nudgeFriend(friendId, button) {
+  if (button) button.disabled = true;
+  try {
+    await api(`/api/friends/${friendId}/nudge`, { method: "POST" });
+    haptic("medium");
+    showToast("Напоминание отправлено 👋", "success");
+    setFriendState(friendId, "reminded");
+  } catch (err) {
+    const code = err?.data?.error;
+    if (code === "already_reminded") setFriendState(friendId, "reminded");
+    else if (code === "already_done") setFriendState(friendId, "done");
+    else if (button) button.disabled = false;
+    showToast(friendlyError(err), "error");
+  }
+}
+
+async function openFriendInvite() {
+  haptic("light");
+  let link = friendsData?.invite_url || "";
+  if (!link && state?.bot_username && state?.user?.telegram_id) {
+    link = `https://t.me/${state.bot_username}?start=friend_${state.user.telegram_id}`;
+  }
+  if (!link) {
+    try {
+      const data = await api("/api/friends", { timeoutMs: 8000 });
+      friendsData = data;
+      link = data.invite_url || "";
+    } catch (_) { /* ниже — сообщение об ошибке */ }
+  }
+  if (!link) {
+    showToast("Не получилось собрать ссылку — попробуй чуть позже", "error");
+    return;
+  }
+  const text = "Давай держать привычки вместе в ADAM — добавляйся в друзья:";
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+  if (tg && typeof tg.openTelegramLink === "function") {
+    tg.openTelegramLink(shareUrl);
+  } else {
+    window.open(shareUrl, "_blank");
+  }
+}
+
+// Окно после отметки. Праздничные экраны (серия, новый уровень) важнее и
+// закрываются сами или по кнопке — ждём, пока они уйдут, плюс пару секунд
+// тишины, чтобы окно не наехало на тосты с монетами.
+const REMIND_BLOCKING_OVERLAYS = [
+  "streakCelebrationOverlay", "doubleBonusOverlay", "levelupOverlay", "streakOnboardingOverlay",
+  "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
+  "handleIntroOverlay", "heroLightbox",
+];
+
+function celebrationOverlayOpen() {
+  // pendingBonusIntro — окно «Удвоение очков» откроется сразу после того,
+  // как закроют праздник серии; в этот зазор оно уже «ждёт своей очереди».
+  if (pendingBonusIntro) return true;
+  if (REMIND_BLOCKING_OVERLAYS.some(id => {
+    const el = document.getElementById(id);
+    return !!el && !el.hidden;
+  })) return true;
+  return !!document.querySelector(
+    ".feedback-sheet.is-open, .freeze-purchase-sheet.is-open, .daily-quests-overlay.is-open"
+  );
+}
+
+function scheduleRemindFriends(payload) {
+  const friends = payload?.friends;
+  if (!Array.isArray(friends) || !friends.length) return;
+  remindSheetFriends = friends.map(f => ({ ...f }));
+  clearInterval(remindSheetTimer);
+  const startedAt = Date.now();
+  let quietTicks = 0;
+  remindSheetTimer = setInterval(() => {
+    if (Date.now() - startedAt > 5 * 60 * 1000) {
+      clearInterval(remindSheetTimer);
+      remindSheetTimer = null;
+      return;
+    }
+    if (celebrationOverlayOpen() || document.hidden) { quietTicks = 0; return; }
+    quietTicks += 1;
+    if (quietTicks < 4) return;
+    clearInterval(remindSheetTimer);
+    remindSheetTimer = null;
+    openRemindSheet();
+  }, 800);
+}
+
+function renderRemindList() {
+  const list = document.getElementById("remindFriendsList");
+  if (!list) return;
+  list.innerHTML = remindSheetFriends.map(f => friendRowHtml(f)).join("");
+  const closeBtn = document.getElementById("remindFriendsClose");
+  if (closeBtn) {
+    closeBtn.textContent = remindSheetFriends.some(f => f.state === "can_remind") ? "Не сейчас" : "Готово";
+  }
+}
+
+function openRemindSheet() {
+  const sheet = document.getElementById("remindFriendsSheet");
+  if (!sheet || !remindSheetFriends.length) return;
+  renderRemindList();
+  sheet.hidden = false;
+  sheet.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => sheet.classList.add("is-open"));
+  haptic("light");
+}
+
+function closeRemindSheet() {
+  const sheet = document.getElementById("remindFriendsSheet");
+  if (!sheet || sheet.hidden) return;
+  haptic("light");
+  sheet.classList.remove("is-open");
+  sheet.setAttribute("aria-hidden", "true");
+  setTimeout(() => { sheet.hidden = true; }, 230);
+}
+
+function initFriendsActions() {
+  const card = document.getElementById("friendsCard");
+  card?.addEventListener("click", async (e) => {
+    if (e.target.closest("#friendsAddBtn")) {
+      await openFriendInvite();
+      return;
+    }
+    const nudgeBtn = e.target.closest("[data-nudge]");
+    if (nudgeBtn) {
+      await nudgeFriend(Number(nudgeBtn.dataset.nudge), nudgeBtn);
+      return;
+    }
+    const removeBtn = e.target.closest("[data-friend-remove]");
+    if (removeBtn) {
+      if (!confirm("Убрать из друзей?")) return;
+      try {
+        await api(`/api/friends/${Number(removeBtn.dataset.friendRemove)}/remove`, { method: "POST" });
+        haptic("light");
+        await loadFriendsCard();
+      } catch (err) {
+        showToast(friendlyError(err), "error");
+      }
+    }
+  });
+
+  document.getElementById("remindFriendsList")?.addEventListener("click", async (e) => {
+    const nudgeBtn = e.target.closest("[data-nudge]");
+    if (nudgeBtn) await nudgeFriend(Number(nudgeBtn.dataset.nudge), nudgeBtn);
+  });
+  document.getElementById("remindFriendsClose")?.addEventListener("click", closeRemindSheet);
+  document.getElementById("remindFriendsBackdrop")?.addEventListener("click", closeRemindSheet);
+}
+
+function initFriendNudgesToggle() {
+  const toggle = document.getElementById("friendNudgesToggle");
+  if (!toggle) return;
+  const isOn = () => state?.settings?.friend_nudges !== false;
+  const render = () => {
+    toggle.setAttribute("aria-pressed", isOn() ? "true" : "false");
+    toggle.textContent = isOn() ? "Вкл" : "Выкл";
+  };
+  render();
+  toggle.addEventListener("click", async () => {
+    try {
+      const res = await api("/api/settings/friend-nudges", {
+        method: "POST",
+        body: JSON.stringify({ enabled: !isOn() }),
+      });
+      if (state.settings) state.settings.friend_nudges = res.enabled;
+      haptic("light");
+      render();
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
   });
 }
 
@@ -5617,6 +5890,7 @@ function initSettingsActions() {
   });
 
   initQuietHoursActions();
+  initFriendNudgesToggle();
   initReminderSettingsActions();
   initHabitCheckpointStylePicker();
   initHomeLayoutActions();
@@ -6367,6 +6641,7 @@ async function boot() {
             initDailyQuestActions();
             initRatingActions();
             initRatingScopeSwitch();
+            initFriendsActions();
             initArchetypeQuizActions();
             initPlanActions();
             initShopActions();
