@@ -2899,9 +2899,6 @@ body[data-theme="violet"] .player-card{
    чтобы не было рассинхронизации между несколькими переопределениями. */
 .streak-day{position:relative;min-width:0}
 .streak-widget__bottom{display:flex;justify-content:space-between;gap:10px;margin-top:11px;font-size:11px;color:var(--text-muted)}
-.streak-widget__monthly{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:#c9b8ff}
-.streak-widget__monthly[hidden]{display:none}
-.streak-widget__monthly b{color:#e4d6ff;font-weight:800}
 .streak-profile-card{display:flex;gap:14px;align-items:center;margin:0 0 20px;padding:16px;border-radius:22px;background:linear-gradient(145deg,rgba(30,30,45,.95),rgba(18,18,27,.95));border:1px solid rgba(255,255,255,.06)}
 .streak-profile-avatar{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;font:800 24px 'Space Grotesk',sans-serif;background:#242438;position:relative;box-shadow:0 0 0 3px rgba(255,122,24,.22),0 0 24px rgba(255,122,24,.14)}
 .streak-profile-info{min-width:0}.streak-profile-status{font-weight:800;font-size:17px}.streak-profile-frame{font-size:12px;color:#A9A9BC;margin-top:5px}
@@ -13668,3 +13665,44 @@ button.up-count:active{opacity:.75}
 .up-habit.is-done .up-habit__title{color:#9EA8BD}
 .up-habit__title{min-width:0;word-break:break-word}
 .up-goals{font-size:13px;line-height:1.5;color:#EAE5FA;white-space:pre-line;word-break:break-word}
+
+/* =========================================================
+   Задания месяца (db/month_quests.py) — карточка в модалке квестов дня:
+   прогресс по месяцу и 4 сундука на отметках 15/30/45/60. Без CSS-filter
+   и бесконечных анимаций (слабые Android WebView).
+   ========================================================= */
+.month-card{
+  margin-top:14px;padding:14px;border-radius:18px;
+  background:linear-gradient(145deg,rgba(35,31,48,.88),rgba(17,15,24,.88));
+  border:1px solid rgba(255,255,255,.08);
+}
+.month-card[hidden]{display:none}
+.month-card__head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+.month-card__title{font:800 14px 'Space Grotesk',sans-serif;color:#fff}
+.month-card__count{font:800 15px 'Space Grotesk',sans-serif;color:#FFD54F}
+.month-card__track{position:relative;height:86px;margin:0 26px 6px}
+.month-card__bar{position:absolute;left:0;right:0;top:12px;height:10px;border-radius:999px;background:rgba(255,255,255,.09);overflow:hidden}
+.month-card__bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#FFB02E,#FFD54F);transition:width .3s ease}
+.month-chest{
+  position:absolute;top:0;transform:translateX(-50%);min-width:46px;
+  display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;
+}
+.month-chest__icon{
+  width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:17px;
+  background:#25253A;border:2px solid rgba(255,255,255,.12);opacity:.62;
+}
+.month-chest__at{font:800 11px 'Space Grotesk',sans-serif;color:#9EA8BD}
+.month-chest__reward{font-size:10px;color:#8A8FA3;white-space:nowrap}
+.month-chest.is-ready .month-chest__icon{opacity:1;border-color:#FFD54F;background:rgba(255,213,79,.18);box-shadow:0 0 0 3px rgba(255,213,79,.16)}
+.month-chest.is-ready .month-chest__at{color:#FFD54F}
+.month-chest.is-claimed .month-chest__icon{opacity:1;border-color:#7be3a4;background:rgba(123,227,164,.12);color:#7be3a4;font-weight:800}
+.month-card__open{
+  width:100%;height:46px;margin-top:4px;border:none;border-radius:14px;cursor:pointer;
+  background:linear-gradient(135deg,#8e70ff,#6847dc);color:#fff;
+  font:800 14px 'Space Grotesk',sans-serif;box-shadow:0 6px 16px rgba(104,71,220,.3);
+  -webkit-tap-highlight-color:transparent;
+}
+.month-card__open[hidden]{display:none}
+.month-card__open:disabled{opacity:.55}
+.month-card__open:active{opacity:.85}
+.month-card__hint{margin-top:10px;font-size:11.5px;line-height:1.45;color:#9EA8BD;text-align:center}

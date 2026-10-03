@@ -598,9 +598,10 @@
       // Награду можно забрать хотя бы у одного квеста — подсвечиваем
       // кнопку ДО открытия, чтобы было заметно, что там что-то ждёт
       // (просьба пользователя: "чтобы бросалось в глаза").
-      const claimable = quests.some(q => q.completed && !q.claimed);
+      const claimable = quests.some(q => q.completed && !q.claimed) || (state.month_quests?.claimable > 0);
       btn.classList.toggle("has-claimable", claimable);
     }
+    renderMonthCard();
     list.innerHTML = quests.map(q => {
       const pct = Math.min(100, Math.round(100 * q.progress / q.target));
       const stateClass = q.claimed ? "is-claimed" : (q.completed ? "is-ready" : "");
@@ -619,6 +620,72 @@
         }
       </li>`;
     }).join("");
+  }
+
+  // «Задания месяца» (db/month_quests.py): прогресс по уже забранным
+  // ежедневным заданиям и 4 сундука по пути. Живёт в модалке квестов дня.
+  function monthChestLabel(chest) {
+    const parts = [`+${chest.coins}`];
+    if (chest.diamonds) parts.push(`💎${chest.diamonds}`);
+    return parts.join(" ");
+  }
+
+  function renderMonthCard() {
+    const card = document.getElementById("monthCard");
+    const mq = state?.month_quests;
+    if (!card) return;
+    if (!mq) { card.hidden = true; return; }
+    card.hidden = false;
+    const title = document.getElementById("monthCardTitle");
+    const count = document.getElementById("monthCardCount");
+    const track = document.getElementById("monthCardTrack");
+    const openBtn = document.getElementById("monthCardOpen");
+    const hint = document.getElementById("monthCardHint");
+    if (title) title.textContent = mq.title || "Задания месяца";
+    if (count) count.textContent = `${Math.min(mq.points, mq.goal)} / ${mq.goal}`;
+    const pct = Math.min(100, Math.round(100 * mq.points / mq.goal));
+    if (track) {
+      track.innerHTML = `
+        <div class="month-card__bar"><div class="month-card__bar-fill" style="width:${pct}%"></div></div>
+        ${mq.chests.map((ch) => {
+          const left = Math.round(100 * ch.at / mq.goal);
+          const stateClass = ch.claimed ? "is-claimed" : (ch.reached ? "is-ready" : "");
+          return `<div class="month-chest ${stateClass}" style="left:${left}%">
+            <span class="month-chest__icon">${ch.claimed ? "✓" : (ch.final ? "🏆" : "🎁")}</span>
+            <span class="month-chest__at">${ch.at}</span>
+            <span class="month-chest__reward">${monthChestLabel(ch)}</span>
+          </div>`;
+        }).join("")}`;
+    }
+    const nextChest = mq.chests.find((ch) => ch.reached && !ch.claimed);
+    if (openBtn) {
+      openBtn.hidden = !nextChest;
+      openBtn.dataset.chest = nextChest ? String(nextChest.at) : "";
+    }
+    if (hint) {
+      const daysLeft = Number(mq.days_left);
+      hint.textContent = nextChest
+        ? `Сундук готов! Открой его до конца месяца (осталось ${daysLeft} дн.).`
+        : `Выполняй ежедневные задания — сундук за каждые 15. Сундуки открываются до конца месяца (осталось ${daysLeft} дн.).`;
+    }
+  }
+
+  // Принять свежие данные месяца; если по дороге открылся новый сундук —
+  // сказать об этом.
+  function applyMonthQuests(next) {
+    const previous = state.month_quests;
+    state.month_quests = next;
+    if (previous && previous.month_key === next.month_key) {
+      const reachedBefore = new Set(previous.chests.filter((c) => c.reached).map((c) => c.at));
+      const fresh = next.chests.find((c) => c.reached && !reachedBefore.has(c.at));
+      if (fresh) setTimeout(() => showToast("🎁 Сундук месяца готов — открой его в квестах дня", "praise", 4200), 1400);
+    }
+    renderMonthCard();
+    const btn = document.getElementById("dailyQuestsBtn");
+    if (btn) {
+      const dailyClaimable = (state.daily_quests || []).some((q) => q.completed && !q.claimed);
+      btn.classList.toggle("has-claimable", dailyClaimable || next.claimable > 0);
+    }
   }
 
   // Аватар-наставник ADAM вместо питомца-птенца (эмодзи 🥚→🐣→🐥→🦅). Картинка
@@ -1258,21 +1325,6 @@
     if (metricStreak) metricStreak.textContent = streakDays;
     if (metricFreeze) metricFreeze.textContent = `${streak.freeze_balance || 0}/2`;
     if (metricReward) metricReward.textContent = reward ? `${reward.milestone} дн.` : "—";
-
-    // Пром 8 (доп.): счётчик "идеальных дней месяца" (2+ привычки подряд).
-    // Показываем только если есть хоть один балл — иначе просто шум для
-    // тех, кто ещё не встретил механику удвоения.
-    const monthly = state?.monthly_progress;
-    const monthlyRow = document.getElementById("monthlyProgressRow");
-    const monthlyLabel = document.getElementById("monthlyProgressLabel");
-    if (monthlyRow && monthlyLabel) {
-      if (monthly && monthly.points > 0) {
-        monthlyRow.hidden = false;
-        monthlyLabel.textContent = `${monthly.points}/${monthly.total}`;
-      } else {
-        monthlyRow.hidden = true;
-      }
-    }
   }
 
   function openStreakCelebration(event) {
@@ -4054,10 +4106,6 @@ async function celebrateHabitCompletion(result) {
   if (result.perfect_day_message) {
     setTimeout(() => showToast(result.perfect_day_message, "praise", 4200), 2400);
   }
-  if (result.month_end_reward?.message) {
-    setTimeout(() => showToast(result.month_end_reward.message, "praise", 5500),
-      result.perfect_day_message ? 6800 : 2400);
-  }
   // Roadmap #7 — цепочки привычек: мягкая подсказка "сделал А → предложи Б".
   if (result.chain_suggestion) {
     setTimeout(() => {
@@ -4126,7 +4174,7 @@ function applyActionPatch(result) {
   }
   if (result.daily_quests) state.daily_quests = result.daily_quests;
   if (result.streak) state.streak = result.streak;
-  if (result.monthly_progress) state.monthly_progress = result.monthly_progress;
+  if (result.month_quests) applyMonthQuests(result.month_quests);
   if (result.pet) state.pet = result.pet;
   const previousHero = state.hero;
   if (result.hero) state.hero = result.hero;
@@ -4246,6 +4294,27 @@ function compressImageToDataUrl(file) {
 function initDailyQuestActions() {
   const list = document.getElementById("dailyQuestsList");
   if (!list) return;
+
+  document.getElementById("monthCardOpen")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const at = Number(btn.dataset.chest);
+    if (!at) return;
+    btn.disabled = true;
+    try {
+      const result = await api("/api/month-quests/claim", { method: "POST", body: JSON.stringify({ at }) });
+      haptic("medium");
+      const r = result.reward;
+      const parts = [`+${r.coins} Adam Coin`];
+      if (r.diamonds) parts.push(`+${r.diamonds} 💎`);
+      showToast(`🎁 ${parts.join(", ")}`, "praise", 3800);
+      if (r.badge) setTimeout(() => showToast(`🏆 Значок «${r.badge}» — в твоих достижениях`, "praise", 4500), 3000);
+      applyActionPatch(result);
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
   list.addEventListener("click", async (e) => {
     const btn = e.target.closest(".daily-quest__claim");
     if (!btn) return;
@@ -5021,6 +5090,9 @@ function initPlanActions() {
     unavailable: "Can't send a reminder right now",
     not_friends: "This person is no longer your friend",
     delivery_failed: "Couldn't deliver the reminder — try again later",
+    invalid_chest: "No such chest",
+    not_reached: "The chest is still locked — complete more quests",
+    already_claimed: "This chest is already open",
     self: "That's you 🙂",
     blocked: "You blocked this player — unblock first",
     limit: "You've reached the follow limit",
@@ -5068,6 +5140,9 @@ function initPlanActions() {
         unavailable: "Сейчас напомнить не получится",
         not_friends: "Этот человек больше не в друзьях",
         delivery_failed: "Не получилось доставить напоминание — попробуй позже",
+        invalid_chest: "Такого сундука нет",
+        not_reached: "Сундук ещё закрыт — выполни больше заданий",
+        already_claimed: "Этот сундук уже открыт",
         self: "Это ты сам(а) 🙂",
         blocked: "Ты заблокировал(а) этого игрока — сначала разблокируй",
         limit: "Достигнут предел подписок",

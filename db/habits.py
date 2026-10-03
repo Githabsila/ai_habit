@@ -13,6 +13,8 @@ BONUS_WINDOW_MINUTES = 30
 
 # Пром 10.2: максимум привычек в обычной версии + анти-абузная защита.
 MAX_HABITS = 10
+# «Идеальный день» (короткое поздравление) — когда закрыты все привычки и их было не меньше стольких.
+PERFECT_DAY_MIN_HABITS = 2
 
 # Просьба пользователя: раньше название привычки ничем не ограничивалось,
 # в списке уезжало в многострочный текст. Обрезаем молча (тот же приём,
@@ -545,7 +547,6 @@ def update_streak(user_id):
 
 def complete_habit(habit_id):
     from .streak import get_bonus_window, set_bonus_window, local_today, day_key
-    from .monthly_streak import record_multi_habit_day, MULTI_HABIT_THRESHOLD
 
     conn = connect()
     cursor = conn.cursor()
@@ -676,18 +677,11 @@ def complete_habit(habit_id):
         from .activity_feed import log_activity_event
         log_activity_event(user_id, "streak_milestone", {"detail": f"{streak_after} дней подряд"})
 
-    # Пром 8 (доп.): 1 балл к месячному счётчику за каждый локальный день,
-    # в который закрыто 2+ привычки (см. db/monthly_streak.py). А если
-    # сегодня закрыты ВСЕ привычки и их было 2+ — короткое поздравление
-    # "идеальный страйк дня" (реализовано отдельно от месячных баллов).
+    # Если сегодня закрыты ВСЕ привычки и их было 2+ — короткое поздравление
+    # «идеальный день». (Раньше такие дни ещё копились в месячный счётчик
+    # «идеального месяца» — его заменили Заданиями месяца, db/month_quests.py.)
     completed_today = total_habits - remaining_incomplete
-    if completed_today >= MULTI_HABIT_THRESHOLD:
-        record_multi_habit_day(user_id, day_key(local_today(user_id)))
-    # Тост "+1 балл к месяцу" показываем только в момент пересечения порога
-    # (иначе он повторялся бы на каждой следующей привычке того же дня —
-    # балл-то всё равно только один в день).
-    monthly_point_awarded = completed_today == MULTI_HABIT_THRESHOLD
-    perfect_day = remaining_incomplete == 0 and completed_today >= MULTI_HABIT_THRESHOLD
+    perfect_day = remaining_incomplete == 0 and completed_today >= PERFECT_DAY_MIN_HABITS
 
     # Roadmap #7 — цепочки привычек: "сделал А → предложи Б". Если на эту
     # привычку как на триггер настроена другая (chain_trigger_habit_id) и
@@ -717,7 +711,6 @@ def complete_habit(habit_id):
         "completed_today": completed_today,
         "bonus_active": bool(new_window_until),
         "bonus_until": new_window_until.isoformat() if new_window_until else None,
-        "monthly_point_awarded": monthly_point_awarded,
         "perfect_day": perfect_day,
         "chain_suggestion": chain_suggestion,
         "xp_boosted": xp_boosted,

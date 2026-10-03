@@ -19,7 +19,7 @@ from webapp.services.ai_coach import ask_ai
 from adam_messages import (
     format_all_tasks_done_message, format_main_goal_done_message, format_first_plan_action_message,
     format_secondary_task_praise, SECONDARY_TASK_PRAISE_STRICT_DAYS, SECONDARY_TASK_PRAISE_STRICT_COUNT,
-    format_perfect_habit_streak_message, format_month_end_reward_message,
+    format_perfect_habit_streak_message,
 )
 
 from db.core import DATA_DIR
@@ -57,7 +57,7 @@ from db import (
     cache_get, cache_set, log_error,
     get_bonus_window,
     get_secondary_task_praise_state, record_secondary_task_praise,
-    get_monthly_progress, consume_month_end_reward_event,
+    get_month_quests, claim_month_chest,
     get_subscription_status, try_grant_channel_access, bot_access_allowed,
     should_show_app_tour, mark_app_tour_seen,
     should_show_handle_intro, mark_handle_intro_seen,
@@ -483,7 +483,7 @@ async def bootstrap(request):
         "pet": get_pet(telegram_id),
         # Аватар-наставник: картинка зависит от состояния серии (db/hero.py).
         "hero": get_hero_state(telegram_id),
-        "monthly_progress": get_monthly_progress(telegram_id),
+        "month_quests": get_month_quests(telegram_id),
         "habits": [_shape_habit(h, telegram_id) for h in habits],
         # Roadmap #22 — привычки, проваленные несколько дней подряд, для
         # мягкой подсказки "может, снизить планку?".
@@ -539,7 +539,10 @@ async def bootstrap(request):
 async def daily_quests_route(request):
     """Roadmap #12 — ежедневные микро-квесты на сегодня."""
     telegram_id, _ = await _authenticate(request)
-    return web.json_response({"quests": get_daily_quests(telegram_id)})
+    return web.json_response({
+        "quests": get_daily_quests(telegram_id),
+        "month_quests": get_month_quests(telegram_id),
+    })
 
 
 @routes.post("/api/quests/{quest_key}/claim")
@@ -559,6 +562,27 @@ async def claim_quest_route(request):
         "progress": get_progress(telegram_id),
         "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
         "daily_quests": get_daily_quests(telegram_id),
+        "month_quests": get_month_quests(telegram_id),
+    })
+
+
+@routes.post("/api/month-quests/claim")
+async def claim_month_chest_route(request):
+    """Открыть сундук «Заданий месяца» (15/30/45/60 заданий). body: {"at": 15}."""
+    telegram_id, is_admin = await _authenticate(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    result = claim_month_chest(telegram_id, body.get("at"))
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=400)
+    return web.json_response({
+        "ok": True,
+        "reward": {k: result[k] for k in ("at", "coins", "diamonds", "badge")},
+        "progress": get_progress(telegram_id),
+        "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
+        "month_quests": get_month_quests(telegram_id),
     })
 
 
@@ -975,25 +999,11 @@ async def complete_habit_route(request):
     # открытия окна происходят молча — их отражает bonus_active/coins.
     show_bonus_intro = bool(event) and bool(success["bonus_active"])
 
-    # Пром 8 (доп.): короткая похвала за "идеальный день" (закрыты все
-    # привычки, их было 2+), плюс — раз в месяц, только на последний день —
-    # награда за идеальный месяц (см. db/monthly_streak.py).
+    # Короткая похвала за "идеальный день" (закрыты все привычки, их было 2+).
     perfect_day_message = (
         format_perfect_habit_streak_message(success["total_habits"])
         if success.get("perfect_day") else None
     )
-    month_reward_event = consume_month_end_reward_event(telegram_id)
-    month_reward_message = None
-    if month_reward_event:
-        month_reward_message = format_month_end_reward_message(
-            days=get_monthly_progress(telegram_id)["total"],
-            coins=month_reward_event["coins"],
-            diamonds=month_reward_event["diamonds"],
-        )
-        try:
-            _push_in_background(request.app, telegram_id, f"💎 {month_reward_message}")
-        except Exception:
-            logger.exception("Не удалось отправить сообщение о награде месяца")
 
     # Отметка привычки не должна заставлять клиента перезагружать и
     # перерисовывать ВЕСЬ главный экран (см. _shape_user/_shape_habit
@@ -1014,10 +1024,6 @@ async def complete_habit_route(request):
         "bonus_until": success["bonus_until"],
         "show_bonus_intro": show_bonus_intro,
         "perfect_day_message": perfect_day_message,
-        "monthly_progress": get_monthly_progress(telegram_id),
-        "month_end_reward": (
-            {"message": month_reward_message, **month_reward_event} if month_reward_event else None
-        ),
         "chain_suggestion": success.get("chain_suggestion"),
         "xp_boosted": success.get("xp_boosted", False),
         "pet": success.get("pet"),
@@ -1110,7 +1116,6 @@ async def habit_progress_route(request):
         "bonus_until": result["bonus_until"],
         "show_bonus_intro": show_bonus_intro,
         "perfect_day_message": perfect_day_message,
-        "monthly_progress": get_monthly_progress(telegram_id),
         "chain_suggestion": result.get("chain_suggestion"),
         "xp_boosted": result.get("xp_boosted", False),
         "pet": result.get("pet"),

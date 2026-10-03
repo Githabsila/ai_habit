@@ -336,15 +336,6 @@ def rollover_user(user_id):
     conn.commit()
     conn.close()
 
-    # Пром 8 (доп.): если вчерашний день был последним днём своего месяца,
-    # проверяем "идеальный месяц" по серии 2+ привычек (см.
-    # db/monthly_streak.py) и выдаём награду, если она ещё не выдана.
-    try:
-        from .monthly_streak import claim_month_end_reward
-        claim_month_end_reward(user_id, today - timedelta(days=1))
-    except Exception:
-        pass
-
     return True
 
 def reset_habits_for_user(user_id):

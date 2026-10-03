@@ -131,8 +131,8 @@ def create_tables():
 
     # Пром 8 (доп.): «алмазы» — премиальная валюта, которую нельзя заработать
     # обычными действиями, только купить за деньги/Stars, либо получить
-    # небольшое количество в награду за идеальный месяц серии 2+ привычек
-    # (см. db/monthly_streak.py).
+    # небольшое количество в награду за сундуки «Заданий месяца»
+    # (см. db/month_quests.py).
     if "diamonds" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN diamonds INTEGER DEFAULT 0")
 
@@ -402,7 +402,10 @@ def create_tables():
     if "chain_trigger_habit_id" not in habits_columns:
         cursor.execute("ALTER TABLE habits ADD COLUMN chain_trigger_habit_id INTEGER")
 
-    # ---------------- МЕСЯЧНАЯ СЕРИЯ 2+ ПРИВЫЧЕК (доп. к пром 8) ----------------
+    # ---------------- (УСТАРЕЛО) МЕСЯЧНАЯ СЕРИЯ 2+ ПРИВЫЧЕК ----------------
+    # Заменена «Заданиями месяца» (db/month_quests.py, таблица month_chests
+    # ниже): «идеальный месяц» обнулялся от одного пропуска. Эти две таблицы
+    # остались только как архив старых данных — код в них больше не пишет.
     # multi_habit_days — локальный день, в который пользователь закрыл 2+
     # привычки (см. db/habits.py complete_habit) — это и есть "1 балл" к
     # месячному счётчику. monthly_streak_rewards — выданные награды за
@@ -1060,6 +1063,21 @@ def create_tables():
     )
     """)
 
+    # ---------------- Задания месяца (db/month_quests.py) ----------------
+    # Открытые сундуки месяца: одна запись на (пользователь, месяц, сундук) —
+    # PRIMARY KEY не даёт открыть один и тот же дважды.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS month_chests(
+        user_id INTEGER NOT NULL,
+        month_key TEXT NOT NULL,
+        milestone INTEGER NOT NULL,
+        coins INTEGER DEFAULT 0,
+        diamonds INTEGER DEFAULT 0,
+        claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(user_id, month_key, milestone)
+    )
+    """)
+
     # ---------------- Подписки (db/follows.py) — как в Duolingo ----------------
     # follower_id подписан на followee_id. Друзья = ВЗАИМНАЯ подписка (обе
     # строки). Ссылка «Добавить друга» создаёт обе строки сразу.
@@ -1123,8 +1141,8 @@ def create_tables():
     """)
 
     # ---------------- Roadmap #9: сезонные награды лиги ----------------
-    # Сезон = календарный месяц (тот же ритм, что уже используют месячные
-    # награды за серию, см. db/monthly_streak.py) — рейтинг сезона считается
+    # Сезон = календарный месяц (тот же ритм, что и у «Заданий месяца»,
+    # см. db/month_quests.py) — рейтинг сезона считается
     # "на лету" суммой gained_xp из statistics за текущий месяц, отдельного
     # счётчика заводить не нужно; здесь только факт "награда за сезон уже
     # выдана" — чтобы не выдать повторно.

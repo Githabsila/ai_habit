@@ -187,10 +187,6 @@ style="width:0%">
     </button>
     <div class="streak-widget__status"><span class="streak-status-dot"></span><span id="streakStatusLabel">Не дай огню погаснуть.</span></div>
   </div>
-  <div class="streak-widget__monthly" id="monthlyProgressRow" hidden>
-    <span class="streak-bottom-icon">💎</span>
-    <span>Идеальных дней месяца: <b id="monthlyProgressLabel">0/30</b></span>
-  </div>
   <button class="free-restore-btn" id="freeRestoreBtn" type="button" hidden>
     🎁 Восстановить серию бесплатно (<span id="freeRestoreDays">0</span> дн.)
   </button>
@@ -975,6 +971,19 @@ class="habit-add-form__submit">
     <div class="daily-quests-modal__title" id="dailyQuestsModalTitle">🗺️ Квесты дня</div>
     <div class="daily-quests-modal__hint" id="dailyQuestsNoHabitsHint" hidden>Квесты появятся с прогрессом, как только добавишь хотя бы одну привычку и начнёшь её отмечать.</div>
     <ul class="daily-quests__list" id="dailyQuestsList"></ul>
+
+    <!-- «Задания месяца» (db/month_quests.py): сколько ежедневных заданий
+         выполнено за месяц и 4 сундука по пути (15/30/45/60). Рисует
+         app.js::renderMonthCard. -->
+    <section class="month-card" id="monthCard" hidden>
+      <div class="month-card__head">
+        <div class="month-card__title" id="monthCardTitle">Задания месяца</div>
+        <div class="month-card__count" id="monthCardCount">0 / 60</div>
+      </div>
+      <div class="month-card__track" id="monthCardTrack"></div>
+      <button type="button" class="month-card__open" id="monthCardOpen" hidden>🎁 Открыть сундук</button>
+      <div class="month-card__hint" id="monthCardHint"></div>
+    </section>
   </section>
 </div>
 
