@@ -20,6 +20,7 @@ from db import (
     get_rank_overtakes_and_update_snapshot,
     get_gender, gender_forms,
     is_bot_blocked, mark_bot_blocked,
+    get_user, settle_pair_quests, get_active_pair_quests, pair_last_day_reminder, PAIR_GOAL,
 )
 
 logger = logging.getLogger("streak_scheduler")
@@ -548,3 +549,93 @@ async def run_rank_overtaken_notifications(bot):
             _on_forbidden(uid, "rank-overtaken")
         except Exception:
             logger.exception("Ошибка rank-overtaken пуша для %s", uid)
+
+
+# ---------------------------------------------------------------------------
+# ПАРНОЕ ЗАДАНИЕ (db/pair_quests.py)
+# ---------------------------------------------------------------------------
+
+def _pair_keyboard():
+    if not WEBAPP_URL:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🤝 Открыть парное задание", web_app=WebAppInfo(url=WEBAPP_URL))]
+        ]
+    )
+
+
+async def _send_pair_push(bot, uid, text):
+    """Пуш про парное задание. Уважает общий тумблер напоминаний и блокировку
+    бота. True — доставлено."""
+    settings = get_settings(uid)
+    if not settings or not settings["reminders"] or is_bot_blocked(uid):
+        return False
+    try:
+        await bot.send_message(uid, text, parse_mode="HTML", reply_markup=_pair_keyboard())
+        return True
+    except TelegramForbiddenError:
+        _on_forbidden(uid, "pair_quest")
+    return False
+
+
+def _display(user_row):
+    import html
+    name = (user_row["first_name"] if user_row else None) or (user_row["username"] if user_row else None) or "Друг"
+    return html.escape(str(name))
+
+
+async def run_pair_quest_notifications(bot):
+    """Парное задание, раз в минуту.
+
+    1. Раз в 10 минут засчитывает задания, цель которых набрана отметкой через
+       бота (отметка в Mini App засчитывает сразу, в маршруте), и сообщает
+       обоим, что сундук ждёт.
+    2. В 18:00 по местному времени ПОСЛЕДНЕГО дня окна напоминает тому, кто
+       сегодня ещё не отмечался, если цель ещё достижима."""
+    if not bot:
+        return
+    try:
+        if datetime.now().minute % 10 == 0:
+            for event in settle_pair_quests():
+                a, b = event["users"]
+                for uid, other in ((a, b), (b, a)):
+                    await _send_pair_push(
+                        bot, uid,
+                        f"🏆 Парное задание выполнено! Вместе с напарником (<b>{_display(get_user(other))}</b>) "
+                        f"вы набрали {PAIR_GOAL} дней — открой сундук в ADAM.",
+                    )
+    except Exception:
+        logger.exception("Ошибка засчёта парных заданий")
+
+    scope = notification_scope(bot)
+    try:
+        quests = get_active_pair_quests()
+    except Exception:
+        logger.exception("Не удалось получить парные задания")
+        return
+    for quest in quests:
+        for uid, other in ((quest["inviter_id"], quest["invitee_id"]), (quest["invitee_id"], quest["inviter_id"])):
+            try:
+                settings = get_settings(uid)
+                if not settings or not settings["reminders"]:
+                    continue
+                now = datetime.now(ZoneInfo(get_timezone(uid)))
+                if not in_time_window(now, hour=18, minute=0) or in_quiet_hours(settings, now):
+                    continue
+                info = pair_last_day_reminder(quest, uid)
+                if not info:
+                    continue
+                day = now.date().isoformat()
+                if not claim_notification(uid, day, "pairlast", scope):
+                    continue
+                left = info["left"]
+                sent = await _send_pair_push(
+                    bot, uid,
+                    f"⏳ Последний день парного задания (напарник — <b>{_display(get_user(other))}</b>): "
+                    f"не хватает {left} {'дня' if left == 1 else 'дней'}. Не подведи напарника — отметь привычку!",
+                )
+                if not sent:
+                    release_notification(uid, day, "pairlast", scope)
+            except Exception:
+                logger.exception("Ошибка напоминания о парном задании для %s", uid)

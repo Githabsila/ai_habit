@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261003_GIFT_INBOX_V28">
+<link rel="stylesheet" href="/static/style.css?v=20261004_PAIR_V29">
 </head>
 <body>
 
@@ -191,6 +191,10 @@ style="width:0%">
     🎁 Восстановить серию бесплатно (<span id="freeRestoreDays">0</span> дн.)
   </button>
 </div>
+
+<!-- Парное задание с другом (db/pair_quests.py, app.js::renderPairCard): выбрать
+     союзника, вместе набрать цель за неделю, открыть сундук. -->
+<div class="pair-card" id="pairQuestCard" hidden></div>
 
 <div class="plan-card">
 
@@ -982,6 +986,28 @@ class="habit-add-form__submit">
   </section>
 </div>
 
+<!-- Парное задание: выбор союзника из друзей (как в Duolingo). -->
+<div class="feedback-sheet pair-sheet" id="pairSheet" hidden aria-hidden="true">
+  <div class="feedback-sheet__backdrop" id="pairBackdrop"></div>
+  <section class="feedback-card pair-sheet__card" role="dialog" aria-modal="true" aria-labelledby="pairSheetTitle">
+    <div class="freeze-purchase-card__handle"></div>
+    <div class="pair-sheet__hero" aria-hidden="true">
+      <div class="pair-sheet__chest">🎁</div>
+      <div class="pair-sheet__duo">
+        <span class="pair-avatar" id="pairSheetMe"></span>
+        <span class="pair-avatar pair-avatar--empty" id="pairSheetAlly">👤</span>
+      </div>
+    </div>
+    <h3 id="pairSheetTitle">Выбери союзника!</h3>
+    <p class="pair-sheet__sub" id="pairSheetSub"></p>
+    <ul class="friends-list pair-sheet__list" id="pairSheetList" role="radiogroup" aria-label="Друзья"></ul>
+    <div class="pair-sheet__actions">
+      <button type="button" class="pair-btn pair-btn--primary" id="pairSheetConfirm" disabled>Подтвердить</button>
+      <button type="button" class="pair-btn pair-btn--link" id="pairSheetLater">Выбрать позже</button>
+    </div>
+  </section>
+</div>
+
 <div class="freeze-purchase-sheet" id="freezePurchaseSheet" hidden aria-hidden="true">
   <div class="freeze-purchase-sheet__backdrop" id="freezePurchaseBackdrop"></div>
   <section class="freeze-purchase-card" role="dialog" aria-modal="true" aria-labelledby="freezePurchaseTitle">
@@ -1304,7 +1330,7 @@ class="habit-add-form__submit">
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
-<script type="module" src="/static/app.js?v=20261003_HAPTICS_V33"></script>
+<script type="module" src="/static/app.js?v=20261004_PAIR_V34"></script>
 
 </body>
 </html>

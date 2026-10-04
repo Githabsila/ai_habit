@@ -293,6 +293,14 @@ from .month_quests import (
     get_month_quests, claim_month_chest, MONTH_GOAL, CHESTS as MONTH_CHESTS,
 )
 
+from .pair_quests import (
+    get_pair_quest, list_pair_candidates, send_pair_invite, accept_pair_invite,
+    decline_pair_invite, cancel_pair_quest, claim_pair_chest,
+    on_day_completed as pair_on_day_completed, settle_active_quests as settle_pair_quests,
+    get_active_pair_quests, last_day_reminder as pair_last_day_reminder,
+    PAIR_GOAL, PAIR_WINDOW_DAYS, PAIR_REWARD_COINS, PAIR_REWARD_DIAMONDS, PAIR_MONTH_POINTS,
+)
+
 from .subscription import (
     get_trial_day, is_in_trial, has_active_subscription, has_ever_paid,
     get_subscription_price_stars, record_subscription_payment,
@@ -428,6 +436,10 @@ __all__ = [
     "get_bonus_window", "set_bonus_window",
     "get_secondary_task_praise_state", "record_secondary_task_praise",
     "get_month_quests", "claim_month_chest", "MONTH_GOAL", "MONTH_CHESTS",
+    "get_pair_quest", "list_pair_candidates", "send_pair_invite", "accept_pair_invite",
+    "decline_pair_invite", "cancel_pair_quest", "claim_pair_chest",
+    "pair_on_day_completed", "settle_pair_quests", "get_active_pair_quests", "pair_last_day_reminder",
+    "PAIR_GOAL", "PAIR_WINDOW_DAYS", "PAIR_REWARD_COINS", "PAIR_REWARD_DIAMONDS", "PAIR_MONTH_POINTS",
     "get_trial_day", "is_in_trial", "has_active_subscription", "has_ever_paid",
     "get_subscription_price_stars", "record_subscription_payment",
     "gate_applies_to", "bot_access_allowed", "get_subscription_status",

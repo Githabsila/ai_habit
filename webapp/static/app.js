@@ -992,6 +992,7 @@
     renderStreak();
     renderBoosterBanner();
     renderDailyQuests();
+    renderPairCard();
     renderGiftsBadge();
     renderLeagueInfo();
     applyColorMode();
@@ -4180,6 +4181,7 @@ function applyActionPatch(result) {
   if (result.daily_quests) state.daily_quests = result.daily_quests;
   if (result.streak) state.streak = result.streak;
   if (result.month_quests) applyMonthQuests(result.month_quests);
+  if (result.pair_quest !== undefined) applyPairQuest(result.pair_quest);
   if (result.pet) state.pet = result.pet;
   const previousHero = state.hero;
   if (result.hero) state.hero = result.hero;
@@ -5158,6 +5160,15 @@ function initPlanActions() {
         invalid_amount: "Столько алмазов подарить нельзя",
         not_enough_coins: "Не хватает Adam Coin",
         invalid_chest: "Такого сундука нет",
+        needs_habit: "Сначала добавь привычку — без неё вклада в задание не будет",
+        busy: "Ты уже в парном задании — новое начнётся после него",
+        partner_busy: "Этот друг уже в парном задании",
+        partner_inactive: "Друг давно не отмечался — выбери того, кто в ритме",
+        already_invited: "Ты уже позвал(а) друга — дождись ответа или отзови приглашение",
+        invited_you: "Этот друг уже позвал тебя — прими приглашение на Главной",
+        not_pending: "Это приглашение уже не действует",
+        cannot_cancel: "Начавшееся задание отменить нельзя",
+        not_completed: "Задание ещё не выполнено",
         not_reached: "Сундук ещё закрыт — выполни больше заданий",
         already_claimed: "Этот сундук уже открыт",
         self: "Это ты сам(а) 🙂",
@@ -5803,6 +5814,351 @@ function initFriendsActions() {
   });
   document.getElementById("remindFriendsClose")?.addEventListener("click", closeRemindSheet);
   document.getElementById("remindFriendsBackdrop")?.addEventListener("click", closeRemindSheet);
+}
+
+// ===================== ПАРНОЕ ЗАДАНИЕ (db/pair_quests.py) =====================
+// Как «Задания с друзьями» в Duolingo: выбираешь союзника из друзей, он
+// принимает, и вместе за неделю нужно отметить PAIR_GOAL дней — прогресс
+// общий, у каждого вклад до 7, поэтому одному не вытянуть. Карточка живёт на
+// Главной (#pairQuestCard), выбор союзника — шторка #pairSheet. Всё состояние
+// и все правила считает сервер, здесь только отрисовка и вызовы.
+let pairCandidates = null;
+let pairSelectedId = null;
+let pairBusy = false;
+
+function ruPlural(n, forms) {
+  const k = Math.abs(Number(n)) % 100;
+  const d = k % 10;
+  if (k > 10 && k < 20) return forms[2];
+  if (d === 1) return forms[0];
+  if (d >= 2 && d <= 4) return forms[1];
+  return forms[2];
+}
+
+function pairDaysWord(n) { return `${n} ${ruPlural(n, ["день", "дня", "дней"])}`; }
+
+function pairDateLabel(day) {
+  const d = new Date(`${day}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+}
+
+function pairAvatarHtml(person, extra = "") {
+  return `<span class="pair-avatar ${avatarFrameClass(person)} ${extra}">${avatarInner(person)}</span>`;
+}
+
+function pairDaysGridHtml(quest) {
+  const cells = (key) => quest.days.map((d) =>
+    `<i class="pair-dot${d[key] ? " is-done" : ""}${d.state === "today" ? " is-today" : ""}${d.state === "future" ? " is-future" : ""}"></i>`
+  ).join("");
+  const head = quest.days.map((d) => `<b class="${d.state === "today" ? "is-today" : ""}">${escapeHtml(d.weekday)}</b>`).join("");
+  return `
+    <div class="pair-days" style="--pair-days:${quest.days.length}">
+      <div class="pair-days__row pair-days__row--head"><span class="pair-days__who"></span>${head}</div>
+      <div class="pair-days__row"><span class="pair-days__who">Ты</span>${cells("me")}</div>
+      <div class="pair-days__row"><span class="pair-days__who">${escapeHtml(quest.partner.first_name)}</span>${cells("partner")}</div>
+    </div>`;
+}
+
+function pairQuestBodyHtml(pq, q) {
+  const me = state?.user || {};
+  const partner = q.partner;
+  const pct = Math.max(0, Math.min(100, Math.round(100 * q.progress / q.goal)));
+  const duo = `
+    <div class="pair-duo">
+      <div class="pair-person">${pairAvatarHtml(me)}<b>Ты</b><small>${pairDaysWord(q.mine)}</small></div>
+      <div class="pair-score"><b>${q.progress}</b><span>из ${q.goal}</span></div>
+      <div class="pair-person">${pairAvatarHtml(partner)}<b>${escapeHtml(partner.first_name)}</b><small>${pairDaysWord(q.partner_count)}</small></div>
+    </div>
+    <div class="pair-bar${q.phase === "completed" ? " is-done" : ""}"><i style="width:${pct}%"></i></div>`;
+
+  if (q.phase === "scheduled") {
+    const when = q.starts_in <= 1 ? "завтра" : `через ${pairDaysWord(q.starts_in)}`;
+    return `${duo}
+      <div class="pair-hint">Задание стартует <b>${when}</b>. С первого дня отмечайте привычки — каждый день с отметкой даёт вам очко.</div>
+      <button type="button" class="pair-btn pair-btn--ghost" data-pair-act="cancel" data-id="${q.id}" data-confirm="Выйти из парного задания?">Выйти из задания</button>`;
+  }
+
+  if (q.phase === "completed") {
+    if (q.claimable) {
+      return `${pairDaysGridHtml(q)}
+        <div class="pair-hint pair-hint--win">🏆 Цель набрана — вы справились! Сундук ждёт.</div>
+        <button type="button" class="pair-btn pair-btn--primary" data-pair-act="claim" data-id="${q.id}">
+          🎁 Открыть сундук · +${pq.reward.coins} ${ADAM_COIN_ICON} · 💎${pq.reward.diamonds}
+        </button>`;
+    }
+    const next = pq.choose_from_day ? ` Новое задание — с ${escapeHtml(pairDateLabel(pq.choose_from_day))}.` : "";
+    return `${duo}${pairDaysGridHtml(q)}
+      <div class="pair-hint">Награда получена ✓${next}</div>`;
+  }
+
+  // active
+  let nudge = "";
+  if (q.partner_state === "can_remind") {
+    nudge = `<button type="button" class="pair-btn pair-btn--ghost" data-pair-act="nudge" data-id="${partner.telegram_id}">👋 Напомнить напарнику</button>`;
+  } else if (q.partner_state === "reminded") {
+    nudge = `<div class="pair-tag pair-tag--sent">Напомнили ✓</div>`;
+  } else if (q.partner_state === "done") {
+    nudge = `<div class="pair-tag">✓ ${escapeHtml(partner.first_name)} уже отметил(а) день</div>`;
+  }
+  const left = Math.max(0, q.goal - q.progress);
+  return `${duo}${pairDaysGridHtml(q)}
+    <div class="pair-hint">Осталось <b>${pairDaysWord(q.days_left)}</b>, вместе нужно ещё <b>${pairDaysWord(left)}</b>. Каждая ваша отметка привычки — очко в общий счёт.</div>
+    ${nudge}`;
+}
+
+function pairInvitesHtml(pq) {
+  return pq.incoming.map((inv) => `
+    <div class="pair-invite">
+      ${pairAvatarHtml(inv.from)}
+      <div class="pair-invite__text"><b>${escapeHtml(inv.from.first_name)}</b> зовёт тебя в парное задание</div>
+      <div class="pair-invite__btns">
+        <button type="button" class="pair-btn pair-btn--small pair-btn--primary" data-pair-act="accept" data-id="${inv.id}">Принять</button>
+        <button type="button" class="pair-btn pair-btn--small pair-btn--ghost" data-pair-act="decline" data-id="${inv.id}">Не сейчас</button>
+      </div>
+    </div>`).join("");
+}
+
+function renderPairCard() {
+  const box = document.getElementById("pairQuestCard");
+  if (!box) return;
+  const pq = state?.pair_quest;
+  if (!pq) { box.hidden = true; return; }
+  box.hidden = false;
+  const q = pq.quest;
+  const reward = `+${pq.reward.coins} ${ADAM_COIN_ICON} · 💎${pq.reward.diamonds}`;
+
+  let badge = reward;
+  let body = "";
+  if (q) {
+    badge = q.phase === "scheduled" ? "скоро старт"
+      : q.phase === "completed" ? "✓ выполнено"
+      : `осталось ${pairDaysWord(q.days_left)}`;
+    body = pairQuestBodyHtml(pq, q);
+  } else {
+    if (pq.incoming.length) body += pairInvitesHtml(pq);
+    if (pq.outgoing) {
+      body += `
+        <div class="pair-hint">Приглашение отправлено — <b>${escapeHtml(pq.outgoing.to.first_name)}</b> ещё не ответил(а). Оно действует 3 дня.</div>
+        <button type="button" class="pair-btn pair-btn--ghost" data-pair-act="cancel" data-id="${pq.outgoing.id}">Отозвать приглашение</button>`;
+    } else if (pq.can_choose) {
+      const intro = pq.recent_fail
+        ? "В этот раз не вышло — бывает. Попробуйте снова!"
+        : `Позови друга и вместе за неделю отметьте <b>${pq.goal} дней</b>: у каждого свой вклад, прогресс общий. Одному не вытянуть — нужны оба. За победу — сундук ${reward}.`;
+      body += `
+        <div class="pair-hint">${pq.needs_habit ? "Сначала добавь привычку — без неё вклада в задание не будет." : intro}</div>
+        <button type="button" class="pair-btn pair-btn--primary" data-pair-act="choose"${pq.needs_habit ? " disabled" : ""}>🤝 ${pq.recent_fail ? "Выбрать нового союзника" : "Выбрать союзника"}</button>`;
+    }
+  }
+  const total = Number(pq.completed_total || 0);
+  box.innerHTML = `
+    <div class="pair-card__head">
+      <div class="pair-card__title">🤝 Парное задание</div>
+      <div class="pair-card__badge">${badge}</div>
+    </div>
+    ${body}
+    ${total > 0 ? `<div class="pair-card__foot">Выполнено вместе: ${total}</div>` : ""}`;
+}
+
+// Принять свежее состояние и отметить сдвиги: прогресс, выполнение.
+function applyPairQuest(next) {
+  if (!state) return;
+  const prev = state.pair_quest?.quest;
+  state.pair_quest = next || null;
+  const cur = next?.quest;
+  if (prev && cur && prev.id === cur.id) {
+    if (cur.phase === "completed" && prev.phase !== "completed") {
+      haptic("success");
+      showToast("🏆 Парное задание выполнено — открой сундук на Главной", "praise", 4600);
+    } else if (cur.phase === "active" && cur.progress > prev.progress) {
+      showToast(`🤝 Парное задание: ${cur.progress} из ${cur.goal}`, "success", 2600);
+    }
+  }
+  renderPairCard();
+}
+
+async function loadPairQuest() {
+  try {
+    const data = await api("/api/pair-quest", { timeoutMs: 8000 });
+    applyPairQuest(data.pair_quest);
+  } catch (err) {
+    console.error("loadPairQuest failed:", err);
+  }
+}
+
+// ---- выбор союзника ----
+function renderPairSheet() {
+  const list = document.getElementById("pairSheetList");
+  const confirmBtn = document.getElementById("pairSheetConfirm");
+  const ally = document.getElementById("pairSheetAlly");
+  const meBox = document.getElementById("pairSheetMe");
+  const sub = document.getElementById("pairSheetSub");
+  if (!list || !pairCandidates) return;
+  const me = state?.user || {};
+  if (meBox) {
+    meBox.className = `pair-avatar ${avatarFrameClass(me)}`;
+    meBox.innerHTML = avatarInner(me);
+  }
+  const friends = pairCandidates.friends || [];
+  const picked = friends.find((f) => Number(f.telegram_id) === pairSelectedId);
+  if (ally) {
+    ally.className = `pair-avatar${picked ? ` ${avatarFrameClass(picked)}` : " pair-avatar--empty"}`;
+    ally.innerHTML = picked ? avatarInner(picked) : "👤";
+  }
+  if (sub) {
+    sub.textContent = `Вместе за ${pairCandidates.window_days} дней нужно отметить ${pairCandidates.goal} дней на двоих — одному не вытянуть. Задание стартует завтра.`;
+  }
+  if (confirmBtn) confirmBtn.disabled = pairBusy || !picked;
+  if (!friends.length) {
+    list.innerHTML = `
+      <li class="pair-sheet__empty">
+        Пока нет друзей, с которыми можно взять задание. Позови друга по ссылке — когда он добавится, он появится здесь.
+        <button type="button" class="pair-btn pair-btn--ghost" data-pair-act="invite-friend">＋ Позвать друга</button>
+      </li>`;
+    return;
+  }
+  list.innerHTML = friends.map((f) => {
+    const id = Number(f.telegram_id);
+    const meta = [f.handle ? `@${escapeHtml(f.handle)}` : "", Number(f.streak) > 0 ? `🔥 ${Number(f.streak)}` : ""].filter(Boolean).join(" · ");
+    const tag = f.reason === "busy" ? "уже в задании" : f.reason === "inactive" ? "давно не заходил(а)" : "";
+    const selected = id === pairSelectedId;
+    return `
+      <li class="friend-row pair-row${selected ? " is-selected" : ""}${f.available ? "" : " is-disabled"}"
+          data-pair-friend="${id}" role="radio" aria-checked="${selected}" aria-disabled="${!f.available}">
+        <span class="friend-row__avatar ${avatarFrameClass(f)}">${avatarInner(f)}</span>
+        <span class="friend-row__info">
+          <span class="friend-row__name">${escapeHtml(f.first_name || "Друг")}</span>
+          ${meta ? `<span class="friend-row__meta">${meta}</span>` : ""}
+        </span>
+        ${tag ? `<span class="friend-row__tag">${tag}</span>` : `<span class="pair-radio${selected ? " is-on" : ""}" aria-hidden="true"></span>`}
+      </li>`;
+  }).join("");
+}
+
+async function openPairSheet() {
+  const sheet = document.getElementById("pairSheet");
+  if (!sheet || pairBusy) return;
+  try {
+    pairCandidates = await api("/api/pair-quest/candidates", { timeoutMs: 8000 });
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+    return;
+  }
+  if (pairCandidates.needs_habit) { showToast(friendlyError({ data: { error: "needs_habit" } }), "error"); return; }
+  if (!pairCandidates.can_choose) { await loadPairQuest(); return; }
+  pairSelectedId = null;
+  renderPairSheet();
+  haptic("light");
+  sheet.hidden = false;
+  sheet.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => sheet.classList.add("is-open"));
+}
+
+function closePairSheet() {
+  const sheet = document.getElementById("pairSheet");
+  if (!sheet || sheet.hidden) return;
+  sheet.classList.remove("is-open");
+  sheet.setAttribute("aria-hidden", "true");
+  setTimeout(() => { sheet.hidden = true; }, 230);
+}
+
+async function confirmPairInvite() {
+  if (pairBusy || pairSelectedId === null) return;
+  pairBusy = true;
+  renderPairSheet();
+  try {
+    const result = await api("/api/pair-quest/invite", { method: "POST", body: JSON.stringify({ friend_id: pairSelectedId }) });
+    haptic("medium");
+    closePairSheet();
+    showToast("🤝 Приглашение отправлено — ждём ответ", "success", 3200);
+    applyPairQuest(result.pair_quest);
+  } catch (err) {
+    const code = err?.data?.error;
+    showToast(friendlyError(err), "error");
+    if (code === "invited_you" || code === "busy" || code === "already_invited") {
+      closePairSheet();
+      await loadPairQuest();
+    } else if (code === "partner_busy" || code === "partner_inactive") {
+      try { pairCandidates = await api("/api/pair-quest/candidates", { timeoutMs: 8000 }); pairSelectedId = null; } catch (_) {}
+    }
+  } finally {
+    pairBusy = false;
+    renderPairSheet();
+  }
+}
+
+// ---- действия на карточке ----
+async function pairCardAction(button) {
+  const act = button.dataset.pairAct;
+  const id = Number(button.dataset.id);
+  if (act === "choose") { await openPairSheet(); return; }
+  if (act === "nudge") { await pairNudge(id, button); return; }
+  if (pairBusy) return;
+  const endpoint = { accept: "accept", decline: "decline", cancel: "cancel", claim: "claim" }[act];
+  if (!endpoint) return;
+  if (button.dataset.confirm && !confirm(button.dataset.confirm)) return;
+  pairBusy = true;
+  button.disabled = true;
+  try {
+    const result = await api(`/api/pair-quest/${id}/${endpoint}`, { method: "POST" });
+    if (act === "claim") {
+      haptic("success");
+      const r = result.reward || {};
+      showToast(`🎁 Сундук открыт: +${r.coins} Adam Coin и 💎${r.diamonds}`, "praise", 4200);
+      applyActionPatch(result);       // обновит монеты/алмазы, месяц и саму карточку
+    } else {
+      haptic("medium");
+      if (act === "accept") showToast("✅ Приняли! Задание стартует завтра", "success", 3200);
+      applyPairQuest(result.pair_quest);
+    }
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+    button.disabled = false;
+    if (["not_pending", "not_found", "cannot_cancel", "busy", "already_claimed"].includes(err?.data?.error)) await loadPairQuest();
+  } finally {
+    pairBusy = false;
+  }
+}
+
+function setPairPartnerState(nextState) {
+  const q = state?.pair_quest?.quest;
+  if (!q) return;
+  q.partner_state = nextState;
+  renderPairCard();
+}
+
+async function pairNudge(friendId, button) {
+  button.disabled = true;
+  try {
+    await api(`/api/friends/${friendId}/nudge`, { method: "POST" });
+    haptic("medium");
+    showToast("Напоминание отправлено 👋", "success");
+    setPairPartnerState("reminded");
+    setFriendState(friendId, "reminded");
+  } catch (err) {
+    const code = err?.data?.error;
+    if (code === "already_reminded") setPairPartnerState("reminded");
+    else if (code === "already_done") setPairPartnerState("done");
+    else button.disabled = false;
+    showToast(friendlyError(err), "error");
+  }
+}
+
+function initPairQuest() {
+  document.getElementById("pairQuestCard")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-pair-act]");
+    if (btn && !btn.disabled) await pairCardAction(btn);
+  });
+  document.getElementById("pairSheetList")?.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-pair-act='invite-friend']")) { closePairSheet(); await openFriendInvite(); return; }
+    const row = e.target.closest("[data-pair-friend]");
+    if (!row || row.classList.contains("is-disabled") || pairBusy) return;
+    pairSelectedId = Number(row.dataset.pairFriend);
+    haptic("select");
+    renderPairSheet();
+  });
+  document.getElementById("pairSheetConfirm")?.addEventListener("click", confirmPairInvite);
+  document.getElementById("pairSheetLater")?.addEventListener("click", () => { haptic("light"); closePairSheet(); });
+  document.getElementById("pairBackdrop")?.addEventListener("click", closePairSheet);
 }
 
 // ===================== ПОДПИСКИ И ПРОФИЛИ ИГРОКОВ =====================
@@ -7482,6 +7838,7 @@ async function boot() {
             initRatingActions();
             initRatingScopeSwitch();
             initFriendsActions();
+            initPairQuest();
             initProfileOverlays();
             initArchetypeQuizActions();
             initPlanActions();

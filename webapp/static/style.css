@@ -13760,3 +13760,95 @@ button.up-count:active{opacity:.75}
   font:800 9.5px 'Space Grotesk',sans-serif;font-style:normal;vertical-align:1px;
 }
 :root[data-mode="light"] .received-gifts-card{--text:#FFFFFF;--text-muted:#9D9DB3}
+
+
+/* =========================================================
+   Парное задание (db/pair_quests.py, app.js::renderPairCard): карточка на
+   Главной и окно выбора союзника. Без blur и бесконечных анимаций — как и
+   остальные новые блоки (слабые Android WebView).
+   ========================================================= */
+.pair-card{
+  margin:14px 0;padding:16px;border-radius:20px;
+  background:linear-gradient(145deg,rgba(62,43,120,.92),rgba(24,19,46,.94));
+  border:1px solid rgba(167,139,250,.38);
+}
+.pair-card[hidden]{display:none !important}
+.pair-card__head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.pair-card__title{font:800 15px 'Space Grotesk',sans-serif;color:#fff}
+.pair-card__badge{
+  flex:0 0 auto;padding:4px 10px;border-radius:999px;white-space:nowrap;
+  background:rgba(255,213,79,.14);border:1px solid rgba(255,213,79,.35);
+  color:#FFD54F;font:800 11px 'Space Grotesk',sans-serif;
+}
+.pair-card__foot{margin-top:10px;text-align:center;font-size:11px;color:#9a94bd}
+.pair-duo{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.pair-person{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
+.pair-person b{max-width:100%;font:800 12.5px 'Space Grotesk',sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-person small{font-size:10.5px;color:#B9B3D6}
+.pair-avatar{
+  flex:0 0 auto;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;
+  background:linear-gradient(135deg,#8e70ff,#6847dc);color:#fff;
+  font:800 18px 'Space Grotesk',sans-serif;border:2px solid rgba(255,255,255,.22);
+}
+.pair-avatar .avatar-photo{border-radius:50%}
+.pair-avatar--empty{background:rgba(255,255,255,.06);border:2px dashed rgba(255,255,255,.35);color:rgba(255,255,255,.5);font-size:22px}
+.pair-score{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;line-height:1.05}
+.pair-score b{font:800 30px 'Space Grotesk',sans-serif;color:#FFD54F}
+.pair-score span{font-size:10.5px;color:#B9B3D6}
+.pair-bar{height:10px;margin-bottom:12px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+.pair-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#FFB02E,#FFD54F);transition:width .3s ease}
+.pair-bar.is-done i{background:linear-gradient(90deg,#2fd27d,#7be3a4)}
+.pair-days{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.pair-days__row{display:grid;grid-template-columns:62px repeat(var(--pair-days,7),1fr);align-items:center;gap:4px}
+.pair-days__who{padding-right:4px;font-size:10.5px;font-weight:700;color:#B9B3D6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-days__row--head b{text-align:center;font:700 9.5px 'Inter',sans-serif;color:#8d87ad;text-transform:uppercase}
+.pair-days__row--head b.is-today{color:#FFD54F}
+.pair-dot{
+  justify-self:center;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(255,255,255,.08);border:2px solid transparent;
+}
+.pair-dot.is-today{border-color:rgba(255,213,79,.65)}
+.pair-dot.is-future{opacity:.5}
+.pair-dot.is-done{background:linear-gradient(135deg,#2fd27d,#7be3a4)}
+.pair-dot.is-done::after{content:"✓";font-size:10px;font-weight:900;line-height:1;color:#0b2a1a}
+.pair-hint{margin-bottom:12px;font-size:12px;line-height:1.5;color:#CFC9E8}
+.pair-hint b{color:#fff}
+.pair-hint--win{text-align:center;font-weight:700;color:#FFD54F}
+.pair-tag{text-align:center;font-size:12px;font-weight:700;color:#B9B3D6}
+.pair-tag--sent{color:#7be3a4}
+.pair-btn{
+  width:100%;height:44px;border:0;border-radius:14px;cursor:pointer;
+  font:800 14px 'Space Grotesk',sans-serif;-webkit-tap-highlight-color:transparent;
+}
+.pair-btn:active{opacity:.85}
+.pair-btn:disabled{opacity:.45;cursor:default}
+.pair-btn--primary{background:linear-gradient(135deg,#8e70ff,#6847dc);color:#fff;box-shadow:0 6px 16px rgba(104,71,220,.35)}
+.pair-btn--ghost{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#EAE5FA}
+.pair-btn--link{height:38px;background:none;color:#8fb7ff;font-size:13px;letter-spacing:.04em}
+.pair-btn--small{width:auto;height:34px;padding:0 14px;border-radius:12px;font-size:12.5px}
+.pair-invite{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:10px;border-radius:14px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+}
+.pair-invite .pair-avatar{width:38px;height:38px;font-size:15px}
+.pair-invite__text{flex:1;min-width:140px;font-size:12.5px;line-height:1.35;color:#EAE5FA}
+.pair-invite__btns{display:flex;gap:8px;width:100%}
+.pair-invite__btns .pair-btn{flex:1}
+
+.pair-sheet__card{max-height:min(90vh,720px);overflow-y:auto;overscroll-behavior:contain;text-align:center}
+.pair-sheet__hero{display:flex;flex-direction:column;align-items:center;gap:6px;margin:-2px 0 10px}
+.pair-sheet__chest{font-size:54px;line-height:1}
+.pair-sheet__duo{display:flex;gap:10px}
+.pair-sheet__duo .pair-avatar{width:54px;height:54px;font-size:20px}
+.pair-sheet__sub{margin:0 0 14px;font-size:12.5px;line-height:1.5;color:#B9B3D6}
+.pair-sheet__list{max-height:min(34vh,280px);overflow-y:auto;margin:0 0 14px;overscroll-behavior:contain;text-align:left}
+.pair-row{cursor:pointer;border-width:2px}
+.pair-row.is-selected{border-color:#6dc0ff;background:rgba(109,192,255,.1)}
+.pair-row.is-disabled{opacity:.5;cursor:default}
+.pair-radio{flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.3)}
+.pair-radio.is-on{border-color:#6dc0ff;background:radial-gradient(circle,#6dc0ff 0 45%,transparent 50%)}
+.pair-sheet__empty{
+  display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:12px;text-align:center;
+  background:rgba(255,255,255,.04);font-size:12.5px;line-height:1.5;color:#B9B3D6;
+}
+.pair-sheet__actions{display:flex;flex-direction:column;gap:4px}

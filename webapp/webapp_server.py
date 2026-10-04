@@ -58,6 +58,8 @@ from db import (
     get_bonus_window,
     get_secondary_task_praise_state, record_secondary_task_praise,
     get_month_quests, claim_month_chest,
+    get_pair_quest, list_pair_candidates, send_pair_invite, accept_pair_invite,
+    decline_pair_invite, cancel_pair_quest, claim_pair_chest, pair_on_day_completed, PAIR_GOAL,
     get_gift_options, send_gift, get_received_gifts, count_unseen_gifts, mark_gifts_seen,
     get_subscription_status, try_grant_channel_access, bot_access_allowed,
     should_show_app_tour, mark_app_tour_seen,
@@ -485,6 +487,8 @@ async def bootstrap(request):
         # Аватар-наставник: картинка зависит от состояния серии (db/hero.py).
         "hero": get_hero_state(telegram_id),
         "month_quests": get_month_quests(telegram_id),
+        # Парное задание с другом (db/pair_quests.py) — карточка на Главной.
+        "pair_quest": _pair_quest_payload(telegram_id),
         # Сколько подаренного мне ещё не показывали (экран «Мне подарили»).
         "gifts_unseen": count_unseen_gifts(telegram_id),
         "habits": [_shape_habit(h, telegram_id) for h in habits],
@@ -586,6 +590,143 @@ async def claim_month_chest_route(request):
         "progress": get_progress(telegram_id),
         "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
         "month_quests": get_month_quests(telegram_id),
+    })
+
+
+# ====================== ПАРНОЕ ЗАДАНИЕ ======================
+# Правила и состояние — db/pair_quests.py. Здесь только HTTP и пуши.
+
+PAIR_ERROR_STATUS = {"not_found": 404}
+
+
+def _pair_quest_payload(telegram_id):
+    """Карточка «Парное задание». Сбой не должен ронять /api/state или отметку
+    привычки — тогда просто нет карточки."""
+    try:
+        return get_pair_quest(telegram_id)
+    except Exception:
+        logger.exception("Не удалось собрать парное задание")
+        return None
+
+
+async def _push_pair_event(app, actor_id, event):
+    """Пуш по событию парного задания (см. db/pair_quests.py::on_day_completed).
+    Тому, кто только что отметился, пуш не нужен — он и так в приложении."""
+    if event["type"] == "completed":
+        for uid in event["users"]:
+            if uid == actor_id:
+                continue
+            name = html.escape(_display_name(get_user(actor_id)))
+            await _send_social_push(
+                app, uid,
+                f"🏆 Парное задание выполнено! Вместе с напарником (<b>{name}</b>) вы набрали цель — открой сундук в ADAM.",
+            )
+    elif event["type"] == "partner_done":
+        name = html.escape(_display_name(get_user(event["from"])))
+        await _send_social_push(
+            app, event["to"],
+            f"🤝 <b>{name}</b> уже отметил(а) день — на двоих {event['progress']}/{event['goal']}. Твой ход! 🔥",
+        )
+
+
+def _pair_after_mark(app, telegram_id):
+    """После отметки привычки: засчитать цель, разослать пуши напарнику и
+    отдать свежую карточку (приложение сразу покажет сдвиг прогресса)."""
+    try:
+        for event in pair_on_day_completed(telegram_id):
+            _spawn_background(_push_pair_event(app, telegram_id, event))
+    except Exception:
+        logger.exception("Не удалось обновить парное задание после отметки")
+    return _pair_quest_payload(telegram_id)
+
+
+def _pair_error(result):
+    payload = {"error": result["error"]}
+    if "quest_id" in result:
+        payload["quest_id"] = result["quest_id"]
+    return web.json_response(payload, status=PAIR_ERROR_STATUS.get(result["error"], 400))
+
+
+@routes.get("/api/pair-quest")
+async def pair_quest_route(request):
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({"pair_quest": get_pair_quest(telegram_id)})
+
+
+@routes.get("/api/pair-quest/candidates")
+async def pair_candidates_route(request):
+    """Друзья для окна «Выберите союзника»."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response(list_pair_candidates(telegram_id))
+
+
+@routes.post("/api/pair-quest/invite")
+async def pair_invite_route(request):
+    """Позвать друга в парное задание. body: {"friend_id": 123}."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    result = send_pair_invite(telegram_id, body.get("friend_id"))
+    if "error" in result:
+        return _pair_error(result)
+    name = html.escape(_display_name(get_user(telegram_id)))
+    _spawn_background(_send_social_push(
+        request.app, int(body["friend_id"]),
+        f"🤝 <b>{name}</b> зовёт тебя в парное задание! Отмечайте привычки вместе: нужно набрать "
+        f"{PAIR_GOAL} дней на двоих за неделю — и сундук ваш. Открой ADAM → Главная.",
+    ))
+    return web.json_response({"ok": True, "pair_quest": get_pair_quest(telegram_id)})
+
+
+@routes.post("/api/pair-quest/{quest_id}/accept")
+async def pair_accept_route(request):
+    telegram_id, _ = await _authenticate(request)
+    result = accept_pair_invite(telegram_id, request.match_info["quest_id"])
+    if "error" in result:
+        return _pair_error(result)
+    name = html.escape(_display_name(get_user(telegram_id)))
+    _spawn_background(_send_social_push(
+        request.app, result["inviter_id"],
+        f"✅ <b>{name}</b> принял(а) твоё приглашение! Парное задание стартует завтра — готовься отмечать привычки.",
+    ))
+    return web.json_response({"ok": True, "pair_quest": get_pair_quest(telegram_id)})
+
+
+@routes.post("/api/pair-quest/{quest_id}/decline")
+async def pair_decline_route(request):
+    telegram_id, _ = await _authenticate(request)
+    result = decline_pair_invite(telegram_id, request.match_info["quest_id"])
+    if "error" in result:
+        return _pair_error(result)
+    return web.json_response({"ok": True, "pair_quest": get_pair_quest(telegram_id)})
+
+
+@routes.post("/api/pair-quest/{quest_id}/cancel")
+async def pair_cancel_route(request):
+    """Отозвать своё приглашение или выйти из задания до его старта."""
+    telegram_id, _ = await _authenticate(request)
+    result = cancel_pair_quest(telegram_id, request.match_info["quest_id"])
+    if "error" in result:
+        return _pair_error(result)
+    return web.json_response({"ok": True, "pair_quest": get_pair_quest(telegram_id)})
+
+
+@routes.post("/api/pair-quest/{quest_id}/claim")
+async def pair_claim_route(request):
+    """Открыть сундук выполненного парного задания."""
+    telegram_id, is_admin = await _authenticate(request)
+    result = claim_pair_chest(telegram_id, request.match_info["quest_id"])
+    if "error" in result:
+        return _pair_error(result)
+    return web.json_response({
+        "ok": True,
+        "reward": {"coins": result["coins"], "diamonds": result["diamonds"], "month_points": result["month_points"]},
+        "progress": get_progress(telegram_id),
+        "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
+        "month_quests": get_month_quests(telegram_id),
+        "pair_quest": get_pair_quest(telegram_id),
     })
 
 
@@ -1032,6 +1173,7 @@ async def complete_habit_route(request):
         "pet": success.get("pet"),
         "hero": get_hero_state(telegram_id),
         "remind_friends": _remind_friends_payload(telegram_id),
+        "pair_quest": _pair_after_mark(request.app, telegram_id),
     })
 
 
@@ -1124,6 +1266,7 @@ async def habit_progress_route(request):
         "pet": result.get("pet"),
         "hero": get_hero_state(telegram_id),
         "remind_friends": _remind_friends_payload(telegram_id),
+        "pair_quest": _pair_after_mark(request.app, telegram_id),
     })
 
 

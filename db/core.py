@@ -1078,6 +1078,47 @@ def create_tables():
     )
     """)
 
+    # ---------------- Парное задание (db/pair_quests.py) ----------------
+    # status: pending (приглашение) | active (принято: start_day..end_day) |
+    # completed (цель набрана) | expired | declined | cancelled. *_claimed_day —
+    # когда участник открыл сундук (NULL — ещё нет).
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS pair_quests(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inviter_id INTEGER NOT NULL,
+        invitee_id INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        goal INTEGER NOT NULL,
+        start_day TEXT,
+        end_day TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        accepted_at TIMESTAMP,
+        finished_at TIMESTAMP,
+        inviter_claimed_day TEXT,
+        invitee_claimed_day TEXT
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_pair_quests_inviter ON pair_quests(inviter_id, status)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_pair_quests_invitee ON pair_quests(invitee_id, status)"
+    )
+    # Одно ожидающее приглашение на человека — гарантия на уровне БД, чтобы два
+    # одновременных нажатия не создали два приглашения.
+    cursor.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_pair_quests_one_invite ON pair_quests(inviter_id) WHERE status='pending'"
+    )
+    # Пуш «напарник отметился» — не чаще раза в день на получателя и задание.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS pair_quest_pings(
+        quest_id INTEGER NOT NULL,
+        to_user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        PRIMARY KEY(quest_id, to_user_id, day)
+    )
+    """)
+
     # ---------------- Подарки друзьям (db/gifts.py) ----------------
     # Журнал подарков: он же основа суточного лимита отправителя. price —
     # сколько Adam Coin отправитель заплатил (0 для алмазов).

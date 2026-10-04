@@ -3,7 +3,8 @@
 
 Прогресс — сколько ежедневных заданий (db/quests.py, 3 в день) пользователь
 выполнил и забрал за текущий месяц; отдельного счётчика нет, считаем по
-таблице daily_quests (claimed=1). По пути — 4 сундука: за каждые 15 заданий
+таблице daily_quests (claimed=1). Забранное парное задание (db/pair_quests.py)
+добавляет ещё PAIR_MONTH_POINTS очков. По пути — 4 сундука: за каждые 15 заданий
 (15/30/45/60). Сундук открывается кнопкой, награда — Adam Coin и алмазы;
 последний, на 60 заданиях, ещё даёт значок месяца (запись в достижениях,
 видна в профиле). Сумма наград — те же 300 Adam Coin и 3 алмаза, что раньше
@@ -60,7 +61,10 @@ def _points(cursor, user_id, key):
         "SELECT COUNT(*) AS n FROM daily_quests WHERE user_id=? AND claimed=1 AND day LIKE ?",
         (user_id, f"{key}-%"),
     ).fetchone()
-    return int(row["n"] or 0)
+    # Забранные парные задания (db/pair_quests.py) тоже дают очки месяца — как
+    # «Задания с друзьями» в Duolingo, они весят больше обычного задания.
+    from .pair_quests import month_points
+    return int(row["n"] or 0) + month_points(cursor, user_id, key)
 
 
 def _claimed_chests(cursor, user_id, key):
