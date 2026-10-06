@@ -120,7 +120,9 @@ def _extended(user_id, completed_by_day):
 def get_player_profile(viewer_id, target_id):
     """None — такого игрока нет, он забанен или заблокировал зрителя."""
     from .achievements import get_achievements, ACHIEVEMENT_ICONS
+    from .evolution import evolution_view
     from .follows import get_counts, get_relation
+    from .hero import get_showcase
     from .leagues import get_league_tier
     from .settings import get_settings, get_stats_visibility
     from .shop import has_item
@@ -141,6 +143,15 @@ def get_player_profile(viewer_id, target_id):
     keys = user.keys()
     total_xp = user["total_xp"] if "total_xp" in keys else user["xp"]
     counts = get_counts(target_id)
+    best_streak = int((user["best_streak"] if "best_streak" in keys else 0) or 0)
+    streak = int(user["streak"] or 0)
+
+    # Ранг — публичный «статус», а точное число лучшей серии остаётся в «Обзоре»
+    # (подписчикам и выше, см. VISIBLE_SECTIONS): без него ранг не раскрывает больше,
+    # чем показывает рейтинг.
+    evolution = evolution_view(best_streak, streak)
+    if "overview" not in sections:
+        evolution["best_streak"] = None
 
     profile = {
         "telegram_id": target_id,
@@ -149,8 +160,13 @@ def get_player_profile(viewer_id, target_id):
         "avatar_id": (user["avatar_id"] if "avatar_id" in keys else None) or "default",
         "frame_id": (user["frame_id"] if "frame_id" in keys else None) or "default",
         "level": user["level"],
-        "streak": int(user["streak"] or 0),
+        "streak": streak,
         "league_tier": get_league_tier(total_xp),
+        # Ранг (эволюция по лучшей серии) и облик героя — «статус» игрока,
+        # его видят все, кто может открыть профиль. Облик берётся по лучшей
+        # серии, а не по сегодняшнему состоянию (db/hero.py::get_showcase).
+        "evolution": evolution,
+        "showcase": get_showcase(max(best_streak, streak)),
         "badge": has_item(target_id, BADGE_ITEM_ID),
         "member_since": str(user["created_at"]) if "created_at" in keys and user["created_at"] else None,
         "followers": counts["followers"],
@@ -175,8 +191,8 @@ def get_player_profile(viewer_id, target_id):
         }
     if "overview" in sections:
         profile["overview"] = {
-            "streak": int(user["streak"] or 0),
-            "best_streak": int((user["best_streak"] if "best_streak" in keys else 0) or 0),
+            "streak": streak,
+            "best_streak": best_streak,
             "league": get_league_tier(total_xp),
             "total_xp": int(total_xp or 0),
             "level": user["level"],

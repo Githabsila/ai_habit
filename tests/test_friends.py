@@ -181,7 +181,8 @@ def test_unavailable_reason_is_not_leaked_in_overview(uid):
     set_friend_nudges(friend, False)
     entry = get_friends_overview(viewer)["friends"][0]
     assert entry["state"] == "unavailable"
-    assert set(entry) == {"telegram_id", "first_name", "handle", "avatar_id", "frame_id", "streak", "state", "can_remove"}
+    # evo — публичный ранг (эволюция), к причине недоступности отношения не имеет.
+    assert set(entry) == {"telegram_id", "first_name", "handle", "avatar_id", "frame_id", "streak", "evo", "state", "can_remove"}
 
 
 # ---------------------------------------------------------------------------

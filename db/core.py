@@ -1119,6 +1119,16 @@ def create_tables():
     )
     """)
 
+    # ---------------- Эволюции ADAM (db/evolution.py) ----------------
+    # seen_level — до какой эволюции игрок уже видел праздник «EVOLUTION N
+    # UNLOCKED». Сами эволюции нигде не хранятся: они считаются по лучшей серии.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS hero_evolution(
+        user_id INTEGER PRIMARY KEY,
+        seen_level INTEGER NOT NULL DEFAULT 0
+    )
+    """)
+
     # ---------------- Подарки друзьям (db/gifts.py) ----------------
     # Журнал подарков: он же основа суточного лимита отправителя. price —
     # сколько Adam Coin отправитель заплатил (0 для алмазов).

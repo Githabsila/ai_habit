@@ -192,7 +192,7 @@ def test_hero_payload_shape(uid):
     hero = get_hero_state(uid, now=MORNING)
     assert set(hero) == {
         "key", "title", "caption", "tone", "streak", "band",
-        "counted_today", "image", "video", "progress",
+        "counted_today", "image", "video", "progress", "evolution",
     }
     assert hero["image"].startswith(f"/static/assets/hero/{hero['key']}.webp?v=")
     assert set(hero["progress"]) == {"from", "to", "days_left", "next_title", "percent"}

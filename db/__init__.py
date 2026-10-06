@@ -80,6 +80,10 @@ from .seasons import (
 
 from .pets import get_pet, feed_pet, PET_STAGES
 from .hero import get_hero_state, HERO_KEYS
+from .evolution import (
+    get_evolution, acknowledge_evolution, evolution_view, public_level,
+    level_for_days as evolution_level_for_days, EVOLUTION_COUNT, EVOLUTION_LADDER,
+)
 
 from .teams import (
     create_team, join_team, leave_team, get_my_team,
@@ -352,6 +356,8 @@ __all__ = [
     "clear_season_leaderboard_cache",
     "get_pet", "feed_pet", "PET_STAGES",
     "get_hero_state", "HERO_KEYS",
+    "get_evolution", "acknowledge_evolution", "evolution_view", "public_level",
+    "evolution_level_for_days", "EVOLUTION_COUNT", "EVOLUTION_LADDER",
     "create_team", "join_team", "leave_team", "get_my_team",
     "MAX_TEAM_MEMBERS", "MAX_TEAM_NAME_LENGTH",
     "log_activity_event", "get_friend_activity_feed", "EVENT_LABELS",

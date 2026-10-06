@@ -219,6 +219,8 @@ def _display(row, key):
 
 
 def _friend_entry(row, state, source):
+    from .evolution import public_level
+
     return {
         "telegram_id": row["telegram_id"],
         "first_name": row["first_name"] or row["username"] or "Друг",
@@ -226,6 +228,7 @@ def _friend_entry(row, state, source):
         "avatar_id": _display(row, "avatar_id") or "default",
         "frame_id": _display(row, "frame_id") or "default",
         "streak": int(row["streak"] or 0),
+        "evo": public_level(_display(row, "best_streak"), row["streak"]),
         "state": state,
         "can_remove": source == "friend",
     }

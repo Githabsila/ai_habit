@@ -33,6 +33,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .core import connect
+from .evolution import get_evolution
 from .streak import FREE_RESTORE_GRACE_DAYS, day_key, get_timezone
 
 # Файлы героя лежат в webapp/static/assets/hero/: {ключ}.webp — картинка
@@ -245,4 +246,23 @@ def get_hero_state(user_id, now=None):
         "image": _asset_url(key, "webp") or f"/static/assets/hero/{key}.webp?v={HERO_ASSET_VERSION}",
         "video": _asset_url(key, "mp4"),
         "progress": _band_progress(streak),
+        # Постоянный ранг по лучшей серии (db/evolution.py): ранг, прогресс до
+        # следующей эволюции, лестница и pending — эволюция, праздник которой
+        # ещё не показывали.
+        "evolution": get_evolution(user_id),
+    }
+
+
+def get_showcase(best_streak):
+    """Облик героя для ЧУЖОГО профиля. Берётся по лучшей серии, а не по
+    сегодняшнему состоянию: «серия под угрозой», «оборвалась» и «долгий
+    перерыв» — личное, друзьям и подписчикам показывается только достигнутое."""
+    key = _band_key(int(best_streak or 0))
+    meta = HERO_STATES[key]
+    return {
+        "key": key,
+        "title": meta["title"],
+        "tone": meta["tone"],
+        "image": _asset_url(key, "webp") or f"/static/assets/hero/{key}.webp?v={HERO_ASSET_VERSION}",
+        "video": _asset_url(key, "mp4"),
     }

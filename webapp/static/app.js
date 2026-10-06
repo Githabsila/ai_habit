@@ -394,7 +394,11 @@
   // Короткий приятный "дзынь" для микро-побед (похвала за задачу, монеты,
   // бонусное окно) — не громкий системный звук, а мягкий синтезированный
   // тон через WebAudio, чтобы не требовать отдельного аудиофайла.
+  // На время праздника новой эволюции интерфейсные звуки глохнут (см.
+  // playEvolutionCinematic) — иначе «дзынь» монет перебил бы момент.
+  let evolutionSilence = false;
   function playChime(variant) {
+    if (evolutionSilence) return;
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
@@ -733,6 +737,8 @@
         : `🔥 ${days} · до «${progress.next_title}» ещё ${progress.days_left} дн.`;
     }
     syncHeroVideo();
+    renderHeroEvoRow(hero.evolution);
+    queueEvolutionCelebration();
   }
 
   // ----- Видео-петля героя (необязательна) -----
@@ -813,7 +819,7 @@
   function updateHeroMotion() {
     const v = heroMotion.video;
     if (!v) return;
-    const lightboxOpen = !document.getElementById("heroLightbox")?.hidden;
+    const lightboxOpen = !document.getElementById("heroLightbox")?.hidden || evolutionRun.active;
     const shouldPlay = heroMotion.visible && !document.hidden && !lightboxOpen && !heroMotion.capped;
     if (shouldPlay) {
       const p = v.play();
@@ -3598,6 +3604,7 @@
           <div class="rating-podium-card__name">${escapeHtml(name)} ${r.badge ? "🏅" : ""}</div>
           ${r.handle ? `<div class="rating-podium-card__handle">@${escapeHtml(r.handle)}</div>` : ""}
           ${r.league_tier ? `<div class="rating-podium-card__league">${escapeHtml(r.league_tier)}</div>` : ""}
+          ${Number(r.evo) > 0 ? `<div class="rating-podium-card__evo">${evoChipHtml(r.evo)}</div>` : ""}
           ${status ? `<div class="rating-podium-card__status">${escapeHtml(status)}</div>` : ""}
           <div class="rating-podium-card__stats"><span><i class="stat-icon">🔥</i> ${Number(r.streak || 0)}</span><span>${ADAM_COIN_ICON} ${Number(r.xp || 0)}</span></div>
         </div>`;
@@ -3624,6 +3631,7 @@
         <span class="rating-item__name">
           <span class="rating-item__name-line"><span class="rating-item__name-text">${escapeHtml(name)}</span>${r.handle ? `<span class="rating-item__handle">@${escapeHtml(r.handle)}</span>` : ""}${r.badge ? '<span class="rating-item__badge">🏅</span>' : ""}${isMe ? ' <span class="rating-item__me">(ты)</span>' : ""}</span>
           ${r.league_tier ? `<small class="rating-item__league">${escapeHtml(r.league_tier)}</small>` : ""}
+          ${Number(r.evo) > 0 ? `<span class="rating-item__evo">${evoChipHtml(r.evo)}</span>` : ""}
           ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
         </span>
         <span class="rating-item__meta"><span class="rating-stat"><span class="material-symbols-rounded stat-icon">local_fire_department</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
@@ -5584,6 +5592,15 @@ function avatarFrameClass(user) {
   return `frame-${escapeHtml(String(user.frame_id || "default"))}`;
 }
 
+// Имя в строке друга/подписки + значок ранга справа: имя при нехватке места
+// усекается многоточием, значок остаётся целиком.
+function friendNameHtml(u, fallback) {
+  const name = escapeHtml(u.first_name || fallback);
+  const chip = evoChipHtml(u.evo);
+  if (!chip) return `<span class="friend-row__name">${name}</span>`;
+  return `<span class="friend-row__name friend-row__name--evo"><span class="friend-row__name-text">${name}</span>${chip}</span>`;
+}
+
 function friendRowHtml(f, { viewerDone = true } = {}) {
   const id = Number(f.telegram_id);
   const meta = [
@@ -5602,7 +5619,7 @@ function friendRowHtml(f, { viewerDone = true } = {}) {
     <li class="friend-row" data-friend-id="${id}" data-profile-id="${id}">
       <span class="friend-row__avatar ${avatarFrameClass(f)}">${avatarInner(f)}</span>
       <span class="friend-row__info">
-        <span class="friend-row__name">${escapeHtml(f.first_name || "Друг")}</span>
+        ${friendNameHtml(f, "Друг")}
         ${meta ? `<span class="friend-row__meta">${meta}</span>` : ""}
       </span>
       ${action}
@@ -5709,13 +5726,15 @@ async function openFriendInvite() {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay",
 ];
 
-function celebrationOverlayOpen() {
+function celebrationOverlayOpen({ skipEvolution = false } = {}) {
   // pendingBonusIntro — окно «Удвоение очков» откроется сразу после того,
   // как закроют праздник серии; в этот зазор оно уже «ждёт своей очереди».
   if (pendingBonusIntro) return true;
+  // Новая эволюция уже ждёт своей очереди — остальные окна подождут её.
+  if (!skipEvolution && (evolutionRun.watch || evolutionRun.active)) return true;
   if (REMIND_BLOCKING_OVERLAYS.some(id => {
     const el = document.getElementById(id);
     return !!el && !el.hidden;
@@ -6161,6 +6180,415 @@ function initPairQuest() {
   document.getElementById("pairBackdrop")?.addEventListener("click", closePairSheet);
 }
 
+// ===================== ЭВОЛЮЦИИ ADAM И РАНГИ =====================
+// Постоянный ранг по лучшей серии (db/evolution.py): SPARK → FLOW → CONTROL →
+// APEX → LEGEND, 12 эволюций. Сервер считает всё — уровень, прогресс, лестницу и
+// pending (эволюция, праздник которой ещё не показывали); здесь только
+// отрисовка: значок ранга, окно «Эволюции», праздник на весь экран и ранг в
+// профиле, рейтинге и списках друзей. Эволюции остаются после срыва серии.
+const EVO_ICONS = {
+  spark: '<path d="M8 .8l1.9 5.3 5.3 1.9-5.3 1.9L8 15.2l-1.9-5.3L.8 8l5.3-1.9z"/>',
+  flow: '<path d="M1.5 7.5L8 2l6.5 5.5-1.5 1.7L8 4.9 3 9.2z"/><path d="M1.5 13L8 7.5l6.5 5.5-1.5 1.7L8 10.4l-5 4.3z"/>',
+  control: '<path fill-rule="evenodd" d="M8 1l6 3.5v7L8 15l-6-3.5v-7zM8 3.3L4.2 5.5v5L8 12.7l3.8-2.2v-5zM8 6.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6z"/>',
+  apex: '<path d="M.8 14.2L6 4.8l2.4 3.8 1.9-2.6 4.9 8.2z"/>',
+  legend: '<path d="M1 12.8L.6 4.2l3.9 3.4L8 2.4l3.5 5.2 3.9-3.4-.4 8.6z"/>',
+};
+const EVOLUTION_REVEAL_TEXT = "Эта форма ADAM теперь с тобой навсегда — срыв серии её не отнимет. Друзья увидят твой ранг в профиле.";
+
+function evoLadder() { return state?.hero?.evolution?.ladder || []; }
+
+function evoRankByLevel(level) {
+  const n = Number(level) || 0;
+  return n > 0 ? (evoLadder()[n - 1] || null) : null;
+}
+
+function evoIconSvg(family) {
+  const body = EVO_ICONS[family] || '<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/>';
+  return `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">${body}</svg>`;
+}
+
+// rank — запись лестницы или описание эволюции из профиля (нужны family и name).
+function evoBadgeHtml(rank, size) {
+  if (!rank || !rank.family || !rank.name) return "";
+  return `<span class="evo-badge${size ? ` evo-badge--${size}` : ""}" data-evo-family="${escapeHtml(rank.family)}">${evoIconSvg(rank.family)}<span>${escapeHtml(rank.name)}</span></span>`;
+}
+
+// Маленький значок в строках списков: в данных строки только уровень (evo).
+function evoChipHtml(level) { return evoBadgeHtml(evoRankByLevel(level), "chip"); }
+
+// ----- Карточка героя в профиле -----
+function renderHeroEvoRow(evo) {
+  const row = document.getElementById("heroEvoRow");
+  const wrap = document.getElementById("heroWidget");
+  if (!row) return;
+  if (!evo || !Array.isArray(evo.ladder)) {
+    row.hidden = true;
+    if (wrap) delete wrap.dataset.evoFamily;
+    return;
+  }
+  const level = Number(evo.level) || 0;
+  const next = evo.next;
+  if (wrap) {
+    if (evo.family) wrap.dataset.evoFamily = evo.family;
+    else delete wrap.dataset.evoFamily;
+  }
+  row.dataset.evoFamily = evo.family || (next && next.family) || "spark";
+  row.classList.toggle("is-locked", level === 0);
+  let hint;
+  if (!next) hint = "Максимальная эволюция — выше только слава.";
+  else if (Number(evo.streak) < Number(evo.best_streak)) hint = `Рекорд ${pairDaysWord(Number(evo.best_streak))} — открытые эволюции остаются навсегда`;
+  else hint = `До ${next.name} — ещё ${pairDaysWord(Number(next.days_left))}`;
+  row.innerHTML = `
+    <span class="hero-widget__evo-top">
+      ${level > 0 ? evoBadgeHtml(evo) : `<span class="hero-widget__evo-none">Эволюция не открыта</span>`}
+      <span class="hero-widget__evo-count">${level}/${Number(evo.total) || 12} ›</span>
+    </span>
+    <span class="hero-widget__evo-bar"><i style="width:${Math.max(0, Math.min(100, Number(evo.percent) || 0))}%"></i></span>
+    <span class="hero-widget__evo-hint">${escapeHtml(hint)}</span>`;
+  row.hidden = false;
+}
+
+// ----- Окно «Эволюции» (свой профиль и чужой) -----
+let evoSheetCtx = null;
+
+function renderEvolutionSheet() {
+  const ctx = evoSheetCtx;
+  const body = document.getElementById("evolutionSheetBody");
+  if (!ctx || !body) return;
+  const evo = ctx.evo;
+  const ladder = evoLadder();
+  const level = Number(evo.level) || 0;
+  const total = Number(evo.total) || ladder.length || 12;
+  const next = evo.next;
+  const family = evo.family || (next && next.family) || "spark";
+  const title = ctx.self ? "Твои эволюции" : `Эволюции — ${ctx.name || "игрок"}`;
+  let sub;
+  if (ctx.self) {
+    sub = level > 0
+      ? "ADAM открывает новые формы за серию. Открытые остаются с тобой навсегда."
+      : "Серия 3 дня — и ADAM откроет первую эволюцию.";
+  } else {
+    sub = evo.best_streak != null
+      ? `Лучшая серия — ${pairDaysWord(Number(evo.best_streak) || 0)}.`
+      : "Ранг считается по лучшей серии и остаётся навсегда.";
+  }
+  const image = ctx.showcase?.image || "";
+  const stats = `
+    <div class="evo-sheet-stats">
+      <div class="evo-stat"><b>${Number(evo.streak) || 0}</b><small>${ruPlural(Number(evo.streak) || 0, ["день", "дня", "дней"])} подряд</small></div>
+      <div class="evo-stat"><b>${level}/${total}</b><small>эволюций открыто</small></div>
+      <div class="evo-stat"><b>${next ? Number(next.days) : "MAX"}</b><small>${next ? "дней до следующей" : "выше только слава"}</small></div>
+    </div>`;
+  const steps = ladder.map((e) => {
+    const unlocked = e.level <= level;
+    const current = e.level === level;
+    return `<li class="evo-step ${unlocked ? "is-unlocked" : "is-locked"}${current ? " is-current" : ""}" data-evo-family="${escapeHtml(e.family)}">
+      <span class="evo-step__n">${String(e.level).padStart(2, "0")}</span>
+      ${evoBadgeHtml(e)}
+      ${current ? `<span class="evo-step__tag">сейчас</span>` : ""}
+      <span class="evo-step__days">${unlocked ? "✓ " : ""}${Number(e.days)} дн.</span>
+    </li>`;
+  }).join("");
+  body.dataset.evoFamily = family;
+  body.innerHTML = `
+    <div class="evo-sheet-head">
+      ${image ? `<span class="evo-sheet-portrait"><img src="${escapeHtml(image)}" alt="" decoding="async"></span>` : ""}
+      <div class="evo-sheet-head__body">
+        ${level > 0 ? evoBadgeHtml(evo, "big") : `<span class="hero-widget__evo-none">Эволюция не открыта</span>`}
+        <h3 class="evo-sheet-head__title" id="evolutionSheetTitle">${escapeHtml(title)}</h3>
+        <p class="evo-sheet-head__sub">${escapeHtml(sub)}</p>
+      </div>
+    </div>
+    ${stats}
+    <ul class="evo-ladder">${steps}</ul>
+    ${ctx.self && level > 0 ? `<button type="button" class="pair-btn pair-btn--ghost" data-evo-replay>▶ Показать праздник заново</button>` : ""}`;
+}
+
+function openEvolutionSheet(ctx) {
+  const sheet = document.getElementById("evolutionSheet");
+  if (!sheet || !ctx || !ctx.evo) return;
+  evoSheetCtx = ctx;
+  renderEvolutionSheet();
+  sheet.hidden = false;
+  sheet.setAttribute("aria-hidden", "false");
+  const card = sheet.querySelector(".evo-sheet__card");
+  if (card) card.scrollTop = 0;
+  requestAnimationFrame(() => sheet.classList.add("is-open"));
+}
+
+function closeEvolutionSheet() {
+  const sheet = document.getElementById("evolutionSheet");
+  if (!sheet || sheet.hidden) return;
+  sheet.classList.remove("is-open");
+  sheet.setAttribute("aria-hidden", "true");
+  setTimeout(() => { if (!sheet.classList.contains("is-open")) sheet.hidden = true; }, 230);
+}
+
+function openOwnEvolutionSheet() {
+  const hero = state?.hero;
+  if (!hero || !hero.evolution) return;
+  openEvolutionSheet({ evo: hero.evolution, showcase: hero, name: "", self: true });
+}
+
+// ----- Эволюция в чужом профиле: «живой» аватар и ранг -----
+function userEvolutionCardHtml(p) {
+  const evo = p.evolution;
+  if (!evo) return "";
+  const level = Number(evo.level) || 0;
+  const next = evo.next;
+  const family = evo.family || (next && next.family) || "spark";
+  const image = p.showcase?.image || "";
+  return `
+    <button type="button" class="up-evo" data-up="evo" data-evo-family="${escapeHtml(family)}" aria-label="Эволюции">
+      <span class="up-evo__portrait">${image ? `<img src="${escapeHtml(image)}" alt="" decoding="async">` : ""}</span>
+      <span class="up-evo__body">
+        ${level > 0 ? evoBadgeHtml(evo, "big") : `<span class="hero-widget__evo-none">Эволюция не открыта</span>`}
+        <span class="up-evo__line">Эволюций открыто: <b>${level}</b> из ${Number(evo.total) || 12}</span>
+        <span class="up-evo__next">${next
+          ? `Следующая: ${escapeHtml(next.name)} — ${pairDaysWord(Number(next.days))} серии`
+          : "Максимальная эволюция"}</span>
+      </span>
+      <span class="up-evo__chev" aria-hidden="true">›</span>
+    </button>`;
+}
+
+let profileHeroVideo = null;
+let profileHeroTimer = null;
+
+function dropProfileHeroVideo() {
+  clearTimeout(profileHeroTimer);
+  profileHeroTimer = null;
+  if (profileHeroVideo) {
+    profileHeroVideo.pause();
+    profileHeroVideo.remove();
+    profileHeroVideo = null;
+  }
+}
+
+// Аватар в чужом профиле живой — та же беззвучная петля, что и в своей
+// карточке, с теми же ограничениями (не на слабых устройствах, не дольше 30 с).
+function attachProfileHeroVideo() {
+  dropProfileHeroVideo();
+  const holder = document.querySelector("#userProfileBody .up-evo__portrait");
+  const showcase = profileData?.showcase;
+  if (!holder || !showcase || !showcase.video || !heroMotionAllowed()) return;
+  const v = createHeroVideo(showcase, "up-evo__video");
+  holder.appendChild(v);
+  profileHeroVideo = v;
+  const p = v.play();
+  if (p && p.catch) p.catch(() => {});
+  profileHeroTimer = setTimeout(() => v.pause(), HERO_VIDEO_MAX_PLAY_MS);
+}
+
+// ----- Праздник «EVOLUTION N UNLOCKED» -----
+// Экран слегка темнеет → аватар замирает, интерфейсные звуки глохнут → первый
+// голубой поток → второй → собирается золото → яркая вспышка → «EVOLUTION 01
+// UNLOCKED» → аватар возвращается в обычную петлю. Тап до конца — пропустить.
+// Каждая эволюция празднуется один раз (сервер хранит seen_level); на слабых
+// устройствах и при reduced-motion — короткий вариант без потоков и вспышки.
+const evolutionRun = { active: false, watch: null, timers: [], hideTimer: null, played: 0, level: 0, replay: false, video: null, revealed: false };
+
+function evolutionAt(ms, fn) { evolutionRun.timers.push(setTimeout(fn, ms)); }
+
+function clearEvolutionTimers() {
+  evolutionRun.timers.forEach(clearTimeout);
+  evolutionRun.timers = [];
+}
+
+function dropEvolutionVideo() {
+  if (evolutionRun.video) {
+    evolutionRun.video.pause();
+    evolutionRun.video.remove();
+    evolutionRun.video = null;
+  }
+}
+
+// Мягкий нарастающий аккорд на вспышке — после тишины, которую создаёт
+// evolutionSilence (playChime в это время молчит).
+function playEvolutionSwell() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const t = ctx.currentTime;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, t);
+    master.gain.exponentialRampToValueAtTime(0.1, t + 0.25);
+    master.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    master.connect(ctx.destination);
+    [220, 330, 440].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.5, t + 0.7);
+      osc.connect(master);
+      osc.start(t + i * 0.04);
+      osc.stop(t + 1.7);
+    });
+    setTimeout(() => ctx.close(), 1900);
+  } catch (_) {}
+}
+
+async function ackEvolution(level) {
+  try {
+    const data = await api("/api/evolution/seen", { method: "POST", body: JSON.stringify({ level }), timeoutMs: 8000 });
+    if (data && data.evolution && state?.hero) {
+      state.hero.evolution = data.evolution;
+      renderHeroWidget();
+    }
+  } catch (_) {
+    // Не дошло — праздник покажется снова при следующем обновлении, ничего страшного.
+  }
+}
+
+function revealEvolution() {
+  const overlay = document.getElementById("evolutionOverlay");
+  if (!overlay || overlay.hidden || evolutionRun.revealed) return;
+  evolutionRun.revealed = true;
+  overlay.classList.add("is-reveal", "is-revealed");
+  evolutionSilence = false;
+  const v = evolutionRun.video;
+  if (v) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+  if (!evolutionRun.replay) ackEvolution(evolutionRun.level);
+  document.getElementById("evolutionContinue")?.focus({ preventScroll: true });
+}
+
+function skipEvolutionBuildup() {
+  const overlay = document.getElementById("evolutionOverlay");
+  if (!overlay || overlay.hidden || !evolutionRun.active || evolutionRun.revealed) return;
+  clearEvolutionTimers();
+  overlay.classList.add("is-dim", "is-gold");
+  revealEvolution();
+}
+
+function playEvolutionCinematic(level, { replay = false } = {}) {
+  const overlay = document.getElementById("evolutionOverlay");
+  const rank = evoRankByLevel(level);
+  const hero = state?.hero;
+  if (!overlay || !rank || !hero) return false;
+  clearEvolutionTimers();
+  clearTimeout(evolutionRun.hideTimer);
+  dropEvolutionVideo();
+  const lite = !heroMotionAllowed();
+  evolutionRun.active = true;
+  evolutionRun.level = Number(level);
+  evolutionRun.replay = replay;
+  evolutionRun.revealed = false;
+  if (!replay) evolutionRun.played = Math.max(evolutionRun.played, Number(level));
+  evolutionSilence = true;
+  updateHeroMotion(); // видео карточки героя — на паузу, пока идёт праздник
+
+  document.getElementById("evolutionKicker").textContent = `EVOLUTION ${String(level).padStart(2, "0")}`;
+  document.getElementById("evolutionRank").innerHTML = evoBadgeHtml(rank, "big");
+  document.getElementById("evolutionText").textContent = EVOLUTION_REVEAL_TEXT;
+  const img = document.getElementById("evolutionImg");
+  if (img) img.src = hero.image;
+  const sparks = document.getElementById("evolutionSparks");
+  if (sparks) {
+    sparks.innerHTML = "";
+    if (!lite) {
+      for (let i = 0; i < 18; i++) {
+        const angle = (Math.PI * 2 * i) / 18 + Math.random() * 0.3;
+        const dist = 120 + Math.random() * 70;
+        const dot = document.createElement("i");
+        dot.style.setProperty("--x", `${Math.round(Math.cos(angle) * dist)}px`);
+        dot.style.setProperty("--y", `${Math.round(Math.sin(angle) * dist * 1.1)}px`);
+        dot.style.setProperty("--d", `${Math.round(Math.random() * 450)}ms`);
+        sparks.appendChild(dot);
+      }
+    }
+  }
+  const avatar = document.getElementById("evolutionAvatar");
+  avatar?.querySelector(".evo-avatar__video")?.remove();
+  if (avatar && hero.video && !lite) {
+    const v = createHeroVideo(hero, "evo-avatar__video");
+    avatar.appendChild(v);
+    evolutionRun.video = v;
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+
+  overlay.className = `evo-overlay${lite ? " is-lite" : ""}`;
+  overlay.dataset.evoFamily = rank.family;
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  void overlay.offsetWidth; // чтобы затемнение прошло плавно, а не включилось сразу
+  const add = (cls) => overlay.classList.add(cls);
+
+  evolutionAt(30, () => add("is-dim"));
+  if (lite) {
+    evolutionAt(700, () => { haptic("success"); revealEvolution(); });
+  } else {
+    evolutionAt(700, () => { evolutionRun.video?.pause(); add("is-s1"); haptic("select"); });
+    evolutionAt(1900, () => { add("is-s2"); haptic("light"); });
+    evolutionAt(3100, () => { add("is-gold"); haptic("confirm"); });
+    evolutionAt(4300, () => { add("is-flash"); haptic("success"); playEvolutionSwell(); });
+    evolutionAt(4800, revealEvolution);
+  }
+  return true;
+}
+
+function closeEvolutionCinematic({ toProfile = false } = {}) {
+  const overlay = document.getElementById("evolutionOverlay");
+  if (!overlay || overlay.hidden || overlay.classList.contains("is-leaving")) return;
+  clearEvolutionTimers();
+  dropEvolutionVideo();
+  evolutionRun.active = false;
+  evolutionSilence = false;
+  overlay.classList.add("is-leaving");
+  clearTimeout(evolutionRun.hideTimer);
+  evolutionRun.hideTimer = setTimeout(() => {
+    overlay.hidden = true;
+    overlay.className = "evo-overlay";
+    overlay.setAttribute("aria-hidden", "true");
+    updateHeroMotion(); // аватар в карточке снова играет свою петлю
+  }, 350);
+  if (toProfile) document.querySelector('.tab-bar__item[data-tab="profile"]')?.click();
+}
+
+// Новая эволюция ждёт своей очереди: сначала уходят праздник серии, новый
+// уровень, подсказки онбординга — потом полторы секунды тишины и наш экран.
+function queueEvolutionCelebration() {
+  const wanted = Number(state?.hero?.evolution?.pending) || 0;
+  if (!wanted || wanted <= evolutionRun.played || evolutionRun.active || evolutionRun.watch) return;
+  const startedAt = Date.now();
+  let quiet = 0;
+  const stop = () => { clearInterval(evolutionRun.watch); evolutionRun.watch = null; };
+  evolutionRun.watch = setInterval(() => {
+    if (Date.now() - startedAt > 120000) { stop(); return; }
+    if (document.hidden || celebrationOverlayOpen({ skipEvolution: true })) { quiet = 0; return; }
+    quiet += 1;
+    if (quiet < 2) return;
+    stop();
+    const level = Number(state?.hero?.evolution?.pending) || 0;
+    if (level > evolutionRun.played) playEvolutionCinematic(level);
+  }, 700);
+}
+
+function initEvolution() {
+  document.getElementById("heroEvoRow")?.addEventListener("click", () => { haptic("light"); openOwnEvolutionSheet(); });
+  document.getElementById("evolutionSheetBackdrop")?.addEventListener("click", closeEvolutionSheet);
+  document.getElementById("evolutionSheetClose")?.addEventListener("click", closeEvolutionSheet);
+  document.getElementById("evolutionSheetBody")?.addEventListener("click", (e) => {
+    if (!e.target.closest("[data-evo-replay]")) return;
+    const level = Number(evoSheetCtx?.evo?.level) || 0;
+    closeEvolutionSheet();
+    if (level > 0) setTimeout(() => playEvolutionCinematic(level, { replay: true }), 260);
+  });
+  const overlay = document.getElementById("evolutionOverlay");
+  overlay?.addEventListener("click", (e) => {
+    if (e.target.closest(".evo-reveal__actions")) return;
+    skipEvolutionBuildup();
+  });
+  document.getElementById("evolutionContinue")?.addEventListener("click", () => { haptic("light"); closeEvolutionCinematic(); });
+  document.getElementById("evolutionToProfile")?.addEventListener("click", () => { haptic("light"); closeEvolutionCinematic({ toProfile: true }); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (overlay && !overlay.hidden) { if (evolutionRun.revealed) closeEvolutionCinematic(); else skipEvolutionBuildup(); return; }
+    closeEvolutionSheet();
+  });
+}
+
 // ===================== ПОДПИСКИ И ПРОФИЛИ ИГРОКОВ =====================
 // Как в Duolingo: подписаться можно на любого (например, на топ рейтинга),
 // взаимная подписка = друзья. В чужом профиле видно ровно то, что разрешает
@@ -6262,6 +6690,7 @@ function renderUserProfile() {
       ${p.handle ? `<div class="up-handle">@${escapeHtml(p.handle)}</div>` : ""}
       <div class="up-meta">${[since, p.league_tier ? escapeHtml(p.league_tier) : "", Number(p.streak) > 0 ? `🔥 ${Number(p.streak)}` : ""].filter(Boolean).join(" · ")}</div>
     </section>
+    ${userEvolutionCardHtml(p)}
     <div class="up-counts">${countsHtml}</div>
     ${action}`;
 
@@ -6366,7 +6795,9 @@ function renderUserProfile() {
         </section>`;
     }
   }
+  dropProfileHeroVideo();
   body.innerHTML = html;
+  attachProfileHeroVideo();
 }
 
 async function openUserProfile(userId) {
@@ -6396,6 +6827,7 @@ function closeUserProfile() {
   overlay.classList.remove("is-open");
   overlay.setAttribute("aria-hidden", "true");
   setTimeout(() => { if (!overlay.classList.contains("is-open")) overlay.hidden = true; }, 300);
+  dropProfileHeroVideo();
   profileData = null;
 }
 
@@ -6466,7 +6898,7 @@ function followRowHtml(u) {
     <li class="friend-row" data-profile-id="${id}">
       <span class="friend-row__avatar ${avatarFrameClass(u)}">${avatarInner(u)}</span>
       <span class="friend-row__info">
-        <span class="friend-row__name">${escapeHtml(u.first_name || "Игрок")}</span>
+        ${friendNameHtml(u, "Игрок")}
         ${meta ? `<span class="friend-row__meta">${meta}</span>` : ""}
       </span>
       <button type="button" class="friend-row__btn friend-row__btn--${a.cls}" data-follow-act="${a.act}" data-follow-id="${id}" data-follow-name="${escapeHtml(u.first_name || "игрока")}">${a.label}</button>
@@ -6750,6 +7182,13 @@ function initProfileOverlays() {
       await sendProfileReport();
     } else if (action === "gift") {
       await openGiftSheet(profileData.telegram_id, profileData.first_name);
+    } else if (action === "evo") {
+      openEvolutionSheet({
+        evo: profileData.evolution,
+        showcase: profileData.showcase,
+        name: profileData.first_name,
+        self: !!profileData.relation?.self,
+      });
     } else {
       await changeRelation(profileData.telegram_id, action, profileData.first_name);
     }
@@ -7839,6 +8278,7 @@ async function boot() {
             initRatingScopeSwitch();
             initFriendsActions();
             initPairQuest();
+            initEvolution();
             initProfileOverlays();
             initArchetypeQuizActions();
             initPlanActions();

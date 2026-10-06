@@ -200,7 +200,7 @@ def list_follows(user_id, kind, limit=200):
     try:
         rows = conn.execute(
             f"""
-            SELECT u.telegram_id, u.first_name, u.username, u.handle, u.avatar_id, u.frame_id, u.streak,
+            SELECT u.telegram_id, u.first_name, u.username, u.handle, u.avatar_id, u.frame_id, u.streak, u.best_streak,
                    EXISTS(SELECT 1 FROM follows a WHERE a.follower_id=:me AND a.followee_id=u.telegram_id) AS following,
                    EXISTS(SELECT 1 FROM follows b WHERE b.follower_id=u.telegram_id AND b.followee_id=:me) AS followed_by
             FROM follows f
@@ -213,6 +213,8 @@ def list_follows(user_id, kind, limit=200):
         ).fetchall()
     finally:
         conn.close()
+    from .evolution import public_level
+
     result = []
     for r in rows:
         following, followed_by = bool(r["following"]), bool(r["followed_by"])
@@ -223,6 +225,7 @@ def list_follows(user_id, kind, limit=200):
             "avatar_id": r["avatar_id"] or "default",
             "frame_id": r["frame_id"] or "default",
             "streak": int(r["streak"] or 0),
+            "evo": public_level(r["best_streak"], r["streak"]),
             "following": following,
             "followed_by": followed_by,
             "friends": following and followed_by,

@@ -78,7 +78,7 @@ from db import (
     get_struggling_habits, suggest_optimal_reminder_time,
     get_habit_correlations,
     set_archetype, ARCHETYPES,
-    get_pet, get_hero_state,
+    get_pet, get_hero_state, acknowledge_evolution, public_level,
     get_season_leaderboard, get_season_rank,
     create_team, join_team, leave_team, get_my_team,
     get_friend_activity_feed,
@@ -730,6 +730,23 @@ async def pair_claim_route(request):
     })
 
 
+@routes.post("/api/evolution/seen")
+async def evolution_seen_route(request):
+    """Игрок досмотрел праздник «EVOLUTION N UNLOCKED». body: {"level": N}.
+    Уровень выше реального обрезается на сервере (db/evolution.py)."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    if not isinstance(body, dict):
+        return web.json_response({"error": "invalid_json"}, status=400)
+    evolution = acknowledge_evolution(telegram_id, body.get("level"))
+    if evolution is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response({"ok": True, "evolution": evolution})
+
+
 @routes.get("/api/pet")
 async def pet_route(request):
     """Roadmap #11 — виртуальный питомец."""
@@ -908,6 +925,7 @@ async def bootstrap_secondary(request):
                 "xp": row["xp"],
                 "level": row["level"],
                 "streak": row["streak"],
+                "evo": public_level(row["best_streak"] if "best_streak" in row.keys() else 0, row["streak"]),
                 "badge": row["telegram_id"] in badge_owner_ids,
                 "avatar_id": row["avatar_id"] if "avatar_id" in row.keys() else "default",
                 "frame_id": row["frame_id"] if "frame_id" in row.keys() else "default",

@@ -810,7 +810,7 @@ def get_rating(user_id, limit=10):
     if max_streak is None:
         cursor.execute("""
             SELECT u.telegram_id, u.username, u.first_name, u.handle, u.xp, u.level, u.streak,
-                   u.avatar_id, u.frame_id, u.total_xp,
+                   u.best_streak, u.avatar_id, u.frame_id, u.total_xp,
                    sm.temp_frame, sm.temp_status
             FROM users u
             LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id
@@ -820,7 +820,7 @@ def get_rating(user_id, limit=10):
     else:
         cursor.execute("""
             SELECT u.telegram_id, u.username, u.first_name, u.handle, u.xp, u.level, u.streak,
-                   u.avatar_id, u.frame_id, u.total_xp,
+                   u.best_streak, u.avatar_id, u.frame_id, u.total_xp,
                    sm.temp_frame, sm.temp_status
             FROM users u
             LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id

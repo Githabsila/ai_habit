@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261004_PAIR_V29">
+<link rel="stylesheet" href="/static/style.css?v=20261006_EVO_V32">
 </head>
 <body>
 
@@ -438,6 +438,9 @@ class="habit-add-form__submit">
     <div class="hero-widget__caption" id="heroWidgetCaption"></div>
     <div class="hero-widget__bar"><div class="hero-widget__bar-fill" id="heroWidgetBarFill"></div></div>
     <div class="hero-widget__hint" id="heroWidgetHint"></div>
+    <!-- Постоянный ранг (db/evolution.py): значок, счётчик эволюций и
+         прогресс до следующей. Тап — окно со всеми 12 эволюциями. -->
+    <button type="button" class="hero-widget__evo" id="heroEvoRow" hidden></button>
   </div>
 </div>
 
@@ -1008,6 +1011,17 @@ class="habit-add-form__submit">
   </section>
 </div>
 
+<!-- Эволюции ADAM: все 12 рангов, сколько открыто и сколько до следующего.
+     Один экран и для своего профиля, и для чужого (app.js::renderEvolutionSheet). -->
+<div class="feedback-sheet evo-sheet" id="evolutionSheet" hidden aria-hidden="true">
+  <div class="feedback-sheet__backdrop" id="evolutionSheetBackdrop"></div>
+  <section class="feedback-card evo-sheet__card" role="dialog" aria-modal="true" aria-labelledby="evolutionSheetTitle">
+    <div class="freeze-purchase-card__handle"></div>
+    <div id="evolutionSheetBody"></div>
+    <button type="button" class="pair-btn pair-btn--link" id="evolutionSheetClose">Закрыть</button>
+  </section>
+</div>
+
 <div class="freeze-purchase-sheet" id="freezePurchaseSheet" hidden aria-hidden="true">
   <div class="freeze-purchase-sheet__backdrop" id="freezePurchaseBackdrop"></div>
   <section class="freeze-purchase-card" role="dialog" aria-modal="true" aria-labelledby="freezePurchaseTitle">
@@ -1255,6 +1269,33 @@ class="habit-add-form__submit">
   <div class="hero-lightbox__close" aria-hidden="true">Нажми, чтобы закрыть</div>
 </div>
 
+<!-- Праздник новой эволюции: экран темнеет, аватар замирает, два синих потока,
+     золото, вспышка, «EVOLUTION 01 UNLOCKED» (app.js::playEvolutionCinematic). -->
+<div class="evo-overlay" id="evolutionOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="evolutionTitle" data-evo-family="spark">
+  <div class="evo-dim"></div>
+  <div class="evo-stage" id="evolutionStage" aria-hidden="true">
+    <div class="evo-aura evo-aura--blue"></div>
+    <div class="evo-aura evo-aura--gold"></div>
+    <div class="evo-ring evo-ring--1"></div>
+    <div class="evo-ring evo-ring--2"></div>
+    <div class="evo-stream evo-stream--1"><i style="--x:-46%;--d:0ms"></i><i style="--x:-30%;--d:180ms"></i><i style="--x:30%;--d:90ms"></i><i style="--x:46%;--d:260ms"></i></div>
+    <div class="evo-stream evo-stream--2"><i style="--x:-52%;--d:0ms"></i><i style="--x:-38%;--d:140ms"></i><i style="--x:-22%;--d:60ms"></i><i style="--x:22%;--d:200ms"></i><i style="--x:38%;--d:100ms"></i><i style="--x:52%;--d:240ms"></i></div>
+    <div class="evo-sparks" id="evolutionSparks"></div>
+    <div class="evo-avatar" id="evolutionAvatar"><img id="evolutionImg" alt="" decoding="async"></div>
+  </div>
+  <div class="evo-flash"></div>
+  <div class="evo-reveal">
+    <div class="evo-reveal__kicker" id="evolutionKicker">EVOLUTION 01</div>
+    <h2 class="evo-reveal__title" id="evolutionTitle">UNLOCKED</h2>
+    <div class="evo-reveal__rank" id="evolutionRank"></div>
+    <p class="evo-reveal__text" id="evolutionText"></p>
+    <div class="evo-reveal__actions">
+      <button type="button" class="pair-btn pair-btn--primary" id="evolutionContinue">Продолжить</button>
+      <button type="button" class="pair-btn pair-btn--link" id="evolutionToProfile">Посмотреть в профиле</button>
+    </div>
+  </div>
+</div>
+
 <div class="start-quiz-overlay" id="startQuizOverlay" hidden aria-hidden="true">
   <div class="start-quiz-card" role="dialog" aria-modal="true" aria-labelledby="startQuizTitle">
     <div class="start-quiz-topbar">
@@ -1330,7 +1371,7 @@ class="habit-add-form__submit">
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
-<script type="module" src="/static/app.js?v=20261004_PAIR_V34"></script>
+<script type="module" src="/static/app.js?v=20261006_EVO_V37"></script>
 
 </body>
 </html>

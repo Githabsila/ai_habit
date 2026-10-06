@@ -67,8 +67,8 @@ def test_styles_for_every_new_block_exist():
 
 
 def test_asset_versions_were_bumped_together_with_the_change():
-    assert "style.css?v=20261004_PAIR_V29" in INDEX
-    assert "app.js?v=20261004_PAIR_V34" in INDEX
+    assert "style.css?v=20261006_EVO_V32" in INDEX
+    assert "app.js?v=20261006_EVO_V37" in INDEX
 
 
 # ---------------------------------------------------------------------------
