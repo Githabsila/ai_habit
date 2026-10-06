@@ -2231,6 +2231,111 @@
   window.addEventListener('scroll', scheduleSpotlightReflow, { passive: true, capture: true });
   window.addEventListener('resize', scheduleSpotlightReflow);
 
+  // ===================== КЛАВИАТУРА =====================
+  // На телефоне Telegram при открытой клавиатуре уменьшает окно, и фиксированная
+  // нижняя панель (.tab-bar) всплывает НАД клавиатурой — прямо поверх поля, в
+  // которое человек вводит текст (скриншот с телефона: «Главная задача дня» на
+  // шаге 3 подсказок наполовину под панелью, набранного не видно). Пока в
+  // текстовом поле стоит курсор, панель прячем (класс html.kb-open), а поле при
+  // необходимости подкручиваем в видимую часть окна.
+  const TEXT_FIELD_SELECTOR = 'input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=button]):not([type=submit]):not([type=hidden]), textarea';
+  let keyboardOpen = false;
+  let keyboardCloseTimer = null;
+  let keyboardSawShrink = false;
+
+  function visibleViewportHeight() {
+    return Math.round(window.visualViewport?.height || window.innerHeight);
+  }
+  let keyboardBaseHeight = visibleViewportHeight();
+
+  function isTextField(el) {
+    return !!el && el.nodeType === 1 && typeof el.matches === 'function' && el.matches(TEXT_FIELD_SELECTOR);
+  }
+
+  function blurActiveTextField() {
+    if (isTextField(document.activeElement)) document.activeElement.blur();
+    setKeyboardOpen(false);
+  }
+
+  // Поле ввода должно быть видно НАД клавиатурой. В обычном состоянии браузер
+  // подкручивает его сам, но при открытой подсказке онбординга страница
+  // заблокирована (position:fixed на body) — тогда сдвигаем её вручную, меняя
+  // top у body, а не снимаем блокировку (лишний перерасчёт раскладки).
+  function revealFocusedField() {
+    const field = document.activeElement;
+    if (!keyboardOpen || !isTextField(field)) return;
+    const vh = visibleViewportHeight();
+    const r = field.getBoundingClientRect();
+    if (r.top >= 12 && r.bottom <= vh - 16) return; // уже на виду
+    const delta = r.top + r.height / 2 - vh * 0.35;
+    if (scrollLockActive) {
+      const maxY = Math.max(0, document.body.scrollHeight - vh);
+      scrollLockY = Math.max(0, Math.min(maxY, scrollLockY + delta));
+      document.body.style.top = `-${scrollLockY}px`;
+      scheduleSpotlightReflow();
+    } else {
+      field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }
+
+  // Клавиатура закрылась: подсказка (если открыта) встаёт рядом с целью заново —
+  // пока клавиатура была открыта, страница могла сдвинуться.
+  function refreshHintLayout() {
+    const el = document.getElementById('productOnboardingHint');
+    if (!productHintTarget || !el || el.hidden || productHintTarget.offsetParent === null) return;
+    positionOnboardingSpotlight(productHintTarget);
+    positionHintCardNear(productHintTarget, el);
+    el.hidden = false;
+  }
+
+  function setKeyboardOpen(open) {
+    if (open === keyboardOpen) return;
+    keyboardOpen = open;
+    keyboardSawShrink = false;
+    document.documentElement.classList.toggle('kb-open', open);
+    if (!open) refreshHintLayout();
+  }
+
+  document.addEventListener('focusin', (event) => {
+    if (!isTextField(event.target)) return;
+    clearTimeout(keyboardCloseTimer);
+    if (!keyboardOpen) keyboardBaseHeight = visibleViewportHeight();
+    setKeyboardOpen(true);
+    setTimeout(revealFocusedField, 350); // окно успевает уменьшиться
+  });
+  document.addEventListener('focusout', (event) => {
+    if (!isTextField(event.target)) return;
+    clearTimeout(keyboardCloseTimer);
+    // Фокус может сразу перейти в другое поле — тогда клавиатура не закрывается.
+    keyboardCloseTimer = setTimeout(() => {
+      if (!isTextField(document.activeElement)) setKeyboardOpen(false);
+    }, 160);
+  });
+  // Клавиатуру можно скрыть кнопкой «назад», не убирая курсор из поля: окно
+  // вернулось к прежней высоте — панель тоже возвращаем. Слушаем и window, и
+  // visualViewport: на Android меняется окно, на iOS — только визуальная область.
+  function onKeyboardViewportChange() {
+    const h = visibleViewportHeight();
+    if (!keyboardOpen) { keyboardBaseHeight = h; return; }
+    if (h < keyboardBaseHeight - 120) {
+      keyboardSawShrink = true;
+      revealFocusedField();
+    } else if (keyboardSawShrink && h >= keyboardBaseHeight - 60) {
+      setKeyboardOpen(false);
+    }
+    scheduleSpotlightReflow();
+  }
+  window.addEventListener('resize', onKeyboardViewportChange);
+  // Размер окна поменялся (Telegram раскрыл Mini App, поворот экрана): карточка
+  // подсказки считалась под прежний размер и оставалась на старых координатах —
+  // на низком экране уезжала за край.
+  let hintResizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(hintResizeTimer);
+    hintResizeTimer = setTimeout(() => { if (!keyboardOpen) refreshHintLayout(); }, 150);
+  });
+  window.visualViewport?.addEventListener('resize', onKeyboardViewportChange);
+
   // ---------- Эффект "печатается прямо сейчас" ----------
   let typewriterTimer = null;
   function typewriteHintText(el, text) {
@@ -2273,7 +2378,9 @@
     el.style.visibility = '';
     el.style.minHeight = `${cardHeight}px`;
 
-    const spaceBelow = vh - r.bottom;
+    // Для цели вне нижней навигации свободное место снизу кончается у самой
+    // навигации, а не у края окна (на низких экранах карточка заезжала на неё).
+    const spaceBelow = (target.closest('.tab-bar') ? vh : vh - navClearance) - r.bottom;
     const spaceAbove = r.top;
     let top;
     if (spaceBelow >= cardHeight + margin * 2) {
@@ -2474,6 +2581,9 @@
     // раскладки, на телефоне это заметный рывок. Цель в нижней навигации
     // докручивать не надо, но блокировку снимаем: вкладка могла смениться.
     const onTabBar = !!target.closest('.tab-bar');
+    // Нижняя панель прячется, пока в текстовом поле курсор (на iOS кнопка не
+    // забирает фокус у поля) — а здесь подсказка указывает именно на неё.
+    if (onTabBar) blurActiveTextField();
     const wellPlaced = !onTabBar && targetWellPlaced(target);
     if (!wellPlaced) unlockBackgroundScroll();
     if (!onTabBar && !wellPlaced) {

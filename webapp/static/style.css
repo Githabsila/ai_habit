@@ -14066,3 +14066,8 @@ button.up-count:active{opacity:.75}
 .friend-row__name--evo .evo-badge--chip{flex:none}
 .rating-item__evo{display:block;margin-top:3px;line-height:1}
 .rating-item__evo .evo-badge--chip{margin-left:0}
+
+/* Клавиатура открыта (app.js, html.kb-open): нижняя панель не должна всплывать над
+   клавиатурой поверх поля ввода, а карточка подсказки — перекрывать то, что набирают. */
+html.kb-open .tab-bar{display:none !important}
+html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !important}
