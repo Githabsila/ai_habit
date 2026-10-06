@@ -54,3 +54,29 @@ def test_hint_card_is_measured_with_the_full_text_and_keeps_its_height():
     assert "el.style.minHeight = `${cardHeight}px`" in place
     assert "vh - cardHeight - navClearance" in place, "запасной вариант — над нижней навигацией"
     assert "el.style.minHeight = ''" in _function_body("hideProductHint")
+
+
+def test_unlocking_the_page_restores_the_scroll_instantly():
+    """У html scroll-behavior:smooth, а на заблокированном (position:fixed) теле страница
+    стоит на нуле: обычный scrollTo(0, Y) ехал бы с самого верха вниз — на видео с
+    телефона при каждом «Далее»/«Назад» страница улетала наверх и возвращалась."""
+    body = _function_body("unlockBackgroundScroll")
+    assert "root.style.scrollBehavior = 'auto'" in body
+    assert body.index("root.style.scrollBehavior = 'auto'") < body.index("window.scrollTo(0, scrollLockY)")
+    assert "root.style.scrollBehavior = prevBehavior" in body[body.index("window.scrollTo(0, scrollLockY)"):]
+
+
+def test_steps_do_not_scroll_or_relock_the_page_when_the_target_is_already_well_placed():
+    show = _function_body("showProductHint")
+    assert "targetWellPlaced(target)" in show
+    gate = show[show.index("const onTabBar"):show.index("whenScrollSettled(target")]
+    assert "if (!wellPlaced) unlockBackgroundScroll();" in gate
+    assert "!onTabBar && !wellPlaced" in gate and "scrollIntoView(" in gate
+    place = _function_body("targetWellPlaced")
+    assert "r.top >= 70" in place and "innerHeight * 0.6" in place
+
+
+def test_tab_switch_between_steps_unlocks_the_page_first():
+    """Иначе новая вкладка осталась бы сдвинутой на top:-Y прежней."""
+    body = _function_body("goToOnboardingStage")
+    assert body.index("unlockBackgroundScroll()") < body.index(".click()")

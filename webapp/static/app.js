@@ -2155,7 +2155,16 @@
     scrollLockActive = false;
     document.body.classList.remove('onboarding-scroll-lock');
     document.body.style.top = '';
+    // У html стоит scroll-behavior:smooth — обычный scrollTo(0, Y) ЕХАЛ бы на Y
+    // плавно, а из-за position:fixed страница на момент снятия блокировки
+    // стоит в самом верху. На видео с телефона при каждом «Далее»/«Назад»
+    // страница на глазах улетала наверх и ехала обратно к цели. На время
+    // возврата отключаем smooth инлайн-стилем (так же сделано в ai_coach.js).
+    const root = document.documentElement;
+    const prevBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
     window.scrollTo(0, scrollLockY);
+    root.style.scrollBehavior = prevBehavior;
   }
 
   function showOnboardingSpotlight(target) {
@@ -2309,6 +2318,7 @@
       if (!showProductHint(stage) && dir) goToOnboardingStage(stage + dir, dir);
     };
     if (tab && tab !== activeTab) {
+      unlockBackgroundScroll();
       document.querySelector(`.tab-bar__item[data-tab="${tab}"]`)?.click();
       setTimeout(show, 200);
     } else {
@@ -2333,6 +2343,11 @@
       setTimeout(tick, 60);
     };
     setTimeout(tick, 60);
+  }
+
+  function targetWellPlaced(target) {
+    const r = target.getBoundingClientRect();
+    return r.top >= 70 && r.bottom <= window.innerHeight * 0.6;
   }
 
   function showProductHint(stage) {
@@ -2432,8 +2447,15 @@
     // между шагами цель следующего шага оставалась за экраном, и её закрывала
     // сама карточка подсказки. Снимаем блокировку на время докрутки;
     // showOnboardingSpotlight поставит её снова уже по новому положению.
-    unlockBackgroundScroll();
-    if (!target.closest('.tab-bar')) {
+    // Если цель и так стоит удачно (под шапкой, в верхней части экрана, под ней
+    // хватает места для карточки) — не трогаем ни скролл, ни блокировку: каждое
+    // снятие/установка position:fixed на длинной странице — полный перерасчёт
+    // раскладки, на телефоне это заметный рывок. Цель в нижней навигации
+    // докручивать не надо, но блокировку снимаем: вкладка могла смениться.
+    const onTabBar = !!target.closest('.tab-bar');
+    const wellPlaced = !onTabBar && targetWellPlaced(target);
+    if (!wellPlaced) unlockBackgroundScroll();
+    if (!onTabBar && !wellPlaced) {
       target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     }
     whenScrollSettled(target, () => {
