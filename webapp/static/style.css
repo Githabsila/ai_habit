@@ -6726,7 +6726,8 @@ ul#shopList.shop-list,
    ========================================================= */
 
 .profile-panel-title,
-section[data-tab="profile"] .section-heading h2{
+section[data-tab="profile"] .section-heading h2,
+.subpage-overlay .section-heading h2{
   font-family:'Space Grotesk','Inter',sans-serif;
 }
 
@@ -6734,17 +6735,20 @@ section[data-tab="profile"]{
   padding-bottom:24px;
 }
 
-section[data-tab="profile"] .section-heading{
+section[data-tab="profile"] .section-heading,
+.subpage-overlay .section-heading{
   margin-top:24px !important;
 }
 
-section[data-tab="profile"] .section-heading h2{
+section[data-tab="profile"] .section-heading h2,
+.subpage-overlay .section-heading h2{
   display:flex;
   align-items:center;
   gap:9px;
 }
 
-section[data-tab="profile"] .section-heading h2::first-letter{
+section[data-tab="profile"] .section-heading h2::first-letter,
+.subpage-overlay .section-heading h2::first-letter{
   filter:drop-shadow(0 0 8px rgba(139,108,255,.28));
 }
 
@@ -9445,7 +9449,7 @@ body{
 .subpage-overlay__back:active{transform:scale(.92)}
 .subpage-overlay__title{font-size:16px;font-weight:800;color:#fff;margin:0}
 .subpage-overlay__body{
-  flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
   padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 24px);
 }
 
@@ -14071,3 +14075,12 @@ button.up-count:active{opacity:.75}
    клавиатурой поверх поля ввода, а карточка подсказки — перекрывать то, что набирают. */
 html.kb-open .tab-bar{display:none !important}
 html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !important}
+
+/* Подстраницы (магазин, настройки, прогресс) вынесены в body (app.js::initSubpageOverlays)
+   и лежат на z-index 1850–1860 — раньше они сидели внутри #app (z-index:1), и всё, что
+   живёт в body со значением 100–1000, оставалось ВЫШЕ них. Эти элементы должны
+   по-прежнему показываться поверх открытой подстраницы: тост «Покупка совершена!»,
+   окно нового уровня, итог дня, экран загрузки при переходе в чат/админку. */
+.toast{z-index:1880 !important}
+.loading-overlay,.boot-retry-banner{z-index:1890 !important}
+.levelup-overlay,.impactday-overlay{z-index:9000 !important}

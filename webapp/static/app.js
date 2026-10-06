@@ -349,6 +349,16 @@
     // (Bot API 7.7+) отдаёт весь вертикальный скролл самой странице.
     // Метода может не быть у старых клиентов Telegram — просто нет-опа.
     try { tg.disableVerticalSwipes?.(); } catch (e) {}
+    // Стрелка «назад» в шапке Telegram. Чат с ADAM (ai_coach.js) показывает её и
+    // возвращается сюда обычным переходом на «/» — Telegram её не сбрасывает, и
+    // на главной вместо привычного «✕» оставалась «←» без обработчика (на
+    // скриншотах она есть на каждом экране после чата). Прячем при загрузке; а
+    // показываем только пока открыта подстраница (магазин, прогресс, настройки):
+    // тогда она закрывает верхнюю, как и «←» в её шапке.
+    try {
+      tg.BackButton?.hide();
+      tg.onEvent?.("backButtonClicked", closeTopSubpage);
+    } catch (e) {}
   }
 
   function initData() {
@@ -4221,13 +4231,28 @@ function initTabs() {
 // текущей вкладки (тот же приём, что и у daily-quests-overlay), их
 // содержимое и id внутри не менялись — просто скрыты за компактной
 // карточкой-переходом в Профиле, пока оверлей не открыт.
+// Стрелка «назад» Telegram видна, пока открыта хотя бы одна подстраница.
+function syncBackButton() {
+  const back = window.Telegram?.WebApp?.BackButton;
+  if (!back) return;
+  const anyOpen = !!document.querySelector(".subpage-overlay.is-open");
+  try { if (anyOpen) back.show(); else back.hide(); } catch (_) {}
+}
+
+// Верхняя подстраница: магазин/прогресс лежат поверх настроек (--nested).
+function closeTopSubpage() {
+  const open = Array.from(document.querySelectorAll(".subpage-overlay.is-open"));
+  const top = open.find((overlay) => overlay.classList.contains("subpage-overlay--nested")) || open[0];
+  top?.querySelector(".subpage-overlay__back")?.click();
+}
+
 function initSubpageOverlay(overlayId, triggerId, closeId, backdropId) {
   const overlay = document.getElementById(overlayId);
   const trigger = document.getElementById(triggerId);
   if (!overlay || !trigger) return;
   const open = () => {
     overlay.hidden = false;
-    requestAnimationFrame(() => overlay.classList.add("is-open"));
+    requestAnimationFrame(() => { overlay.classList.add("is-open"); syncBackButton(); });
     overlay.setAttribute("aria-hidden", "false");
     haptic("light");
     // Открытая подстраница ложится ПОВЕРХ текущей цели подсказки
@@ -4243,6 +4268,7 @@ function initSubpageOverlay(overlayId, triggerId, closeId, backdropId) {
     overlay.classList.remove("is-open");
     overlay.setAttribute("aria-hidden", "true");
     setTimeout(() => { if (!overlay.classList.contains("is-open")) overlay.hidden = true; }, 300);
+    syncBackButton();
   };
   trigger.addEventListener("click", open);
   document.getElementById(closeId)?.addEventListener("click", close);
@@ -4250,6 +4276,17 @@ function initSubpageOverlay(overlayId, triggerId, closeId, backdropId) {
 }
 
 function initSubpageOverlays() {
+  // Магазин, «Прогресс» и «Настройки» лежат в HTML внутри <section class="tab-panel">
+  // (contain:layout) и внутри <main id="content"> (transform от анимации) — оба
+  // делают предком для position:fixed. «Полноэкранный» оверлей получал размер
+  // вкладки: начинался под карточкой игрока, а нижняя часть уезжала за край
+  // окна, и последние строки магазина нельзя было промотать из-под нижней
+  // панели (скриншот с телефона). Переносим их в body — как уже сделано у
+  // остальных модалок (квесты дня, подарки). Id и обработчики не меняются.
+  ["shopOverlay", "statsOverlay", "settingsOverlay"].forEach((id) => {
+    const overlay = document.getElementById(id);
+    if (overlay && overlay.parentElement !== document.body) document.body.appendChild(overlay);
+  });
   initSubpageOverlay("shopOverlay", "openShopBtn", "shopOverlayClose", "shopOverlayBackdrop");
   initSubpageOverlay("statsOverlay", "openStatsBtn", "statsOverlayClose", "statsOverlayBackdrop");
   initSubpageOverlay("settingsOverlay", "openSettingsBtn", "settingsOverlayClose", "settingsOverlayBackdrop");
@@ -4271,6 +4308,7 @@ function closeAllSubpageOverlays() {
     overlay.setAttribute("aria-hidden", "true");
     setTimeout(() => { if (!overlay.classList.contains("is-open")) overlay.hidden = true; }, 300);
   });
+  syncBackButton();
 }
 
 // ===================== СВОРАЧИВАЕМЫЕ ФОРМЫ ДОБАВЛЕНИЯ =====================
