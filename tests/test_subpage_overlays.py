@@ -41,9 +41,37 @@ def test_section_headings_inside_overlays_keep_their_profile_styling():
     assert re.search(r"\.subpage-overlay \.section-heading h2\{\s*font-family", CSS)
 
 
-def test_overlay_body_does_not_chain_the_scroll_to_the_page_behind():
-    body_rule = CSS[CSS.index(".subpage-overlay__body{"):][:250]
-    assert "overscroll-behavior:contain" in body_rule
+def test_overlay_body_has_no_rubber_band_and_does_not_chain_the_scroll():
+    """Видео с телефона: в конце списка окно «прокручивалось ниже ещё» и после возврата вверх
+    оставалось смещённым. overscroll-behavior:none убирает и растяжение (Android 12+), и передачу
+    прокрутки странице под окном."""
+    body_rule = CSS[CSS.index(".subpage-overlay__body{"):][:400]
+    assert "overscroll-behavior:none" in body_rule and "min-height:0" in body_rule
+
+
+def test_subpage_header_with_the_back_arrow_is_fixed_outside_the_scroller():
+    """Шапка со стрелкой «назад» — вне прокручиваемого тела: не двигается ни при прокрутке, ни в конце списка."""
+    header = CSS[CSS.index(".subpage-overlay__header{"):][:500]
+    assert "flex:0 0 auto" in header and "touch-action:none" in header
+    # отступы сверху и снизу одинаковые — стрелка по центру шапки по вертикали
+    assert re.search(r"padding:calc\(env\(safe-area-inset-top,0px\) \+ 10px\) 16px 10px", header)
+    back = CSS[CSS.index(".subpage-overlay__back{"):][:400]
+    assert "display:grid;place-items:center" in back
+    panel = CSS[CSS.index(".subpage-overlay__panel{"):][:400]
+    assert "transform" not in panel, "окно открывается статично, без заезда"
+
+
+def test_back_arrow_is_an_svg_centered_in_its_button():
+    """Текстовая «←» сидела в кнопке чуть ниже центра — теперь SVG с симметричным viewBox."""
+    for overlay_id in ("shopOverlayClose", "statsOverlayClose", "settingsOverlayClose", "userProfileClose"):
+        button = INDEX[INDEX.index(f'id="{overlay_id}"'):][:520]
+        assert "<svg" in button and "M19 12H5M11 6l-6 6 6 6" in button and 'aria-label="Назад"' in button, overlay_id
+        assert "←" not in button[:button.index("</button>")], overlay_id
+
+
+def test_every_open_starts_from_the_top():
+    opening = APP_JS[APP_JS.index("function initSubpageOverlay("):][:900]
+    assert "scroller.scrollTop = 0" in opening
 
 
 def test_transient_ui_stays_above_the_subpages():
@@ -67,9 +95,9 @@ def test_telegram_back_button_is_hidden_on_load_and_closes_the_top_subpage():
     init = APP_JS[APP_JS.index("function initTelegram()"):][:2600]
     assert "tg.BackButton?.hide()" in init
     assert 'tg.onEvent?.("backButtonClicked", closeTopSubpage)' in init
-    top = APP_JS[APP_JS.index("function closeTopSubpage()"):][:400]
-    # вложенные (магазин, прогресс) лежат поверх настроек — закрываются первыми
-    assert "subpage-overlay--nested" in top and "subpage-overlay__back" in top
+    top = APP_JS[APP_JS.index("function closeTopSubpage()"):][:600]
+    # закрывается верхнее окно по z-index: магазин/прогресс (1860) поверх настроек (1850), профиль игрока (1870) выше всех
+    assert "getComputedStyle(overlay).zIndex" in top and "subpage-overlay__back" in top
 
 
 def test_back_button_follows_the_open_subpages():

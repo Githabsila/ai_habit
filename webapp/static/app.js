@@ -4241,8 +4241,9 @@ function syncBackButton() {
 
 // Верхняя подстраница: магазин/прогресс лежат поверх настроек (--nested).
 function closeTopSubpage() {
+  const zIndexOf = (overlay) => Number.parseInt(getComputedStyle(overlay).zIndex, 10) || 0;
   const open = Array.from(document.querySelectorAll(".subpage-overlay.is-open"));
-  const top = open.find((overlay) => overlay.classList.contains("subpage-overlay--nested")) || open[0];
+  const top = open.sort((a, b) => zIndexOf(b) - zIndexOf(a))[0];
   top?.querySelector(".subpage-overlay__back")?.click();
 }
 
@@ -4252,6 +4253,9 @@ function initSubpageOverlay(overlayId, triggerId, closeId, backdropId) {
   if (!overlay || !trigger) return;
   const open = () => {
     overlay.hidden = false;
+    // Каждый раз открывается с самого начала, а не там, где закрыли в прошлый раз.
+    const scroller = overlay.querySelector(".subpage-overlay__body");
+    if (scroller) scroller.scrollTop = 0;
     requestAnimationFrame(() => { overlay.classList.add("is-open"); syncBackButton(); });
     overlay.setAttribute("aria-hidden", "false");
     haptic("light");

@@ -9425,31 +9425,46 @@ body{
   position:absolute;inset:0;background:rgba(6,4,12,.62);
   opacity:0;transition:opacity .28s ease;
 }
+/* Окно статично: открывается без «заезда» (раньше панель ехала на 18px и
+   плавала, пока шла анимация) — только быстрое появление. */
 .subpage-overlay__panel{
   position:absolute;inset:0;
   background:#0d0b14;
   display:flex;flex-direction:column;
-  transform:translateY(18px);opacity:0;
-  transition:opacity .28s ease,transform .28s var(--adam-motion-ease,ease);
+  opacity:0;
+  transition:opacity .18s ease;
 }
 .subpage-overlay.is-open .subpage-overlay__backdrop{opacity:1}
-.subpage-overlay.is-open .subpage-overlay__panel{opacity:1;transform:translateY(0)}
+.subpage-overlay.is-open .subpage-overlay__panel{opacity:1}
+/* Шапка со стрелкой «назад» — вне прокручиваемой области, поэтому всегда на
+   одном месте (сверху слева), что бы ни происходило с содержимым; касание
+   шапки не листает страницу под окном. Высота фиксированная, стрелка по
+   центру по вертикали (отступы сверху и снизу одинаковые). */
 .subpage-overlay__header{
+  position:relative;z-index:2;
   display:flex;align-items:center;gap:12px;flex:0 0 auto;
-  padding:calc(env(safe-area-inset-top,0px) + 16px) 16px 14px;
+  box-sizing:border-box;min-height:62px;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px;
   border-bottom:1px solid rgba(255,255,255,.07);
-  background:rgba(13,11,20,.98);
+  background:#0d0b14;
+  touch-action:none;overscroll-behavior:none;
 }
 .subpage-overlay__back{
-  flex:0 0 auto;width:36px;height:36px;border-radius:12px;
+  flex:0 0 auto;width:40px;height:40px;padding:0;border-radius:13px;
   border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
-  color:#fff;font-size:18px;line-height:1;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
+  color:#fff;cursor:pointer;
+  display:grid;place-items:center;
+  -webkit-tap-highlight-color:transparent;
 }
+.subpage-overlay__back svg{display:block;width:20px;height:20px;pointer-events:none}
 .subpage-overlay__back:active{transform:scale(.92)}
-.subpage-overlay__title{font-size:16px;font-weight:800;color:#fff;margin:0}
+.subpage-overlay__title{font-size:16px;font-weight:800;line-height:1.2;color:#fff;margin:0}
+/* Прокручивается только тело. overscroll-behavior:none — ни «резинки» в конце
+   списка (на Android 12+ контент растягивался и оставался смещённым), ни
+   передачи прокрутки странице под окном. */
 .subpage-overlay__body{
-  flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  overscroll-behavior:none;touch-action:pan-y;
   padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 24px);
 }
 
