@@ -207,7 +207,7 @@ def test_complete_habit_x2_window_doubles_loyalty_bonus_too(uid):
     а надбавка плашмя добавлялась уже после) вместо ожидаемых 22 — окно
     должно удваивать "стоимость" привычки целиком (база + верность)."""
     from datetime import datetime, timedelta, timezone
-    from db.streak import set_bonus_window
+    from db.streak import set_bonus_window, local_today
 
     add_user(uid, "u", "Test")
     add_habit(uid, "Привычка")
@@ -217,6 +217,7 @@ def test_complete_habit_x2_window_doubles_loyalty_bonus_too(uid):
     conn.execute("UPDATE users SET streak=15 WHERE telegram_id=?", (uid,))  # loyalty_bonus == 1
     conn.commit()
     conn.close()
+    local_today(uid)  # заводит строку streak_meta: set_bonus_window только обновляет, но не создаёт её
     set_bonus_window(uid, datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30))
 
     result = complete_habit(habit_id)
@@ -227,7 +228,7 @@ def test_complete_habit_x2_window_doubles_loyalty_bonus_too(uid):
 
 def test_complete_habit_x2_window_scales_with_higher_loyalty_bonus(uid):
     from datetime import datetime, timedelta, timezone
-    from db.streak import set_bonus_window
+    from db.streak import set_bonus_window, local_today
 
     add_user(uid, "u", "Test")
     add_habit(uid, "Привычка")
@@ -237,6 +238,7 @@ def test_complete_habit_x2_window_scales_with_higher_loyalty_bonus(uid):
     conn.execute("UPDATE users SET streak=25 WHERE telegram_id=?", (uid,))  # loyalty_bonus == 2
     conn.commit()
     conn.close()
+    local_today(uid)  # заводит строку streak_meta: set_bonus_window только обновляет, но не создаёт её
     set_bonus_window(uid, datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30))
 
     result = complete_habit(habit_id)

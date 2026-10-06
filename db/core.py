@@ -466,6 +466,20 @@ def create_tables():
         "CREATE INDEX IF NOT EXISTS idx_habit_deletions_user ON habit_deletions(user_id, day)"
     )
 
+    # Сколько отметок привычек за локальный день уже «засчитано» пользователю
+    # (n растёт на каждую отметку, удаление привычки его не уменьшает). Монеты
+    # платят только за первые MAX_REWARDED_COMPLETIONS_PER_DAY — так накрутку
+    # «отметить → удалить → добавить → отметить...» гасит потолок наград, а не
+    # запрет добавлять привычки. См. db/habits.py::_claim_reward_slot.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS habit_reward_days(
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        n INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, day)
+    )
+    """)
+
     # ---------------- ПЛАН ДНЯ (Mini App) ----------------
     # main_goal — общая цель дня, tasks — до 5 отдельных задач (например
     # «Прочитать книгу»). Раньше эти данные никуда не сохранялись — см.

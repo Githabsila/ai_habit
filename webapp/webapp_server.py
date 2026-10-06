@@ -998,9 +998,9 @@ async def create_habit(request):
             chain_trigger_habit_id=chain_trigger_habit_id,
         )
     except ValueError as exc:
-        # habit_limit — уже максимум 10 привычек; habit_add_locked — сегодня
-        # уже была отметка + удаление привычки, добавление заблокировано до
-        # 00:00 (пром 10.2, защита от накрутки Adam Coin).
+        # habit_limit — уже максимум 10 привычек. (habit_add_locked — запрет
+        # «отметка + удаление» — больше не возникает: накрутку гасит дневной
+        # потолок наград, см. db/habits.py::can_add_habit.)
         if str(exc) in ("habit_limit", "habit_add_locked"):
             return web.json_response({"error": str(exc)}, status=400)
         raise
@@ -1181,6 +1181,7 @@ async def complete_habit_route(request):
         "streak": streak,
         "streak_event": event,
         "coins": success["coins"],
+        "reward_capped": bool(success.get("reward_capped")),
         "doubled": success["doubled"],
         "bonus_active": success["bonus_active"],
         "bonus_until": success["bonus_until"],
@@ -1274,6 +1275,7 @@ async def habit_progress_route(request):
         "streak": streak,
         "streak_event": event,
         "coins": result["coins"],
+        "reward_capped": bool(result.get("reward_capped")),
         "doubled": result["doubled"],
         "bonus_active": result["bonus_active"],
         "bonus_until": result["bonus_until"],

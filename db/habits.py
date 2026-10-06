@@ -13,6 +13,14 @@ BONUS_WINDOW_MINUTES = 30
 
 # Пром 10.2: максимум привычек в обычной версии + анти-абузная защита.
 MAX_HABITS = 10
+# Дневной потолок наград: монеты платят за первые столько отметок в сутки —
+# ровно столько привычек и можно честно закрыть (по отметке на каждую из
+# MAX_HABITS). Всё, что сверх, возможно только через «отметить → удалить →
+# добавить новую → отметить», и такие отметки монет не приносят.
+MAX_REWARDED_COMPLETIONS_PER_DAY = MAX_HABITS
+REWARD_CAPPED_TEXT = (
+    f"Монеты за сегодня уже выданы за {MAX_REWARDED_COMPLETIONS_PER_DAY} отметок — завтра снова"
+)
 # «Идеальный день» (короткое поздравление) — когда закрыты все привычки и их было не меньше стольких.
 PERFECT_DAY_MIN_HABITS = 2
 
@@ -91,16 +99,39 @@ def has_deleted_habit_today(user_id):
 
 
 def can_add_habit(user_id):
-    """Пром 10.2: (ok, reason). reason — 'habit_limit' (уже максимум 10
-    привычек) либо 'habit_add_locked' (сегодня уже была отметка + удаление —
-    похоже на попытку накрутить Adam Coin, блокируем добавление до 00:00)."""
-    from .streak import has_completed_today
+    """(ok, reason). reason — 'habit_limit' (уже максимум MAX_HABITS привычек).
 
+    Раньше был ещё 'habit_add_locked': после «отметка + удаление привычки» новые
+    добавлять было нельзя до 00:00 (защита от накрутки Adam Coin). Под запрет
+    попадали и честные пользователи — удалил лишнее и не смог добавить нужное,
+    особенно в первый день. Теперь накрутку гасит дневной потолок наград
+    (_claim_reward_slot в complete_habit), а добавлять можно всегда."""
     if len(get_habits(user_id)) >= MAX_HABITS:
         return False, "habit_limit"
-    if has_completed_today(user_id) and has_deleted_habit_today(user_id):
-        return False, "habit_add_locked"
     return True, None
+
+
+def _claim_reward_slot(user_id):
+    """Порядковый номер сегодняшней (по локальному дню) отметки привычки:
+    1, 2, 3... Удаление привычки счётчик не уменьшает. Увеличение и чтение —
+    в одной транзакции, так что параллельные отметки получают разные номера."""
+    day = _local_day(user_id)
+    conn = connect()
+    try:
+        conn.execute("INSERT OR IGNORE INTO habit_reward_days(user_id, day, n) VALUES (?, ?, 0)", (user_id, day))
+        conn.execute("UPDATE habit_reward_days SET n = n + 1 WHERE user_id=? AND day=?", (user_id, day))
+        n = int(conn.execute("SELECT n FROM habit_reward_days WHERE user_id=? AND day=?", (user_id, day)).fetchone()["n"])
+        conn.commit()
+    finally:
+        conn.close()
+    return n
+
+
+def reward_line(done):
+    """Строка про монеты для сообщений бота после отметки привычки."""
+    if done.get("reward_capped"):
+        return f"⭐ {REWARD_CAPPED_TEXT}"
+    return f"⭐ +{done['coins']} Adam Coin" + (" (×2 — успей закрыть ещё одну!)" if done["doubled"] else "")
 
 
 def _clamp_target_count(target_count):
@@ -637,6 +668,12 @@ def complete_habit(habit_id):
     if xp_boosted:
         coins *= 2
 
+    # Дневной потолок наград (см. MAX_REWARDED_COMPLETIONS_PER_DAY): сверх него
+    # привычка всё равно отмечается и считается в серии, но монет за неё нет.
+    reward_capped = _claim_reward_slot(user_id) > MAX_REWARDED_COMPLETIONS_PER_DAY
+    if reward_capped:
+        coins = 0
+
     if total_habits > 1 and remaining_incomplete > 0:
         new_window_until = now + timedelta(minutes=BONUS_WINDOW_MINUTES)
         set_bonus_window(user_id, new_window_until)
@@ -703,6 +740,7 @@ def complete_habit(habit_id):
 
     return {
         "coins": coins,
+        "reward_capped": reward_capped,
         "doubled": doubled,
         "priority_bonus": priority_bonus,
         "loyalty_bonus": loyalty_bonus,

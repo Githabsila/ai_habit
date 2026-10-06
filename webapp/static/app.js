@@ -4180,8 +4180,13 @@ function applyOptimisticHabitTap(li, btn) {
 // дублировать монеты/streak/идеальный-день/цепочку в двух местах.
 async function celebrateHabitCompletion(result) {
   const boostTag = result.xp_boosted ? " ⚡x2 бустер" : (result.doubled ? " ⚡️×2" : "");
-  const coinText = `+${result.coins || 10} Adam Coin` + boostTag;
-  showToast(coinText, "praise");
+  // Сверх дневного потолка наград (db/habits.py) привычка отмечена, а монет нет:
+  // `result.coins || 10` показал бы «+10», поэтому честно говорим про потолок.
+  if (result.reward_capped) {
+    showToast("Отмечено ✓ Монеты за сегодня уже выданы — завтра снова", "success", 3600);
+  } else {
+    showToast(`+${result.coins || 10} Adam Coin` + boostTag, "praise");
+  }
   if (state?.show_app_tour) {
     onboardingHabitDoneOnce = true;
     maybeOfferAnotherHabit();

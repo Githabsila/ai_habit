@@ -10,6 +10,7 @@ from db import (
     delete_habit,
     get_habits,
     complete_habit,
+    REWARD_CAPPED_TEXT,
     update_daily_task,
     get_user,
     consume_completion_event,
@@ -302,7 +303,10 @@ async def complete(callback: CallbackQuery):
         "✅ Выполнено"
     )
 
-    coin_line = f"⭐ +{success['coins']} Adam Coin" + (" ⚡️×2" if success["doubled"] else "")
+    coin_line = (
+        f"⭐ {REWARD_CAPPED_TEXT}" if success.get("reward_capped")
+        else f"⭐ +{success['coins']} Adam Coin" + (" ⚡️×2" if success["doubled"] else "")
+    )
     bonus_line = (
         "\n⚡️ Двойные Adam Coin активны 30 минут — успей закрыть ещё одну привычку!"
         if success["bonus_active"] else ""
