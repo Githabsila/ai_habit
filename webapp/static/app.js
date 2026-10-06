@@ -480,7 +480,9 @@
       await waitForInitData(3000);
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
+          const previousState = state;
           state = await api("/api/bootstrap");
+          carrySecondaryData(previousState, state);
           if (!state || !state.user) {
             // /api/bootstrap ответил без объекта user (пустой конверт,
             // не залогиненная превью-сессия и т.п.). Раньше следующая же
@@ -1026,6 +1028,18 @@
   // всегда оставались undefined и вкладки выглядели постоянно пустыми.
   const secondaryPromises = new Map();
   const secondaryLoaded = new Set();
+  // /api/bootstrap этих данных не содержит — их отдельно догружает
+  // loadBootstrapSecondary. Раньше state заменялся целиком, и магазин с
+  // достижениями и рейтингом пропадали: рамки в «Профиле» из «Доступна»
+  // превращались в «Не куплена» после любого обновления (например, возврата в
+  // приложение), хотя на сервере они куплены или подарены.
+  const SECONDARY_STATE_KEYS = ["shop_items", "achievements", "leaderboard", "rating_league", "calendar_events"];
+  function carrySecondaryData(previous, next) {
+    if (!previous || !next) return;
+    for (const key of SECONDARY_STATE_KEYS) {
+      if (next[key] === undefined && previous[key] !== undefined) next[key] = previous[key];
+    }
+  }
   let profilePrefetchScheduled = false;
   let ratingPrefetchScheduled = false;
   let teamSeasonPromise = null;
@@ -1205,6 +1219,18 @@
 
     secondaryPromises.set(key, promise);
     return promise;
+  }
+
+  // Магазин и рамки «Профиля» устарели — например, пока приложение было
+  // свёрнуто, пришёл подарок. Если профиль открыт, перечитываем сразу, иначе при
+  // следующем заходе во вкладку (loadBootstrapSecondary вызывается на каждый
+  // переход, а загруженным раздел перестаёт считаться именно здесь).
+  function invalidateProfileData() {
+    if (!secondaryLoaded.has("profile")) return;
+    secondaryLoaded.delete("profile");
+    if (document.querySelector(".tab-bar__item.is-active")?.dataset.tab === "profile") {
+      loadBootstrapSecondary("profile");
+    }
   }
 
   // Пока Mini App не виден, декоративные анимации не должны тратить батарею/CPU.
@@ -7169,7 +7195,15 @@ async function openReceivedGifts() {
   requestAnimationFrame(() => sheet.classList.add("is-open"));
   if (data.unseen > 0) {
     // Показали — отмечаем; в списке «Новое» остаётся только на этот показ.
-    api("/api/gifts/seen", { method: "POST" }).catch(() => {});
+    // Подарок мог поменять алмазы, значок и купленные рамки — без этого
+    // магазин и выбор рамки показывали бы подаренное как «Купить»/«Не куплена»
+    // до перезапуска. Сначала отметка «просмотрено», чтобы bootstrap не вернул
+    // счётчик обратно.
+    api("/api/gifts/seen", { method: "POST" })
+      .catch(() => {})
+      .then(() => loadBootstrap())
+      .then(invalidateProfileData)
+      .catch(() => {});
     if (state) state.gifts_unseen = 0;
     renderGiftsBadge();
   }
@@ -8439,7 +8473,7 @@ document.addEventListener("visibilitychange", () => {
     const wasHiddenMs = _hiddenAt ? Date.now() - _hiddenAt : 0;
     _hiddenAt = null;
     if (!state || !postBootstrapInitDone || wasHiddenMs < 15000) return;
-    loadBootstrap().catch(() => {});
+    loadBootstrap().then(invalidateProfileData).catch(() => {});
 });
 
 document.getElementById("aiCoachBtn").addEventListener("click", () => {

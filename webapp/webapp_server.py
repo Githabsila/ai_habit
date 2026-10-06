@@ -1998,10 +1998,14 @@ async def user_gift_route(request):
         hint = ""
     else:
         what = f"«{html.escape(str(gift['label']))}»"
-        # id 3 — значок: он сам появится в рейтинге; остальное (рамки, аватар,
-        # тема) включается в Профиле → Настройки.
-        hint = (" Значок уже виден в рейтинге." if gift["item_id"] == 3
-                else " Загляни в Профиль → Настройки, чтобы им воспользоваться.")
+        # id 3 — значок: он сам появится в рейтинге; id 2 — тема (включается в
+        # Настройках); рамки и аватар надеваются в Профиле.
+        if gift["item_id"] == 3:
+            hint = " Значок уже виден в рейтинге."
+        elif gift["item_id"] == 2:
+            hint = " Включить её можно в Профиле → Настройки."
+        else:
+            hint = " Надеть можно в Профиле: рамка аватарки или Магазин."
     _spawn_background(_send_social_push(
         request.app, target_id, f"🎁 <b>{name}</b> подарил(а) тебе {what}!{hint}"))
     return web.json_response({
@@ -2687,6 +2691,21 @@ async def buy_route(request):
         "frame_id": user["frame_id"] if user else "default",
     })
 
+# Neon/Gold — запасной вариант на случай базы, где у товаров 5 и 6 не заполнен payload.
+LEGACY_FRAME_ITEM_IDS = {"neon": 5, "gold": 6}
+
+
+def _shop_frame_item_id(frame_id):
+    """Товар магазина, которым владеют ради этой рамки (shop_items.payload =
+    id рамки). Рамки берутся из таблицы, а не из списка в коде: раньше
+    «Радуга» и «Пульс» сюда не попадали, и надеть их — купленные или
+    подаренные — было нельзя (frame_not_owned)."""
+    for item in get_shop_items():
+        if item["item_type"] == "frame" and item["payload"] == frame_id:
+            return item["id"]
+    return LEGACY_FRAME_ITEM_IDS.get(frame_id)
+
+
 @routes.post("/api/cosmetics/equip")
 async def equip_cosmetic(request):
     telegram_id, _ = await _authenticate(request)
@@ -2695,13 +2714,13 @@ async def equip_cosmetic(request):
     avatar_id = body.get("avatar_id")
 
     if frame_id != "default":
-        allowed_shop = {5: "neon", 6: "gold", 7: "paid_double_gold"}
-        allowed = frame_id in allowed_shop.values() and (
-            has_item(telegram_id, next(k for k,v in allowed_shop.items() if v == frame_id))
-            if frame_id in ("neon", "gold") else frame_id == "paid_double_gold" and get_user(telegram_id)["frame_id"] == "paid_double_gold"
-        )
         if frame_id in ("streak_14", "streak_30"):
             allowed = has_streak_frame(telegram_id, frame_id)
+        elif frame_id == "paid_double_gold":
+            allowed = get_user(telegram_id)["frame_id"] == "paid_double_gold"
+        else:
+            shop_item_id = _shop_frame_item_id(frame_id)
+            allowed = shop_item_id is not None and has_item(telegram_id, shop_item_id)
         if not allowed:
             return web.json_response({"error": "frame_not_owned"}, status=403)
         set_cosmetic(telegram_id, "frame", frame_id)

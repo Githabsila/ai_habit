@@ -611,6 +611,13 @@ def create_tables():
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (4,'🧑‍🚀 Аватар: ADAM','Аватар профиля',250,'avatar','adam',0)")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (5,'🪐 Рамка: Neon','Рамка аватара',200,'frame','neon',0)")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (6,'✨ Рамка: Gold','Рамка аватара',350,'frame','gold',0)")
+    # Свежая БД: первый сид выше заводит товары 4–6 без типа и payload, а
+    # INSERT OR IGNORE их уже не обновляет — рамки Neon/Gold и аватар не
+    # опознавались как рамка/аватар (нет «Надеть», рамка не попадала в выбор).
+    # На рабочей базе, где всё уже верно, эти UPDATE ничего не меняют.
+    cursor.execute("UPDATE shop_items SET item_type='avatar', payload='adam' WHERE id=4 AND item_type='cosmetic' AND COALESCE(payload,'')=''")
+    cursor.execute("UPDATE shop_items SET item_type='frame', payload='neon' WHERE id=5 AND item_type='cosmetic' AND COALESCE(payload,'')=''")
+    cursor.execute("UPDATE shop_items SET item_type='frame', payload='gold' WHERE id=6 AND item_type='cosmetic' AND COALESCE(payload,'')=''")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (7,'👑 Рамка: Double Gold','Платная премиальная рамка с двойной позолотой и подсветкой',299,'frame_stars','paid_double_gold',0)")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (20,'💬 +5 ответов ADAM','5 дополнительных ответов ADAM к вашему текущему лимиту',100,'answer_pack','5',1)")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (21,'💬 +20 ответов ADAM','20 дополнительных ответов ADAM к вашему текущему лимиту',300,'answer_pack','20',1)")

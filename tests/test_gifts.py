@@ -253,7 +253,7 @@ async def test_gift_route_returns_balances_and_pushes_the_receiver(client, uid):
     assert (await r.json())["user"]["xp"] == 300
     await _flush_background()
     text = bot.send_message.call_args.args[1]
-    assert "Neon" in text and "Профиль → Настройки" in text
+    assert "Neon" in text and "Надеть можно в Профиле" in text
 
 
 async def test_gift_push_escapes_the_name_and_respects_opt_out(client, uid):

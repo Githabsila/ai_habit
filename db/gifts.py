@@ -23,8 +23,8 @@ from .core import connect
 
 GIFT_DIAMOND_AMOUNTS = (1, 3, 5)
 MAX_GIFTS_PER_DAY = 3
-# В магазине рамки Neon/Gold и аватар ADAM заведены с типом «cosmetic» (id 4–6),
-# анимированные рамки — «frame»: дарим и те и другие.
+# Рамки и аватар — «frame»/«avatar» (на очень старых базах id 4–6 ещё «cosmetic»,
+# см. миграцию в db/core.py): дарим любые.
 GIFTABLE_ITEM_TYPES = ("cosmetic", "frame", "avatar", "theme", "badge")
 
 
