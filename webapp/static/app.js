@@ -1730,12 +1730,33 @@
         <p class="start-quiz-archetype-result__blurb">${escapeHtml(blurb)}</p>
         <button type="button" class="start-quiz-archetype-result__chat" id="startQuizArchetypeChat">✦ Написать Адаму</button>
       </div>`;
-    document.getElementById("startQuizArchetypeChat")?.addEventListener("click", () => {
+    document.getElementById("startQuizArchetypeChat")?.addEventListener("click", async (event) => {
+      const chatBtn = event.currentTarget;
+      if (chatBtn.disabled) return;
+      chatBtn.disabled = true;
       haptic("light");
       const overlay = document.getElementById("loadingOverlay");
       if (overlay) overlay.hidden = false;
       const goalKey = startQuizAnswers.goal || "";
       const url = `/coach?intro=archetype&a=${encodeURIComponent(key)}&g=${encodeURIComponent(goalKey)}`;
+      // Тест уже пройден (возраст, цель, архетип) — отмечаем это ДО ухода в чат.
+      // Раньше «seen» ставился только кнопкой «Начать» на последнем шаге, и после
+      // разговора с ADAM приложение открывалось с show_start_quiz=true и гнало
+      // человека проходить тест с первого вопроса. Сеть не должна держать
+      // пользователя: ждём не дольше пары секунд и уходим в любом случае.
+      try {
+        await Promise.race([
+          api("/api/start-quiz/seen", {
+            method: "POST",
+            body: JSON.stringify({
+              age_range: startQuizAnswers.age_range || null,
+              goal: startQuizAnswers.goal || null,
+            }),
+          }),
+          new Promise((resolve) => setTimeout(resolve, 2500)),
+        ]);
+      } catch (_) { /* уйдём в чат и без этого */ }
+      if (state) state.show_start_quiz = false;
       setTimeout(() => { window.location.href = url; }, 60);
     });
   }
