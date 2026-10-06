@@ -2026,8 +2026,12 @@
   const PRODUCT_ONBOARDING_STEPS = {
     1: { target: '#addHabitTrigger', title: 'Начни с одной привычки', text: 'Нажми сюда, чтобы добавить первую.', icon: '🎯' },
     2: { target: '.habits-panel', title: 'Твои привычки', text: 'Список появится здесь — нажимай на привычку, чтобы отметить её выполненной сегодня.', icon: '✅' },
-    3: { target: '#mainGoalEditor', title: 'Главное дело на сегодня', text: 'Одна задача, которую точно сделаешь.', icon: '✨' },
-    4: { target: '#addPlanTaskTrigger', title: 'Второстепенные задачи', text: 'Кроме главного дела можно добавить ещё несколько — необязательных, но чтобы не забыть.', icon: '📝' },
+    // target — один селектор или список запасных: берётся первый видимый. Главное
+    // дело могло быть уже заполнено (редактор скрыт, виден #mainGoalView), а кнопка
+    // «Добавить задачу» — заменена раскрытой формой; без запасных целей шаг молча
+    // не открывался, и «Далее»/«Назад» через него не проходили.
+    3: { target: ['#mainGoalEditor', '#mainGoalView', '.plan-main'], title: 'Главное дело на сегодня', text: 'Одна задача, которую точно сделаешь.', icon: '✨' },
+    4: { target: ['#addPlanTaskTrigger', '#addPlanTaskCollapse'], title: 'Второстепенные задачи', text: 'Кроме главного дела можно добавить ещё несколько — необязательных, но чтобы не забыть.', icon: '📝' },
     // Баг, найденный попутно: '[data-tab="calendar"]' сам по себе матчит
     // ПЕРВЫЙ элемент с таким атрибутом в DOM — а это <section class=
     // "tab-panel" data-tab="calendar">, а не кнопка вкладки (та же атрибут-
@@ -2049,6 +2053,15 @@
   // важна — оставляем ту же, что и у шага 9, чтобы не дёргать её лишний раз.
   const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'home', 4: 'home', 5: 'calendar', 6: 'rating', 7: 'profile', 8: 'profile', 9: 'profile', 10: 'profile' };
   const CONTEXT_TAB_STAGE = { calendar: 5, rating: 6, profile: 7 };
+
+  function resolveStepTarget(step) {
+    const selectors = Array.isArray(step.target) ? step.target : [step.target];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.offsetParent !== null) return el;
+    }
+    return null;
+  }
 
   function clearProductOnboardingTarget() {
     if (productHintTarget) productHintTarget.classList.remove('product-onboarding-target');
@@ -2190,11 +2203,19 @@
     const r = target.getBoundingClientRect();
     const vh = window.innerHeight;
     const margin = 14;
+    // Над нижней навигацией (как и в CSS по умолчанию: bottom:88px).
+    const navClearance = 88;
+    // Замер — при ПОЛНОМ тексте шага (showProductHint кладёт его перед вызовом):
+    // раньше текст ещё не был «напечатан», карточка замерялась втрое ниже и
+    // вставала слишком низко, а при печати росла вниз за край экрана. Высоту
+    // дальше фиксируем, чтобы печать не двигала карточку.
+    el.style.minHeight = '';
     el.style.visibility = 'hidden';
     el.hidden = false;
     const cardHeight = el.offsetHeight || 140;
     el.hidden = true;
     el.style.visibility = '';
+    el.style.minHeight = `${cardHeight}px`;
 
     const spaceBelow = vh - r.bottom;
     const spaceAbove = r.top;
@@ -2204,7 +2225,7 @@
     } else if (spaceAbove >= cardHeight + margin * 2) {
       top = r.top - cardHeight - margin;
     } else {
-      top = vh - cardHeight - margin;
+      top = vh - cardHeight - navClearance;
     }
     top = Math.max(margin, Math.min(top, vh - cardHeight - margin));
     el.style.top = `${top}px`;
@@ -2217,6 +2238,7 @@
     clearProductOnboardingTarget();
     activeHintStage = null;
     el.classList.remove('show');
+    el.style.minHeight = '';
     setTimeout(() => { if (!el.classList.contains('show')) el.hidden = true; }, 220);
     const actions = document.getElementById('productOnboardingHintActions');
     if (actions) { actions.hidden = true; actions.innerHTML = ''; }
@@ -2250,24 +2272,49 @@
   // по факту захода на вкладку), здесь нужно САМИМ переключить вкладку,
   // если цель следующего шага живёт не на текущей — иначе showProductHint
   // тихо ничего не сделает (target.offsetParent === null).
-  function goToOnboardingStage(stage) {
+  // dir: +1 («Далее») / -1 («Назад») — если цели шага нет на экране, молча
+  // остаться на месте нельзя (кнопки «переставали нажиматься»), поэтому шаг
+  // пропускается в ту же сторону.
+  function goToOnboardingStage(stage, dir = 0) {
     if (!PRODUCT_ONBOARDING_STEPS[stage]) return;
     const tab = ONBOARDING_STAGE_TAB[stage];
     const activeTab = document.querySelector('.tab-bar__item.is-active')?.dataset.tab;
+    const show = () => {
+      if (!showProductHint(stage) && dir) goToOnboardingStage(stage + dir, dir);
+    };
     if (tab && tab !== activeTab) {
       document.querySelector(`.tab-bar__item[data-tab="${tab}"]`)?.click();
-      setTimeout(() => showProductHint(stage), 200);
+      setTimeout(show, 200);
     } else {
-      showProductHint(stage);
+      show();
     }
+  }
+
+  // Ждём, пока страница доедет до цели (smooth-скролл у html), и только потом
+  // ставим прожектор и карточку: по фиксированной паузе длинный скролл не
+  // успевал, и подсказка вставала по старым координатам.
+  function whenScrollSettled(target, done) {
+    const startedAt = Date.now();
+    let lastTop = null;
+    let stable = 0;
+    const tick = () => {
+      if (productHintTarget !== target) return; // подсказку уже сменили/закрыли
+      const top = target.getBoundingClientRect().top;
+      stable = lastTop !== null && Math.abs(top - lastTop) < 1 ? stable + 1 : 0;
+      lastTop = top;
+      const waited = Date.now() - startedAt;
+      if ((waited >= 380 && stable >= 2) || waited >= 1500) { done(); return; }
+      setTimeout(tick, 60);
+    };
+    setTimeout(tick, 60);
   }
 
   function showProductHint(stage) {
     const step = PRODUCT_ONBOARDING_STEPS[stage];
     const el = document.getElementById('productOnboardingHint');
-    if (!step || !el) return;
-    const target = document.querySelector(step.target);
-    if (!target || target.offsetParent === null) return;
+    if (!step || !el) return false;
+    const target = resolveStepTarget(step);
+    if (!target) return false;
     // Жалоба пользователя: переход между шагами подсказки выглядел резко —
     // прожектор и карточка СРАЗУ прыгали на новые координаты, потому что
     // showOnboardingSpotlight() ниже только добавляет .show, а при переходе
@@ -2304,7 +2351,7 @@
         back.type = 'button';
         back.className = 'product-onboarding-hint__action';
         back.textContent = '← Назад';
-        back.addEventListener('click', () => goToOnboardingStage(stage - 1));
+        back.addEventListener('click', () => goToOnboardingStage(stage - 1, -1));
         actions.appendChild(back);
       }
       if (stage < total) {
@@ -2312,7 +2359,7 @@
         next.type = 'button';
         next.className = 'product-onboarding-hint__action product-onboarding-hint__action--primary';
         next.textContent = 'Далее →';
-        next.addEventListener('click', () => goToOnboardingStage(stage + 1));
+        next.addEventListener('click', () => goToOnboardingStage(stage + 1, 1));
         actions.appendChild(next);
       } else {
         // Просьба пользователя: на последнем шаге снизу должна быть кнопка
@@ -2354,24 +2401,34 @@
     // всякого смысла (жалоба пользователя: "в профиле сильно спускает
     // вниз"). Докручиваем только к целям, которые реально могут быть вне
     // экрана — то есть НЕ внутри .tab-bar.
+    // Пока подсказка открыта, фон заблокирован (position:fixed на body), а на
+    // заблокированной странице scrollIntoView ничего не делает — при переходе
+    // между шагами цель следующего шага оставалась за экраном, и её закрывала
+    // сама карточка подсказки. Снимаем блокировку на время докрутки;
+    // showOnboardingSpotlight поставит её снова уже по новому положению.
+    unlockBackgroundScroll();
     if (!target.closest('.tab-bar')) {
       target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     }
-    // Ждём столько же, сколько занял бы возможный scrollIntoView, прежде
-    // чем ставить прожектор и карточку по координатам цели — иначе они
-    // встанут по ещё старым координатам.
-    setTimeout(() => {
-      if (productHintTarget !== target) return; // подсказку уже сменили/закрыли за это время
+    whenScrollSettled(target, () => {
+      // Полный текст кладём ДО замера высоты карточки — см. positionHintCardNear;
+      // «печатается» он уже поверх, в зафиксированной высоте.
+      const textEl = document.getElementById('productOnboardingHintText');
+      if (textEl) {
+        if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+        textEl.classList.remove('is-typing');
+        textEl.textContent = step.text;
+      }
       showOnboardingSpotlight(target);
       positionHintCardNear(target, el);
       el.hidden = false;
       requestAnimationFrame(() => el.classList.add('show'));
-      typewriteHintText(document.getElementById('productOnboardingHintText'), step.text);
+      typewriteHintText(textEl, step.text);
       // Просьба пользователя: у остальных модалок при появлении уже есть
       // лёгкая вибрация, у контекстных подсказок — нет, хотя момент
       // появления прожектора заметнее всего именно на телефоне.
       haptic('light');
-    }, 380);
+    });
 
     // Баг: reachedStage в обработчике клика по вкладкам (ниже) читает
     // state.product_onboarding.onboarding_stage — раньше это поле
@@ -2384,6 +2441,7 @@
       state.product_onboarding.onboarding_stage = Math.max(state.product_onboarding.onboarding_stage || 0, stage);
     }
     api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage }) }).catch(() => {});
+    return true;
   }
 
   // Шаг 1 (или сразу шаг 3, если привычка уже есть, а главного дела ещё
