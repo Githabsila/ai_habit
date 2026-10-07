@@ -294,6 +294,10 @@ def test_celebration_css_only_uses_cheap_animations():
     css = _static("style.css")
     start = css.index("/* Праздник «EVOLUTION N UNLOCKED» */")
     block = css[start:]
+    # блок эволюций заканчивается там, где начинаются более поздние правки (клавиатура и далее) —
+    # раньше он был последним в файле, и тест читал «до конца»
+    end = block.find("/* Клавиатура открыта (app.js, html.kb-open)")
+    block = block if end == -1 else block[:end]
     assert "backdrop-filter" not in block and "filter:" not in block
     assert "infinite" not in block
     for name in ("evoRise", "evoRing", "evoGather", "evoFlash"):

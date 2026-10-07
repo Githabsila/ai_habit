@@ -1688,7 +1688,7 @@
     });
     document.getElementById("startQuizRefShare")?.addEventListener("click", () => {
       const text = "Строю привычки вместе с ADAM — присоединяйся:";
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(text)}`;
+      const shareUrl = telegramShareUrl(text, refLink);
       if (tg && typeof tg.openTelegramLink === "function") {
         tg.openTelegramLink(shareUrl);
       } else {
@@ -2088,7 +2088,7 @@
     // «Добавить задачу» — заменена раскрытой формой; без запасных целей шаг молча
     // не открывался, и «Далее»/«Назад» через него не проходили.
     3: { target: ['#mainGoalEditor', '#mainGoalView', '.plan-main'], title: 'Главное дело на сегодня', text: 'Одна задача, которую точно сделаешь.', icon: '✨' },
-    4: { target: ['#addPlanTaskTrigger', '#addPlanTaskCollapse'], title: 'Второстепенные задачи', text: 'Кроме главного дела можно добавить ещё несколько — необязательных, но чтобы не забыть.', icon: '📝' },
+    4: { target: ['#addPlanTaskTrigger', '#addPlanTaskCollapse'], title: 'Второстепенные задачи', text: 'Кроме главного дела можно добавить ещё несколько небольших задач, чтобы ничего не забыть.', icon: '📝' },
     // Баг, найденный попутно: '[data-tab="calendar"]' сам по себе матчит
     // ПЕРВЫЙ элемент с таким атрибутом в DOM — а это <section class=
     // "tab-panel" data-tab="calendar">, а не кнопка вкладки (та же атрибут-
@@ -2893,7 +2893,7 @@
       }
 
       const text = `${card.title || "Мой прогресс"} в Project ADAM: ${card.big || ""} 🔥\n\nПрисоединяйся — трекер привычек с AI-коучем:`;
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(text)}`;
+      const shareUrl = telegramShareUrl(text, refLink);
       if (tg && typeof tg.openTelegramLink === "function") {
         tg.openTelegramLink(shareUrl);
       } else {
@@ -5611,7 +5611,12 @@ function stabilizeFirstPaint(extraTargets) {
     const extra = (Array.isArray(extraTargets) ? extraTargets : [])
         .map(x => (typeof x === "string" ? document.getElementById(x) : x))
         .filter(Boolean);
-    const targets = critical.concat(dynamic, extra);
+    // ВАЖНО: opacity-«пинок» (ниже) — только перерисованным контейнерам. Раньше
+    // в него входили и вся активная вкладка (1500+px), и шапка, и виджет серии:
+    // на каждую отметку привычки телефон на 2 кадра собирал всё это в
+    // отдельный offscreen-слой — отсюда пустые прямоугольники на месте
+    // привычки/задачи/дня серии сразу после тапа.
+    const targets = dynamic.concat(extra);
     if (!targets.length) return;
     // НАЙДЕНО по реальной телеметрии с прода (см. app.js::reportPerfEvent):
     // именно этот вызов (при остановке КАЖДОГО скролла) давал long_task до
@@ -5624,10 +5629,12 @@ function stabilizeFirstPaint(extraTargets) {
     // чисто композитное свойство, geometry не трогает). Теперь: все записи
     // одним батчем, без единого чтения между ними.
     requestAnimationFrame(() => {
-        const prevOpacities = targets.map(el => el.style.opacity);
-        targets.forEach(el => { el.style.opacity = "0.999"; });
+        // Два вызова подряд (тап → patch → renderAll) раньше запоминали «0.999»
+        // как исходное значение и оставляли его навсегда; busy-флаг это исключает.
+        const batch = targets.filter(el => !el._fpBusy);
+        batch.forEach(el => { el._fpBusy = true; el._fpPrev = el.style.opacity; el.style.opacity = "0.999"; });
         requestAnimationFrame(() => {
-            targets.forEach((el, i) => { el.style.opacity = prevOpacities[i]; });
+            batch.forEach(el => { el.style.opacity = el._fpPrev; el._fpBusy = false; });
         });
     });
 }
@@ -5978,6 +5985,14 @@ async function nudgeFriend(friendId, button) {
   }
 }
 
+// t.me/share/url склеивает сообщение как «url + перенос + text» — ссылка всегда
+// оказывалась СВЕРХУ, а подпись («…добавляйся в друзья:») под ней. Нужен порядок
+// «подпись, потом ссылка», поэтому меняем параметры местами: подпись едет в url,
+// ссылка — в text. Превью строится по ссылке, где бы она ни стояла.
+function telegramShareUrl(text, link) {
+  return `https://t.me/share/url?url=${encodeURIComponent(text)}&text=${encodeURIComponent(link)}`;
+}
+
 async function openFriendInvite() {
   haptic("light");
   let link = friendsData?.invite_url || "";
@@ -5996,7 +6011,7 @@ async function openFriendInvite() {
     return;
   }
   const text = "Давай держать привычки вместе в ADAM — добавляйся в друзья:";
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+  const shareUrl = telegramShareUrl(text, link);
   if (tg && typeof tg.openTelegramLink === "function") {
     tg.openTelegramLink(shareUrl);
   } else {

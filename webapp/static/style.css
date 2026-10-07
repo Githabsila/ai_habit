@@ -5043,7 +5043,6 @@ section[data-tab="home"] .streak-widget__hero-row{
   height:22px;
   font-size:16px;
   line-height:1;
-  filter:drop-shadow(0 0 5px rgba(255,122,24,.12));
 }
 .streak-day small{font-size:8px;opacity:.82;font-weight:700}
 .streak-day b{
@@ -5072,9 +5071,10 @@ section[data-tab="home"] .streak-widget__hero-row{
     inset 0 -8px 14px rgba(120,20,0,.22),
     0 6px 16px rgba(255,100,30,.16);
 }
+/* Свечение огонька — обычная тень текста: Android WebView рисует «квадраты» у
+   элементов с CSS-фильтрами, а бесконечное мерцание и так стояло на паузе (.decor-settled). */
 .streak-day.is-done span{
-  filter:drop-shadow(0 0 3px rgba(255,235,200,.8)) drop-shadow(0 0 9px rgba(255,120,30,.85));
-  animation:streakDayFlicker 2.4s ease-in-out infinite;
+  text-shadow:0 0 3px rgba(255,235,200,.8),0 0 9px rgba(255,120,30,.85);
 }
 .streak-day.is-freeze{
   background:
@@ -14129,3 +14129,43 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
 /* Окна «Магазин»/«Настройки»/«Прогресс»: у последнего блока не должно быть
    лишнего отступа — внизу ровно один небольшой запас (24px), без пустой полосы. */
 .subpage-overlay__body > :last-child{margin-bottom:0 !important}
+
+/* Подиум рейтинга из 1-2 игроков. Правила «.rating-podium > :nth-child(N)» ставили
+   grid-column/transform ЛЮБОМУ ребёнку по номеру — при двух игроках ряд с конвертиками
+   💌/«ты» (.rating-podium-reactions) был 3-м ребёнком, уезжал в 3-ю колонку, сжимался
+   до ~110px и сдвигался на 10px вниз: на скрине «💌» и «ТЫ» стояли справа от карточек.
+   Ряд — оверлей на всю ширину подиума и не участвует в раскладке по колонкам. */
+.rating-podium > .rating-podium-reactions,
+.rating-podium > .rating-podium-reactions:hover{
+  grid-column:auto;
+  grid-row:auto;
+  transform:none;
+  transition:none;
+}
+
+/* Стрелка «назад» в стартовом тесте — рисованная и ровно по центру кружка
+   (раньше текстовый символ «←» сидел левее и ниже центра). */
+.start-quiz-back{width:40px;height:40px;padding:0}
+.start-quiz-back svg{display:block;width:18px;height:18px;pointer-events:none}
+
+/* Пустые прямоугольники на месте привычки/задачи/дня серии (скрины с телефона).
+   Каждая перерисовка списка (а это каждая отметка) запускала у новых <li> анимацию
+   появления с задержкой 35-175мс: каждый элемент становился отдельным анимируемым
+   слоем, который растеризовался с опозданием. Появление отключено — элементы просто
+   на месте. Иконки дней серии теперь без фильтров (см. «STREAK DAY» выше). */
+.streak-widget,
+.plan-card,
+.habit-list,
+.add-form,
+.calendar-grid,
+.rating-list,
+.achievements-list,
+.shop-grid,
+.habit-item,
+.plan-list > li,
+.rating-item,
+.achievement-item,
+.shop-item,
+.cal-cell{
+  animation:none !important;
+}

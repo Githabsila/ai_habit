@@ -57,7 +57,7 @@ def test_error_codes_have_russian_and_english_text():
 
 def test_invite_link_is_the_friend_link_and_shared_through_telegram():
     assert "start=friend_${state.user.telegram_id}" in APP_JS
-    assert "https://t.me/share/url?url=" in APP_JS[APP_JS.index("async function openFriendInvite"):]
+    assert "telegramShareUrl(text, link)" in APP_JS[APP_JS.index("async function openFriendInvite"):]
 
 
 def test_styles_for_every_new_block_exist():
@@ -67,8 +67,8 @@ def test_styles_for_every_new_block_exist():
 
 
 def test_asset_versions_were_bumped_together_with_the_change():
-    assert "style.css?v=20261006_SUBPAGE_V37" in INDEX
-    assert "app.js?v=20261006_SUBPAGE_V46" in INDEX
+    assert "style.css?v=20261007_PAINT_V38" in INDEX
+    assert "app.js?v=20261007_PAINT_V47" in INDEX
 
 
 # ---------------------------------------------------------------------------
