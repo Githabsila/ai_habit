@@ -283,6 +283,8 @@ function AiChat() {
     const [toast, setToast] = useState('');
     const [online, setOnline] = useState(navigator.onLine);
     const [showScrollDown, setShowScrollDown] = useState(false);
+    // Адам «печатает» своё первое сообщение дня (см. greetFromAdam ниже).
+    const [greeting, setGreeting] = useState(false);
     const messagesEnd = useRef(null);
     const messagesContainerRef = useRef(null);
     const scrollRafRef = useRef(0);
@@ -361,7 +363,7 @@ function AiChat() {
         // Every time the AI tab is mounted/re-entered, land on the actual end.
         // Multiple delayed passes cover async history + typewriter/layout shifts.
         scrollToAbsoluteBottom('auto');
-    }, [messages.length]);
+    }, [messages.length, greeting]);
 
     useEffect(() => {
         const el = messagesContainerRef.current;
@@ -419,6 +421,10 @@ function AiChat() {
     // прямой ссылке повторно заспамили бы диалог при каждом заходе.
     const sentOnboardingIntroRef = useRef(false);
     useEffect(() => {
+        // Параметры читаем ДО maybeSendOnboardingIntro: он чистит URL синхронно, а при
+        // открытии чата из онбординга/«привычка не получается» первое сообщение шлёт сам
+        // человек — Адам в этот момент приветствовать не должен.
+        const startParams = new URLSearchParams(location.search);
         (async () => {
             // Ждём initData ДО первого запроса — см. комментарий у
             // waitForInitData. Без этого параллельные quota/history запросы
@@ -475,10 +481,44 @@ function AiChat() {
                 sendText(text);
                 history.replaceState(null, '', location.pathname);
             };
+            // Первый вопрос Адама («Привет, Имя! Как прошёл день?»): сервер сам решает, нужен ли он
+            // (сегодня человек ещё не писал и уже общался раньше — см. db/ai_nudge.py), и не тратит
+            // дневной лимит ответов. ?nudge=demo — «Показать напоминание» в Настройках.
+            const greetFromAdam = async () => {
+                if (startParams.get('intro'))
+                    return;
+                const demo = startParams.get('nudge') === 'demo';
+                try {
+                    const res = await fetch('/api/ai/greet', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ init_data: getInitData(), demo })
+                    });
+                    if (!res.ok)
+                        return;
+                    const g = (await res.json()).greeting;
+                    if (!g || !g.message)
+                        return;
+                    setGreeting(true);
+                    await new Promise(resolve => setTimeout(resolve, 1100));
+                    setGreeting(false);
+                    setMessages(p => p.some(m => String(m.id) === String(g.id)) ? p : [...p, {
+                        id: g.id, role: 'assistant', text: fixBrokenText(g.message),
+                        time: formatTime(g.created_at), canRate: false, isNew: true
+                    }]);
+                    vibrate('light');
+                }
+                catch (e) { setGreeting(false); }
+                if (demo)
+                    history.replaceState(null, '', location.pathname);
+            };
+            const afterHistory = (hasHistory) => {
+                maybeSendOnboardingIntro(hasHistory);
+                greetFromAdam();
+            };
             if (loadStoredMessages().length) {
-                maybeSendOnboardingIntro(true);
+                afterHistory(true);
             } else {
-                loadHistory().then(maybeSendOnboardingIntro);
+                loadHistory().then(afterHistory);
             }
         })();
         const onOnline = () => setOnline(true), onOffline = () => setOnline(false);
@@ -826,12 +866,12 @@ function AiChat() {
                                     "\u2795 ",
                                     m.habit)),
                             React.createElement("button", { className: "add-habit-btn", onClick: () => addHabit(m.id, m.habit) }, "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C")))))),
-            loading && React.createElement("div", { className: "message assistant" },
+            (loading || greeting) && React.createElement("div", { className: "message assistant" },
                 React.createElement("div", { className: "thinking" },
                     React.createElement("div", { className: "thinking-avatar" },
                         React.createElement("img", { src: "/static/assets/adam-avatar.webp", alt: "" })),
                     React.createElement("div", null,
-                        React.createElement("div", { className: "thinking-title typing-shimmer" }, "\u0424\u043E\u0440\u043C\u0438\u0440\u0443\u044E \u043E\u0442\u0432\u0435\u0442"),
+                        React.createElement("div", { className: "thinking-title typing-shimmer" }, greeting ? "ADAM печатает" : "\u0424\u043E\u0440\u043C\u0438\u0440\u0443\u044E \u043E\u0442\u0432\u0435\u0442"),
                         React.createElement("div", { className: "thinking-dots" },
                             React.createElement("i", null),
                             React.createElement("i", null),

@@ -98,6 +98,14 @@ def create_tables():
     if "ai_intro_shown" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN ai_intro_shown INTEGER DEFAULT 0")
 
+    # Напоминание «Адам хочет спросить, как дела» (db/ai_nudge.py): день (локальная
+    # дата пользователя, ISO), когда подсказка уже показывалась / Адам уже
+    # поздоровался в чате — чтобы не повторять чаще раза в день.
+    if "ai_nudge_hint_day" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN ai_nudge_hint_day TEXT")
+    if "ai_greet_day" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN ai_greet_day TEXT")
+
     # Premium теперь временный (на неделю), а не навсегда — нужна дата
     # окончания. premium_purchased хранится отдельно и НИКОГДА не сбрасывается
     # даже после истечения premium — это флаг "уже покупал когда-либо",

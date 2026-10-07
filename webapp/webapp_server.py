@@ -23,6 +23,7 @@ from adam_messages import (
 )
 
 from db.core import DATA_DIR
+from db.ai_nudge import get_ai_nudge_state, mark_ai_nudge_hint_shown
 from db.product_experience import start_onboarding, get_onboarding_state, advance_onboarding, claim_first_win_push, mark_first_win_push_sent, restart_onboarding
 
 from db import (
@@ -503,6 +504,8 @@ async def bootstrap(request):
             "message": onboarding_message(telegram_id) if habits and should_show_onboarding(telegram_id) else None,
         },
         "show_app_tour": should_show_app_tour(telegram_id),
+        # Напоминание «Адам хочет спросить, как дела» — см. db/ai_nudge.py.
+        "ai_nudge": get_ai_nudge_state(telegram_id),
         "show_handle_intro": should_show_handle_intro(telegram_id),
         "show_start_quiz": should_show_start_quiz(telegram_id),
         "self_reward_cost": SELF_REWARD_COST,
@@ -1377,6 +1380,14 @@ async def onboarding_stage_route(request):
         return web.json_response({"error": "invalid_stage"}, status=400)
     advance_onboarding(telegram_id, stage)
     return web.json_response({"ok": True, "onboarding": get_onboarding_state(telegram_id)})
+
+@routes.post("/api/ai/nudge/shown")
+async def ai_nudge_shown(request):
+    """Подсказка «Адам хочет спросить…» показана — сегодня больше не показываем
+    (красная метка на «ИИ» остаётся до захода в чат)."""
+    telegram_id, _ = await _authenticate(request)
+    mark_ai_nudge_hint_shown(telegram_id)
+    return web.json_response({"ok": True})
 
 @routes.post("/api/tour/seen")
 async def app_tour_seen(request):

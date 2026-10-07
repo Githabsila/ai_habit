@@ -56,6 +56,7 @@ from webapp.services.ai_utils import (
     _cache_key,
 )
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
+from db.ai_nudge import claim_ai_greeting
 
 logger = logging.getLogger("webapp.ai_miniapp")
 
@@ -374,6 +375,28 @@ async def get_ai_history_miniapp(request):
     return web.json_response({
         "history": safe_history
     })
+
+
+@routes.post("/api/ai/greet")
+async def ai_greet_miniapp(request):
+    """Первый вопрос Адама при заходе в чат («Привет, Имя! Как прошёл день?»).
+
+    Не чаще раза в день и только если человек сегодня ещё не писал Адаму; дневной лимит
+    ответов не тратится (модель не вызывается). См. db/ai_nudge.py.
+
+    Request JSON: {"init_data": "...", "demo": false}
+      demo=true — «Показать напоминание» в Настройках: приветствие приходит всегда.
+    Response JSON: {"greeting": {"id", "message", "created_at"} | null}
+    """
+    from webapp.auth_helpers import authenticate
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        data = {}
+    user_id, _is_admin = await authenticate(data.get("init_data", ""))
+    greeting = claim_ai_greeting(user_id, demo=bool(data.get("demo")))
+    return web.json_response({"greeting": greeting})
 
 
 @routes.post("/api/ai/clear")

@@ -14173,3 +14173,23 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
 /* Звезда в «Главная задача дня» — рисованная SVG: текстовый символ «✦» сидел в квадрате чуть
    левее и ниже центра (у глифа несимметричные поля шрифта). Квадрат 24px, звезда по центру. */
 .plan-label-icon svg{display:block;width:12px;height:12px;pointer-events:none}
+
+/* Напоминание «Адам хочет спросить» (app.js::showAdamNudge): кнопка «ИИ» светится, пока
+   человек не зашёл в чат. Кольцо — псевдоэлемент с анимацией только transform/opacity
+   (дёшево для WebView), после 4 пульсаций остаётся спокойное свечение. */
+#aiCoachBtn.is-adam-nudge{
+  box-shadow:0 0 0 1px rgba(177,140,255,.45),0 0 16px rgba(124,92,252,.5);
+}
+#aiCoachBtn.is-adam-nudge::after{
+  content:"";
+  position:absolute;
+  inset:-3px;
+  border-radius:inherit;
+  border:2px solid rgba(177,140,255,.75);
+  pointer-events:none;
+  animation:adamNudgePulse 1.6s ease-out 4;
+}
+@keyframes adamNudgePulse{
+  0%{transform:scale(.94);opacity:.9}
+  100%{transform:scale(1.22);opacity:0}
+}

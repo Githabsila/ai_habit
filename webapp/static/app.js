@@ -1022,6 +1022,7 @@
     maybeShowStartQuiz();
     maybeShowStreakOnboarding();
     stabilizeFirstPaint();
+    maybeScheduleEveningAdamNudge();
     // Warm the profile data in the background. This makes a later tap on
     // "Профиль" instant without adding anything to the initial critical path.
     scheduleProfilePrefetch();
@@ -2123,6 +2124,7 @@
   function clearProductOnboardingTarget() {
     if (productHintTarget) productHintTarget.classList.remove('product-onboarding-target');
     productHintTarget = null;
+    adamNudgeActive = false;
   }
 
   // ---------- Прожектор вокруг цели (#onboardingSpotlight) ----------
@@ -2739,6 +2741,125 @@
     });
   }
 
+  // ===================== НАПОМИНАНИЕ «АДАМ ХОЧЕТ СПРОСИТЬ» =====================
+  // Если человек сегодня не писал Адаму (или давно не заходил в чат), после его действия
+  // (отметил привычку/задачу) либо вечером при входе приходит подсказка в стиле подсказок
+  // онбординга: кнопка «ИИ» подсвечивается, на ней загорается красная метка «новое
+  // сообщение». Заходит в чат — Адам сам задаёт первый вопрос (ai_coach.js → /api/ai/greet).
+  // Условия и «раз в день» считает сервер (db/ai_nudge.py → state.ai_nudge).
+  let adamNudgeActive = false;
+  let adamNudgeDemoLit = false;
+  let adamNudgeTimer = null;
+  const ADAM_NUDGE_EVENING_HOUR = 17;
+
+  function renderAiNudgeBadge() {
+    const tour = !!state?.show_app_tour;
+    const nudge = state?.ai_nudge || {};
+    // Метка и подсветка — когда подсказка уже показана, а в чат так и не зашли.
+    const lit = !tour && ((!!nudge.pending && !!nudge.hint_shown_today) || adamNudgeDemoLit);
+    // Старое правило: пока человек ни разу не писал Адаму — метка есть всегда.
+    const neverWrote = !state?.user?.ai_intro_shown && !tour;
+    const badge = document.getElementById("aiCoachBadge");
+    if (badge) badge.hidden = !(neverWrote || lit);
+    document.getElementById("aiCoachBtn")?.classList.toggle("is-adam-nudge", lit);
+  }
+
+  function adamNudgeCanShow() {
+    const nudge = state?.ai_nudge;
+    if (!nudge?.eligible || nudge.hint_shown_today || state?.show_app_tour) return false;
+    if (document.hidden || keyboardOpen || isTextField(document.activeElement)) return false;
+    if (celebrationOverlayOpen()) return false;
+    const hint = document.getElementById('productOnboardingHint');
+    if (hint && !hint.hidden) return false;
+    return !document.querySelector(".subpage-overlay.is-open");
+  }
+
+  // Ждём тишины (праздничные экраны, шторки, подсказки тура) и показываем.
+  function scheduleAdamNudge() {
+    const nudge = state?.ai_nudge;
+    if (adamNudgeTimer || !nudge?.eligible || nudge.hint_shown_today || state?.show_app_tour) return;
+    const startedAt = Date.now();
+    let quietTicks = 0;
+    adamNudgeTimer = setInterval(() => {
+      if (Date.now() - startedAt > 2 * 60 * 1000) {
+        clearInterval(adamNudgeTimer);
+        adamNudgeTimer = null;
+        return;
+      }
+      if (!adamNudgeCanShow()) { quietTicks = 0; return; }
+      quietTicks += 1;
+      if (quietTicks < 3) return;
+      clearInterval(adamNudgeTimer);
+      adamNudgeTimer = null;
+      showAdamNudge();
+    }, 800);
+  }
+
+  // Вечером (с 17:00 по времени телефона) напоминание приходит и просто при входе —
+  // если человек ещё не писал Адаму сегодня.
+  function maybeScheduleEveningAdamNudge() {
+    if (new Date().getHours() >= ADAM_NUDGE_EVENING_HOUR) scheduleAdamNudge();
+  }
+
+  function goToAdamChat() {
+    haptic('light');
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) overlay.hidden = false;
+    const url = adamNudgeDemoLit ? '/coach?nudge=demo' : '/coach';
+    setTimeout(() => { window.location.href = url; }, 60);
+  }
+
+  // demo — «Показать напоминание» в Настройках: показывается всегда и ничего не отмечает
+  // на сервере; в чате Адам при этом тоже здоровается (/coach?nudge=demo).
+  function showAdamNudge({ demo = false } = {}) {
+    const el = document.getElementById('productOnboardingHint');
+    const target = document.getElementById('aiCoachBtn');
+    const actions = document.getElementById('productOnboardingHintActions');
+    if (!el || !actions || !target || target.offsetParent === null) return false;
+    hideProductHint();
+    clearProductOnboardingTarget();
+    productHintTarget = target;
+    adamNudgeActive = true;
+    target.classList.add('product-onboarding-target');
+
+    if (demo) {
+      adamNudgeDemoLit = true;
+    } else if (state?.ai_nudge) {
+      state.ai_nudge.hint_shown_today = true;
+      api('/api/ai/nudge/shown', { method: 'POST' }).catch(() => {});
+    }
+    renderAiNudgeBadge();
+
+    const name = (state?.user?.first_name || '').trim();
+    const text = name
+      ? `${name}, у меня к тебе вопрос — загляни в чат 👋`
+      : 'У меня к тебе вопрос — загляни в чат 👋';
+    document.getElementById('productOnboardingHintTitle').textContent = 'Новое сообщение от Адама';
+    const iconEl = document.getElementById('productOnboardingHintIcon');
+    if (iconEl) iconEl.textContent = '💬';
+    // Не шаг тура — счётчик «Шаг N из 10» тут был бы враньём.
+    const stepEl = document.getElementById('productOnboardingHintStep');
+    if (stepEl) stepEl.hidden = true;
+    actions.innerHTML = `
+      <button type="button" class="product-onboarding-hint__action product-onboarding-hint__action--primary" id="adamNudgeOpen">Ответить Адаму</button>
+      <button type="button" class="product-onboarding-hint__action" id="adamNudgeLater">Потом</button>
+    `;
+    actions.hidden = false;
+    document.getElementById('adamNudgeOpen')?.addEventListener('click', () => { hideProductHint(); goToAdamChat(); });
+    document.getElementById('adamNudgeLater')?.addEventListener('click', () => { haptic('light'); hideProductHint(); });
+
+    const textEl = document.getElementById('productOnboardingHintText');
+    if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+    if (textEl) { textEl.classList.remove('is-typing'); textEl.textContent = text; }
+    showOnboardingSpotlight(target);
+    positionHintCardNear(target, el);
+    el.hidden = false;
+    requestAnimationFrame(() => el.classList.add('show'));
+    typewriteHintText(textEl, text);
+    haptic('light');
+    return true;
+  }
+
   function maybeShowAppTour() {
     if (!state?.show_app_tour) {
       // Пользователи, увидевшие app-tour ещё до появления экрана ника —
@@ -2778,7 +2899,12 @@
     document.getElementById("appTourSkip")?.addEventListener("click", () => { haptic("light"); closeAppTour(); });
     // Просьба пользователя: крестик и "Пропустить" делали одно и то же
     // (закрывали подсказку) — оставляем только "Пропустить".
-    document.getElementById('productOnboardingHintSkip')?.addEventListener('click', () => { haptic("light"); skipProductOnboarding(); });
+    document.getElementById('productOnboardingHintSkip')?.addEventListener('click', () => {
+      haptic("light");
+      // Напоминание от Адама — не часть тура: «Пропустить» просто закрывает его.
+      if (adamNudgeActive) { hideProductHint(); return; }
+      skipProductOnboarding();
+    });
 
     // Контекстные подсказки по разделам — по факту первого перехода на
     // вкладку, независимо от того, идёт ли ещё стартовый сценарий (см.
@@ -3149,8 +3275,7 @@
     // пользователь ни разу не писал ADAM. renderPlayerCard зовётся и из
     // loadBootstrap, и из applyActionPatch — единая точка, актуальна сразу
     // после любого действия, а не только после полной перезагрузки.
-    const aiBadge = document.getElementById("aiCoachBadge");
-    if (aiBadge) aiBadge.hidden = !!u.ai_intro_shown || !!state.show_app_tour;
+    renderAiNudgeBadge();
 
     const xpIntoLevel = Math.max(0, Math.min(99.999, (u.total_xp ?? u.xp ?? 0) % 100));
     document.getElementById("xpLabel").textContent = `${Math.floor(xpIntoLevel)} / 100 XP`;
@@ -4489,6 +4614,7 @@ function applyActionPatch(result) {
     announceHeroGrowth(previousHero, result.hero);
   }
   stabilizeFirstPaint();
+  scheduleAdamNudge();
 }
 
 // Тот же приём, что и applyActionPatch выше, для тумблеров плана дня
@@ -4500,6 +4626,7 @@ function applyPlanPatch(result) {
   renderPlan();
   renderTodayFocus();
   stabilizeFirstPaint();
+  scheduleAdamNudge();
 }
 
 // Roadmap #3 — заметка/фото к выполненной привычке: маленькая встроенная
@@ -8698,7 +8825,15 @@ document.getElementById("aiCoachBtn").addEventListener("click", () => {
     const overlay = document.getElementById("loadingOverlay");
     if (overlay) overlay.hidden = false;
     // небольшая пауза, чтобы браузер успел отрисовать монетку до ухода со страницы
-    setTimeout(() => { window.location.href = "/coach"; }, 60);
+    setTimeout(() => { window.location.href = adamNudgeDemoLit ? "/coach?nudge=demo" : "/coach"; }, 60);
+});
+
+// «Показать напоминание» в Настройках — как выглядит подсказка и первый вопрос Адама.
+document.getElementById("adamNudgeDemoBtn")?.addEventListener("click", () => {
+    haptic("light");
+    closeAllSubpageOverlays();
+    document.querySelector('.tab-bar__item[data-tab="home"]')?.click();
+    setTimeout(() => showAdamNudge({ demo: true }), 450);
 });
 
 document.getElementById("adminPanelBtn")?.addEventListener("click", () => {
