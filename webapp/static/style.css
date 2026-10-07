@@ -14169,3 +14169,7 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
 .cal-cell{
   animation:none !important;
 }
+
+/* Звезда в «Главная задача дня» — рисованная SVG: текстовый символ «✦» сидел в квадрате чуть
+   левее и ниже центра (у глифа несимметричные поля шрифта). Квадрат 24px, звезда по центру. */
+.plan-label-icon svg{display:block;width:12px;height:12px;pointer-events:none}

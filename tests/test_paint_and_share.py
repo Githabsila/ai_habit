@@ -84,3 +84,18 @@ def test_first_paint_nudge_touches_only_redrawn_containers_and_never_sticks():
     assert "critical.concat" not in fn
     # busy-флаг: второй вызов подряд не запоминает «0.999» как исходное значение
     assert "_fpBusy" in fn and "el._fpPrev" in fn
+
+
+# --- звезда в плане дня и текст окна «Удвоение очков» -----------------------
+
+def test_plan_label_star_is_a_centered_svg():
+    label = INDEX[INDEX.index('class="plan-main__label"'):][:520]
+    assert "<svg" in label and "✦" not in label
+    assert ".plan-label-icon svg{display:block;width:12px;height:12px" in _css_tail("Звезда в «Главная задача дня»")
+
+
+def test_double_bonus_text_has_no_repeated_promise():
+    """Заголовок уже говорит про удвоение — «каждая отметка приносит вдвое больше» повторяла его."""
+    block = INDEX[INDEX.index('id="doubleBonusOverlay"'):][:700]
+    assert "Успевай выполнить и отметить ещё одну привычку, пока действует бонус.</p>" in block
+    assert "вдвое больше" not in block
