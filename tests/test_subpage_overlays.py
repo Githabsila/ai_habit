@@ -107,3 +107,52 @@ def test_back_button_follows_the_open_subpages():
     assert 'overlay.classList.add("is-open"); syncBackButton();' in overlay
     assert overlay.count("syncBackButton()") >= 2          # при открытии и при закрытии
     assert "syncBackButton();\n}" in APP_JS[APP_JS.index("function closeAllSubpageOverlays()"):][:700]
+
+
+# ---------------------------------------------------------------------------
+# Линии в Настройках и пустая полоса внизу
+# ---------------------------------------------------------------------------
+
+def _tail_after(marker):
+    return CSS[CSS.rindex(marker):]
+
+
+def test_settings_hints_have_their_line_under_the_text_not_over_it():
+    """Скрин: тонкая линия шла по ВЕРХНЕМУ краю подсказки и перечёркивала первую строку
+    (общее правило «UNIVERSAL CARDS» рисует inset-подсветку у .theme-picker__hint).
+    Подсветку у подсказок гасим, линия — border-bottom под текстом."""
+    tail = _tail_after("Линии в Настройках.")
+    rule = re.search(r"\.settings-card \.theme-picker__hint\{([^}]*)\}", tail).group(1)
+    assert "box-shadow:none !important" in rule
+    assert "border-bottom:1px solid var(--adam-line)" in rule
+    assert re.search(r"padding:0 \d+px \d+px", rule)            # воздух между текстом и линией
+
+
+def test_gender_block_has_a_single_line_under_its_text():
+    """«Как к тебе обращаться»: раньше две линии подряд — под заголовком и сверху подсказки.
+    Линию под заголовком убираем, остаётся одна — под текстом."""
+    assert 'class="section-heading section-heading--text-first"' in INDEX
+    block = INDEX[INDEX.index("section-heading--text-first"):][:400]
+    assert "Как к тебе обращаться" in block and 'id="genderHint"' in block
+    rule = re.search(r"\.settings-card \.section-heading--text-first\{([^}]*)\}", _tail_after("Линии в Настройках.")).group(1)
+    assert "border-bottom:0 !important" in rule
+
+
+def test_every_settings_hint_uses_the_fixed_class():
+    hints = re.findall(r'<p class="theme-picker__hint"', INDEX)
+    assert len(hints) == 5       # все подсказки Настроек лежат в .settings-card и получают правило выше
+    card = INDEX[INDEX.index('<div class="settings-card">'):]
+    assert card.count('class="theme-picker__hint"') == 5
+
+
+def test_tab_bottom_clearance_is_one_value_for_all_tabs():
+    """Под последним блоком вкладки был запас 126 (#app) + 20 (#content) + отступ секции —
+    до ~180px пустой полосы над плавающей панелью (80px). Теперь панель + ~20px."""
+    tail = _tail_after("Запас снизу у вкладок.")
+    assert re.search(r"#app\{padding-bottom:calc\(env\(safe-area-inset-bottom,0px\) \+ 104px\) !important\}", tail)
+    assert "#content{padding-bottom:0 !important}" in tail
+
+
+def test_last_block_of_a_subpage_has_no_extra_margin():
+    tail = _tail_after("Окна «Магазин»/«Настройки»/«Прогресс»: у последнего блока")
+    assert ".subpage-overlay__body > :last-child{margin-bottom:0 !important}" in tail

@@ -14099,3 +14099,33 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
 .toast{z-index:1880 !important}
 .loading-overlay,.boot-retry-banner{z-index:1890 !important}
 .levelup-overlay,.impactday-overlay{z-index:9000 !important}
+
+/* Линии в Настройках. Раньше у каждой подсказки (.theme-picker__hint) из-за
+   общего правила «UNIVERSAL CARDS» рисовалась тонкая подсветка карточки по
+   ВЕРХНЕМУ краю: линия перечёркивала первую строку текста, а у блока
+   «Как к тебе обращаться» ей ещё и вторила линия под заголовком.
+   Теперь линия одна и стоит ПОД текстом: подсказка -> разделитель ->
+   следующая настройка. Подсветку сверху у подсказок убираем. */
+.settings-card .section-heading--text-first{
+  border-bottom:0 !important;
+  padding-bottom:0 !important;
+  margin-bottom:6px !important;
+}
+.settings-card .theme-picker__hint{
+  box-shadow:none !important;
+  margin:4px 0 16px !important;
+  padding:0 2px 14px;
+  line-height:1.45;
+  border-bottom:1px solid var(--adam-line);
+}
+
+/* Запас снизу у вкладок. Плавающая нижняя панель занимает 80px (72 + 8 от края),
+   а под последним блоком оставалось 126 (#app) + 20 (#content) + отступ секции
+   = до ~180px: в конце прокрутки получалась пустая тёмная полоса 60-100px над
+   панелью. Теперь запас = панель + ~20px, и он один на все вкладки. */
+#app{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 104px) !important}
+#content{padding-bottom:0 !important}
+
+/* Окна «Магазин»/«Настройки»/«Прогресс»: у последнего блока не должно быть
+   лишнего отступа — внизу ровно один небольшой запас (24px), без пустой полосы. */
+.subpage-overlay__body > :last-child{margin-bottom:0 !important}
