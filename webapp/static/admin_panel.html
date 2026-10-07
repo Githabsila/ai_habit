@@ -684,6 +684,7 @@ textarea.field{resize:vertical;min-height:88px}
             ? '<button class="btn btn-accent" id="unbanBtn">✅ Разбанить</button>'
             : '<button class="btn btn-danger" id="banBtn">🚫 Заблокировать</button>') +
           '<button class="btn btn-gold" id="premiumBtn">💎 Premium</button>' +
+          '<button class="btn btn-gold" id="badgeBtn">🏅 Медаль</button>' +
         '</div>' +
         '<div class="btn-row" style="margin-top:8px">' +
           '<button class="btn" data-xp="10">+10 XP</button>' +
@@ -699,6 +700,7 @@ textarea.field{resize:vertical;min-height:88px}
     if (banBtn) banBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'ban'); });
     if (unbanBtn) unbanBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'unban'); });
     premiumBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'premium'); });
+    document.getElementById('badgeBtn').addEventListener('click', function(){ giveBadge(u.telegram_id); });
 
     box.querySelectorAll('[data-xp]').forEach(function(btn){
       btn.addEventListener('click', function(){ giveXp(u.telegram_id, parseInt(btn.dataset.xp, 10)); });
@@ -713,6 +715,21 @@ textarea.field{resize:vertical;min-height:88px}
       var u = await api('/api/admin/user/' + id);
       renderUserCard(u);
     }catch(e){ showToast('Ошибка'); }
+  }
+
+  // Эксклюзивный подарок: медаль 🏅 — человек увидит окно с анимацией при следующем входе.
+  async function giveBadge(id){
+    var note = window.prompt('Подпись к подарку (за что медаль):', 'За пользу и вклад в развитие ADAM');
+    if (note === null) return;
+    try{
+      var res = await api('/api/admin/user/' + id + '/badge', { method: 'POST', body: JSON.stringify({ note: note }) });
+      haptic('medium');
+      showToast(res.notified ? '🏅 Медаль выдана, пуш отправлен' : '🏅 Медаль выдана');
+      var u = await api('/api/admin/user/' + id);
+      renderUserCard(u);
+    }catch(e){
+      showToast(e && e.status === 409 ? 'Медаль у него уже есть' : 'Ошибка');
+    }
   }
 
   async function giveXp(id, amount){

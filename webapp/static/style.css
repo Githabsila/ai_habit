@@ -14193,3 +14193,123 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
   0%{transform:scale(.94);opacity:.9}
   100%{transform:scale(1.22);opacity:0}
 }
+
+/* ===== Профиль: рамки в магазине, фото и имя/ник — окнами по центру ===== */
+.shop-frames-panel{margin:12px 0 16px}
+.shop-frames-panel .profile-frame-head{margin-top:0}
+.progress-personal-card{margin:14px 0 4px}
+
+/* Тап по фото в Профиле открывает смену фото: маленький карандаш в углу. */
+.streak-profile-avatar-wrap{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.streak-profile-avatar__edit{
+  position:absolute;right:-4px;bottom:-4px;z-index:3;width:22px;height:22px;border-radius:50%;
+  display:grid;place-items:center;color:#fff;background:#7C5CFC;border:2px solid #17131B;
+  box-shadow:0 2px 8px rgba(0,0,0,.4);pointer-events:none;
+}
+.streak-profile-avatar__edit svg{display:block;width:11px;height:11px}
+
+/* Верхняя карточка: имя и ник — одна нажимаемая область с карандашом справа. */
+.player-card__identity{position:relative;display:block;min-width:0;padding-right:22px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.player-card__edit{position:absolute;right:2px;top:3px;width:14px;height:14px;color:rgba(255,255,255,.5);pointer-events:none}
+.player-card__identity:active .player-card__edit{color:#fff}
+
+/* Окна по центру экрана (смена фото, имени и ника). Без blur — только затемнение. */
+.center-modal{position:fixed;inset:0;z-index:1875;display:grid;place-items:center;padding:20px;box-sizing:border-box}
+.center-modal[hidden]{display:none}
+.center-modal__backdrop{position:absolute;inset:0;background:rgba(4,3,10,.8);opacity:0;transition:opacity .18s ease}
+.center-modal__card{
+  position:relative;width:min(100%,360px);max-height:100%;overflow-y:auto;box-sizing:border-box;
+  padding:22px 18px 18px;border-radius:26px;text-align:center;
+  background:linear-gradient(160deg,#211a33,#120e1d);border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 24px 60px rgba(0,0,0,.55);opacity:0;transform:translateY(10px) scale(.98);
+  transition:opacity .18s ease,transform .18s ease;
+}
+.center-modal.is-open .center-modal__backdrop{opacity:1}
+.center-modal.is-open .center-modal__card{opacity:1;transform:none}
+.center-modal__close{
+  position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:0;
+  background:rgba(255,255,255,.07);color:#cfcbe0;font-size:14px;cursor:pointer;
+}
+.center-modal__title{margin:0 0 14px;font:800 20px 'Space Grotesk',sans-serif;color:#fff}
+.center-modal__text{margin:12px 0 16px;font-size:12px;line-height:1.45;color:#9d98ad}
+.center-modal__btn{
+  display:block;width:100%;margin-top:8px;padding:13px 14px;border-radius:16px;font-size:14px;font-weight:800;cursor:pointer;
+  color:#fff;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+}
+.center-modal__btn--primary{background:linear-gradient(135deg,#8B6CFF,#6D45E6);border-color:transparent}
+.center-modal__btn:disabled{opacity:.55}
+.center-modal__field{display:block;margin:0 0 6px;text-align:left}
+.center-modal__field>span{display:block;margin:0 0 6px 4px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8f8aa0}
+.center-modal__field>input{
+  width:100%;box-sizing:border-box;padding:12px 14px;border-radius:14px;font-size:15px;color:#fff;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);outline:none;
+}
+.center-modal__field>input:focus{border-color:rgba(139,108,255,.7)}
+.center-modal__error{margin:2px 4px 8px;text-align:left;font-size:12px;color:#ff8a8a}
+.avatar-edit__preview{display:grid;place-items:center;margin:4px 0 6px}
+.avatar-edit__preview .streak-profile-avatar{width:104px !important;height:104px !important;border-radius:32px !important;font-size:40px !important}
+.avatar-edit__preview .avatar-photo{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+
+/* ===== Эксклюзивный подарок от Администратора (медаль) ===== */
+.admin-gift-overlay{
+  position:fixed;inset:0;z-index:9000;display:grid;place-items:center;padding:20px;box-sizing:border-box;
+  background:rgba(4,3,10,.92);opacity:0;transition:opacity .25s ease;
+}
+.admin-gift-overlay[hidden]{display:none}
+.admin-gift-overlay.show{opacity:1}
+.admin-gift-card{
+  position:relative;width:min(100%,360px);overflow:hidden;box-sizing:border-box;padding:26px 20px 20px;border-radius:30px;text-align:center;
+  background:linear-gradient(165deg,#2a1f45,#130e20 70%);border:1px solid rgba(255,214,110,.28);
+  box-shadow:0 28px 70px rgba(0,0,0,.6),0 0 0 1px rgba(255,214,110,.08);
+  transform:scale(.9);opacity:0;
+}
+.admin-gift-overlay.show .admin-gift-card{animation:adminGiftCardIn .4s cubic-bezier(.2,.9,.25,1.15) forwards}
+.admin-gift-rays{
+  position:absolute;left:50%;top:92px;width:420px;height:420px;margin:-210px 0 0 -210px;pointer-events:none;opacity:.5;
+  background:conic-gradient(from 0deg,transparent 0 8%,rgba(255,214,110,.22) 10%,transparent 12% 25%,rgba(255,214,110,.18) 27%,transparent 29% 42%,rgba(255,214,110,.22) 44%,transparent 46% 58%,rgba(255,214,110,.18) 60%,transparent 62% 75%,rgba(255,214,110,.22) 77%,transparent 79% 92%,rgba(255,214,110,.18) 94%,transparent 96%);
+  -webkit-mask-image:radial-gradient(circle,#000 0,#000 28%,transparent 68%);mask-image:radial-gradient(circle,#000 0,#000 28%,transparent 68%);
+}
+.admin-gift-overlay.show .admin-gift-rays{animation:adminGiftRays 14s linear 2}
+.admin-gift-medal{position:relative;width:120px;height:150px;margin:0 auto 6px;transform-origin:50% 8%;opacity:0}
+.admin-gift-medal svg{display:block;width:100%;height:100%}
+.admin-gift-overlay.show .admin-gift-medal{animation:adminGiftMedalIn 1s cubic-bezier(.2,.9,.25,1.2) .15s forwards}
+.admin-gift-shine{
+  position:absolute;left:22px;top:46px;width:76px;height:84px;border-radius:50%;overflow:hidden;pointer-events:none;
+}
+.admin-gift-shine::after{
+  content:"";position:absolute;top:-10%;left:-60%;width:40%;height:120%;transform:skewX(-22deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);opacity:0;
+}
+.admin-gift-overlay.show .admin-gift-shine::after{animation:adminGiftShine 1.1s ease-in-out 1.1s 2}
+.admin-gift-spark{
+  position:absolute;width:8px;height:8px;border-radius:50%;background:#FFE08A;pointer-events:none;opacity:0;
+  box-shadow:0 0 8px 2px rgba(255,214,110,.7);
+}
+.admin-gift-spark--1{left:16%;top:84px}.admin-gift-spark--2{right:15%;top:70px}.admin-gift-spark--3{left:26%;top:150px}
+.admin-gift-spark--4{right:22%;top:158px}.admin-gift-spark--5{left:50%;top:44px}
+.admin-gift-overlay.show .admin-gift-spark{animation:adminGiftSpark 1.8s ease-in-out 3}
+.admin-gift-overlay.show .admin-gift-spark--2{animation-delay:.4s}.admin-gift-overlay.show .admin-gift-spark--3{animation-delay:.8s}
+.admin-gift-overlay.show .admin-gift-spark--4{animation-delay:1.2s}.admin-gift-overlay.show .admin-gift-spark--5{animation-delay:.2s}
+.admin-gift-eyebrow{position:relative;margin-top:4px;font-size:11px;font-weight:900;letter-spacing:.2em;color:#FFC93C}
+.admin-gift-title{position:relative;margin:6px 0 10px;font:800 26px/1.1 'Space Grotesk',sans-serif;color:#fff}
+.admin-gift-note{position:relative;margin:0 0 8px;font-size:15px;font-weight:700;line-height:1.35;color:#ffe9a8}
+.admin-gift-sub{position:relative;margin:0 0 18px;font-size:12px;line-height:1.45;color:#a39db3}
+.admin-gift-btn{
+  position:relative;display:block;width:100%;padding:14px;border:0;border-radius:18px;font-size:15px;font-weight:800;cursor:pointer;
+  color:#2a1a00;background:linear-gradient(135deg,#FFE08A,#FFB62E);box-shadow:0 10px 26px rgba(255,170,30,.28);
+}
+@keyframes adminGiftCardIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+@keyframes adminGiftMedalIn{
+  0%{opacity:0;transform:translateY(-70px) rotate(-24deg) scale(.4)}
+  55%{opacity:1;transform:translateY(8px) rotate(7deg) scale(1.08)}
+  78%{transform:translateY(-3px) rotate(-3deg) scale(.98)}
+  100%{opacity:1;transform:none}
+}
+@keyframes adminGiftRays{to{transform:rotate(360deg)}}
+@keyframes adminGiftShine{0%{left:-60%;opacity:0}20%{opacity:1}80%{opacity:1}100%{left:130%;opacity:0}}
+@keyframes adminGiftSpark{0%,100%{opacity:0;transform:scale(.3)}50%{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){
+  .admin-gift-overlay.show .admin-gift-card,.admin-gift-overlay.show .admin-gift-medal,.admin-gift-overlay.show .admin-gift-rays,
+  .admin-gift-overlay.show .admin-gift-spark,.admin-gift-overlay.show .admin-gift-shine::after{animation:none}
+  .admin-gift-card{opacity:1;transform:none}.admin-gift-medal{opacity:1}
+}

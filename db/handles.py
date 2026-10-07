@@ -14,6 +14,7 @@ create_tables) — проверка здесь (SELECT перед INSERT/UPDATE)
 import random
 import re
 import string
+import unicodedata
 
 from .core import connect
 
@@ -83,6 +84,34 @@ def is_handle_taken(handle, exclude_user_id=None):
 
 def normalize_handle(raw):
     return (raw or "").strip().lstrip("@").lower()
+
+
+DISPLAY_NAME_MAX = 30
+
+
+def normalize_display_name(value):
+    """Имя для показа: лишние пробелы схлопываем, края обрезаем."""
+    return " ".join(str(value or "").split())
+
+
+def update_display_name(user_id, new_name):
+    """Меняет имя, под которым человека видят в рейтинге, у друзей и в чате с Адамом
+    (first_name). Из Telegram оно подставляется только при регистрации
+    (db/users.py::add_user — INSERT OR IGNORE), так что своё имя не затрётся.
+    Возвращает None при успехе, иначе 'invalid_name': пусто, длиннее DISPLAY_NAME_MAX
+    или есть управляющие символы."""
+    name = normalize_display_name(new_name)
+    if not name or len(name) > DISPLAY_NAME_MAX:
+        return "invalid_name"
+    if any(unicodedata.category(ch).startswith("C") for ch in name):
+        return "invalid_name"
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET first_name=? WHERE telegram_id=?", (name, user_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return None
 
 
 def update_handle(user_id, new_handle):

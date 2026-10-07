@@ -22,7 +22,7 @@ router = Router()
 @router.callback_query(F.data == "shop")
 async def shop(callback: CallbackQuery):
     user = get_user(callback.from_user.id)
-    items = get_shop_items()
+    items = [it for it in get_shop_items() if it["item_type"] != "badge"]
 
     await callback.message.edit_text(
         f"""
@@ -76,6 +76,12 @@ async def buy_item(callback: CallbackQuery):
             "👑 Premium успешно куплен!",
             show_alert=True
         )
+        return
+
+    # Медаль 🏅 в магазине не продаётся — её выдаёт администратор.
+    shop_item = next((it for it in get_shop_items() if it["id"] == item_id), None)
+    if shop_item is not None and shop_item["item_type"] == "badge":
+        await callback.answer("🏅 Эту награду выдаёт администратор — купить её нельзя.", show_alert=True)
         return
 
     # Остальные товары (включая обычные награды)

@@ -1,9 +1,9 @@
 """
-Онбординг v3 (по детальному плану пользователя, в духе Habitica): 10
+Онбординг v3 (по детальному плану пользователя, в духе Habitica): 11
 пронумерованных шагов — app.js::PRODUCT_ONBOARDING_STEPS (1-4 —
 стартовые: кнопка "Добавить привычку", список привычек, главное дело дня,
-второстепенные задачи; 5-10 — контекстные: календарь/рейтинг/профиль/
-магазин/настройки/чат с ADAM, по факту первого захода на вкладку/раздел,
+второстепенные задачи; 5-11 — контекстные: календарь/рейтинг/профиль/
+магазин/прогресс и достижения/настройки/чат с ADAM, по факту первого захода на вкладку/раздел,
 независимо от того, завершён ли стартовый сценарий).
 """
 from db import add_user, get_user
@@ -14,14 +14,14 @@ from tests.conftest import sign_init_data
 
 def test_advance_onboarding_accepts_max_stage(uid):
     add_user(uid, "u", "Test")
-    advance_onboarding(uid, 10)
-    assert get_onboarding_state(uid)["onboarding_stage"] == 10
+    advance_onboarding(uid, 11)
+    assert get_onboarding_state(uid)["onboarding_stage"] == 11
 
 
 def test_advance_onboarding_clamps_above_max(uid):
     add_user(uid, "u", "Test")
     advance_onboarding(uid, 99)
-    assert get_onboarding_state(uid)["onboarding_stage"] == 10
+    assert get_onboarding_state(uid)["onboarding_stage"] == 11
 
 
 def test_advance_onboarding_never_decreases(uid):

@@ -742,6 +742,23 @@ def create_tables():
     )
     """)
 
+    # ---------------- ПОДАРКИ ОТ АДМИНИСТРАТОРА ----------------
+    # Медаль выдаёт только админ (db/admin_gifts.py); запись нужна, чтобы человек увидел
+    # окно «Эксклюзивный подарок» при следующем входе, а не только пуш.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS admin_gifts(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'badge',
+        item_id INTEGER,
+        note TEXT,
+        seen INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        seen_at TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_admin_gifts_user ON admin_gifts(user_id, seen)")
+
     # ---------------- AI FEEDBACK ----------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS ai_feedback(

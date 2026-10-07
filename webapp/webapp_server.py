@@ -24,6 +24,7 @@ from adam_messages import (
 
 from db.core import DATA_DIR
 from db.ai_nudge import get_ai_nudge_state, mark_ai_nudge_hint_shown
+from db.admin_gifts import get_unseen_admin_gift, mark_admin_gift_seen
 from db.product_experience import start_onboarding, get_onboarding_state, advance_onboarding, claim_first_win_push, mark_first_win_push_sent, restart_onboarding
 
 from db import (
@@ -39,7 +40,7 @@ from db import (
     get_color_mode, update_color_mode,
     get_habit_checkpoint_style, update_habit_checkpoint_style,
     get_home_layout, update_home_habits_first, update_home_plan_hidden,
-    get_handle, update_handle,
+    get_handle, update_handle, update_display_name,
     get_language, set_language,
     get_gender, set_gender,
     touch_last_seen,
@@ -506,6 +507,8 @@ async def bootstrap(request):
         "show_app_tour": should_show_app_tour(telegram_id),
         # Напоминание «Адам хочет спросить, как дела» — см. db/ai_nudge.py.
         "ai_nudge": get_ai_nudge_state(telegram_id),
+        # Эксклюзивный подарок от администратора (медаль): окно при входе — db/admin_gifts.py.
+        "admin_gift": get_unseen_admin_gift(telegram_id),
         "show_handle_intro": should_show_handle_intro(telegram_id),
         "show_start_quiz": should_show_start_quiz(telegram_id),
         "self_reward_cost": SELF_REWARD_COST,
@@ -902,7 +905,8 @@ async def bootstrap_secondary(request):
             # платная фича (алмазы/подписка) вместо обычной цены за Adam
             # Coin. Сам товар (id=THEME_ITEM_ID) и вся логика темы в БД не
             # трогаются, только скрыт из списка покупок.
-            if it["item_type"] != "theme"
+            # Медаль 🏅 не продаётся: её выдаёт только администратор (db/admin_gifts.py).
+            if it["item_type"] not in ("theme", "badge") and it["id"] != BADGE_ITEM_ID
         ]
         payload["achievements"] = [
             {
@@ -1381,6 +1385,18 @@ async def onboarding_stage_route(request):
     advance_onboarding(telegram_id, stage)
     return web.json_response({"ok": True, "onboarding": get_onboarding_state(telegram_id)})
 
+@routes.post("/api/admin-gift/seen")
+async def admin_gift_seen(request):
+    """Окно «Эксклюзивный подарок от Администратора» показано — больше не открываем."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+        gift_id = int(body.get("id"))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return web.json_response({"error": "invalid_id"}, status=400)
+    mark_admin_gift_seen(telegram_id, gift_id)
+    return web.json_response({"ok": True})
+
 @routes.post("/api/ai/nudge/shown")
 async def ai_nudge_shown(request):
     """Подсказка «Адам хочет спросить…» показана — сегодня больше не показываем
@@ -1542,6 +1558,22 @@ async def toggle_reminders_route(request):
     telegram_id, _ = await _authenticate(request)
     enabled = toggle_reminders(telegram_id)
     return web.json_response({"ok": True, "reminders": enabled})
+
+@routes.post("/api/profile/name")
+async def set_display_name_route(request):
+    """Смена имени (его видят в рейтинге, у друзей, в чате с Адамом): нажатием на имя
+    в верхней карточке. Из Telegram имя берётся только при регистрации. Ошибка:
+    'invalid_name' — пусто, длиннее 30 символов или управляющие символы."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_name"}, status=400)
+    error = update_display_name(telegram_id, body.get("name"))
+    if error:
+        return web.json_response({"error": error}, status=400)
+    user = get_user(telegram_id)
+    return web.json_response({"ok": True, "name": user["first_name"]})
 
 @routes.post("/api/settings/handle")
 async def set_handle_route(request):
@@ -2011,14 +2043,9 @@ async def user_gift_route(request):
         hint = ""
     else:
         what = f"«{html.escape(str(gift['label']))}»"
-        # id 3 — значок: он сам появится в рейтинге; id 2 — тема (включается в
-        # Настройках); рамки и аватар надеваются в Профиле.
-        if gift["item_id"] == 3:
-            hint = " Значок уже виден в рейтинге."
-        elif gift["item_id"] == 2:
-            hint = " Включить её можно в Профиле → Настройки."
-        else:
-            hint = " Надеть можно в Профиле: рамка аватарки или Магазин."
+        # Дарятся только рамки и аватар (db/gifts.py::GIFTABLE_ITEM_TYPES) — надеваются
+        # в ADAM Store, в блоке «Рамка аватарки».
+        hint = " Надеть можно в Профиле → ADAM Store → «Рамка аватарки»."
     _spawn_background(_send_social_push(
         request.app, target_id, f"🎁 <b>{name}</b> подарил(а) тебе {what}!{hint}"))
     return web.json_response({
@@ -2661,6 +2688,9 @@ async def buy_route(request):
     item_type = item["item_type"] if "item_type" in item.keys() else "cosmetic"
     if item_type in ("frame_stars", "answer_pack_stars", "diamond_pack_stars"):
         return web.json_response({"error": "use_stars_checkout"}, status=400)
+    if item_type == "badge" or item_id == BADGE_ITEM_ID:
+        # Медаль выдаёт только администратор — купить её нельзя.
+        return web.json_response({"error": "not_for_sale"}, status=403)
 
     if item_id == 1 and was_premium_purchased(telegram_id):
         return web.json_response({"error": "premium_already_purchased"}, status=400)

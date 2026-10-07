@@ -1023,6 +1023,7 @@
     maybeShowStreakOnboarding();
     stabilizeFirstPaint();
     maybeScheduleEveningAdamNudge();
+    scheduleAdminGift();
     // Warm the profile data in the background. This makes a later tap on
     // "Профиль" instant without adding anything to the initial critical path.
     scheduleProfilePrefetch();
@@ -2100,8 +2101,9 @@
     6: { target: '.tab-bar__item[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.', icon: '🏆' },
     7: { target: '.tab-bar__item[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь.', icon: '👤' },
     8: { target: '#openShopBtn', title: 'ADAM Store', text: 'Алмазы, Premium и улучшения для ADAM — здесь же можно вознаградить себя.', icon: '🛍️' },
-    9: { target: '#openSettingsBtn', title: 'Настройки', text: 'Прогресс, достижения, персонализация и всё остальное — одной кнопкой.', icon: '⚙️' },
-    10: { target: '#aiCoachBtn', title: 'ADAM — твой личный ИИ-наставник', text: 'Планирует день, разбирает проблемы, следит за прогрессом и просто поддержит разговор. Напиши хотя бы пару сообщений — и сразу увидишь, чем он полезен.', icon: '✦' },
+    9: { target: '#openStatsBtn', title: 'Прогресс и достижения', text: 'Цели, статистика, награды и AI-анализ твоего прогресса — всё в одном месте.', icon: '📊' },
+    10: { target: '#openSettingsBtn', title: 'Настройки', text: 'Напоминания, приватность, данные и всё остальное — одной кнопкой.', icon: '⚙️' },
+    11: { target: '#aiCoachBtn', title: 'ADAM — твой личный ИИ-наставник', text: 'Планирует день, разбирает проблемы, следит за прогрессом и просто поддержит разговор. Напиши хотя бы пару сообщений — и сразу увидишь, чем он полезен.', icon: '✦' },
   };
   // Вкладка, на которой живёт цель каждого шага — нужно, чтобы кнопки
   // "Назад"/"Далее" внутри подсказки (просьба пользователя: "переходить
@@ -2109,7 +2111,7 @@
   // цель на неактивной вкладке. У шага 10 цель (#aiCoachBtn) — часть
   // постоянной нижней навигации, как и у шагов 5-7, поэтому вкладка не
   // важна — оставляем ту же, что и у шага 9, чтобы не дёргать её лишний раз.
-  const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'home', 4: 'home', 5: 'calendar', 6: 'rating', 7: 'profile', 8: 'profile', 9: 'profile', 10: 'profile' };
+  const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'home', 4: 'home', 5: 'calendar', 6: 'rating', 7: 'profile', 8: 'profile', 9: 'profile', 10: 'profile', 11: 'profile' };
   const CONTEXT_TAB_STAGE = { calendar: 5, rating: 6, profile: 7 };
 
   function resolveStepTarget(step) {
@@ -2768,7 +2770,8 @@
     const nudge = state?.ai_nudge;
     if (!nudge?.eligible || nudge.hint_shown_today || state?.show_app_tour) return false;
     if (document.hidden || keyboardOpen || isTextField(document.activeElement)) return false;
-    if (celebrationOverlayOpen()) return false;
+    // Подарок от администратора важнее: пока он ждёт своей очереди или открыт, напоминание молчит.
+    if (state?.admin_gift || celebrationOverlayOpen()) return false;
     const hint = document.getElementById('productOnboardingHint');
     if (hint && !hint.hidden) return false;
     return !document.querySelector(".subpage-overlay.is-open");
@@ -2858,6 +2861,59 @@
     typewriteHintText(textEl, text);
     haptic('light');
     return true;
+  }
+
+  // ===================== ЭКСКЛЮЗИВНЫЙ ПОДАРОК ОТ АДМИНИСТРАТОРА =====================
+  // Медаль 🏅 выдаёт только админ (db/admin_gifts.py): при входе — окно с анимацией,
+  // после закрытия подарок помечается просмотренным. Ждём тишины, как и остальные окна.
+  let adminGiftTimer = null;
+
+  function scheduleAdminGift() {
+    const gift = state?.admin_gift;
+    if (adminGiftTimer || !gift || state?.show_app_tour) return;
+    const startedAt = Date.now();
+    let quietTicks = 0;
+    adminGiftTimer = setInterval(() => {
+      if (Date.now() - startedAt > 3 * 60 * 1000) {
+        clearInterval(adminGiftTimer);
+        adminGiftTimer = null;
+        return;
+      }
+      const hint = document.getElementById('productOnboardingHint');
+      if (celebrationOverlayOpen() || document.hidden || state?.show_app_tour || (hint && !hint.hidden)) { quietTicks = 0; return; }
+      quietTicks += 1;
+      if (quietTicks < 3) return;
+      clearInterval(adminGiftTimer);
+      adminGiftTimer = null;
+      openAdminGift();
+    }, 800);
+  }
+
+  function openAdminGift() {
+    const gift = state?.admin_gift;
+    const overlay = document.getElementById("adminGiftOverlay");
+    if (!gift || !overlay) return;
+    const note = document.getElementById("adminGiftNote");
+    if (note) note.textContent = gift.note || "За пользу и вклад в развитие ADAM";
+    overlay.hidden = false;
+    overlay.setAttribute("aria-hidden", "false");
+    requestAnimationFrame(() => overlay.classList.add("show"));
+    haptic("success");
+    document.getElementById("adminGiftClose")?.addEventListener("click", closeAdminGift, { once: true });
+  }
+
+  function closeAdminGift() {
+    const overlay = document.getElementById("adminGiftOverlay");
+    const gift = state?.admin_gift;
+    if (!overlay) return;
+    haptic("light");
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { overlay.hidden = true; }, 260);
+    if (gift) {
+      state.admin_gift = null;
+      api("/api/admin-gift/seen", { method: "POST", body: JSON.stringify({ id: gift.id }) }).catch(() => {});
+    }
   }
 
   function maybeShowAppTour() {
@@ -5410,18 +5466,58 @@ function initPlanActions() {
     });
   }
 
-  function initProfileAvatarActions() {
-    const trigger = document.getElementById("profilePhotoBtn");
+  // ---- окна по центру экрана: общий показ/скрытие ----
+  function openCenterModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    el.hidden = false;
+    el.setAttribute("aria-hidden", "false");
+    requestAnimationFrame(() => el.classList.add("is-open"));
+    return el;
+  }
+
+  function closeCenterModal(id) {
+    const el = document.getElementById(id);
+    if (!el || el.hidden) return;
+    el.classList.remove("is-open");
+    el.setAttribute("aria-hidden", "true");
+    blurActiveTextField();
+    setTimeout(() => { if (!el.classList.contains("is-open")) el.hidden = true; }, 200);
+  }
+
+  function bindCenterModal(id, closeIds) {
+    closeIds.forEach((closeId) => document.getElementById(closeId)?.addEventListener("click", () => closeCenterModal(id)));
+  }
+
+  // Тап по аватару в Профиле: окно смены фото (раньше кнопка «Изменить фото» жила в Настройках).
+  function renderAvatarEditorPreview() {
+    const box = document.getElementById("avatarEditPreview");
+    if (!box || !state?.user) return;
+    const u = state.user;
+    const frame = String(u.frame_id || "default");
+    const photo = String(u.avatar_id || "default").startsWith("upload:")
+      ? `<img class="avatar-photo" src="/media/avatars/${encodeURIComponent(String(u.avatar_id).split(":")[1])}.jpg?v=${Date.now()}" alt="Аватар">`
+      : escapeHtml((u.first_name ? u.first_name[0] : "A").toUpperCase());
+    box.innerHTML = `<div class="streak-profile-avatar frame-${escapeHtml(frame)}">${photo}</div>`;
+  }
+
+  function initAvatarEditor() {
+    const wrap = document.getElementById("profileAvatarWrap");
     const input = document.getElementById("profilePhotoInput");
-    if (!trigger || !input) return;
-    trigger.addEventListener("click", () => input.click());
+    const pick = document.getElementById("avatarEditPick");
+    if (!wrap || !input || !pick) return;
+    const open = () => { haptic("light"); renderAvatarEditorPreview(); openCenterModal("avatarEditOverlay"); };
+    wrap.addEventListener("click", open);
+    wrap.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+    bindCenterModal("avatarEditOverlay", ["avatarEditClose", "avatarEditCancel", "avatarEditBackdrop"]);
+    pick.addEventListener("click", () => input.click());
     input.addEventListener("change", async () => {
       const file = input.files?.[0];
       if (!file) return;
       if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) { showToast("Выбери JPG, PNG или WEBP", "error"); return; }
       if (file.size > 5 * 1024 * 1024) { showToast("Фото должно быть не больше 5 МБ", "error"); return; }
       try {
-        trigger.disabled = true;
+        pick.disabled = true;
         const form = new FormData();
         form.append("avatar", file, file.name);
         const res = await fetch("/api/profile/avatar", { method: "POST", headers: { "Authorization": "tma " + initData() }, body: form });
@@ -5429,13 +5525,88 @@ function initPlanActions() {
         if (!res.ok) throw new Error(data?.error || "upload_failed");
         state.user.avatar_id = data.avatar_id;
         renderProfileAvatarControls();
+        renderAvatarEditorPreview();
         renderRating();
         haptic("medium");
         showToast("Аватар обновлён", "success");
+        setTimeout(() => closeCenterModal("avatarEditOverlay"), 500);
       } catch (err) {
         showToast(friendlyError(err), "error");
-      } finally { trigger.disabled = false; input.value = ""; }
+      } finally { pick.disabled = false; input.value = ""; }
     });
+  }
+
+  // Тап по имени в верхней карточке: смена имени и ника в одном окне.
+  function initIdentityEditor() {
+    const trigger = document.getElementById("playerIdentityBtn");
+    const nameInput = document.getElementById("identityNameInput");
+    const handleInput = document.getElementById("identityHandleInput");
+    const save = document.getElementById("identitySave");
+    if (!trigger || !nameInput || !handleInput || !save) return;
+    const nameError = document.getElementById("identityNameError");
+    const handleError = document.getElementById("identityHandleError");
+    const showError = (el, text) => { if (el) { el.textContent = text || ""; el.hidden = !text; } };
+    const open = () => {
+      haptic("light");
+      nameInput.value = state?.user?.first_name || "";
+      handleInput.value = state?.user?.handle || "";
+      showError(nameError, "");
+      showError(handleError, "");
+      openCenterModal("identityOverlay");
+    };
+    trigger.addEventListener("click", open);
+    trigger.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+    bindCenterModal("identityOverlay", ["identityClose", "identityCancel", "identityBackdrop"]);
+
+    save.addEventListener("click", async () => {
+      const u = state?.user;
+      if (!u) return;
+      const name = nameInput.value.replace(/\s+/g, " ").trim();
+      const handle = handleInput.value.trim().replace(/^@/, "");
+      showError(nameError, "");
+      showError(handleError, "");
+      if (!name) { showError(nameError, "Введи имя"); return; }
+      if (name.length > 30) { showError(nameError, friendlyError({ data: { error: "invalid_name" } })); return; }
+      const nameChanged = name !== (u.first_name || "");
+      const handleChanged = handle.toLowerCase() !== String(u.handle || "").toLowerCase();
+      if (!nameChanged && !handleChanged) { closeCenterModal("identityOverlay"); return; }
+      save.disabled = true;
+      try {
+        // Ник — первым: он может оказаться занят, и тогда ничего не поменялось.
+        if (handleChanged) {
+          const res = await api("/api/settings/handle", { method: "POST", body: JSON.stringify({ handle }) });
+          u.handle = res.handle;
+        }
+        if (nameChanged) {
+          const res = await api("/api/profile/name", { method: "POST", body: JSON.stringify({ name }) });
+          u.first_name = res.name;
+        }
+        (state.leaderboard || []).forEach((row) => {
+          if (Number(row.telegram_id) === Number(u.telegram_id)) { row.first_name = u.first_name; row.handle = u.handle; }
+        });
+        const settingsHandle = document.getElementById("userHandleInput");
+        if (settingsHandle) settingsHandle.value = u.handle || "";
+        renderPlayerCard();
+        renderRating();
+        haptic("medium");
+        showToast("Сохранено", "success");
+        closeCenterModal("identityOverlay");
+      } catch (err) {
+        const code = err?.data?.error;
+        const text = friendlyError(err);
+        if (code === "taken" || code === "invalid_format") showError(handleError, text);
+        else if (code === "invalid_name") showError(nameError, text);
+        else showToast(text, "error");
+        if (handleChanged && code === "invalid_name") renderPlayerCard();   // ник уже сохранился
+      } finally {
+        save.disabled = false;
+      }
+    });
+  }
+
+  // Рамки аватарки теперь выбираются в ADAM Store (раньше — в Настройках).
+  function initProfileAvatarActions() {
+    initAvatarEditor();
 
     const picker = document.getElementById("profileFramePicker");
     picker?.addEventListener("click", async (e) => {
@@ -5534,6 +5705,8 @@ function initPlanActions() {
     invalid_visibility: "Couldn't save the setting",
     invalid_format: "Only latin letters, digits and \"_\", 3 to 20 characters",
     taken: "This handle is already taken",
+    invalid_name: "Name must be 1 to 30 characters",
+    not_for_sale: "This reward is given by the administrator",
     not_enough_xp: "Not enough Adam Coin",
   };
 
@@ -5599,6 +5772,8 @@ function initPlanActions() {
         invalid_visibility: "Не получилось сохранить настройку",
         invalid_format: "Только латиница, цифры и «_», от 3 до 20 символов",
         taken: "Этот ник уже занят",
+        invalid_name: "Имя — от 1 до 30 символов",
+        not_for_sale: "Эту награду выдаёт администратор",
         not_enough_xp: "Не хватает Adam Coin",
     };
 
@@ -6152,7 +6327,7 @@ async function openFriendInvite() {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -8745,6 +8920,7 @@ async function boot() {
             // инициализация после падения просто не происходит.
             initPublicProfileActions();
             initUserHandleActions();
+            initIdentityEditor();
             initGoalsActions();
             initLanguageActions();
             initGenderActions();

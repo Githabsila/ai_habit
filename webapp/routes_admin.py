@@ -38,6 +38,7 @@ from db import (
     get_recent_perf_events, get_perf_summary,
 )
 from db.core import DB_PATH
+from db.admin_gifts import grant_admin_badge
 from admin_digest_scheduler import build_stats_report
 
 logger = logging.getLogger("webapp.routes_admin")
@@ -261,6 +262,37 @@ async def admin_premium_route(request):
     telegram_id = int(request.match_info["telegram_id"])
     give_premium_admin(telegram_id)
     return web.json_response({"ok": True})
+
+
+@routes.post("/api/admin/user/{telegram_id}/badge")
+async def admin_badge_route(request):
+    """Выдать медаль 🏅 как «Эксклюзивный подарок от Администратора» (за пользу приложению и
+    вклад в его развитие). Человек увидит окно с анимацией при следующем входе в Mini App и
+    получит сообщение от бота. body: {"note": "необязательный текст"}."""
+    await _authenticate_admin(request)
+    telegram_id = int(request.match_info["telegram_id"])
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        body = {}
+    result = grant_admin_badge(telegram_id, body.get("note"))
+    if "error" in result:
+        status = 404 if result["error"] == "user_not_found" else 409
+        return web.json_response(result, status=status)
+    bot = request.app.get("bot")
+    notified = False
+    if bot is not None:
+        try:
+            await bot.send_message(
+                telegram_id,
+                "🎖 <b>Эксклюзивный подарок от Администратора</b>\n\n"
+                f"Тебе подарили медаль: {result['note']}.\nОткрой ADAM — она уже у твоего имени.",
+                parse_mode="HTML",
+            )
+            notified = True
+        except Exception:
+            logger.warning("Не удалось отправить пуш о медали пользователю %s", telegram_id)
+    return web.json_response({"ok": True, "note": result["note"], "notified": notified})
 
 
 @routes.post("/api/admin/user/{telegram_id}/xp")

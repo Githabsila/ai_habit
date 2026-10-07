@@ -119,7 +119,7 @@ async def test_gift_push_tells_where_to_wear_the_frame(client, uid):
     assert r.status == 200
     await asyncio.gather(*list(ws._background_tasks))
     text = bot.send_message.call_args.args[1]
-    assert "Пульс" in text and "Надеть можно в Профиле" in text and "Настройки" not in text
+    assert "Пульс" in text and "ADAM Store" in text and "Настройки" not in text
 
 
 def test_fresh_database_knows_which_shop_items_are_frames():

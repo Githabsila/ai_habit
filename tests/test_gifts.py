@@ -62,8 +62,8 @@ def test_options_list_only_giftable_things(uid):
     sender, receiver = _pair(uid, coins=300, diamonds=2)
     options = get_gift_options(sender, receiver)
     ids = {it["id"] for it in options["items"]}
-    assert ids == {2, 3, AVATAR, NEON, 6, 25, 26}            # косметика за монеты — и ничего больше
-    assert not ids & {1, 7, 20, 21, 22, 23, 24, 27, 28}      # Premium, Stars, пакеты ИИ, бустеры, алмазные пакеты — нельзя
+    assert ids == {AVATAR, NEON, 6, 25, 26}                  # рамки и аватар за монеты — и ничего больше
+    assert not ids & {1, 2, 3, 7, 20, 21, 22, 23, 24, 27, 28}   # Premium, тема, медаль, Stars, пакеты ИИ, бустеры, алмазные пакеты — нельзя
     assert options["balances"] == {"coins": 300, "diamonds": 2}
     assert [(d["amount"], d["affordable"]) for d in options["diamonds"]] == [(1, True), (3, False), (5, False)]
     neon = next(it for it in options["items"] if it["id"] == NEON)
@@ -253,7 +253,7 @@ async def test_gift_route_returns_balances_and_pushes_the_receiver(client, uid):
     assert (await r.json())["user"]["xp"] == 300
     await _flush_background()
     text = bot.send_message.call_args.args[1]
-    assert "Neon" in text and "Надеть можно в Профиле" in text
+    assert "Neon" in text and "ADAM Store" in text
 
 
 async def test_gift_push_escapes_the_name_and_respects_opt_out(client, uid):

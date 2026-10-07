@@ -3,6 +3,10 @@ from datetime import date
 from .core import connect
 
 
+# Товары, которые нельзя купить: медаль 🏅 выдаёт только администратор (db/admin_gifts.py).
+NOT_FOR_SALE_ITEM_TYPES = ("badge",)
+
+
 def get_shop_items():
     conn = connect()
     cursor = conn.cursor()
@@ -56,6 +60,10 @@ def buy_shop_item(user_id, item_id, allow_repeatable=False):
     item = cursor.fetchone()
 
     if not item:
+        conn.close()
+        return False
+
+    if "item_type" in item.keys() and item["item_type"] in NOT_FOR_SALE_ITEM_TYPES:
         conn.close()
         return False
 

@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261007_ADAMNUDGE_V40">
+<link rel="stylesheet" href="/static/style.css?v=20261007_PROFILE_V42">
 </head>
 <body>
 
@@ -75,6 +75,8 @@ r="49"></circle>
 
 <div class="player-card__info">
 
+<div class="player-card__identity" id="playerIdentityBtn" role="button" tabindex="0" aria-label="Изменить имя и ник">
+
 <div class="player-card__name">
 
 <span id="playerName">👋 Добро пожаловать</span><span id="playerBadge" class="player-badge" style="display:none">🏅</span>
@@ -82,6 +84,10 @@ r="49"></circle>
 </div>
 
 <div id="playerHandle" class="player-card__handle"></div>
+
+<svg class="player-card__edit" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+
+</div>
 
 <div class="player-card__stats">
 
@@ -402,9 +408,10 @@ class="habit-add-form__submit">
 
 <div class="streak-profile-card streak-profile-card--premium" id="streakProfileCard">
   <div class="streak-profile-card__particles"><i></i><i></i><i></i><i></i></div>
-  <div class="streak-profile-avatar-wrap">
+  <div class="streak-profile-avatar-wrap" id="profileAvatarWrap" role="button" tabindex="0" aria-label="Изменить фото аватарки">
     <div class="streak-profile-ring"></div>
     <div class="streak-profile-avatar" id="profileAvatar">A</div>
+    <span class="streak-profile-avatar__edit" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
   </div>
   <div class="streak-profile-info">
     <div class="streak-profile-kicker">ТВОЯ УДАРНАЯ СЕРИЯ</div>
@@ -456,6 +463,13 @@ class="habit-add-form__submit">
   <span class="profile-nav-card__chevron">›</span>
 </button>
 
+<!-- Прогресс и достижения (раньше жили внутри Настроек): второй пункт после ADAM Store. -->
+<button type="button" class="profile-nav-card" id="openStatsBtn">
+  <span class="profile-nav-card__icon">📊</span>
+  <span class="profile-nav-card__text"><b>Прогресс и достижения</b><small>Статистика, цели, награды и AI-анализ</small></span>
+  <span class="profile-nav-card__chevron">›</span>
+</button>
+
 <!-- Подарки, которые подарили мне (db/gifts.py::get_received_gifts): окно с
      историей. Само открывается при входе, если есть новые, а здесь — вход
      в любой момент и счётчик новых. Рисует app.js::openReceivedGifts. -->
@@ -501,6 +515,12 @@ class="habit-add-form__submit">
   </button>
 </div>
 
+<!-- Рамки аватарки (раньше — в Настройках): надеть доступную рамку. Рисует app.js::renderFramePicker. -->
+<div class="profile-cosmetics-panel shop-frames-panel" id="shopFramesPanel">
+  <div class="profile-frame-head"><b>Рамка аватарки</b><small id="profileFrameHint">Выбери доступную рамку</small></div>
+  <div class="profile-frame-picker" id="profileFramePicker"></div>
+</div>
+
 <ul class="shop-list shop-list--grid" id="shopList">
 </ul>
 
@@ -536,28 +556,23 @@ class="habit-add-form__submit">
 </div>
 <div class="subpage-overlay__body">
 
-<div class="section-heading achievements-heading">
+<button type="button" class="progress-ai-btn" id="progressAiBtn">🤖 AI-анализ прогресса</button>
+<div class="progress-ai-result" id="progressAiResult" hidden></div>
 
-  <div>
-    <h2 data-i18n="achievements_title">Достижения</h2>
-    <p class="achievements-heading__hint">Последние награды — сразу перед глазами</p>
+<!-- Цели и архетип переехали сюда из Настроек: людям интересно следить за развитием
+     и возвращаться к этому экрану. id'ы те же — app.js их не заметил. -->
+<div class="settings-card progress-personal-card">
+  <div class="settings-row">
+    <span>🧭 Твои долгосрочные цели</span>
+  </div>
+  <div class="goals-row">
+    <textarea id="longTermGoalsInput" class="goals-textarea" maxlength="500" placeholder="Например: пробежать марафон к декабрю, выучить испанский... AI-наставник будет держать это в уме."></textarea>
+    <button type="button" class="goals-save-btn" id="longTermGoalsSaveBtn">Сохранить</button>
   </div>
 
-  <span class="section-heading__sub" id="achievementsCountLabel">0 наград</span>
-
-</div>
-
-<div class="achievement-latest-wrap">
-  <ul class="achievement-list achievement-list--latest" id="achievementList"></ul>
-</div>
-
-<div class="achievement-archive" id="achievementArchive" hidden>
-  <div class="achievement-archive__top">
-    <span>Все остальные</span>
-    <span class="achievement-archive__swipe">← листай →</span>
-  </div>
-  <div class="achievement-archive__viewport" id="achievementArchiveViewport">
-    <ul class="achievement-list achievement-list--archive" id="achievementArchiveList"></ul>
+  <div class="settings-row">
+    <span>🧬 Архетип личности</span>
+    <button type="button" class="settings-quiet-toggle" id="archetypeQuizBtn">Пройти тест</button>
   </div>
 </div>
 
@@ -585,8 +600,32 @@ class="habit-add-form__submit">
 
 <button type="button" class="pdf-report-btn" id="pdfReportBtn">📄 Скачать PDF-отчёт</button>
 
-<button type="button" class="progress-ai-btn" id="progressAiBtn">🤖 AI-анализ прогресса</button>
-<div class="progress-ai-result" id="progressAiResult" hidden></div>
+<div class="section-heading achievements-heading">
+
+  <div>
+    <h2 data-i18n="achievements_title">Достижения</h2>
+    <p class="achievements-heading__hint">Последние награды — сразу перед глазами</p>
+  </div>
+
+  <span class="section-heading__sub" id="achievementsCountLabel">0 наград</span>
+
+</div>
+
+<div class="achievement-latest-wrap">
+  <ul class="achievement-list achievement-list--latest" id="achievementList"></ul>
+</div>
+
+<div class="achievement-archive" id="achievementArchive" hidden>
+  <div class="achievement-archive__top">
+    <span>Все остальные</span>
+    <span class="achievement-archive__swipe">← листай →</span>
+  </div>
+  <div class="achievement-archive__viewport" id="achievementArchiveViewport">
+    <ul class="achievement-list achievement-list--archive" id="achievementArchiveList"></ul>
+  </div>
+</div>
+
+
 
 </div>
 </div>
@@ -601,7 +640,7 @@ class="habit-add-form__submit">
      менялись, app.js их не трогал. -->
 <button type="button" class="profile-nav-card" id="openSettingsBtn">
   <span class="profile-nav-card__icon">⚙️</span>
-  <span class="profile-nav-card__text"><b>Настройки</b><small>Прогресс, персонализация и вся остальная настройка</small></span>
+  <span class="profile-nav-card__text"><b>Настройки</b><small>Напоминания, приватность, данные и поддержка</small></span>
   <span class="profile-nav-card__chevron">›</span>
 </button>
 
@@ -613,22 +652,6 @@ class="habit-add-form__submit">
   <h2 class="subpage-overlay__title">⚙️ Настройки</h2>
 </div>
 <div class="subpage-overlay__body">
-
-<button type="button" class="profile-nav-card" id="openStatsBtn">
-  <span class="profile-nav-card__icon">📊</span>
-  <span class="profile-nav-card__text"><b>Прогресс и достижения</b><small>Статистика, награды, PDF-отчёт и AI-анализ</small></span>
-  <span class="profile-nav-card__chevron">›</span>
-</button>
-
-<div class="profile-cosmetics-panel">
-  <div class="profile-cosmetics-head">
-    <div><b>Аватар</b><small>Фото будет видно в профиле и рейтинге</small></div>
-    <button class="profile-photo-btn" id="profilePhotoBtn" type="button">Изменить фото</button>
-    <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
-  </div>
-  <div class="profile-frame-head"><b>Рамка аватарки</b><small id="profileFrameHint">Выбери доступную рамку</small></div>
-  <div class="profile-frame-picker" id="profileFramePicker"></div>
-</div>
 
 <div class="settings-card">
 
@@ -717,19 +740,6 @@ class="habit-add-form__submit">
     <select id="quietHoursStart" class="quiet-hours-select" aria-label="Начало тихих часов"></select>
     <span>до</span>
     <select id="quietHoursEnd" class="quiet-hours-select" aria-label="Конец тихих часов"></select>
-  </div>
-
-  <div class="settings-row">
-    <span>🧬 Архетип личности</span>
-    <button type="button" class="settings-quiet-toggle" id="archetypeQuizBtn">Пройти тест</button>
-  </div>
-
-  <div class="settings-row">
-    <span>🧭 Твои долгосрочные цели</span>
-  </div>
-  <div class="goals-row">
-    <textarea id="longTermGoalsInput" class="goals-textarea" maxlength="500" placeholder="Например: пробежать марафон к декабрю, выучить испанский... AI-наставник будет держать это в уме."></textarea>
-    <button type="button" class="goals-save-btn" id="longTermGoalsSaveBtn">Сохранить</button>
   </div>
 
   <div class="settings-row">
@@ -1077,6 +1087,82 @@ class="habit-add-form__submit">
   </section>
 </div>
 
+<!-- Окно смены фото аватарки: открывается тапом по фото в Профиле (app.js::initAvatarEditor). -->
+<!-- Эксклюзивный подарок от Администратора: медаль 🏅 выдаёт только админ (db/admin_gifts.py).
+     Окно открывается при входе (app.js::scheduleAdminGift), после закрытия подарок помечается просмотренным. -->
+<div class="admin-gift-overlay" id="adminGiftOverlay" hidden aria-hidden="true">
+  <section class="admin-gift-card" role="dialog" aria-modal="true" aria-labelledby="adminGiftTitle">
+    <span class="admin-gift-rays" aria-hidden="true"></span>
+    <span class="admin-gift-spark admin-gift-spark--1" aria-hidden="true"></span>
+    <span class="admin-gift-spark admin-gift-spark--2" aria-hidden="true"></span>
+    <span class="admin-gift-spark admin-gift-spark--3" aria-hidden="true"></span>
+    <span class="admin-gift-spark admin-gift-spark--4" aria-hidden="true"></span>
+    <span class="admin-gift-spark admin-gift-spark--5" aria-hidden="true"></span>
+    <div class="admin-gift-medal" aria-hidden="true">
+      <svg viewBox="0 0 120 150" width="120" height="150" focusable="false">
+        <defs>
+          <linearGradient id="agDisc" x1="20" y1="30" x2="100" y2="120" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#FFF1B0"/><stop offset=".5" stop-color="#FFC93C"/><stop offset="1" stop-color="#D98A00"/>
+          </linearGradient>
+          <linearGradient id="agRibbonL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8B6CFF"/><stop offset="1" stop-color="#5B3CD6"/></linearGradient>
+          <linearGradient id="agRibbonR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF6B7A"/><stop offset="1" stop-color="#D93A4F"/></linearGradient>
+        </defs>
+        <path class="ag-ribbon ag-ribbon--l" d="M30 4h24l16 56H46z" fill="url(#agRibbonL)"/>
+        <path class="ag-ribbon ag-ribbon--r" d="M90 4H66L50 60h24z" fill="url(#agRibbonR)"/>
+        <circle cx="60" cy="88" r="42" fill="#B8720A"/>
+        <circle cx="60" cy="88" r="38" fill="url(#agDisc)"/>
+        <circle cx="60" cy="88" r="30" fill="none" stroke="#FFF6CF" stroke-width="2" opacity=".65"/>
+        <path d="M60 68c1.6 10.4 7.4 16.2 17.8 17.8-10.4 1.6-16.2 7.4-17.8 17.8-1.6-10.4-7.4-16.2-17.8-17.8C52.6 84.2 58.4 78.4 60 68z" fill="#9C5F06"/>
+        <path d="M60 72c1.3 8.7 6.3 13.7 15 15-8.7 1.3-13.7 6.3-15 15-1.3-8.7-6.3-13.7-15-15 8.7-1.3 13.7-6.3 15-15z" fill="#FFF8DC"/>
+      </svg>
+      <span class="admin-gift-shine"></span>
+    </div>
+    <div class="admin-gift-eyebrow">ЭКСКЛЮЗИВНЫЙ ПОДАРОК</div>
+    <h2 class="admin-gift-title" id="adminGiftTitle">От Администратора</h2>
+    <p class="admin-gift-note" id="adminGiftNote">За пользу и вклад в развитие ADAM</p>
+    <p class="admin-gift-sub">Медаль 🏅 теперь стоит рядом с твоим именем — её видят в рейтинге и в профиле.</p>
+    <button type="button" class="admin-gift-btn" id="adminGiftClose">Спасибо!</button>
+  </section>
+</div>
+
+<div class="center-modal" id="avatarEditOverlay" hidden aria-hidden="true">
+  <div class="center-modal__backdrop" id="avatarEditBackdrop"></div>
+  <section class="center-modal__card" role="dialog" aria-modal="true" aria-labelledby="avatarEditTitle">
+    <button type="button" class="center-modal__close" id="avatarEditClose" aria-label="Закрыть">✕</button>
+    <h3 class="center-modal__title" id="avatarEditTitle">Фото профиля</h3>
+    <div class="avatar-edit__preview" id="avatarEditPreview"></div>
+    <p class="center-modal__text">Фото увидят в профиле, рейтинге и у друзей. JPG, PNG или WEBP, до 5 МБ.</p>
+    <button type="button" class="center-modal__btn center-modal__btn--primary" id="avatarEditPick">Выбрать фото</button>
+    <button type="button" class="center-modal__btn" id="avatarEditCancel">Закрыть</button>
+    <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+  </section>
+</div>
+
+<!-- Окно смены имени и ника: тап по имени в верхней карточке (app.js::initIdentityEditor). -->
+<div class="center-modal" id="identityOverlay" hidden aria-hidden="true">
+  <div class="center-modal__backdrop" id="identityBackdrop"></div>
+  <section class="center-modal__card" role="dialog" aria-modal="true" aria-labelledby="identityTitle">
+    <button type="button" class="center-modal__close" id="identityClose" aria-label="Закрыть">✕</button>
+    <h3 class="center-modal__title" id="identityTitle">Имя и ник</h3>
+    <label class="center-modal__field">
+      <span>Имя</span>
+      <input type="text" id="identityNameInput" maxlength="30" autocomplete="off" placeholder="Как тебя называть">
+    </label>
+    <div class="center-modal__error" id="identityNameError" hidden></div>
+    <label class="center-modal__field">
+      <span>Ник</span>
+      <div class="handle-input-wrap">
+        <span class="handle-input-at">@</span>
+        <input type="text" id="identityHandleInput" class="handle-input" maxlength="20" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="nickname">
+      </div>
+    </label>
+    <div class="center-modal__error" id="identityHandleError" hidden></div>
+    <p class="center-modal__text">Имя и ник видят друзья и игроки в рейтинге. Ник — латиница, цифры и «_», от 3 до 20 символов.</p>
+    <button type="button" class="center-modal__btn center-modal__btn--primary" id="identitySave">Сохранить</button>
+    <button type="button" class="center-modal__btn" id="identityCancel">Отмена</button>
+  </section>
+</div>
+
 <div class="achievement-share-overlay" id="achievementShareOverlay" hidden aria-hidden="true">
   <div class="achievement-share-card">
     <span class="as-orb as-orb--1" aria-hidden="true"></span>
@@ -1376,7 +1462,7 @@ class="habit-add-form__submit">
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
-<script type="module" src="/static/app.js?v=20261007_ADAMNUDGE_V48"></script>
+<script type="module" src="/static/app.js?v=20261007_PROFILE_V50"></script>
 
 </body>
 </html>
