@@ -52,6 +52,12 @@ ACTIVE_FRIEND_DAYS = 7
 # Сколько дней после неудачи на карточке видна подсказка «В этот раз не вышло».
 RECENT_FAIL_DAYS = 3
 MAX_INCOMING_SHOWN = 5
+# Сколько друзей показываем сверху как «Рекомендуем» (самые активные за последнюю неделю,
+# прежний напарник — в конце: как в Duolingo, новый союзник вместо вечного одного и того же).
+MAX_RECOMMENDED = 3
+# Сколько дней после конца задания зовём начать новое (два напоминания: на следующий день и
+# через три дня — см. streak_scheduler.run_pair_quest_notifications).
+RESTART_NUDGE_DAYS = 10
 
 WEEKDAYS = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
 
@@ -281,6 +287,18 @@ def _quest_view(cursor, q, user_id, today):
     }
 
 
+def _last_partner_id(conn, user_id):
+    """С кем был последний начавшийся (принятый) напарник — чтобы не предлагать его первым."""
+    row = conn.execute(
+        "SELECT inviter_id, invitee_id FROM pair_quests WHERE accepted_at IS NOT NULL "
+        "AND status IN ('active','completed','expired') AND (inviter_id=? OR invitee_id=?) ORDER BY id DESC LIMIT 1",
+        (user_id, user_id),
+    ).fetchone()
+    if row is None:
+        return None
+    return row["invitee_id"] if row["inviter_id"] == user_id else row["inviter_id"]
+
+
 def _has_any_quest(user_id):
     conn = connect()
     try:
@@ -411,14 +429,17 @@ def list_pair_candidates(user_id):
                     f"SELECT * FROM users WHERE telegram_id IN ({placeholders})", tuple(ids)
                 ).fetchall()
             }
-            active_ids = {
-                r["user_id"]
+            # Сколько дней за неделю друг отмечал привычку — это и «живой ли он», и рейтинг для рекомендаций.
+            active_days = {
+                r["user_id"]: min(int(r["n"]), ACTIVE_FRIEND_DAYS)
                 for r in conn.execute(
-                    f"SELECT DISTINCT user_id FROM streak_days WHERE status='completed' AND day>=? "
-                    f"AND user_id IN ({placeholders})",
+                    f"SELECT user_id, COUNT(DISTINCT day) AS n FROM streak_days WHERE status='completed' AND day>=? "
+                    f"AND user_id IN ({placeholders}) GROUP BY user_id",
                     (since, *ids),
                 ).fetchall()
             }
+            active_ids = set(active_days)
+            last_partner = _last_partner_id(conn, user_id)
             busy_ids = set()
             for q in conn.execute(
                 f"SELECT * FROM pair_quests WHERE status IN ('active','completed') "
@@ -441,8 +462,18 @@ def list_pair_candidates(user_id):
             entry = _person(row)
             entry["available"] = reason is None
             entry["reason"] = reason
+            entry["active_days"] = active_days.get(friend_id, 0)
+            entry["was_partner"] = friend_id == last_partner
+            entry["recommended"] = False
             candidates.append(entry)
-    candidates.sort(key=lambda c: (not c["available"], -c["streak"], c["first_name"].lower()))
+    # Рекомендуем самых активных из свободных: прежний напарник — после остальных.
+    pool = [c for c in candidates if c["available"] and c["active_days"] > 0]
+    pool.sort(key=lambda c: (c["was_partner"], -c["active_days"], -c["streak"], c["first_name"].lower()))
+    for c in pool[:MAX_RECOMMENDED]:
+        c["recommended"] = True
+    candidates.sort(key=lambda c: (
+        not c["available"], not c["recommended"], -c["active_days"], -c["streak"], c["first_name"].lower()
+    ))
     state = get_pair_quest(user_id)
     return {
         "friends": candidates,
@@ -450,6 +481,7 @@ def list_pair_candidates(user_id):
         "needs_habit": state["needs_habit"],
         "goal": PAIR_GOAL,
         "window_days": PAIR_WINDOW_DAYS,
+        "active_window": ACTIVE_FRIEND_DAYS,
     }
 
 
@@ -789,3 +821,31 @@ def last_day_reminder(quest, user_id):
     if left > still_to_come:
         return None
     return {"left": left, "partner_name": _person(partner_row)["first_name"]}
+
+
+def users_due_for_new_quest():
+    """Для планировщика: люди, у которых недавно закончилось парное задание (выполнено и сундук
+    открыт, либо не набрано) и нового пока нет — им предлагаем выбрать союзника (как в Duolingo).
+    [{"user_id", "quest_id", "end_day", "status"}] — по одному, последнее задание человека."""
+    conn = connect()
+    try:
+        since = str(date.today() - timedelta(days=RESTART_NUDGE_DAYS + 2))
+        rows = conn.execute(
+            "SELECT id, inviter_id, invitee_id, status, end_day, inviter_claimed_day, invitee_claimed_day "
+            "FROM pair_quests WHERE accepted_at IS NOT NULL AND status IN ('completed','expired') AND end_day>=? "
+            "ORDER BY id",
+            (since,),
+        ).fetchall()
+    finally:
+        conn.close()
+    latest = {}
+    for q in rows:
+        for uid in (q["inviter_id"], q["invitee_id"]):
+            latest[uid] = q                      # id по возрастанию: последнее перезаписывает
+    due = []
+    for uid, q in latest.items():
+        claimed = q["inviter_claimed_day"] if q["inviter_id"] == uid else q["invitee_claimed_day"]
+        if q["status"] == "completed" and claimed is None:
+            continue                              # сундук ещё не открыт — сначала он
+        due.append({"user_id": uid, "quest_id": q["id"], "end_day": q["end_day"], "status": q["status"]})
+    return due

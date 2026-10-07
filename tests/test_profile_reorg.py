@@ -227,5 +227,5 @@ def test_medal_overlay_is_wired_and_waits_for_quiet():
     sched = APP_JS[APP_JS.index("function scheduleAdminGift()"):][:900]
     assert "celebrationOverlayOpen()" in sched and "show_app_tour" in sched
     assert "/api/admin-gift/seen" in APP_JS
-    anim = CSS[CSS.index("/* ===== Эксклюзивный подарок от Администратора"):]
+    anim = CSS[CSS.index("/* ===== Эксклюзивный подарок от Администратора"):CSS.index("/* ===== Парное задание: сворачиваемая")]
     assert "filter:" not in anim.replace("-webkit-mask-image", "") and "infinite" not in anim

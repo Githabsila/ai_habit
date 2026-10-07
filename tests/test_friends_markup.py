@@ -24,12 +24,13 @@ def test_markup_has_the_friends_card_the_sheet_and_the_setting():
         assert needle in INDEX, needle
 
 
-def test_friends_card_sits_in_the_rating_tab_after_the_team_card():
+def test_friends_card_sits_in_the_rating_tab_before_the_team_card():
+    """По просьбе пользователя «Друзья» и «Групповой челлендж» поменяны местами."""
     rating = INDEX.index('data-tab="rating"')
-    team = INDEX.index('id="teamCard"', rating)
     friends = INDEX.index('id="friendsCard"', rating)
+    team = INDEX.index('id="teamCard"', rating)
     profile = INDEX.index('data-tab="profile"', rating)
-    assert team < friends < profile
+    assert friends < team < profile
 
 
 def test_completion_hook_schedules_the_remind_window():
@@ -67,8 +68,8 @@ def test_styles_for_every_new_block_exist():
 
 
 def test_asset_versions_were_bumped_together_with_the_change():
-    assert "style.css?v=20261007_PROFILE_V42" in INDEX
-    assert "app.js?v=20261007_PROFILE_V50" in INDEX
+    assert "style.css?v=20261007_PAIR_V43" in INDEX
+    assert "app.js?v=20261007_PAIR_V51" in INDEX
 
 
 # ---------------------------------------------------------------------------

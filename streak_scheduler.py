@@ -1,8 +1,9 @@
 
 import asyncio
+import html
 import logging
 import random
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -21,6 +22,7 @@ from db import (
     get_gender, gender_forms,
     is_bot_blocked, mark_bot_blocked,
     get_user, settle_pair_quests, get_active_pair_quests, pair_last_day_reminder, PAIR_GOAL,
+    pair_users_due_for_new_quest, get_pair_quest, list_pair_candidates,
 )
 
 logger = logging.getLogger("streak_scheduler")
@@ -579,6 +581,66 @@ async def _send_pair_push(bot, uid, text):
     return False
 
 
+def pair_restart_text(kind, recommended):
+    """Текст пуша «начни новое парное задание» с самыми активными друзьями (или None, если
+    рекомендовать некого). kind: pairnew1 — на следующий день после конца, pairnew2 — через три дня."""
+    if not recommended:
+        return None
+    names = ", ".join(
+        f"<b>{html.escape(str(f['first_name']))}</b> ({f['active_days']} из 7 дней)" for f in recommended
+    )
+    if kind == "pairnew1":
+        return (
+            "🤝 <b>Новое парное задание!</b>\n"
+            "Вместе с другом легче держать ритм — выбери союзника, можно и нового. "
+            f"Сейчас самые активные: {names}. Награда та же — сундук."
+        )
+    return (
+        "⏳ Парное задание ждёт напарника — приглашение занимает минуту. "
+        f"Больше всего отмечаются: {names}."
+    )
+
+
+async def _run_pair_restart_nudges(bot, scope):
+    """Как в Duolingo: задание закончилось — зовём выбрать нового союзника, показывая самых
+    активных друзей. Два напоминания на задание: на следующий день в 12:00 и через три дня в 18:00."""
+    try:
+        due = pair_users_due_for_new_quest()
+    except Exception:
+        logger.exception("Не удалось получить список для новых парных заданий")
+        return
+    for item in due:
+        uid = item["user_id"]
+        try:
+            settings = get_settings(uid)
+            if not settings or not settings["reminders"]:
+                continue
+            now = datetime.now(ZoneInfo(get_timezone(uid)))
+            if in_quiet_hours(settings, now):
+                continue
+            days_since = (now.date() - date.fromisoformat(item["end_day"])).days
+            if days_since == 1 and in_time_window(now, hour=12, minute=0):
+                kind = "pairnew1"
+            elif days_since == 4 and in_time_window(now, hour=18, minute=0):
+                kind = "pairnew2"
+            else:
+                continue
+            state = get_pair_quest(uid)
+            if state["needs_habit"] or not state["can_choose"] or state["incoming"] or state["outgoing"]:
+                continue
+            recommended = [f for f in list_pair_candidates(uid)["friends"] if f["recommended"]]
+            text = pair_restart_text(kind, recommended)
+            if text is None:
+                continue
+            day = f"q{item['quest_id']}"
+            if not claim_notification(uid, day, kind, scope):
+                continue
+            if not await _send_pair_push(bot, uid, text):
+                release_notification(uid, day, kind, scope)
+        except Exception:
+            logger.exception("Ошибка приглашения в новое парное задание для %s", uid)
+
+
 def _display(user_row):
     import html
     name = (user_row["first_name"] if user_row else None) or (user_row["username"] if user_row else None) or "Друг"
@@ -592,7 +654,9 @@ async def run_pair_quest_notifications(bot):
        бота (отметка в Mini App засчитывает сразу, в маршруте), и сообщает
        обоим, что сундук ждёт.
     2. В 18:00 по местному времени ПОСЛЕДНЕГО дня окна напоминает тому, кто
-       сегодня ещё не отмечался, если цель ещё достижима."""
+       сегодня ещё не отмечался, если цель ещё достижима.
+    3. Когда задание закончилось — зовёт начать новое с самыми активными друзьями
+       (_run_pair_restart_nudges)."""
     if not bot:
         return
     try:
@@ -609,6 +673,7 @@ async def run_pair_quest_notifications(bot):
         logger.exception("Ошибка засчёта парных заданий")
 
     scope = notification_scope(bot)
+    await _run_pair_restart_nudges(bot, scope)
     try:
         quests = get_active_pair_quests()
     except Exception:

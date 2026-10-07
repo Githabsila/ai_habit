@@ -6456,6 +6456,74 @@ function ruPlural(n, forms) {
 }
 
 function pairDaysWord(n) { return `${n} ${ruPlural(n, ["день", "дня", "дней"])}`; }
+function pairPointsWord(n) { return `${n} ${ruPlural(n, ["очко", "очка", "очков"])}`; }
+
+// Карточка на Главной по умолчанию свёрнута (узкая); развернул — остаётся развёрнутой, пока открыто приложение.
+let pairHomeExpanded = false;
+
+const PAIR_CHEVRON_DOWN = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const PAIR_CHEVRON_UP = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// Короткая сводка для свёрнутой карточки и краткой версии в «Квестах дня»:
+// chip — слово/смайл «сделал ли ты сегодня» (tone glow — светится, зовёт отметиться).
+function pairSummary(pq) {
+  const q = pq.quest;
+  if (q) {
+    const partner = escapeHtml(q.partner.first_name);
+    const pct = Math.max(0, Math.min(100, Math.round(100 * q.progress / q.goal)));
+    const base = { pct, score: `${q.progress}/${q.goal}`, partner: q.partner, line: `напарник — ${partner} · ${q.progress}/${q.goal}` };
+    if (q.phase === "scheduled") {
+      return { ...base, chip: "⏳ Скоро старт", tone: "muted", days: "скоро старт" };
+    }
+    if (q.phase === "completed") {
+      return q.claimable
+        ? { ...base, chip: "🎁 Сундук ждёт", tone: "glow", days: "✓ выполнено" }
+        : { ...base, chip: "✓ Выполнено", tone: "ok", days: "✓ выполнено" };
+    }
+    const today = (q.days || []).find((d) => d.state === "today");
+    const days = `осталось ${q.days_left} дн.`;
+    if (!today || !today.me) return { ...base, chip: "⚡ Твой ход", tone: "glow", days };
+    if (!today.partner) return { ...base, chip: "✓ Ты отметился", tone: "ok", days };
+    return { ...base, chip: "🔥 Оба сегодня", tone: "ok", days };
+  }
+  const reward = `+${pq.reward.coins} ${ADAM_COIN_ICON} · 💎${pq.reward.diamonds}`;
+  if (pq.incoming.length) {
+    return { chip: "💌 Приглашение", tone: "glow", days: reward, line: `${escapeHtml(pq.incoming[0].from.first_name)} зовёт тебя в парное задание` };
+  }
+  if (pq.outgoing) {
+    return { chip: "⏳ Ждём ответ", tone: "muted", days: reward, line: `Приглашение для ${escapeHtml(pq.outgoing.to.first_name)} отправлено` };
+  }
+  if (pq.needs_habit) return { chip: "Добавь привычку", tone: "muted", days: reward, line: "Без привычки вклада в задание не будет" };
+  if (!pq.can_choose && pq.choose_from_day) {
+    return { chip: "⏳ Скоро", tone: "muted", days: reward, line: `Новое задание — с ${escapeHtml(pairDateLabel(pq.choose_from_day))}` };
+  }
+  return {
+    chip: "＋ Союзник", tone: "glow", days: reward, act: "choose",     // сразу открывает выбор союзника
+    line: pq.recent_fail ? "В этот раз не вышло — попробуйте снова" : "Позови друга — вместе за неделю",
+  };
+}
+
+// Свёрнутая карточка (Главная): заголовок с «осталось N дн.» и стрелкой, ниже — прогресс и статус «сегодня».
+function pairCollapsedHtml(pq) {
+  const s = pairSummary(pq);
+  const me = state?.user || {};
+  const chip = s.act
+    ? `<button type="button" class="pair-chip pair-chip--${s.tone}" data-pair-act="${s.act}">${s.chip}</button>`
+    : `<span class="pair-chip pair-chip--${s.tone}">${s.chip}</span>`;
+  const middle = pq.quest
+    ? `<div class="pair-mini__avatars">${pairAvatarHtml(me, "pair-avatar--sm")}${pairAvatarHtml(s.partner, "pair-avatar--sm")}</div>
+       <div class="pair-mini__bar"><div class="pair-bar${pq.quest.phase === "completed" ? " is-done" : ""}"><i style="width:${s.pct}%"></i></div><span class="pair-mini__score">${s.score}</span></div>`
+    : `<div class="pair-mini__text">${s.line}</div>`;
+  return `
+    <div class="pair-card__head pair-card__head--toggle" data-pair-toggle role="button" tabindex="0" aria-expanded="false">
+      <div class="pair-card__title">🤝 Парное задание</div>
+      <div class="pair-card__right">
+        ${s.days ? `<span class="pair-card__badge">${s.days}</span>` : ""}
+        <button type="button" class="pair-toggle" data-pair-toggle aria-label="Развернуть парное задание">${PAIR_CHEVRON_DOWN}</button>
+      </div>
+    </div>
+    <div class="pair-mini" data-pair-toggle>${middle}${chip}</div>`;
+}
 
 function pairDateLabel(day) {
   const d = new Date(`${day}T00:00:00`);
@@ -6485,9 +6553,9 @@ function pairQuestBodyHtml(pq, q) {
   const pct = Math.max(0, Math.min(100, Math.round(100 * q.progress / q.goal)));
   const duo = `
     <div class="pair-duo">
-      <div class="pair-person">${pairAvatarHtml(me)}<b>Ты</b><small>${pairDaysWord(q.mine)}</small></div>
-      <div class="pair-score"><b>${q.progress}</b><span>из ${q.goal}</span></div>
-      <div class="pair-person">${pairAvatarHtml(partner)}<b>${escapeHtml(partner.first_name)}</b><small>${pairDaysWord(q.partner_count)}</small></div>
+      <div class="pair-person">${pairAvatarHtml(me)}<b>Ты</b><small>${pairPointsWord(q.mine)}</small></div>
+      <div class="pair-score"><b>${q.progress}</b><span>из ${q.goal} очков</span></div>
+      <div class="pair-person">${pairAvatarHtml(partner)}<b>${escapeHtml(partner.first_name)}</b><small>${pairPointsWord(q.partner_count)}</small></div>
     </div>
     <div class="pair-bar${q.phase === "completed" ? " is-done" : ""}"><i style="width:${pct}%"></i></div>`;
 
@@ -6522,7 +6590,11 @@ function pairQuestBodyHtml(pq, q) {
   }
   const left = Math.max(0, q.goal - q.progress);
   return `${duo}${pairDaysGridHtml(q)}
-    <div class="pair-hint">Осталось <b>${pairDaysWord(q.days_left)}</b>, вместе нужно ещё <b>${pairDaysWord(left)}</b>. Каждая ваша отметка привычки — очко в общий счёт.</div>
+    <div class="pair-facts">
+      <div class="pair-fact"><b>${q.days_left}</b><span>${ruPlural(q.days_left, ["день", "дня", "дней"])} до конца задания</span></div>
+      <div class="pair-fact"><b>${left}</b><span>${ruPlural(left, ["очко", "очка", "очков"])} ещё набрать вместе</span></div>
+    </div>
+    <div class="pair-hint">Очко — это день, когда человек отметил привычку. Дни у вас двоих складываются в общий счёт: в сутки у каждого максимум одно очко.</div>
     ${nudge}`;
 }
 
@@ -6539,11 +6611,21 @@ function pairInvitesHtml(pq) {
 }
 
 function renderPairCard() {
-  const box = document.getElementById("pairQuestCard");
+  renderPairCardInto(document.getElementById("pairQuestCard"), true);
+  renderPairCardInto(document.getElementById("pairQuestCardRating"), false);
+  renderPairMini();
+}
+
+// collapsible: Главная — карточка сворачивается; Рейтинг — всегда развёрнута.
+function renderPairCardInto(box, collapsible) {
   if (!box) return;
   const pq = state?.pair_quest;
   if (!pq) { box.hidden = true; return; }
   box.hidden = false;
+  const expanded = !collapsible || pairHomeExpanded;
+  box.classList.toggle("pair-card--collapsed", !expanded);
+  if (!expanded) { box.innerHTML = pairCollapsedHtml(pq); return; }
+
   const q = pq.quest;
   const reward = `+${pq.reward.coins} ${ADAM_COIN_ICON} · 💎${pq.reward.diamonds}`;
 
@@ -6563,20 +6645,40 @@ function renderPairCard() {
     } else if (pq.can_choose) {
       const intro = pq.recent_fail
         ? "В этот раз не вышло — бывает. Попробуйте снова!"
-        : `Позови друга и вместе за неделю отметьте <b>${pq.goal} дней</b>: у каждого свой вклад, прогресс общий. Одному не вытянуть — нужны оба. За победу — сундук ${reward}.`;
+        : `Позови друга и вместе за неделю наберите <b>${pq.goal} очков</b> (очко — день с отметкой привычки): у каждого свой вклад, прогресс общий. Одному не вытянуть — нужны оба. За победу — сундук ${reward}.`;
       body += `
         <div class="pair-hint">${pq.needs_habit ? "Сначала добавь привычку — без неё вклада в задание не будет." : intro}</div>
         <button type="button" class="pair-btn pair-btn--primary" data-pair-act="choose"${pq.needs_habit ? " disabled" : ""}>🤝 ${pq.recent_fail ? "Выбрать нового союзника" : "Выбрать союзника"}</button>`;
     }
   }
   const total = Number(pq.completed_total || 0);
+  const toggle = collapsible
+    ? `<button type="button" class="pair-toggle" data-pair-toggle aria-label="Свернуть парное задание">${PAIR_CHEVRON_UP}</button>`
+    : "";
   box.innerHTML = `
-    <div class="pair-card__head">
+    <div class="pair-card__head${collapsible ? " pair-card__head--toggle" : ""}"${collapsible ? ' data-pair-toggle role="button" tabindex="0" aria-expanded="true"' : ""}>
       <div class="pair-card__title">🤝 Парное задание</div>
-      <div class="pair-card__badge">${badge}</div>
+      <div class="pair-card__right"><div class="pair-card__badge">${badge}</div>${toggle}</div>
     </div>
     ${body}
     ${total > 0 ? `<div class="pair-card__foot">Выполнено вместе: ${total}</div>` : ""}`;
+}
+
+// Краткая версия в «Квестах дня» — после заданий месяца (как в Duolingo).
+function renderPairMini() {
+  const box = document.getElementById("pairQuestMini");
+  if (!box) return;
+  const pq = state?.pair_quest;
+  if (!pq) { box.hidden = true; return; }
+  const s = pairSummary(pq);
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="pair-mini-card__row">
+      <span class="pair-mini-card__icon" aria-hidden="true">🤝</span>
+      <div class="pair-mini-card__body"><b>Парное задание</b><small>${s.line}</small></div>
+      <span class="pair-chip pair-chip--${s.tone}">${s.chip}</span>
+    </div>
+    ${pq.quest ? `<div class="pair-bar${pq.quest.phase === "completed" ? " is-done" : ""}"><i style="width:${s.pct}%"></i></div>` : ""}`;
 }
 
 // Принять свежее состояние и отметить сдвиги: прогресс, выполнение.
@@ -6625,7 +6727,8 @@ function renderPairSheet() {
     ally.innerHTML = picked ? avatarInner(picked) : "👤";
   }
   if (sub) {
-    sub.textContent = `Вместе за ${pairCandidates.window_days} дней нужно отметить ${pairCandidates.goal} дней на двоих — одному не вытянуть. Задание стартует завтра.`;
+    const hasRecommended = friends.some((f) => f.recommended);
+    sub.textContent = `Вместе за ${pairCandidates.window_days} дней нужно набрать ${pairCandidates.goal} очков (очко — день с отметкой привычки) — одному не вытянуть. Задание стартует завтра.${hasRecommended ? " Начни с самых активных друзей — так задание точно получится, и необязательно брать того же союзника." : ""}`;
   }
   if (confirmBtn) confirmBtn.disabled = pairBusy || !picked;
   if (!friends.length) {
@@ -6636,9 +6739,12 @@ function renderPairSheet() {
       </li>`;
     return;
   }
-  list.innerHTML = friends.map((f) => {
+  const row = (f) => {
     const id = Number(f.telegram_id);
-    const meta = [f.handle ? `@${escapeHtml(f.handle)}` : "", Number(f.streak) > 0 ? `🔥 ${Number(f.streak)}` : ""].filter(Boolean).join(" · ");
+    const metaParts = [f.handle ? `@${escapeHtml(f.handle)}` : "", Number(f.streak) > 0 ? `🔥 ${Number(f.streak)}` : ""];
+    if (f.available && Number(f.active_days) > 0) metaParts.push(`отмечался ${Number(f.active_days)} из ${pairCandidates.active_window || 7} дней`);
+    if (f.was_partner) metaParts.push("уже были вместе");
+    const meta = metaParts.filter(Boolean).join(" · ");
     const tag = f.reason === "busy" ? "уже в задании" : f.reason === "inactive" ? "давно не заходил(а)" : "";
     const selected = id === pairSelectedId;
     return `
@@ -6651,7 +6757,13 @@ function renderPairSheet() {
         </span>
         ${tag ? `<span class="friend-row__tag">${tag}</span>` : `<span class="pair-radio${selected ? " is-on" : ""}" aria-hidden="true"></span>`}
       </li>`;
-  }).join("");
+  };
+  const recommended = friends.filter((f) => f.recommended);
+  const rest = friends.filter((f) => !f.recommended);
+  list.innerHTML =
+    (recommended.length
+      ? `<li class="pair-section">⭐ Рекомендуем — самые активные</li>${recommended.map(row).join("")}${rest.length ? '<li class="pair-section">Остальные друзья</li>' : ""}`
+      : "") + rest.map(row).join("");
 }
 
 async function openPairSheet() {
@@ -6763,11 +6875,43 @@ async function pairNudge(friendId, button) {
   }
 }
 
+function togglePairHome() {
+  pairHomeExpanded = !pairHomeExpanded;
+  haptic("light");
+  renderPairCard();
+}
+
 function initPairQuest() {
-  document.getElementById("pairQuestCard")?.addEventListener("click", async (e) => {
+  const onCardClick = async (e) => {
+    // Кнопка-действие (в т.ч. «＋ Союзник» в свёрнутой карточке) важнее сворачивания.
     const btn = e.target.closest("[data-pair-act]");
-    if (btn && !btn.disabled) await pairCardAction(btn);
+    if (btn) { if (!btn.disabled) await pairCardAction(btn); return; }
+    if (e.target.closest("[data-pair-toggle]")) togglePairHome();
+  };
+  const home = document.getElementById("pairQuestCard");
+  home?.addEventListener("click", onCardClick);
+  home?.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-pair-toggle][role=button]")) { e.preventDefault(); togglePairHome(); }
   });
+  document.getElementById("pairQuestCardRating")?.addEventListener("click", onCardClick);
+
+  // Краткая версия в «Квестах дня»: есть задание/приглашение — ведёт к полной карточке в Рейтинге, иначе — к выбору союзника.
+  const mini = document.getElementById("pairQuestMini");
+  const openFromMini = async () => {
+    const pq = state?.pair_quest;
+    if (!pq) return;
+    document.getElementById("dailyQuestsClose")?.click();
+    if (pq.quest || pq.incoming.length || pq.outgoing) {
+      document.querySelector('.tab-bar__item[data-tab="rating"]')?.click();
+      setTimeout(() => document.getElementById("pairQuestCardRating")?.scrollIntoView({ behavior: "smooth", block: "start" }), 350);
+    } else if (pq.needs_habit) {
+      showToast(friendlyError({ data: { error: "needs_habit" } }), "error");
+    } else if (pq.can_choose) {
+      await openPairSheet();
+    }
+  };
+  mini?.addEventListener("click", openFromMini);
+  mini?.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openFromMini(); } });
   document.getElementById("pairSheetList")?.addEventListener("click", async (e) => {
     if (e.target.closest("[data-pair-act='invite-friend']")) { closePairSheet(); await openFriendInvite(); return; }
     const row = e.target.closest("[data-pair-friend]");

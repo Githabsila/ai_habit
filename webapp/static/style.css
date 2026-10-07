@@ -14313,3 +14313,66 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
   .admin-gift-overlay.show .admin-gift-spark,.admin-gift-overlay.show .admin-gift-shine::after{animation:none}
   .admin-gift-card{opacity:1;transform:none}.admin-gift-medal{opacity:1}
 }
+
+/* ===== Парное задание: сворачиваемая карточка, краткая версия, подсказка «очки / дни» ===== */
+.pair-card--collapsed{padding:12px 14px}
+.pair-card__title{white-space:nowrap}
+.pair-card--collapsed .pair-card__head{margin-bottom:0}
+.pair-card__head--toggle{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pair-card__right{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.pair-toggle{
+  width:30px;height:30px;padding:0;border-radius:50%;display:grid;place-items:center;cursor:pointer;
+  color:#EAE5FA;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);
+}
+.pair-toggle svg{display:block;width:16px;height:16px;pointer-events:none}
+.pair-mini{display:flex;align-items:center;gap:10px;margin-top:10px}
+.pair-mini__avatars{display:flex;flex:0 0 auto}
+.pair-avatar--sm{width:28px;height:28px;font-size:12px;border-width:2px}
+.pair-mini__avatars .pair-avatar + .pair-avatar{margin-left:-8px}
+.pair-mini__bar{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
+.pair-mini__bar .pair-bar{flex:1;height:8px;margin:0}
+.pair-mini__score{font:800 12px 'Space Grotesk',sans-serif;color:#FFD54F;white-space:nowrap}
+.pair-mini__text{flex:1;min-width:0;font-size:12px;line-height:1.35;color:#CFC9E8}
+.pair-mini__text b{color:#fff}
+
+/* Статус «сегодня»: светится, пока ты ещё не отметился (кольцо — только transform/opacity). */
+.pair-chip{
+  position:relative;flex:0 0 auto;padding:6px 10px;border-radius:999px;white-space:nowrap;
+  font:800 11px 'Space Grotesk',sans-serif;border:1px solid transparent;
+}
+.pair-chip--glow{
+  color:#2a1a00;background:linear-gradient(135deg,#FFE08A,#FFB62E);border-color:rgba(255,224,138,.85);
+  box-shadow:0 0 12px rgba(255,182,46,.45);
+}
+.pair-chip--glow::after{
+  content:"";position:absolute;inset:-3px;border-radius:inherit;border:2px solid rgba(255,214,110,.75);
+  pointer-events:none;animation:pairChipGlow 1.9s ease-out infinite;
+}
+button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pair-chip--ok{color:#7be3a4;background:rgba(47,210,125,.12);border-color:rgba(47,210,125,.35)}
+.pair-chip--muted{color:#CFC9E8;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14)}
+@keyframes pairChipGlow{0%{transform:scale(.96);opacity:.9}100%{transform:scale(1.16);opacity:0}}
+.app-performance-paused .pair-chip--glow::after{animation-play-state:paused}
+
+/* «Осталось 7 дней, вместе нужно ещё 9» путало: теперь две отдельные плашки с подписями. */
+.pair-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 10px}
+.pair-fact{padding:10px 8px;border-radius:14px;text-align:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.pair-fact b{display:block;font:800 24px/1.05 'Space Grotesk',sans-serif;color:#FFD54F}
+.pair-fact span{display:block;margin-top:3px;font-size:11px;line-height:1.3;color:#B9B3D6}
+
+/* Краткая версия в «Квестах дня». */
+.pair-mini-card{
+  margin-top:12px;padding:12px 14px;border-radius:18px;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  background:linear-gradient(145deg,rgba(62,43,120,.9),rgba(24,19,46,.92));border:1px solid rgba(167,139,250,.38);
+}
+.pair-mini-card[hidden]{display:none}
+.pair-mini-card__row{display:flex;align-items:center;gap:10px}
+.pair-mini-card__icon{flex:0 0 auto;font-size:22px}
+.pair-mini-card__body{flex:1;min-width:0}
+.pair-mini-card__body b{display:block;font:800 14px 'Space Grotesk',sans-serif;color:#fff;white-space:nowrap}
+.pair-mini-card__body small{display:block;margin-top:2px;font-size:11.5px;line-height:1.3;color:#B9B3D6}
+.pair-mini-card .pair-bar{height:7px;margin:10px 0 0}
+
+/* Окно выбора союзника: рекомендации сверху. */
+.pair-section{list-style:none;padding:8px 4px 4px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#9a94bd}
+.pair-row .friend-row__meta{white-space:normal}

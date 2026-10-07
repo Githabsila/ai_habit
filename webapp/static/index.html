@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261007_PROFILE_V42">
+<link rel="stylesheet" href="/static/style.css?v=20261007_PAIR_V43">
 </head>
 <body>
 
@@ -384,11 +384,15 @@ class="habit-add-form__submit">
   </div>
 </div>
 
-<div class="team-card" id="teamCard" hidden></div>
+<!-- Парное задание в полном виде (на Главной — сворачиваемая карточка, в «Квестах дня» — краткая).
+     Рисует app.js::renderPairCard. -->
+<div class="pair-card pair-card--wide" id="pairQuestCardRating" hidden></div>
 
 <!-- Друзья (db/friends.py): кто сегодня отметился, кому можно напомнить,
      «＋ Добавить» — личная ссылка-приглашение. Рисует app.js::renderFriendsCard. -->
 <div class="friends-card" id="friendsCard" hidden></div>
+
+<div class="team-card" id="teamCard" hidden></div>
 
 <div class="rating-scope-switch" id="ratingScopeSwitch">
   <button type="button" class="rating-scope-btn is-active" data-scope="alltime">Всё время</button>
@@ -1084,6 +1088,9 @@ class="habit-add-form__submit">
       <button type="button" class="month-card__open" id="monthCardOpen" hidden>🎁 Открыть сундук</button>
       <div class="month-card__hint" id="monthCardHint"></div>
     </section>
+
+    <!-- Парное задание — краткая версия, как в Duolingo (app.js::renderPairMini). -->
+    <section class="pair-mini-card" id="pairQuestMini" hidden role="button" tabindex="0"></section>
   </section>
 </div>
 
@@ -1462,7 +1469,7 @@ class="habit-add-form__submit">
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
-<script type="module" src="/static/app.js?v=20261007_PROFILE_V50"></script>
+<script type="module" src="/static/app.js?v=20261007_PAIR_V51"></script>
 
 </body>
 </html>

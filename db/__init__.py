@@ -305,7 +305,7 @@ from .pair_quests import (
     get_pair_quest, list_pair_candidates, send_pair_invite, accept_pair_invite,
     decline_pair_invite, cancel_pair_quest, claim_pair_chest,
     on_day_completed as pair_on_day_completed, settle_active_quests as settle_pair_quests,
-    get_active_pair_quests, last_day_reminder as pair_last_day_reminder,
+    get_active_pair_quests, last_day_reminder as pair_last_day_reminder, users_due_for_new_quest as pair_users_due_for_new_quest,
     PAIR_GOAL, PAIR_WINDOW_DAYS, PAIR_REWARD_COINS, PAIR_REWARD_DIAMONDS, PAIR_MONTH_POINTS,
 )
 
@@ -449,7 +449,7 @@ __all__ = [
     "get_month_quests", "claim_month_chest", "MONTH_GOAL", "MONTH_CHESTS",
     "get_pair_quest", "list_pair_candidates", "send_pair_invite", "accept_pair_invite",
     "decline_pair_invite", "cancel_pair_quest", "claim_pair_chest",
-    "pair_on_day_completed", "settle_pair_quests", "get_active_pair_quests", "pair_last_day_reminder",
+    "pair_on_day_completed", "settle_pair_quests", "get_active_pair_quests", "pair_last_day_reminder", "pair_users_due_for_new_quest",
     "PAIR_GOAL", "PAIR_WINDOW_DAYS", "PAIR_REWARD_COINS", "PAIR_REWARD_DIAMONDS", "PAIR_MONTH_POINTS",
     "get_trial_day", "is_in_trial", "has_active_subscription", "has_ever_paid",
     "get_subscription_price_stars", "record_subscription_payment",
