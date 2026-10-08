@@ -136,6 +136,86 @@ function saveStoredMessages(messages) {
     }
     catch (e) { }
 }
+// ---- Ответ ADAM переживает уход из чата ---------------------------------------------------------------------------------------
+// Ушёл на главный экран / свернул приложение, пока ADAM отвечает: страница /coach выгружается, fetch обрывается. Сервер всё равно
+// дописывает ответ (webapp/services/ai_jobs.py) и хранит итог. Здесь запрос помечается «ожидающим» (localStorage — переживает и
+// закрытие мини-приложения), а при возврате клиент забирает итог по номеру запроса и дорисовывает ответ внизу диалога.
+const CHAT_PENDING_KEY = 'adam_chat_pending';
+const CHAT_RESULT_WAIT_MS = 190000;      // чуть дольше серверного тайм-аута ответа (180 с)
+let pendingMemory = null;                // запасной вариант, если localStorage недоступен (приватный режим)
+function newRequestId() {
+    try {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    } catch (e) { }
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+function readPendingChat() {
+    let pending = null;
+    try {
+        pending = JSON.parse(localStorage.getItem(CHAT_PENDING_KEY) || 'null');
+    }
+    catch (e) {
+        pending = pendingMemory;
+    }
+    if (!pending || typeof pending.rid !== 'string' || typeof pending.text !== 'string')
+        return null;
+    if (Date.now() - (pending.at || 0) > CHAT_RESULT_WAIT_MS) {      // давно: сервер уже забыл, показывать «думает» нечестно
+        clearPendingChat();
+        return null;
+    }
+    return pending;
+}
+function writePendingChat(pending) {
+    pendingMemory = pending;
+    try { localStorage.setItem(CHAT_PENDING_KEY, JSON.stringify(pending)); }
+    catch (e) { }
+}
+function clearPendingChat(rid) {
+    try {
+        const current = JSON.parse(localStorage.getItem(CHAT_PENDING_KEY) || 'null');
+        if (rid && current && current.rid !== rid)
+            return;                                                  // там уже новый запрос — не трогаем
+    }
+    catch (e) { }
+    pendingMemory = null;
+    try { localStorage.removeItem(CHAT_PENDING_KEY); }
+    catch (e) { }
+}
+// pending → ждём; всё остальное (done / unknown / failed) — это уже итог. 5xx считаем временным сбоем (идёт деплой) и пробуем снова.
+async function fetchChatResult(rid) {
+    const res = await fetch('/api/ai/chat/result?rid=' + encodeURIComponent(rid), { headers: { 'X-Telegram-Init-Data': getInitData() } });
+    if (res.status >= 500)
+        throw new Error('server');
+    if (!res.ok)
+        return { status: 'failed' };
+    return res.json();
+}
+// Опрашиваем итог, пока ADAM думает. fetchResult/sleep/now передаются снаружи (так логику проверяют в Node с виртуальным временем).
+// Возвращает: {status:'done'|'unknown'|'failed'|'timeout'|'stopped'}; 'stopped' — shouldStop() сказал, что ответ уже доставлен другим путём.
+async function waitForChatResult(rid, { fetchResult, sleep, now = Date.now, maxMs = CHAT_RESULT_WAIT_MS, shouldStop, onPending }) {
+    const startedAt = now();
+    let delay = 1000;
+    let announced = false;
+    for (;;) {
+        if (shouldStop && shouldStop())
+            return { status: 'stopped' };
+        let result = null;
+        try { result = await fetchResult(rid); }
+        catch (e) { result = null; }                                 // нет сети / сбой сервера — просто ждём дальше
+        if (shouldStop && shouldStop())
+            return { status: 'stopped' };
+        if (result && result.status === 'pending') {
+            if (!announced && onPending) { announced = true; onPending(); }
+        }
+        else if (result && result.status) {
+            return result;
+        }
+        if (now() - startedAt >= maxMs)
+            return { status: 'timeout' };
+        await sleep(delay);
+        delay = Math.min(Math.round(delay * 1.4), 4000);
+    }
+}
 function formatTime(value) {
     if (!value)
         return new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
@@ -280,7 +360,8 @@ const MIC_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.
 function AiChat() {
     const [messages, setMessages] = useState(loadStoredMessages);
     const [input, setInput] = useState('');
-    const [loading, setLoading] = useState(false);
+    // Вернулись в чат, пока ADAM ещё отвечал на прошлое сообщение: сразу «Формирую ответ», а не пустое поле ввода.
+    const [loading, setLoading] = useState(() => !!readPendingChat());
     const [throttle, setThrottle] = useState(null);
     const [quota, setQuota] = useState(null);
     const [listening, setListening] = useState(false);
@@ -303,6 +384,8 @@ function AiChat() {
     // pointerdown/click; без отдельного флага он мог вернуть расшифровку в
     // очищенное поле ввода после того, как запрос уже ушёл к ADAM.
     const voiceSendLockRef = useRef(false);
+    const recoveringRef = useRef(null);          // номер запроса, за итогом которого уже идём
+    const deliveredRef = useRef(new Set());      // номера запросов, ответ на которые уже показан (ровно один раз)
     const scroll = (behavior = 'auto', force = false) => {
         const el = messagesContainerRef.current;
         if (el) {
@@ -398,27 +481,128 @@ function AiChat() {
         };
     }, []);
     useEffect(() => { saveStoredMessages(messages); }, [messages]);
-    const loadHistory = useCallback(async () => {
+    const fetchHistoryList = useCallback(async () => {
         try {
             const res = await fetch('/api/ai/history?init_data=' + encodeURIComponent(getInitData()) + '&limit=50');
             if (!res.ok)
-                return false;
+                return null;
             const data = await res.json();
             if (!Array.isArray(data.history))
-                return false;
-            const normalized = data.history.map((m, i) => ({
+                return null;
+            return data.history.map((m, i) => ({
                 id: m.id || `history-${i}`,
                 role: m.role === 'assistant' ? 'assistant' : 'user',
                 text: fixBrokenText(m.message || ''),
                 time: formatTime(m.timestamp || m.created_at),
                 canRate: m.role === 'assistant'
             }));
-            if (normalized.length)
-                setMessages(normalized);
-            return normalized.length > 0;
         }
-        catch (e) { return false; }
+        catch (e) { return null; }
     }, []);
+    const loadHistory = useCallback(async () => {
+        const normalized = await fetchHistoryList();
+        if (!normalized)
+            return false;
+        if (normalized.length)
+            setMessages(normalized);
+        return normalized.length > 0;
+    }, [fetchHistoryList]);
+    // Ответ на запрос показываем ровно один раз: его может принести и сам запрос (человек остался в чате), и возврат за итогом.
+    const claimDelivery = (rid) => {
+        if (deliveredRef.current.has(rid))
+            return false;
+        deliveredRef.current.add(rid);
+        clearPendingChat(rid);
+        return true;
+    };
+    // Пузырь с сообщением человека в конце диалога (при возврате его может не быть: переписку взяли с сервера, а сервер сохраняет
+    // пару «вопрос — ответ» только когда ответ готов). Последним должен стоять именно он, иначе это уже другой вопрос.
+    const withUserBubble = (list, pending) => {
+        const last = list[list.length - 1];
+        if (last && last.role === 'user' && last.text === pending.text)
+            return list;
+        return [...list, { id: 'pending-' + pending.rid, role: 'user', text: pending.text, time: formatTime(new Date(pending.at).toISOString()) }];
+    };
+    // Итог ответа — один и тот же разбор для прямого ответа на запрос и для итога, забранного после возврата в чат.
+    const applyChatOutcome = ({ ok, status, data }, text, pending) => {
+        const base = (list) => pending ? withUserBubble(list, pending) : list;
+        if (!ok) {
+            if (data && data.error === 'cancelled')
+                return;                                              // «Новый диалог» нажали, пока ADAM думал
+            if (data && data.quota)
+                setQuota(data.quota);
+            if (status === 429) {
+                setThrottle(data.wait_seconds);
+                setTimeout(() => setThrottle(null), data.wait_seconds * 1000);
+            }
+            setMessages(p => [...base(p), { id: Date.now(), role: 'system', text: (data && data.message) || 'Не получилось выполнить запрос.', type: 'error' }]);
+            vibrate('heavy');
+            return;
+        }
+        if (data.quota)
+            setQuota(data.quota);
+        setMessages(p => p.some(m => String(m.id) === String(data.message_id)) ? p : [...base(p), { id: data.message_id, role: 'assistant', text: data.answer, time: formatTime(), isCrisis: data.is_crisis, habit: data.suggested_habit, canRate: true, sourcePrompt: text, isNew: true }]);
+        vibrate('light');
+    };
+    // Итога нет (сервис перезапускали / срок вышел / не дождались): честно берём переписку с сервера — если ответ там уже есть, покажем его.
+    const restoreFromHistory = async (pending) => {
+        const list = await fetchHistoryList();
+        const n = list ? list.length : 0;
+        const answered = n >= 2 && list[n - 1].role === 'assistant' && list[n - 2].role === 'user' && list[n - 2].text === pending.text;
+        if (answered) {
+            setMessages(list.map((m, i) => i === n - 1 ? { ...m, isNew: true } : m));
+            vibrate('light');
+            return;
+        }
+        setMessages(p => [...withUserBubble(p, pending), { id: Date.now(), role: 'system', text: 'Не удалось получить ответ ADAM. Попробуй ещё раз.', type: 'error' }]);
+        vibrate('heavy');
+    };
+    const recoverPending = useCallback(async (pending) => {
+        if (recoveringRef.current === pending.rid || deliveredRef.current.has(pending.rid))
+            return;
+        recoveringRef.current = pending.rid;
+        setLoading(true);
+        let stopped = false;
+        try {
+            const result = await waitForChatResult(pending.rid, {
+                fetchResult: fetchChatResult,
+                sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+                maxMs: Math.max(8000, CHAT_RESULT_WAIT_MS - (Date.now() - pending.at)),
+                shouldStop: () => deliveredRef.current.has(pending.rid),
+                onPending: () => setMessages(p => withUserBubble(p, pending)),
+            });
+            if (result.status === 'stopped') {
+                stopped = true;                                      // ответ уже принёс сам запрос — он же снял «думает»
+                return;
+            }
+            if (result.status === 'done') {
+                if (claimDelivery(pending.rid))
+                    applyChatOutcome({ ok: result.ok, status: result.http_status, data: result.data }, pending.text, pending);
+            }
+            else if (claimDelivery(pending.rid)) {
+                await restoreFromHistory(pending);
+            }
+        }
+        finally {
+            if (recoveringRef.current === pending.rid)
+                recoveringRef.current = null;
+            if (!stopped)
+                setLoading(false);
+        }
+    }, []);
+    // Вернулись в приложение / появилась сеть, а ответа так и нет: сам запрос мог умереть вместе с усыплённым WebView — идём за итогом.
+    useEffect(() => {
+        const kick = () => {
+            if (document.hidden)
+                return;
+            const pending = readPendingChat();
+            if (pending && Date.now() - pending.at > 6000)
+                recoverPending(pending);
+        };
+        document.addEventListener('visibilitychange', kick);
+        window.addEventListener('online', kick);
+        return () => { document.removeEventListener('visibilitychange', kick); window.removeEventListener('online', kick); };
+    }, [recoverPending]);
     // Переход из онбординга (см. app.js renderStartQuizArchetypeResultStep)
     // открывает /coach?intro=archetype&a=<архетип>&g=<цель> — первое
     // сообщение формируем и шлём от имени пользователя сами, чтобы сразу
@@ -520,6 +704,10 @@ function AiChat() {
             const afterHistory = (hasHistory) => {
                 maybeSendOnboardingIntro(hasHistory);
                 greetFromAdam();
+                // Ушли из чата, пока ADAM отвечал: забираем его ответ и показываем внизу диалога.
+                const pending = readPendingChat();
+                if (pending)
+                    recoverPending(pending);
             };
             if (loadStoredMessages().length) {
                 afterHistory(true);
@@ -531,7 +719,7 @@ function AiChat() {
         window.addEventListener('online', onOnline);
         window.addEventListener('offline', onOffline);
         return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
-    }, [loadHistory]);
+    }, [loadHistory, recoverPending]);
     const resizeInput = () => {
         const el = textareaRef.current;
         if (!el)
@@ -559,35 +747,25 @@ function AiChat() {
         if (textareaRef.current)
             textareaRef.current.style.height = '40px';
         setMessages(p => [...p, { id: Date.now(), role: 'user', text, time: formatTime() }]);
+        // Запрос «ожидает ответа», пока ответ не показан: уйдёшь из чата — при возврате ADAM его допишет (см. recoverPending).
+        const pending = { rid: newRequestId(), text, at: Date.now() };
+        writePendingChat(pending);
         setLoading(true);
         try {
             const res = await fetch('/api/ai/chat', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ init_data: getInitData(), message: text })
+                keepalive: true,
+                body: JSON.stringify({ init_data: getInitData(), message: text, request_id: pending.rid })
             });
             const data = await res.json();
-            if (!res.ok) {
-                if (data.quota)
-                    setQuota(data.quota);
-                if (res.status === 429) {
-                    setThrottle(data.wait_seconds);
-                    setTimeout(() => setThrottle(null), data.wait_seconds * 1000);
-                }
-                setMessages(p => [...p, { id: Date.now(), role: 'system', text: data.message || 'Не получилось выполнить запрос.', type: 'error' }]);
-                vibrate('heavy');
-                return;
-            }
-            if (data.quota)
-                setQuota(data.quota);
-            setMessages(p => [...p, { id: data.message_id, role: 'assistant', text: data.answer, time: formatTime(), isCrisis: data.is_crisis, habit: data.suggested_habit, canRate: true, sourcePrompt: text, isNew: true }]);
-            vibrate('light');
+            if (claimDelivery(pending.rid))
+                applyChatOutcome({ ok: res.ok, status: res.status, data }, text, null);
+            setLoading(false);
         }
         catch (e) {
-            setMessages(p => [...p, { id: Date.now(), role: 'system', text: online ? 'Не удалось получить ответ ADAM. Попробуй ещё раз.' : 'Нет соединения с интернетом.', type: 'error' }]);
-            vibrate('heavy');
-        }
-        finally {
-            setLoading(false);
+            // Связь оборвалась или WebView усыпили: запрос мог дойти до сервера, и ответ уже готовится. Ошибку не показываем —
+            // идём за итогом (если сети нет совсем, через время честно скажем, что ответа не получили).
+            recoverPending(pending);
         }
     }, [loading, throttle, online]);
     const sendMsg = () => {
@@ -696,6 +874,11 @@ function AiChat() {
     // удаляет переписку в БД (db.clear_ai_history), а не только прячет её.
     const startNewDialog = () => {
         const clear = async () => {
+            const waiting = readPendingChat();
+            if (waiting)
+                deliveredRef.current.add(waiting.rid);               // ответ на старый вопрос в новый диалог не попадёт
+            clearPendingChat();
+            setLoading(false);
             setMessages([]);
             try { sessionStorage.removeItem(CHAT_STORAGE_KEY); } catch (e) { }
             vibrate('medium');

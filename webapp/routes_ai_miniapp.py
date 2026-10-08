@@ -3,7 +3,8 @@ routes_ai_miniapp.py
 API endpoints для мини-приложения AI-наставника.
 
 Эндпоинты:
-  POST /api/ai/chat        — отправить сообщение AI, получить ответ
+  POST /api/ai/chat        — отправить сообщение AI, получить ответ (ответ готовит фоновая задача, см. ai_jobs.py)
+  GET  /api/ai/chat/result — итог ответа для вернувшегося в чат клиента
   GET  /api/ai/history     — загрузить историю чата
   POST /api/ai/clear       — удалить всю переписку с ADAM
   POST /api/ai/feedback    — оценить ответ (👍/👎)
@@ -42,6 +43,7 @@ from datetime import datetime, timezone
 from config import AI_MAX_INPUT_CHARS, AI_LONG_COST_CHARS, AI_VERY_LONG_COST_CHARS
 import hashlib
 import asyncio
+import uuid
 
 # ✅ Общая (уже исправленная) логика вместо задублированных копий ниже —
 # раньше в этом файле были СВОИ копии build_user_context/build_history_text/
@@ -57,6 +59,7 @@ from webapp.services.ai_utils import (
 )
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
 from db.ai_nudge import claim_ai_greeting
+from webapp.services.ai_jobs import ai_jobs
 
 logger = logging.getLogger("webapp.ai_miniapp")
 
@@ -153,13 +156,14 @@ routes = web.RouteTableDef()
 async def ai_chat_miniapp(request):
     """
     Отправить сообщение AI и получить ответ.
-    
+
     Request JSON:
     {
         "init_data": "...",  # Telegram init_data для аутентификации
-        "message": "Как начать бегать?"
+        "message": "Как начать бегать?",
+        "request_id": "..."  # необязательно: номер запроса, по нему вернувшийся в чат клиент забирает итог
     }
-    
+
     Response JSON:
     {
         "answer": "...",
@@ -167,6 +171,10 @@ async def ai_chat_miniapp(request):
         "suggested_habit": "Бегать по утрам" или null,
         "message_id": 123
     }
+
+    Ответ готовит отдельная задача (webapp/services/ai_jobs.py), а не сам обработчик: ушёл из чата на главный экран или
+    свернул приложение — запрос оборвался, но ответ всё равно дописывается в историю, а итог ждёт в
+    GET /api/ai/chat/result.
     """
     from webapp.auth_helpers import authenticate
 
@@ -192,27 +200,52 @@ async def ai_chat_miniapp(request):
     # прошедший гейт пользователь мог бесплатно жечь AI-квоту).
     user_id, _is_admin = await authenticate(init_data)
 
-    pro = has_premium(user_id)
+    rid = str(data.get("request_id") or "").strip()[:64] or uuid.uuid4().hex
 
-    if len(message_text) > AI_MAX_INPUT_CHARS:
-        return web.json_response({
-            "error": "message_too_long",
-            "message": f"✂️ Сообщение слишком длинное. Максимум {AI_MAX_INPUT_CHARS} символов.",
-            "max_chars": AI_MAX_INPUT_CHARS,
-        }, status=413)
+    # Повтор того же запроса (связь оборвалась, человек вернулся в чат): присоединяемся к уже идущей/готовой задаче —
+    # без второго ответа, второго списания лимита и без «не так быстро» от троттлинга.
+    job = ai_jobs.get(user_id, rid)
+    if job is None:
+        pro = has_premium(user_id)
 
-    # Проверка троттлинга
-    wait = _is_throttled(user_id)
-    if wait is not None:
-        return web.json_response(
-            {
-                "error": "throttled",
-                "wait_seconds": wait,
-                "message": f"⏳ Не так быстро — подожди {wait} сек. и напиши ещё раз.",
-            },
-            status=429
-        )
+        if len(message_text) > AI_MAX_INPUT_CHARS:
+            return web.json_response({
+                "error": "message_too_long",
+                "message": f"✂️ Сообщение слишком длинное. Максимум {AI_MAX_INPUT_CHARS} символов.",
+                "max_chars": AI_MAX_INPUT_CHARS,
+            }, status=413)
 
+        if ai_jobs.active(user_id) is not None:
+            return web.json_response({
+                "error": "busy",
+                "message": "⏳ ADAM ещё отвечает на прошлое сообщение — дождись ответа.",
+            }, status=409)
+
+        # Проверка троттлинга
+        wait = _is_throttled(user_id)
+        if wait is not None:
+            return web.json_response(
+                {
+                    "error": "throttled",
+                    "wait_seconds": wait,
+                    "message": f"⏳ Не так быстро — подожди {wait} сек. и напиши ещё раз.",
+                },
+                status=429
+            )
+
+        job = ai_jobs.start(user_id, rid, message_text, lambda: _answer_chat(user_id, pro, message_text))
+
+    try:
+        await asyncio.shield(job.task)
+    except asyncio.CancelledError:
+        if job.task.cancelled():          # «Новый диалог» отменил ещё не готовый ответ
+            return web.json_response(job.payload, status=job.status or 499)
+        raise                             # оборвался клиент — задача живёт дальше и допишет ответ сама
+    return web.json_response(job.payload, status=job.status)
+
+
+async def _answer_chat(user_id: int, pro: bool, message_text: str):
+    """Тело ответа ADAM: (http_status, json) — как раньше строилось прямо в обработчике. Запускается задачей ai_jobs."""
     # Фиксируем первое реально обработанное сообщение только после
     # успешного прохождения троттлинга.
     first_message = claim_ai_first_message(user_id)
@@ -230,23 +263,23 @@ async def ai_chat_miniapp(request):
     if habit_reply is not None:
         add_ai_message(user_id, "user", message_text)
         message_id = add_ai_message(user_id, "assistant", habit_reply)
-        return web.json_response({
+        return 200, {
             "answer": habit_reply,
             "is_crisis": False,
             "suggested_habit": None,
             "message_id": message_id,
             "quota": get_ai_quota(user_id, pro),
-        })
+        }
 
     # Обычные свободные ответы расходуют дневной лимит; управление привычками/планом — нет.
     cost = 3 if len(message_text) > AI_VERY_LONG_COST_CHARS else 2 if len(message_text) > AI_LONG_COST_CHARS else 1
     quota = get_ai_quota(user_id, pro)
     if quota["remaining"] < cost:
-        return web.json_response({
+        return 402, {
             "error":"ai_quota_exceeded",
             "message": "💬 Лимит ответов ADAM на сегодня исчерпан. Купи дополнительные ответы или активируй ADAM PRO.",
             "quota": quota,
-        }, status=402)
+        }
 
     # Собирем контекст
     history_text = build_history_text(user_id, limit=4, max_chars_per_msg=180)
@@ -291,13 +324,10 @@ async def ai_chat_miniapp(request):
         except Exception as e:
             logger.exception(f"Ошибка AI-пайплайна для {user_id}")
             log_error("ai_pipeline", e, user_id)
-            return web.json_response(
-                {
-                    "error": "ai_error",
-                    "message": "Не получилось сформировать ответ. Попробуйте ещё раз через минуту."
-                },
-                status=500
-            )
+            return 500, {
+                "error": "ai_error",
+                "message": "Не получилось сформировать ответ. Попробуйте ещё раз через минуту."
+            }
 
         if complexity == "просто" and not is_crisis:
             cache_set(cache_key, answer)
@@ -315,7 +345,7 @@ async def ai_chat_miniapp(request):
     # строки код не доходит, если solve_task_multiagent бросил исключение.
     if not consume_ai_answer(user_id, pro, cost=cost):
         quota = get_ai_quota(user_id, pro)
-        return web.json_response({"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}, status=402)
+        return 402, {"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}
 
     # Сохраняем в БД
     add_ai_message(user_id, "user", message_text)
@@ -324,13 +354,33 @@ async def ai_chat_miniapp(request):
     if not is_crisis:
         _schedule_memory_update(user_id)
 
-    return web.json_response({
+    return 200, {
         "answer": answer,
         "is_crisis": is_crisis,
         "suggested_habit": suggested_habit,
         "message_id": message_id,
         "quota": get_ai_quota(user_id, pro),
-    })
+    }
+
+
+@routes.get("/api/ai/chat/result")
+async def ai_chat_result_miniapp(request):
+    """
+    Итог ответа ADAM для вернувшегося в чат клиента (ушёл на главный экран / свернул приложение, пока ADAM отвечал).
+
+    Query: rid — номер запроса (request_id из POST /api/ai/chat); заголовок X-Telegram-Init-Data — как у /api/ai/quota.
+    Response JSON:
+      {"status": "pending", "elapsed": 12.3}                       — ещё отвечает
+      {"status": "done", "ok": true, "http_status": 200, "data": {…то же, что вернул бы /api/ai/chat…}}
+      {"status": "unknown"}                                         — задачи нет (сервис перезапускали / итог устарел):
+                                                                      клиент берёт переписку из /api/ai/history
+    """
+    from webapp.auth_helpers import authenticate
+
+    init_data = request.headers.get("X-Telegram-Init-Data", "") or request.rel_url.query.get("init_data", "")
+    user_id, _is_admin = await authenticate(init_data)
+    rid = (request.rel_url.query.get("rid") or "").strip()[:64] or None
+    return web.json_response(ai_jobs.result(user_id, rid))
 
 
 @routes.get("/api/ai/history")
@@ -422,6 +472,7 @@ async def ai_clear_history_miniapp(request):
     init_data = data.get("init_data", "")
     user_id, _is_admin = await authenticate(init_data)
 
+    ai_jobs.cancel(user_id)          # ещё не готовый ответ не должен дописаться в уже очищенную переписку
     clear_ai_history(user_id)
 
     return web.json_response({"ok": True})
