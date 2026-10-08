@@ -14181,6 +14181,48 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
 .rating-podium[hidden],
 .rating-rest-head[hidden]{display:none !important}
 
+/* ===== Иконки в квадратах и кружках — рисованные SVG (app.js: ICON_X / ICON_CHECK / ICON_EDIT, index.html) =====
+   Текстовые «✕ ✎ ✓ +» сидели не по центру: у шрифта свои поля вокруг символа. SVG с симметричным viewBox и
+   display:block стоят ровно в центре кнопки, размер задаётся здесь. */
+.ui-icon{display:block;flex:none;width:16px;height:16px;pointer-events:none}
+.shop-item__icon .ui-icon{width:17px;height:17px}
+.start-quiz-option__icon .ui-icon{width:20px;height:20px}
+.plan-icon-btn,
+.habit-item__del,
+.struggling-habit-banner__close,
+.habit-item__suggest-dismiss,
+.daily-quests-modal__close,
+.center-modal__close,
+.archetype-quiz-close,
+.self-reward-modal__close{display:grid;place-items:center;padding:0;line-height:1}
+.plan-icon-btn .ui-icon{width:15px;height:15px}
+.plan-icon-btn--confirm .ui-icon{width:18px;height:18px}
+.habit-item__del .ui-icon{width:14px;height:14px}
+.habit-item__check .ui-icon{width:20px;height:20px}
+.struggling-habit-banner__close .ui-icon,
+.daily-quests-modal__close .ui-icon,
+.center-modal__close .ui-icon,
+.archetype-quiz-close .ui-icon,
+.self-reward-modal__close .ui-icon{width:14px;height:14px}
+.habit-item__suggest-dismiss .ui-icon{width:10px;height:10px}
+.add-collapse__icon .ui-icon{width:14px;height:14px}
+.habit-add-form__submit-icon{display:grid;place-items:center;width:100%;height:100%}
+.habit-add-form__submit-icon .ui-icon{width:17px;height:17px}
+.daily-quest__done .ui-icon,
+.rating-item__react-btn--sent .ui-icon,
+.rating-podium-react-btn--sent .ui-icon{width:12px;height:12px}
+/* галочки, нарисованные псевдоэлементом (чекбокс задачи плана, кружок дня в парном задании) — тоже без глифа */
+.plan-toggle:checked::after{
+  content:"";inset:0;display:block;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7' fill='none' stroke='%23201703' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/15px 15px no-repeat;
+}
+.pair-dot.is-done::after{
+  content:"";display:block;width:12px;height:12px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7' fill='none' stroke='%230b2a1a' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+/* Карандаш на аватаре в Профиле — на 1px выше центра кружка (иначе тянет вниз: тяжёлый кончик). */
+.streak-profile-avatar__edit svg{transform:translateY(-1px)}
+
 /* Звезда в «Главная задача дня» — рисованная SVG: текстовый символ «✦» сидел в квадрате чуть
    левее и ниже центра (у глифа несимметричные поля шрифта). Квадрат 24px, звезда по центру. */
 .plan-label-icon svg{display:block;width:12px;height:12px;pointer-events:none}

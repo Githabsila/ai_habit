@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261008_PAIR_V47">
+<link rel="stylesheet" href="/static/style.css?v=20261008_PAIR_V49">
 </head>
 <body>
 
@@ -85,7 +85,7 @@ r="49"></circle>
 
 <div id="playerHandle" class="player-card__handle"></div>
 
-<svg class="player-card__edit" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg class="player-card__edit" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4.5 19.5h4L19.5 8.5l-4-4L4.5 15.5v4zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
 
 </div>
 
@@ -222,7 +222,7 @@ style="width:0%">
 
     <div id="mainGoalEditor" class="plan-editor">
       <input id="mainGoalInput" type="text" placeholder="Главная задача дня" autocomplete="off" maxlength="80">
-      <button type="button" class="plan-icon-btn plan-icon-btn--confirm" id="saveMainGoalBtn" aria-label="Сохранить главную задачу" hidden>✓</button>
+      <button type="button" class="plan-icon-btn plan-icon-btn--confirm" id="saveMainGoalBtn" aria-label="Сохранить главную задачу" hidden><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
 
     <div id="mainGoalView" class="plan-main-view" hidden></div>
@@ -234,7 +234,7 @@ style="width:0%">
   <div class="add-collapse" id="addPlanTaskCollapse">
 
     <button type="button" class="add-collapse__trigger" id="addPlanTaskTrigger">
-      <span class="add-collapse__icon" aria-hidden="true">+</span>
+      <span class="add-collapse__icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
       <span>Добавить задачу</span>
     </button>
 
@@ -285,7 +285,7 @@ style="width:0%">
 <div class="add-collapse" id="addHabitCollapse">
 
 <button type="button" class="add-collapse__trigger" id="addHabitTrigger">
-<span class="add-collapse__icon" aria-hidden="true">+</span>
+<span class="add-collapse__icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
 <span>Добавить привычку</span>
 </button>
 
@@ -339,7 +339,7 @@ aria-label="Время напоминания">
 <button
 type="submit"
 class="habit-add-form__submit">
-<span class="habit-add-form__submit-icon" aria-hidden="true">+</span>
+<span class="habit-add-form__submit-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
 <span>Добавить</span>
 </button>
 
@@ -415,7 +415,7 @@ class="habit-add-form__submit">
   <div class="streak-profile-avatar-wrap" id="profileAvatarWrap" role="button" tabindex="0" aria-label="Изменить фото аватарки">
     <div class="streak-profile-ring"></div>
     <div class="streak-profile-avatar" id="profileAvatar">A</div>
-    <span class="streak-profile-avatar__edit" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <span class="streak-profile-avatar__edit" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" focusable="false"><path d="M4.5 19.5h4L19.5 8.5l-4-4L4.5 15.5v4zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
   </div>
   <div class="streak-profile-info">
     <div class="streak-profile-kicker">ТВОЯ УДАРНАЯ СЕРИЯ</div>
@@ -1071,7 +1071,7 @@ class="habit-add-form__submit">
 <div class="daily-quests-overlay" id="dailyQuestsOverlay" hidden aria-hidden="true">
   <div class="daily-quests-overlay__backdrop" id="dailyQuestsBackdrop"></div>
   <section class="daily-quests-modal" role="dialog" aria-modal="true" aria-labelledby="dailyQuestsModalTitle">
-    <button type="button" class="daily-quests-modal__close" id="dailyQuestsClose" aria-label="Закрыть">✕</button>
+    <button type="button" class="daily-quests-modal__close" id="dailyQuestsClose" aria-label="Закрыть"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="daily-quests-modal__title" id="dailyQuestsModalTitle">🗺️ Квесты дня</div>
     <div class="daily-quests-modal__hint" id="dailyQuestsNoHabitsHint" hidden>Квесты появятся с прогрессом, как только добавишь хотя бы одну привычку и начнёшь её отмечать.</div>
     <ul class="daily-quests__list" id="dailyQuestsList"></ul>
@@ -1135,7 +1135,7 @@ class="habit-add-form__submit">
 <div class="center-modal" id="avatarEditOverlay" hidden aria-hidden="true">
   <div class="center-modal__backdrop" id="avatarEditBackdrop"></div>
   <section class="center-modal__card" role="dialog" aria-modal="true" aria-labelledby="avatarEditTitle">
-    <button type="button" class="center-modal__close" id="avatarEditClose" aria-label="Закрыть">✕</button>
+    <button type="button" class="center-modal__close" id="avatarEditClose" aria-label="Закрыть"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <h3 class="center-modal__title" id="avatarEditTitle">Фото профиля</h3>
     <div class="avatar-edit__preview" id="avatarEditPreview"></div>
     <p class="center-modal__text">Фото увидят в профиле, рейтинге и у друзей. JPG, PNG или WEBP, до 5 МБ.</p>
@@ -1149,7 +1149,7 @@ class="habit-add-form__submit">
 <div class="center-modal" id="identityOverlay" hidden aria-hidden="true">
   <div class="center-modal__backdrop" id="identityBackdrop"></div>
   <section class="center-modal__card" role="dialog" aria-modal="true" aria-labelledby="identityTitle">
-    <button type="button" class="center-modal__close" id="identityClose" aria-label="Закрыть">✕</button>
+    <button type="button" class="center-modal__close" id="identityClose" aria-label="Закрыть"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <h3 class="center-modal__title" id="identityTitle">Имя и ник</h3>
     <label class="center-modal__field">
       <span>Имя</span>
@@ -1320,7 +1320,7 @@ class="habit-add-form__submit">
 
 <div class="archetype-quiz-overlay" id="archetypeQuizOverlay" hidden aria-hidden="true">
   <div class="archetype-quiz-card">
-    <button type="button" class="archetype-quiz-close" id="archetypeQuizClose" aria-label="Закрыть">✕</button>
+    <button type="button" class="archetype-quiz-close" id="archetypeQuizClose" aria-label="Закрыть"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="archetype-quiz-eyebrow">ТЕСТ НА АРХЕТИП</div>
     <div id="archetypeQuizBody"></div>
   </div>
@@ -1441,7 +1441,7 @@ class="habit-add-form__submit">
 
 <div class="self-reward-modal-overlay" id="selfRewardModalOverlay" hidden aria-hidden="true">
   <div class="self-reward-modal" role="dialog" aria-modal="true" aria-labelledby="selfRewardModalTitle">
-    <button class="self-reward-modal__close" id="selfRewardModalClose" type="button" aria-label="Закрыть">✕</button>
+    <button class="self-reward-modal__close" id="selfRewardModalClose" type="button" aria-label="Закрыть"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="self-reward-modal__icon">🎁</div>
     <h3 class="self-reward-modal__title" id="selfRewardModalTitle">Вознаградить себя?</h3>
     <p class="self-reward-modal__hint">Спишется <b id="selfRewardModalCost">20</b> Adam Coin. Необязательно — чем себя порадуешь?</p>
@@ -1452,7 +1452,7 @@ class="habit-add-form__submit">
 
 <div class="self-reward-history-overlay" id="selfRewardHistoryOverlay" hidden aria-hidden="true">
   <div class="self-reward-history-modal" role="dialog" aria-modal="true" aria-labelledby="selfRewardHistoryTitle">
-    <button class="self-reward-modal__close" id="selfRewardHistoryClose" type="button" aria-label="Закрыть">✕</button>
+    <button class="self-reward-modal__close" id="selfRewardHistoryClose" type="button" aria-label="Закрыть"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <h3 class="self-reward-history-modal__title" id="selfRewardHistoryTitle">История вознаграждений</h3>
     <p class="self-reward-history-modal__stats" id="selfRewardHistoryStats"></p>
     <ul class="self-reward-history-list" id="selfRewardHistoryList"></ul>
@@ -1469,7 +1469,7 @@ class="habit-add-form__submit">
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
-<script type="module" src="/static/app.js?v=20261008_PAIR_V54"></script>
+<script type="module" src="/static/app.js?v=20261008_PAIR_V56"></script>
 
 </body>
 </html>

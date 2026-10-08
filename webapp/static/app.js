@@ -1,6 +1,16 @@
 (() => {
   "use strict";
 
+  // Иконки в квадратах и кружках (✕ ✎ ✓ +) раньше были текстовыми символами: у каждого шрифта свои поля вокруг глифа, и
+  // на телефоне «✕» уезжал вверх, а «✎» — в сторону. Рисованные SVG с симметричным viewBox стоят ровно на любом устройстве
+  // (размер и цвет — из CSS: .ui-icon в style.css, stroke=currentColor).
+  const uiIcon = (d, width = "2.4") => `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const ICON_X = uiIcon("M6 6l12 12M18 6L6 18");
+  // Четырёхконечная звезда «✦» (ромбик) — рисованная: текстовый глиф сидел в квадрате не по центру.
+  const UI_SPARK = `<svg class="ui-icon ui-icon--fill" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2c.7 5.6 4.4 9.3 10 10-5.6.7-9.3 4.4-10 10-.7-5.6-4.4-9.3-10-10 5.6-.7 9.3-4.4 10-10Z" fill="currentColor"/></svg>`;
+  const ICON_CHECK = uiIcon("M5 12.5l4.5 4.5L19 7", "2.6");
+  const ICON_EDIT = uiIcon("M4.5 19.5h4L19.5 8.5l-4-4L4.5 15.5v4zM14 6l4 4", "2.2");
+
   // Некоторые WebView (в т.ч. Telegram на Android) успевают "доставить"
   // клик/тач, начатый ещё на предыдущей странице, уже ПОСЛЕ полной
   // навигации на новую — с теми же экранными координатами. Кнопка
@@ -647,7 +657,7 @@
           <span class="daily-quest__bar"><span class="daily-quest__bar-fill" style="width:${pct}%"></span></span>
         </span>
         ${q.claimed
-          ? `<span class="daily-quest__done">✓</span>`
+          ? `<span class="daily-quest__done">${ICON_CHECK}</span>`
           : q.completed
             ? `<button type="button" class="daily-quest__claim" data-quest="${q.key}">+${q.reward} ${ADAM_COIN_ICON}</button>`
             : `<span class="daily-quest__progress">${q.progress}/${q.target}</span>`
@@ -1590,7 +1600,7 @@
         ["🎯", "Выработать привычку", "habit"],
         ["💪", "Прокачать дисциплину", "discipline"],
         ["🔥", "Не срывать серию", "streak"],
-        ["✦", "Общаться с ИИ-наставником", "ai"],
+        [UI_SPARK, "Общаться с ИИ-наставником", "ai"],
         ["🚀", "Просто посмотреть", "explore"],
       ],
     },
@@ -3501,7 +3511,7 @@
             <span class="struggling-habit-banner__icon">🤖</span>
             <span class="struggling-habit-banner__text">«${escapeHtml(top.title)}» не получается ${top.missed} из последних дней — Может уменьшим нагрузку или обсудим решение 📩 ?</span>
           </button>
-          <button type="button" class="struggling-habit-banner__close" aria-label="Закрыть">✕</button>
+          <button type="button" class="struggling-habit-banner__close" aria-label="Закрыть">${ICON_X}</button>
         `;
         strugglingBanner.querySelector(".struggling-habit-banner__open")?.addEventListener("click", () => {
           haptic("light");
@@ -3608,12 +3618,12 @@
       const suggestBtn = h.suggested_time && !isHabitTimeSuggestionDismissed(h.id)
         ? `<span class="habit-item__suggest-wrap">
              <button class="habit-item__suggest-time" data-action="accept-suggested-time" data-time="${h.suggested_time}" title="AI заметил: обычно ты делаешь это в это время">🤖 ${h.suggested_time}?</button>
-             <button type="button" class="habit-item__suggest-dismiss" data-action="dismiss-suggested-time" aria-label="Не предлагать это время" title="Не предлагать">×</button>
+             <button type="button" class="habit-item__suggest-dismiss" data-action="dismiss-suggested-time" aria-label="Не предлагать это время" title="Не предлагать">${ICON_X}</button>
            </span>`
         : "";
 
       const checkLabel = h.completed
-        ? "✓"
+        ? ICON_CHECK
         : (isCounter ? `${h.progress_count || 0}/${h.target_count}` : "");
       const checkClass = isCounter && !h.completed ? "habit-item__check habit-item__check--counter" : "habit-item__check";
 
@@ -3622,7 +3632,7 @@
         ? `
         <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
         ${noteBtn}
-        <button class="habit-item__del" data-action="delete" aria-label="Удалить">✕</button>`
+        <button class="habit-item__del" data-action="delete" aria-label="Удалить">${ICON_X}</button>`
         : `<button class="habit-item__more" data-action="toggle-actions" aria-label="Действия с привычкой" aria-expanded="false">✏️</button>`;
 
       return `
@@ -3736,7 +3746,7 @@
       return `
         <li class="shop-item ${isAnswer ? "shop-item--answers" : ""} ${isDiamondPack ? "shop-item--diamond" : ""}" data-id="${it.id}">
           <div class="shop-item__top">
-            <span class="shop-item__icon">${isAnswer ? "💬" : (isDiamondPack ? "💎" : "✦")}</span>
+            <span class="shop-item__icon">${isAnswer ? "💬" : (isDiamondPack ? "💎" : UI_SPARK)}</span>
             ${isAnswer ? `<span class="shop-item__tag">ДОП. ОТВЕТЫ</span>` : (isDiamondPack ? `<span class="shop-item__tag">АЛМАЗЫ</span>` : "")}
           </div>
           <div class="shop-item__name">${title}</div>
@@ -4058,7 +4068,7 @@
         // не can_react и не я → сегодня уже поддержал этого игрока.
         // Показываем "галочку" вместо пустоты, чтобы ряд был ровным и
         // было понятно почему тут нет активного конвертика.
-        return `<span class="rating-podium-react-btn rating-podium-react-btn--sent" ${cell} aria-hidden="true" title="Сегодня уже поддержал">✓</span>`;
+        return `<span class="rating-podium-react-btn rating-podium-react-btn--sent" ${cell} aria-hidden="true" title="Сегодня уже поддержал">${ICON_CHECK}</span>`;
       }).join("") + `</div>`;
       podium.innerHTML = cardsHtml + reactionsHtml;
     }
@@ -4078,7 +4088,7 @@
         <span class="rating-item__meta"><span class="rating-stat"><span class="material-symbols-rounded stat-icon">local_fire_department</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
         ${r.can_react
           ? `<button type="button" class="rating-item__react-btn" data-react-target="${r.telegram_id}" aria-label="Поддержать">💌</button>`
-          : (isMe ? "" : `<span class="rating-item__react-btn rating-item__react-btn--sent" aria-hidden="true" title="Сегодня уже поддержал">✓</span>`)}
+          : (isMe ? "" : `<span class="rating-item__react-btn rating-item__react-btn--sent" aria-hidden="true" title="Сегодня уже поддержал">${ICON_CHECK}</span>`)}
         ${reactPickerForId === r.telegram_id ? `
         <div class="rating-react-picker">
           ${REACTION_EMOJIS.map(e => `<button type="button" class="rating-react-chip" data-emoji="${e}">${e}</button>`).join("")}
@@ -5198,8 +5208,8 @@ function renderPlan() {
         <input type="checkbox" class="plan-toggle plan-toggle--main" data-main-toggle="1" ${plan.main_goal_completed ? "checked" : ""} aria-label="Отметить главную задачу выполненной">
         <span class="plan-item__text">${escapeHtml(plan.main_goal)}</span>
         <div class="plan-item__actions">
-          <button type="button" class="plan-icon-btn" data-main-action="edit" aria-label="Редактировать">✎</button>
-          <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-main-action="delete" aria-label="Удалить">✕</button>
+          <button type="button" class="plan-icon-btn" data-main-action="edit" aria-label="Редактировать">${ICON_EDIT}</button>
+          <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-main-action="delete" aria-label="Удалить">${ICON_X}</button>
         </div>
       </div>`;
     mainInput.value = "";
@@ -5217,8 +5227,8 @@ function renderPlan() {
       <input type="checkbox" class="plan-toggle" data-id="${t.id}" ${t.completed ? "checked" : ""} aria-label="Отметить задачу выполненной">
       <span class="plan-item__text">${escapeHtml(t.text)}</span>
       <div class="plan-item__actions">
-        <button type="button" class="plan-icon-btn" data-action="edit" aria-label="Редактировать">✎</button>
-        <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-action="delete" aria-label="Удалить">✕</button>
+        <button type="button" class="plan-icon-btn" data-action="edit" aria-label="Редактировать">${ICON_EDIT}</button>
+        <button type="button" class="plan-icon-btn plan-icon-btn--delete" data-action="delete" aria-label="Удалить">${ICON_X}</button>
       </div>
     </li>
   `).join("");

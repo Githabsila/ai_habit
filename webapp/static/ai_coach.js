@@ -4,6 +4,12 @@ try {
     if (lowPower) document.documentElement.classList.add('performance-lite');
 } catch (e) {}
 const tg = window.Telegram.WebApp;
+// Иконки «✦» и «×» в квадратиках — рисованные SVG (у текстовых символов у каждого шрифта свои поля, и они сидели не по
+// центру). Размер и цвет — из CSS страницы (.ui-icon), форма симметрична относительно центра viewBox.
+const SPARK_SVG = '<svg class="ui-icon ui-icon--fill" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2c.7 5.6 4.4 9.3 10 10-5.6.7-9.3 4.4-10 10-.7-5.6-4.4-9.3-10-10 5.6-.7 9.3-4.4 10-10Z" fill="currentColor"/></svg>';
+const ARROW_SVG = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CHEVRON_SVG = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const X_SVG = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 // Тот же фоллбэк, что и в app.js::initData() — настоящий telegram-web-app.js
 // заполняет tg.initData только внутри реального клиента Telegram; при
 // прямом переходе по ссылке (в т.ч. из онбординга index.html на /coach)
@@ -799,21 +805,21 @@ function AiChat() {
                         online ? 'онлайн' : 'нет соединения'))),
             React.createElement("div", { className: "header-buttons" },
                 React.createElement("button", { className: "icon-btn premium-icon", onClick: getTip, title: "\u0421\u043E\u0432\u0435\u0442 \u0434\u043D\u044F" },
-                    React.createElement("span", null, "\u2726")),
+                    React.createElement("span", { className: "icon-btn__glyph", dangerouslySetInnerHTML: { __html: SPARK_SVG } })),
                 React.createElement("button", { className: "icon-btn premium-icon", onClick: startNewDialog, title: "\u041D\u043E\u0432\u044B\u0439 \u0434\u0438\u0430\u043B\u043E\u0433" },
                     React.createElement("span", null, "\uD83E\uDDF9")),
                 React.createElement("button", { className: "icon-btn premium-icon home-nav-btn", onClick: goHome, title: "\u0412 \u043C\u0435\u043D\u044E" },
                     React.createElement("span", null, "\uD83C\uDFE0")))),
         React.createElement("div", { className: "chat-toolbar" },
             React.createElement("div", { className: "chat-toolbar-copy" },
-                React.createElement("span", { className: "chat-toolbar-orb" }, "\u2726"),
+                React.createElement("span", { className: "chat-toolbar-orb", dangerouslySetInnerHTML: { __html: SPARK_SVG } }),
                 React.createElement("div", null,
                     React.createElement("div", { className: "chat-toolbar-title" }, "\u041B\u0438\u0447\u043D\u044B\u0439 \u043D\u0430\u0441\u0442\u0430\u0432\u043D\u0438\u043A"),
                     React.createElement("div", { className: "chat-toolbar-subtitle" }, "ADAM \u00B7 \u0443\u043C\u043D\u044B\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F"))),
             React.createElement("button", { className: `quick-toggle ${showTools ? 'is-open' : ''}`, onClick: () => { setShowTools(v => !v); vibrate('light'); } },
-                React.createElement("span", { className: "quick-toggle-icon" }, showTools ? '×' : '✦'),
+                React.createElement("span", { className: "quick-toggle-icon", dangerouslySetInnerHTML: { __html: showTools ? X_SVG : SPARK_SVG } }),
                 React.createElement("span", null, showTools ? 'Закрыть' : 'Быстрые действия'),
-                React.createElement("span", { className: "quick-toggle-chevron" }, "\u2304"))),
+                React.createElement("span", { className: "quick-toggle-chevron", dangerouslySetInnerHTML: { __html: CHEVRON_SVG } }))),
         showTools && React.createElement("div", { className: "quick-prompts" },
             React.createElement("div", { className: "quick-prompts-head" },
                 React.createElement("span", null, "\u0427\u0442\u043E \u0441\u0434\u0435\u043B\u0430\u0442\u044C \u0441\u0435\u0439\u0447\u0430\u0441?"),
@@ -823,7 +829,7 @@ function AiChat() {
                 React.createElement("span", { className: "quick-copy" },
                     React.createElement("b", null, label),
                     React.createElement("small", null, desc)),
-                React.createElement("span", { className: "quick-arrow" }, "\u2192"))))),
+                React.createElement("span", { className: "quick-arrow", dangerouslySetInnerHTML: { __html: ARROW_SVG } }))))),
         React.createElement("div", { className: "messages-container", ref: messagesContainerRef }, messages.length === 0 ? React.createElement("div", { className: "empty-state" },
             React.createElement("div", { className: "empty-icon" },
                 React.createElement("img", { src: "/static/assets/adam-avatar.webp", alt: "ADAM" })),

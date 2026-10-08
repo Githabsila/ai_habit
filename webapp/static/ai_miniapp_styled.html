@@ -863,12 +863,23 @@ body{
 
 
 
+<style>
+/* Рисованные иконки вместо текстовых «✦» и «×» (ai_coach.js: SPARK_SVG / X_SVG): стоят ровно в центре на любом телефоне. */
+.ui-icon{display:block;flex:none;width:16px;height:16px;pointer-events:none}
+.chat-toolbar-orb .ui-icon{width:16px;height:16px}
+.quick-toggle-icon .ui-icon{width:12px;height:12px}
+.icon-btn__glyph{display:grid;place-items:center;line-height:1}
+.icon-btn__glyph .ui-icon{width:18px;height:18px}
+.quick-arrow .ui-icon{width:14px;height:14px}
+.quick-toggle-chevron{display:grid;place-items:center}
+.quick-toggle-chevron .ui-icon{width:14px;height:14px}
+</style>
 </head>
 <body>
     <div id="root"></div>
 
    <script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
-   <script src="/static/ai_coach.js?v=20261007_ADAMNUDGE_V50"></script>
+   <script src="/static/ai_coach.js?v=20261008_ICONS_V52"></script>
 </body>
 </html>
 <style>
