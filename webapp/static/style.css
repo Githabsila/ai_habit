@@ -9244,7 +9244,10 @@ body{
 .daily-quests-modal{
   position:relative;
   width:min(400px,100%);
-  max-height:min(560px,80vh);
+  /* Все блоки (квесты, «Задания месяца», краткое «Парное задание») помещаются без прокрутки: раньше при
+     560px карточка парного задания уезжала вниз на пару миллиметров, и окно приходилось «подтягивать». На
+     низких экранах по-прежнему прокручивается. 170px — запас под родную шапку Telegram сверху. */
+  max-height:min(680px,calc(100vh - 170px));
   overflow-y:auto;
   padding:24px 20px 20px;
   border-radius:26px;
@@ -9410,6 +9413,13 @@ body{
 .profile-nav-card__text small{display:block;margin-top:2px;color:#9D9DB3;font-size:11.5px;line-height:1.3}
 .profile-nav-card__chevron{flex:0 0 auto;font-size:22px;color:#6f6b80;font-weight:400}
 
+/* Сколько сверху занимает то, что Telegram рисует поверх страницы: строка состояния телефона и родная шапка
+   «Закрыть / ⌄ ⋮» в полноэкранном режиме. Значения даёт сам telegram-web-app.js (Bot API 8.0+); в обычном
+   режиме, когда страница начинается под шапкой, обе переменные равны нулю. max() — чтобы на iPhone вырез,
+   который есть и в env(), и в --tg-safe-area-inset-top, не складывался дважды. */
+:root{
+  --adam-chrome-top:calc(max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px)) + var(--tg-content-safe-area-inset-top,0px) + var(--adam-chrome-extra,0px));
+}
 .subpage-overlay{position:fixed;inset:0;z-index:1850}
 /* Магазин и Прогресс/достижения теперь открываются ИЗ Настроек (просьба
    пользователя — в Профиле только самое важное + одна кнопка "Настройки"
@@ -9440,7 +9450,7 @@ body{
   position:relative;z-index:2;
   display:flex;align-items:center;gap:12px;flex:0 0 auto;
   box-sizing:border-box;min-height:62px;
-  padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px;
+  padding:calc(var(--adam-chrome-top) + 10px) 16px 10px;
   border-bottom:1px solid rgba(255,255,255,.07);
   background:#0d0b14;
   touch-action:none;overscroll-behavior:none;

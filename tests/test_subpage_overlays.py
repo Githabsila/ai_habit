@@ -54,7 +54,7 @@ def test_subpage_header_with_the_back_arrow_is_fixed_outside_the_scroller():
     header = CSS[CSS.index(".subpage-overlay__header{"):][:500]
     assert "flex:0 0 auto" in header and "touch-action:none" in header
     # отступы сверху и снизу одинаковые — стрелка по центру шапки по вертикали
-    assert re.search(r"padding:calc\(env\(safe-area-inset-top,0px\) \+ 10px\) 16px 10px", header)
+    assert "padding:calc(var(--adam-chrome-top) + 10px) 16px 10px" in header
     back = CSS[CSS.index(".subpage-overlay__back{"):][:400]
     assert "display:grid;place-items:center" in back
     panel = CSS[CSS.index(".subpage-overlay__panel{"):][:400]
@@ -156,3 +156,26 @@ def test_tab_bottom_clearance_is_one_value_for_all_tabs():
 def test_last_block_of_a_subpage_has_no_extra_margin():
     tail = _tail_after("Окна «Магазин»/«Настройки»/«Прогресс»: у последнего блока")
     assert ".subpage-overlay__body > :last-child{margin-bottom:0 !important}" in tail
+
+
+def test_header_sits_below_the_telegram_chrome_in_fullscreen():
+    """Скрин 08.10: в полноэкранном режиме стрелка и ник чужого профиля были на уровне строки состояния, выше родной
+    шапки Telegram «Закрыть». Отступ сверху = то, что Telegram рисует поверх страницы (его же CSS-переменные);
+    в обычном режиме обе равны нулю, и шапка стоит как раньше."""
+    root = CSS[CSS.index("--adam-chrome-top:calc("):][:200]
+    assert "--tg-safe-area-inset-top" in root and "--tg-content-safe-area-inset-top" in root
+    assert "max(env(safe-area-inset-top,0px)" in root, "вырез iPhone не должен считаться дважды"
+
+
+def test_quests_modal_is_tall_enough_for_all_its_blocks():
+    """Окно «Квесты дня» с краткой карточкой парного задания не влезало в 560px и «подтягивалось» на пару миллиметров."""
+    modal = CSS[CSS.index(".daily-quests-modal{"):][:900]
+    assert "max-height:min(680px,calc(100vh - 170px))" in modal and "min(560px,80vh)" not in modal
+
+
+def test_fullscreen_fallback_is_set_only_when_telegram_reports_no_insets():
+    app = (Path(__file__).resolve().parent.parent / "webapp" / "static" / "app.js").read_text(encoding="utf-8")
+    block = app[app.index("const syncChromeInsets = () => {"):][:900]
+    assert "tg.isFullscreen && reported < 40 ? 80 : 0" in block
+    assert '"fullscreenChanged", "safeAreaChanged", "contentSafeAreaChanged"' in block
+    assert "--adam-chrome-extra,0px" in CSS

@@ -359,6 +359,19 @@
       tg.BackButton?.hide();
       tg.onEvent?.("backButtonClicked", closeTopSubpage);
     } catch (e) {}
+    // Полноэкранный режим: страница начинается с самого верха экрана, а родная шапка Telegram («Закрыть»,
+    // ⌄ ⋮) рисуется поверх неё. Отступы сверху отдаёт сам Telegram (--tg-safe-area-inset-top и
+    // --tg-content-safe-area-inset-top, см. --adam-chrome-top в style.css); если клиент в полноэкранном режиме
+    // их не сообщил — подстраховка, чтобы шапки окон («←», ник) не оказывались под строкой состояния.
+    try {
+      const syncChromeInsets = () => {
+        const reported = (Number(tg.safeAreaInset?.top) || 0) + (Number(tg.contentSafeAreaInset?.top) || 0);
+        const extra = tg.isFullscreen && reported < 40 ? 80 : 0;
+        document.documentElement.style.setProperty("--adam-chrome-extra", `${extra}px`);
+      };
+      syncChromeInsets();
+      ["fullscreenChanged", "safeAreaChanged", "contentSafeAreaChanged"].forEach((name) => tg.onEvent?.(name, syncChromeInsets));
+    } catch (e) {}
   }
 
   function initData() {
