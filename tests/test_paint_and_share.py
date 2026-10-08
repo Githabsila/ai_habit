@@ -99,3 +99,12 @@ def test_double_bonus_text_has_no_repeated_promise():
     block = INDEX[INDEX.index('id="doubleBonusOverlay"'):][:700]
     assert "Успевай выполнить и отметить ещё одну привычку, пока действует бонус.</p>" in block
     assert "вдвое больше" not in block
+
+
+def test_big_streak_number_has_no_animated_filter():
+    """Градиентный текст + анимируемый drop-shadow на Android WebView не рисовал соседей: подпись под
+    числом «34 дня» и нижний ряд карточки серии пропадали (скрины 08.10). Остаётся только градиент."""
+    assert "streakNumberGlow" not in CSS
+    rule = re.search(r"\.streak-widget__count strong\{\s*background:linear-gradient([^}]*)\}", CSS).group(1)
+    assert "background-clip:text" in rule
+    assert "filter" not in rule and "animation" not in rule

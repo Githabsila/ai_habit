@@ -1526,8 +1526,8 @@ async def analyze_onboarding_survey(business: str, hobbies: str, life_goal: str,
     вызова — безопасный фолбэк, чтобы анкетирование не блокировалось."""
     user = (
         f"Чем занимается / бизнес: {business}\n"
-        f"Увлечения: {hobbies}\n"
-        f"Цель в жизни: {life_goal}\n"
+        + (f"Увлечения: {hobbies}\n" if hobbies else "")
+        + f"Цель в жизни / что хочет прокачать: {life_goal}\n"
         f"Цель в боте: {bot_goal}"
     )
     raw = await _ask(SURVEY_ANALYSIS_SYSTEM, user, temperature=0.3, max_tokens=300, model=FAST_MODEL)

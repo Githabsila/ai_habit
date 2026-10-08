@@ -147,8 +147,8 @@ async def start(message: Message, state: FSMContext):
 
     if not is_admin and status == "pending":
         await message.answer(
-            "🕓 Ваша анкета уже на проверке модератором.\n\n"
-            "Как только доступ к <b>Project ADAM</b> откроется — мы напишем сразу.",
+            "<b>◆ Заявка на проверке</b>\n\n"
+            "Как только доступ к <b>Project ADAM</b> откроется — напишем сразу.",
             parse_mode="HTML"
         )
         return

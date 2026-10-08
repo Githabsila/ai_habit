@@ -621,8 +621,9 @@ async def _send_user_card(message: Message, user_id: int):
         text += (
             "\n📋 <b>Анкета</b>\n"
             f"💼 Дело: {survey['business'] or '-'}\n"
-            f"🎨 Увлечения: {survey['hobbies'] or '-'}\n"
-            f"🎯 Цель в жизни: {survey['life_goal'] or '-'}\n"
+            # «Увлечения» — вопрос старой анкеты из 4 шагов; в новой его нет.
+            + (f"🎨 Увлечения: {survey['hobbies']}\n" if survey["hobbies"] else "")
+            + f"🎯 Что прокачать / цель в жизни: {survey['life_goal'] or '-'}\n"
             f"🤖 Цель в боте: {survey['bot_goal'] or '-'}\n"
         )
         if tags:
