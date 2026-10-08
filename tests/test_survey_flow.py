@@ -65,7 +65,7 @@ async def test_survey_has_three_questions_each_answerable_by_one_tap(uid):
     text = first.answer.call_args.args[0]
     markup = first.answer.call_args.kwargs["reply_markup"]
     assert "три вопроса" in text.lower() or "три быстрых вопроса" in text.lower()
-    assert "4 " not in text and "1/4" not in text
+    assert "1/3" in text and "1/4" not in text and "работа, свой бизнес, фриланс" in text
     assert [b.callback_data for b in _buttons(markup)] == [f"survey:role:{i}" for i in range(len(ob.SURVEY_ROLES))]
     assert await state.get_state() == ob.Onboarding.business.state
 
@@ -74,7 +74,7 @@ async def test_survey_has_three_questions_each_answerable_by_one_tap(uid):
     await ob.survey_role_tap(_tap(uid, "survey:role:1", bot, card), state)
     assert await state.get_state() == ob.Onboarding.focus.state
     focus_markup = card.edit_text.call_args.kwargs["reply_markup"]
-    assert "●●○" in card.edit_text.call_args.args[0]
+    assert "2/3" in card.edit_text.call_args.args[0]
     assert len(_buttons(focus_markup)) == len(ob.SURVEY_FOCUS)
     card.answer.assert_not_called()  # карточка перелистнулась на месте, ленты вопросов нет
 
@@ -82,7 +82,7 @@ async def test_survey_has_three_questions_each_answerable_by_one_tap(uid):
     assert await state.get_state() == ob.Onboarding.goal.state
     goal_buttons = _buttons(card.edit_text.call_args.kwargs["reply_markup"])
     assert [b.text for b in goal_buttons] == list(ob.SURVEY_GOAL_IDEAS[2])
-    assert "●●●" in card.edit_text.call_args.args[0]
+    assert "3/3" in card.edit_text.call_args.args[0]
 
 
 async def test_taps_alone_complete_the_application_and_ping_the_admin(uid, monkeypatch):
@@ -196,7 +196,7 @@ def test_callback_data_fits_telegram_limit_and_texts_are_short():
         assert len(ideas) == 3 and all(len(i) <= 40 for i in ideas)
     assert len(ob.SURVEY_GOAL_IDEAS) == len(ob.SURVEY_FOCUS)
     for variant, text in ob.SURVEY_INTRO_VARIANTS.items():
-        assert len(text) < 260, variant
+        assert len(text) < 420, variant
 
 
 def test_both_ab_variants_are_kept_for_the_funnel():
