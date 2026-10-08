@@ -119,3 +119,20 @@ def test_chat_arrows_and_chevron_are_svg_too():
     for d in ("M5 12h14M13 6l6 6-6 6", "M6 9l6 6 6-6"):
         x0, x1, y0, y1 = _path_box(d)
         assert (x0 + x1) / 2 == 12 and (y0 + y1) / 2 == 12, d
+
+
+def test_ai_badge_is_pinned_in_the_plate_corner_and_does_not_push_the_star():
+    """Правило `.tab-bar__item span:last-child{position:relative}` делало метку «есть сообщение» строчным элементом: она
+    вставала рядом со звездой и сдвигала её. Метка закреплена по ID (специфичнее) в углу плашки (в меню 46×39)."""
+    assert ".tab-bar__item span:last-child{position:relative" in CSS, "причина: общее правило для подписей вкладок"
+    badge = CSS[CSS.rindex("#aiCoachBtn .tab-bar__badge{"):][:260]
+    assert "position:absolute" in badge, "ID-селектор перебивает span:last-child"
+    top = int(re.search(r"top:(\d+)px", badge).group(1))
+    right = int(re.search(r"right:(\d+)px", badge).group(1))
+    size = int(re.search(r"width:(\d+)px", badge).group(1))
+    assert f"height:{size}px" in badge and size <= 8 and "0 0 0 1.5px" in badge, "точка и обводка меньше прежних 9px/2px"
+    # центр точки с обводкой лежит внутри скруглённого угла плашки (радиус 15px) и не задевает концы звезды 22×22 по центру
+    # плашки 46×39: верхний конец звезды (23; 8.5), правый (34; 19.5) — размеры сняты в браузере
+    cx, cy, ring = 46 - right - size / 2, top + size / 2, size / 2 + 1.5
+    assert ((cx - 31) ** 2 + (cy - 15) ** 2) ** 0.5 + ring <= 15, "метка целиком внутри плашки"
+    assert ((cx - 23) ** 2 + (cy - 8.5) ** 2) ** 0.5 > ring + 3 and ((cx - 34) ** 2 + (cy - 19.5) ** 2) ** 0.5 > ring + 3

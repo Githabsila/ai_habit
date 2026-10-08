@@ -14303,6 +14303,20 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
 .lab-bar__btn .ui-icon{width:18px;height:18px}
 .lab-bar__btn--exit{color:#FF9A9A}
 
+/* Красная метка «есть сообщение» на кнопке «ИИ»: правило `.tab-bar__item span:last-child{position:relative}`
+   (оно же для подписей вкладок) перебивало `position:absolute` у метки — та вставала в строку рядом со звездой и
+   сдвигала её влево. Закрепляем метку в правом верхнем углу плашки (в меню плашка 46×39 со скруглением 15px, метка
+   целиком внутри неё и звезды не касается); точка 8px и тёмная обводка 1.5px вместо 9px и 2px. */
+#aiCoachBtn .tab-bar__badge{
+  position:absolute;
+  top:5px;
+  right:6px;
+  width:8px;
+  height:8px;
+  z-index:2;
+  box-shadow:0 0 0 1.5px #0E0B14,0 0 6px rgba(239,68,68,.6);
+}
+
 /* Звезда в «Главная задача дня» — рисованная SVG: текстовый символ «✦» сидел в квадрате чуть
    левее и ниже центра (у глифа несимметричные поля шрифта). Квадрат 24px, звезда по центру. */
 .plan-label-icon svg{display:block;width:12px;height:12px;pointer-events:none}
