@@ -108,15 +108,10 @@ def pick_greeting(user_id, name, hour, day_iso):
     return pool[seed % len(pool)].format(name=name)
 
 
-def claim_ai_greeting(user_id, demo=False):
-    """Первый вопрос Адама при заходе в чат. Возвращает {"id", "message", "created_at"} или None.
-
-    Не расходует дневной лимит ответов (модель не вызывается). Сообщение пишется в историю как
-    реплика ассистента — следующий ответ человека пойдёт в ИИ уже с этим вопросом в контексте.
-    Только для тех, кто уже общался с Адамом: у новичка в пустом чате и так стоит приветственный
-    экран с быстрыми действиями. demo=True («Показать напоминание» в Настройках) — всегда, без
-    отметки «поздоровался сегодня».
-    """
+def begin_ai_greeting(user_id, demo=False):
+    """Первая половина «первого вопроса Адама»: можно ли сейчас здороваться и (не демо) атомарная отметка «поздоровался сегодня».
+    Возвращает {"name", "hour", "today"} или None. Текст пишет вызывающий (статичные варианты — pick_greeting, контекстный —
+    adam_proactive.compose_app_greeting), сохраняет finish_ai_greeting."""
     now = _now_local(user_id)
     today = now.date().isoformat()
     if not demo:
@@ -139,7 +134,11 @@ def claim_ai_greeting(user_id, demo=False):
         conn.close()
 
     name = ((user["first_name"] if user else "") or "").strip()[:MAX_NAME_CHARS] or FALLBACK_NAME
-    text = pick_greeting(user_id, name, now.hour, today)
+    return {"name": name, "hour": now.hour, "today": today}
+
+
+def finish_ai_greeting(user_id, text):
+    """Вторая половина: реплика Адама в историю (следующий ответ человека пойдёт в ИИ уже с ней в контексте)."""
     message_id = add_ai_message(user_id, "assistant", text)
 
     conn = connect()
@@ -148,3 +147,19 @@ def claim_ai_greeting(user_id, demo=False):
     finally:
         conn.close()
     return {"id": message_id, "message": text, "created_at": row["created_at"] if row else None}
+
+
+def claim_ai_greeting(user_id, demo=False):
+    """Первый вопрос Адама при заходе в чат (статичные варианты). Возвращает {"id", "message", "created_at"} или None.
+
+    Не расходует дневной лимит ответов (модель не вызывается). Сообщение пишется в историю как
+    реплика ассистента — следующий ответ человека пойдёт в ИИ уже с этим вопросом в контексте.
+    Только для тех, кто уже общался с Адамом: у новичка в пустом чате и так стоит приветственный
+    экран с быстрыми действиями. demo=True («Показать напоминание» в Настройках) — всегда, без
+    отметки «поздоровался сегодня». Контекстный вариант (по привычкам и задачам человека) —
+    в /api/ai/greet, когда включён флаг adam_checkin.
+    """
+    slot = begin_ai_greeting(user_id, demo)
+    if slot is None:
+        return None
+    return finish_ai_greeting(user_id, pick_greeting(user_id, slot["name"], slot["hour"], slot["today"]))

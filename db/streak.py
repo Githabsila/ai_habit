@@ -726,6 +726,7 @@ NOTIFICATION_KIND_LABELS = {
     "personal_record": "🏆 Личный рекорд рядом",
     "rank_overtaken": "📉 Тебя обогнали в рейтинге",
     "ai_welcome_nudge": "🤖 Знакомство с ADAM",
+    "adam_checkin": "💬 Сообщение от Адама",
 }
 
 

@@ -446,6 +446,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--violet">💬</span>Адам пишет первым</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Контекстные сообщения Адама по привычкам и задачам человека. Здесь видно, как он напишет в каждом сценарии: ничего не отправляется и не сохраняется, пока не нажмёшь «Отправить мне».</div>' +
+        '<div id="adamLabBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--gold">🏆</span>Рейтинг пар (тест)</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Сырая версия: сколько заданий выполнено, самое быстрое завершение и как идёт текущее. Пользователи этого пока не видят.</div>' +
         '<div id="pairRatingBox"><div class="empty-note">Загружаю…</div></div>' +
@@ -467,6 +473,7 @@ textarea.field{resize:vertical;min-height:88px}
     loadPending();
     loadActiveUsers();
     loadLab();
+    loadAdamLab();
     loadPairRating();
     loadChurnRisk();
     loadClientErrors();
@@ -733,6 +740,79 @@ textarea.field{resize:vertical;min-height:88px}
         }).join('') + '</div>';
     }catch(e){
       box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  // «Адам пишет первым»: раскатка, сводка за неделю и просмотр сообщения по каждому сценарию (db/adam_checkin.py, adam_proactive.py).
+  async function loadAdamLab(){
+    var box = document.getElementById('adamLabBox');
+    if (!box) return;
+    try{
+      var d = await api('/api/admin/lab/adam');
+      var f = d.flag || {}, st = d.stats || {};
+      var rollout = f.enabled ? ('включено для ' + f.rollout_pct + '% людей и админов') : 'только админы (флаг adam_checkin выключен)';
+      box.innerHTML =
+        '<div class="list-row"><div class="list-row-name"><b>Раскатка: ' + escapeHtml(rollout) + '</b>' +
+          '<small>Окна: день ' + escapeHtml(d.windows.day) + ', вечер ' + escapeHtml(d.windows.evening) + ' · не больше ' + d.limits.per_day + ' в день и ' + d.limits.per_week + ' в неделю · «поболтать» ' + d.limits.chat_days.join('–') + ' дня в неделю · включается флагом adam_checkin в Feature flags выше</small></div></div>' +
+        '<div class="list-row"><div class="list-row-name"><b>За 7 дней</b>' +
+          '<small>отправлено ' + (st.sent || 0) + ' (в чате ' + (st.app || 0) + '), текст от модели ' + (st.llm || 0) + ', запасной ' + (st.fallback || 0) + ', окон пропущено ' + (st.skipped || 0) + '</small></div></div>' +
+        '<div class="btn-row" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:8px">' +
+          '<button class="btn btn-accent" style="text-align:left" data-adam="mine">🙋 Мой день прямо сейчас</button>' +
+          d.scenarios.map(function(sc){
+            return '<button class="btn" style="text-align:left" data-adam="' + escapeHtml(sc.key) + '">' + escapeHtml(sc.title) + '</button>';
+          }).join('') +
+        '</div>' +
+        '<div id="adamPreview" style="margin-top:10px"></div>';
+      box.querySelectorAll('[data-adam]').forEach(function(btn){
+        btn.addEventListener('click', function(){ haptic('light'); showAdamPreview(btn.dataset.adam, 'llm'); });
+      });
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  async function showAdamPreview(key, source){
+    var out = document.getElementById('adamPreview');
+    if (!out) return;
+    out.innerHTML = '<div class="empty-note">Адам пишет…</div>';
+    try{
+      var r = await api('/api/admin/lab/adam/preview', { method: 'POST', body: JSON.stringify({ scenario: key, source: source }) });
+      var stt = r.state || {};
+      var facts = '🕒 ' + escapeHtml(stt.time || '') + ' · выполнено ' + stt.done + '/' + stt.total + ' (привычки ' + escapeHtml(stt.habits || '') + ', задачи ' + escapeHtml(stt.tasks || '') + ') · серия ' + stt.streak +
+        (stt.pending && stt.pending.length ? '<br>осталось: ' + stt.pending.map(function(p){ return '«' + escapeHtml(p) + '»'; }).join(', ') : '') +
+        (stt.mood_hint ? '<br>пометка: ' + escapeHtml(stt.mood_hint) : '');
+      var decisions = '';
+      if (r.decisions){
+        var label = function(x){ return x.scenario ? escapeHtml(x.scenario) : ('ничего — ' + escapeHtml(x.reason)); };
+        decisions = '<div class="empty-note" style="padding:6px 0">Что сделают пуши сегодня: день → ' + label(r.decisions.day) + '; вечер → ' + label(r.decisions.evening) + ' (' + (r.decisions.chat_day ? 'чатовый день' : 'не чатовый день') + ')</div>';
+      }
+      var bubble = r.text
+        ? '<div style="background:rgba(124,92,252,.14);border:1px solid rgba(124,92,252,.35);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.45;margin:6px 0">' + escapeHtml(r.text) + '</div>'
+        : '<div class="empty-note">Сейчас Адам бы ничего не написал: ' + escapeHtml(r.reason || '') + '</div>';
+      out.innerHTML =
+        '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(r.title) + '</b>' +
+          '<small>сценарий: ' + escapeHtml(r.scenario || '—') + ' · ' + escapeHtml(r.reason || '') + ' · текст: ' + (r.source === 'llm' ? 'от модели' : r.source === 'fallback' ? 'запасной (без модели)' : '—') + '</small></div></div>' +
+        '<div class="empty-note" style="padding:6px 0;line-height:1.5">' + facts + '</div>' + decisions + bubble +
+        (r.text ? '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
+          '<button class="btn" id="adamAgain">🔄 Ещё вариант</button>' +
+          '<button class="btn" id="adamFallback">🧯 Запасной текст</button>' +
+          '<button class="btn btn-accent" id="adamSend">📲 Отправить мне</button>' +
+          '<button class="btn" id="adamPromptBtn">🔍 Промпт</button></div>' +
+          '<pre id="adamPrompt" hidden style="white-space:pre-wrap;font-size:11.5px;line-height:1.45;margin:8px 0 0;padding:10px;border-radius:12px;background:rgba(255,255,255,.05)">' + escapeHtml(r.prompt || '') + '</pre>' : '');
+      if (!r.text) return;
+      document.getElementById('adamAgain').addEventListener('click', function(){ haptic('light'); showAdamPreview(key, 'llm'); });
+      document.getElementById('adamFallback').addEventListener('click', function(){ haptic('light'); showAdamPreview(key, 'fallback'); });
+      document.getElementById('adamPromptBtn').addEventListener('click', function(){
+        var pre = document.getElementById('adamPrompt'); pre.hidden = !pre.hidden; haptic('light');
+      });
+      document.getElementById('adamSend').addEventListener('click', async function(){
+        try{
+          await api('/api/admin/lab/adam/send', { method: 'POST', body: JSON.stringify({ text: r.text }) });
+          haptic('light'); showToast('Отправил тебе в Telegram');
+        }catch(e){ showToast('Не получилось отправить'); }
+      });
+    }catch(e){
+      out.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }
   }
 

@@ -1278,6 +1278,32 @@ def create_tables():
     )
     """)
 
+    # ---------------- «Адам пишет первым» (db/adam_checkin.py) ----------------
+    # Журнал окон: по строке на (человек, день, слот day|evening|app). Строка есть — окно обработано (пуш не дублируется и не
+    # пересчитывается каждый тик); status: pending → sent | skipped; source: llm | fallback.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS adam_checkins(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        slot TEXT NOT NULL,
+        status TEXT NOT NULL,
+        scenario TEXT,
+        source TEXT,
+        message_id INTEGER,
+        note TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, day, slot)
+    )
+    """)
+    # Флаг раскатки виден в админке («Feature flags») сразу; выключен — Адам пишет первым только админам.
+    cursor.execute(
+        "INSERT OR IGNORE INTO feature_flags(key, enabled, rollout_pct, description) VALUES (?,?,?,?)",
+        ("adam_checkin", 0, 100,
+         "Адам пишет первым: контекстные сообщения (пуш в окнах 14:00–16:30 и 19:30–21:30 + первое сообщение в чате). "
+         "У админов включено всегда; остальным — когда флаг включён (rollout_pct — доля людей)."),
+    )
+
     # ---------------- Roadmap #9: сезонные награды лиги ----------------
     # Сезон = календарный месяц (тот же ритм, что и у «Заданий месяца»,
     # см. db/month_quests.py) — рейтинг сезона считается

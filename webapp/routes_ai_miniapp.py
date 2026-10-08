@@ -58,7 +58,8 @@ from webapp.services.ai_utils import (
     _cache_key,
 )
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
-from db.ai_nudge import claim_ai_greeting
+from db.ai_nudge import begin_ai_greeting, finish_ai_greeting, pick_greeting
+from db import adam_checkin as adam_ck
 from webapp.services.ai_jobs import ai_jobs
 
 logger = logging.getLogger("webapp.ai_miniapp")
@@ -445,7 +446,29 @@ async def ai_greet_miniapp(request):
     except json.JSONDecodeError:
         data = {}
     user_id, _is_admin = await authenticate(data.get("init_data", ""))
-    greeting = claim_ai_greeting(user_id, demo=bool(data.get("demo")))
+    demo = bool(data.get("demo"))
+    slot = begin_ai_greeting(user_id, demo=demo)
+    if slot is None:
+        return web.json_response({"greeting": None})
+
+    # Адам пишет первым (adam_proactive.py): когда включён флаг adam_checkin (админам — всегда), первое сообщение строится по
+    # привычкам и задачам человека прямо сейчас, а не из статичных фраз. Нет модели — запасной текст по тем же данным.
+    text, scenario, source = None, None, "static"
+    if adam_ck.is_enabled_for(user_id):
+        try:
+            from adam_proactive import compose_app_greeting
+            composed = await compose_app_greeting(user_id)
+            if composed:
+                text, scenario, source = composed
+        except Exception as exc:
+            logger.warning("контекстное первое сообщение Адама не получилось (%s) — статичное", exc)
+    if not text:
+        text, source = pick_greeting(user_id, slot["name"], slot["hour"], slot["today"]), "static"
+    greeting = finish_ai_greeting(user_id, text)
+    if not demo and source != "static":
+        # журнал окон: в этот день Адам уже писал в чате (для сводки в админке)
+        if adam_ck.claim_slot(user_id, slot["today"], "app"):
+            adam_ck.finish_slot(user_id, slot["today"], "app", "sent", scenario=scenario, source=source, message_id=greeting["id"])
     return web.json_response({"greeting": greeting})
 
 

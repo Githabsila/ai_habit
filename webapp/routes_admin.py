@@ -41,6 +41,7 @@ from db.core import DB_PATH
 from db.admin_gifts import grant_admin_badge
 from db.admin_support import find_users_for_admin, list_active_users_for_admin
 from db.pair_lab import build_scenario, lab_scenarios
+from db import adam_checkin as adam_ck
 from db.pair_quests import get_pair_rating
 from admin_digest_scheduler import build_stats_report
 
@@ -157,6 +158,94 @@ async def admin_lab_pair_route(request):
     if payload is None:
         return web.json_response({"error": "not_found"}, status=404)
     return web.json_response({"pair_quest": payload})
+
+
+@routes.get("/api/admin/lab/adam")
+async def admin_lab_adam_route(request):
+    """«Адам пишет первым» в Лаборатории: раскатка (флаг), окна, сводка за неделю, демо-сценарии."""
+    await _authenticate_admin(request)
+    flag = next((f for f in get_all_flags() if f["key"] == adam_ck.FLAG_KEY), {"enabled": False, "rollout_pct": 100})
+    windows = {slot: f"{lo // 60:02d}:{lo % 60:02d}–{hi // 60:02d}:{hi % 60:02d}" for slot, (lo, hi) in adam_ck.SLOT_WINDOWS.items()}
+    return web.json_response({
+        "flag": flag, "windows": windows, "stats": adam_ck.checkin_stats(7),
+        "limits": {"per_day": 1, "per_week": adam_ck.MAX_PUSH_PER_WEEK, "chat_days": list(adam_ck.CHAT_DAYS_PER_WEEK)},
+        "scenarios": [{"key": k, "title": title, "slot": slot} for k, (title, slot, _state) in adam_ck.lab_scenarios().items()],
+    })
+
+
+async def _adam_preview(admin_id, body):
+    """Текст сообщения Адама для демо-состояния (или для настоящего состояния админа, key='mine'). Ничего не отправляет и не сохраняет."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from adam_proactive import compose_message
+    from db.streak import get_timezone
+
+    key = str(body.get("scenario") or "")
+    now_local = datetime.now(ZoneInfo(get_timezone(admin_id)))
+    day_iso = now_local.date().isoformat()
+    decisions = None
+    if key == "mine":
+        state = adam_ck.build_checkin_state(admin_id)
+        slot = "app"
+        title = "Твой день прямо сейчас"
+        chat_day = adam_ck.is_chat_day(admin_id, now_local.date())
+        decisions = {
+            s: dict(zip(("scenario", "reason"), adam_ck.pick_scenario(state, s, chat_day))) for s in ("day", "evening")
+        }
+        decisions["chat_day"] = chat_day
+    else:
+        item = adam_ck.lab_scenarios().get(key)
+        if item is None:
+            return None
+        title, slot, state = item
+        chat_day = True
+    state["user_id"] = admin_id
+    scenario, reason = adam_ck.pick_scenario(state, slot, chat_day)
+    if scenario is None:
+        return {"title": title, "scenario": None, "reason": reason, "decisions": decisions, "state": adam_ck.lab_state_summary(state), "text": "", "source": "none"}
+    opener = adam_ck.opener_style(admin_id, day_iso, scenario)
+    prompt = adam_ck.build_checkin_prompt(state, scenario, opener, adam_ck.recent_adam_messages(admin_id))
+    if body.get("source") == "fallback":
+        text, source = adam_ck.fallback_text(state, scenario, admin_id, f"{day_iso}:{datetime.now().microsecond}"), "fallback"
+    else:
+        text, source = await compose_message(state, scenario, admin_id, day_iso)
+    return {
+        "title": title, "scenario": scenario, "reason": reason, "decisions": decisions, "state": adam_ck.lab_state_summary(state),
+        "text": text, "source": source, "prompt": prompt,
+    }
+
+
+@routes.post("/api/admin/lab/adam/preview")
+async def admin_lab_adam_preview_route(request):
+    admin_id = await _authenticate_admin(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    result = await _adam_preview(admin_id, body)
+    if result is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response(result)
+
+
+@routes.post("/api/admin/lab/adam/send")
+async def admin_lab_adam_send_route(request):
+    """Отправить показанное сообщение В TELEGRAM САМОМУ АДМИНУ (получатель — только тот, кто нажал; в историю чата не пишется)."""
+    admin_id = await _authenticate_admin(request)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "bot_unavailable"}, status=503)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    text = (body.get("text") or "").strip()
+    if not text or len(text) > adam_ck.TEXT_MAX_CHARS * 2:
+        return web.json_response({"error": "invalid_text"}, status=400)
+    from adam_proactive import _keyboard
+    await bot.send_message(admin_id, "🧪 Тест · " + text, reply_markup=_keyboard())
+    return web.json_response({"ok": True})
 
 
 @routes.get("/api/admin/users/search")
