@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from config import WEBAPP_URL
+from adam_messages import plural_ru
 
 from db import (
     rollover_all_users, get_streak_users, get_timezone, create_daily_tasks,
@@ -667,7 +668,7 @@ async def run_pair_quest_notifications(bot):
                     await _send_pair_push(
                         bot, uid,
                         f"🏆 Парное задание выполнено! Вместе с напарником (<b>{_display(get_user(other))}</b>) "
-                        f"вы набрали {PAIR_GOAL} дней — открой сундук в ADAM.",
+                        f"вы набрали {PAIR_GOAL} очков — открой сундук в ADAM.",
                     )
     except Exception:
         logger.exception("Ошибка засчёта парных заданий")
@@ -698,7 +699,7 @@ async def run_pair_quest_notifications(bot):
                 sent = await _send_pair_push(
                     bot, uid,
                     f"⏳ Последний день парного задания (напарник — <b>{_display(get_user(other))}</b>): "
-                    f"не хватает {left} {'дня' if left == 1 else 'дней'}. Не подведи напарника — отметь привычку!",
+                    f"не хватает {left} {plural_ru(left, 'очка', 'очков', 'очков')}. Не подведи напарника — отметь привычку!",
                 )
                 if not sent:
                     release_notification(uid, day, "pairlast", scope)

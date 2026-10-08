@@ -19,7 +19,8 @@ from db import (
 from db.pair_quests import MAX_RECOMMENDED, RESTART_NUDGE_DAYS
 from tests.test_pair_quests import _day, _fill, _one, _sql, _start, _user, _window
 
-STATIC = Path(__file__).resolve().parent.parent / "webapp" / "static"
+ROOT = Path(__file__).resolve().parent.parent
+STATIC = ROOT / "webapp" / "static"
 APP_JS = (STATIC / "app.js").read_text(encoding="utf-8")
 CSS = (STATIC / "style.css").read_text(encoding="utf-8")
 INDEX = (STATIC / "index.html").read_text(encoding="utf-8")
@@ -218,11 +219,36 @@ async def test_no_invite_if_reminders_are_off(uid, monkeypatch):
 
 # --- Mini App --------------------------------------------------------------------------------
 
-def test_active_card_explains_days_left_and_points_separately():
+def test_active_card_compares_two_numbers_in_the_same_unit():
+    """«7 дней до конца» рядом с «8 очков ещё» — разные единицы: непонятно, хватит ли дней. Теперь обе
+    плашки в очках: сколько нужно набрать и сколько ещё можно набрать до конца."""
     body = APP_JS[APP_JS.index("function pairQuestBodyHtml("):][:4200]
-    assert '<div class="pair-facts">' in body and "до конца задания" in body and "ещё набрать вместе" in body
+    assert '<div class="pair-facts">' in body and "нужно набрать" in body and "можно набрать до конца" in body
+    assert "до конца задания" not in body and "ещё набрать вместе" not in body
     assert "вместе нужно ещё" not in body, "старая фраза «Осталось 7 дней, вместе нужно ещё 9» путала"
     assert "из ${q.goal} очков" in body and "pairPointsWord(q.mine)" in body
+    assert "pairPaceHint(q, pace)" in body
+
+
+def test_pace_counts_what_can_still_be_earned_and_names_the_reserve():
+    pace = APP_JS[APP_JS.index("function pairPace("):APP_JS.index("function pairDateLabel(")]
+    assert 'd.state === "future") can += 2' in pace
+    assert 'd.state === "today") can += (d.me ? 0 : 1) + (d.partner ? 0 : 1)' in pace
+    assert "cap: (q.days || []).length * 2" in pace
+    assert "Вдвоём за ${q.days.length}" in pace and "до ${pace.cap} очков, цель — ${q.goal}" in pace
+    assert "Запас сейчас" in pace and "Запаса не осталось" in pace and "Цель уже не набрать" in pace
+
+
+def test_goal_is_always_shown_next_to_the_maximum_possible():
+    """Цель 10 из 14: 7 дней × 2 человека — максимум, 4 очка — запас на пропуски. Об этом говорим везде, где есть цель."""
+    assert "из ${2 * (pq.window_days || 7)} возможных" in APP_JS
+    assert "из ${2 * pairCandidates.window_days} возможных" in APP_JS
+
+
+def test_pair_pushes_count_points_not_days():
+    src = (ROOT / "streak_scheduler.py").read_text(encoding="utf-8")
+    assert "вы набрали {PAIR_GOAL} очков" in src and "вы набрали {PAIR_GOAL} дней" not in src
+    assert "plural_ru(left, 'очка', 'очков', 'очков')" in src and "'дня' if left == 1" not in src
 
 
 def test_home_card_collapses_by_default_and_toggles_with_chevrons():

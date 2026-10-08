@@ -6520,6 +6520,27 @@ function pairCollapsedHtml(pq) {
     </div>`;
 }
 
+// Темп задания: сколько очков нужно и сколько ещё можно набрать до конца. Сегодня — по одному очку за
+// каждого, кто ещё не отметился, каждый следующий день — по два (у каждого не больше одного в сутки).
+// Раньше рядом стояли «7 дней до конца» и «8 очков ещё набрать» — разные единицы, и непонятно,
+// хватит ли дней; теперь обе плашки в очках и сравниваются напрямую.
+function pairPace(q) {
+  const need = Math.max(0, q.goal - q.progress);
+  let can = 0;
+  for (const d of q.days || []) {
+    if (d.state === "future") can += 2;
+    else if (d.state === "today") can += (d.me ? 0 : 1) + (d.partner ? 0 : 1);
+  }
+  return { need, can, spare: can - need, cap: (q.days || []).length * 2 };
+}
+
+function pairPaceHint(q, pace) {
+  const rule = `Очко — день с отметкой привычки (не больше одного в сутки у каждого). Вдвоём за ${q.days.length} ${ruPlural(q.days.length, ["день", "дня", "дней"])} — до ${pace.cap} очков, цель — ${q.goal}.`;
+  if (pace.spare < 0) return `${rule} Цель уже не набрать.`;
+  if (pace.spare === 0) return `${rule} Запаса не осталось — отмечаться нужно обоим каждый день.`;
+  return `${rule} Запас сейчас — ${pace.spare} ${ruPlural(pace.spare, ["пропуск", "пропуска", "пропусков"])}: столько раз можно не отметиться, и цель всё равно будет в руках.`;
+}
+
 function pairDateLabel(day) {
   const d = new Date(`${day}T00:00:00`);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
@@ -6557,7 +6578,7 @@ function pairQuestBodyHtml(pq, q) {
   if (q.phase === "scheduled") {
     const when = q.starts_in <= 1 ? "завтра" : `через ${pairDaysWord(q.starts_in)}`;
     return `${duo}
-      <div class="pair-hint">Задание стартует <b>${when}</b>. С первого дня отмечайте привычки — каждый день с отметкой даёт вам очко.</div>
+      <div class="pair-hint">Задание стартует <b>${when}</b>. С первого дня отмечайте привычки — каждый день с отметкой даёт очко. Цель — ${q.goal} очков из ${2 * (pq.window_days || 7)} возможных: пару пропусков можно себе позволить.</div>
       <button type="button" class="pair-btn pair-btn--ghost" data-pair-act="cancel" data-id="${q.id}" data-confirm="Выйти из парного задания?">Выйти из задания</button>`;
   }
 
@@ -6583,13 +6604,13 @@ function pairQuestBodyHtml(pq, q) {
   } else if (q.partner_state === "done") {
     nudge = `<div class="pair-tag">✓ ${escapeHtml(partner.first_name)} уже отметил(а) день</div>`;
   }
-  const left = Math.max(0, q.goal - q.progress);
+  const pace = pairPace(q);
   return `${duo}${pairDaysGridHtml(q)}
     <div class="pair-facts">
-      <div class="pair-fact"><b>${q.days_left}</b><span>${ruPlural(q.days_left, ["день", "дня", "дней"])} до конца задания</span></div>
-      <div class="pair-fact"><b>${left}</b><span>${ruPlural(left, ["очко", "очка", "очков"])} ещё набрать вместе</span></div>
+      <div class="pair-fact"><b>${pace.need}</b><span>${ruPlural(pace.need, ["очко", "очка", "очков"])} нужно набрать</span></div>
+      <div class="pair-fact"><b>${pace.can}</b><span>${ruPlural(pace.can, ["очко", "очка", "очков"])} можно набрать до конца</span></div>
     </div>
-    <div class="pair-hint">Очко — это день, когда человек отметил привычку. Дни у вас двоих складываются в общий счёт: в сутки у каждого максимум одно очко.</div>
+    <div class="pair-hint">${pairPaceHint(q, pace)}</div>
     ${nudge}`;
 }
 
@@ -6640,7 +6661,7 @@ function renderPairCardInto(box, collapsible) {
     } else if (pq.can_choose) {
       const intro = pq.recent_fail
         ? "В этот раз не вышло — бывает. Попробуйте снова!"
-        : `Позови друга и вместе за неделю наберите <b>${pq.goal} очков</b> (очко — день с отметкой привычки): у каждого свой вклад, прогресс общий. Одному не вытянуть — нужны оба. За победу — сундук ${reward}.`;
+        : `Позови друга и вместе за неделю наберите <b>${pq.goal} очков</b> из ${2 * (pq.window_days || 7)} возможных (очко — день с отметкой привычки): у каждого свой вклад, прогресс общий, пару пропусков можно себе позволить. Одному не вытянуть — нужны оба. За победу — сундук ${reward}.`;
       body += `
         <div class="pair-hint">${pq.needs_habit ? "Сначала добавь привычку — без неё вклада в задание не будет." : intro}</div>
         <button type="button" class="pair-btn pair-btn--primary" data-pair-act="choose"${pq.needs_habit ? " disabled" : ""}>🤝 ${pq.recent_fail ? "Выбрать нового союзника" : "Выбрать союзника"}</button>`;
@@ -6723,7 +6744,7 @@ function renderPairSheet() {
   }
   if (sub) {
     const hasRecommended = friends.some((f) => f.recommended);
-    sub.textContent = `Вместе за ${pairCandidates.window_days} дней нужно набрать ${pairCandidates.goal} очков (очко — день с отметкой привычки) — одному не вытянуть. Задание стартует завтра.${hasRecommended ? " Начни с самых активных друзей — так задание точно получится, и необязательно брать того же союзника." : ""}`;
+    sub.textContent = `Вместе за ${pairCandidates.window_days} дней нужно набрать ${pairCandidates.goal} очков из ${2 * pairCandidates.window_days} возможных (очко — день с отметкой привычки) — одному не вытянуть. Задание стартует завтра.${hasRecommended ? " Начни с самых активных друзей — так задание точно получится, и необязательно брать того же союзника." : ""}`;
   }
   if (confirmBtn) confirmBtn.disabled = pairBusy || !picked;
   if (!friends.length) {
