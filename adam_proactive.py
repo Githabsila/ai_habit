@@ -94,6 +94,11 @@ def skip_reason(telegram_id, now_local, settings):
         return "аккаунт слишком новый"
     if ac.is_dormant(telegram_id):
         return "давно не заходил — это работа напоминаний о возврате"
+    if reminder_category_enabled(settings, "streak"):
+        from db.streak import get_streak_reengagement_state, has_completed_today
+        back = get_streak_reengagement_state(telegram_id)
+        if back.get("has_history") and int(back.get("inactive_days") or 0) > 0 and not has_completed_today(telegram_id):
+            return "человека возвращают в серию отдельные напоминания (пропущенные дни)"
     if ac.adam_wrote_today(telegram_id, day_iso):
         return "Адам уже писал сегодня"
     if ac.pushes_since(telegram_id, (now_local.date() - timedelta(days=6)).isoformat()) >= ac.MAX_PUSH_PER_WEEK:

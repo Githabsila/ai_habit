@@ -7,7 +7,9 @@
   • расписание: окна «день» 14:00–16:30 и «вечер» 19:30–21:30, случайный (но стабильный на день) момент внутри окна,
     «чатовые» дни — 2–3 в неделю не подряд, лимиты 1 сообщение в день и 5 в неделю;
   • pick_scenario — какое сообщение нужно (ничего не выполнено / отстаёт от темпа / остался один пункт / всё готово / …);
-  • build_checkin_prompt — блок данных для модели; fallback_text — запасные тексты без «Как дела?»;
+  • история дней в состоянии: вчера, серия и рекорд, привычка, которая «не получается» (get_struggling_habits);
+  • build_checkin_prompt — блок данных для модели + эталонный пример тона (REFERENCE_EXAMPLES); fallback_text — запасные
+    тексты без «Как дела?»;
   • clean_text / is_acceptable — защита от шаблонных и слишком длинных ответов модели;
   • журнал adam_checkins — «окно уже обработано», чтобы пуш не дублировался и не пересчитывался каждый тик.
 
@@ -35,7 +37,7 @@ PACE_MIN_DAYS = 3                    # меньше дней истории — 
 TEXT_MAX_CHARS = 320
 
 SCENARIOS = (
-    "zero_done", "zero_done_evening", "behind", "one_left", "evening_left", "all_done", "free_chat", "morning",
+    "zero_done", "zero_done_evening", "behind", "one_left", "evening_left", "all_done", "free_chat", "morning", "struggling",
 )
 
 # Шаблонные фразы, которых Адам писать не должен (проверка по тексту без ё и в нижнем регистре).
@@ -132,10 +134,15 @@ def pace_history(user_id, now_local):
         habits = per_day.setdefault(local.date(), {})
         habits[row["habit_id"]] = min(minute, habits.get(row["habit_id"], 24 * 60))
     if not per_day:
-        return {"days": 0, "avg_by_now": 0.0, "avg_total": 0.0}
+        return {"days": 0, "avg_by_now": 0.0, "avg_total": 0.0, "yesterday": 0, "active_7": 0}
     by_now = [sum(1 for minute in habits.values() if minute <= now_minute) for habits in per_day.values()]
     totals = [len(habits) for habits in per_day.values()]
-    return {"days": len(per_day), "avg_by_now": sum(by_now) / len(by_now), "avg_total": sum(totals) / len(totals)}
+    return {
+        "days": len(per_day), "avg_by_now": sum(by_now) / len(by_now), "avg_total": sum(totals) / len(totals),
+        # из истории дней: сколько привычек закрыто вчера и в скольких из последних 7 дней были отметки
+        "yesterday": len(per_day.get(today - timedelta(days=1), {})),
+        "active_7": sum(1 for day in per_day if (today - day).days <= 7),
+    }
 
 
 def fill_counts(state):
@@ -152,6 +159,27 @@ def fill_counts(state):
     main_first = sorted((t for t in tasks if not t["done"]), key=lambda t: not t.get("main"))
     state["pending"] = [t["title"] for t in main_first] + state["pending_habits"]
     return state
+
+
+def _best_streak(user_id):
+    conn = connect()
+    try:
+        row = conn.execute("SELECT best_streak FROM users WHERE telegram_id=?", (user_id,)).fetchone()
+    finally:
+        conn.close()
+    return int(row["best_streak"] or 0) if row else 0
+
+
+def _struggling_pending(user_id, habits):
+    """Привычка, которая «не получается» (≥4 пропусков из последних 5 дней) и ещё не выполнена сегодня: {"title", "missed"} или None.
+    Тот же источник, что у подсказки «привычка не получается» в приложении (db/coaching_insights.py)."""
+    from .coaching_insights import get_struggling_habits
+    pending_titles = {h["title"] for h in habits if not h["done"]}
+    for item in get_struggling_habits(user_id):
+        title = _short(item["title"])
+        if title in pending_titles:
+            return {"title": title, "missed": int(item["missed"])}
+    return None
 
 
 def build_checkin_state(user_id, now_local=None, with_pace=True):
@@ -202,11 +230,13 @@ def build_checkin_state(user_id, now_local=None, with_pace=True):
         "tasks": tasks,
         "main_goal": main_goal,
         "streak": int(progress.get("streak") or 0),
+        "best_streak": _best_streak(user_id),
+        "struggling": _struggling_pending(user_id, habits),
         "mood_hint": _short(get_proactive_topic(user_id), 160),
         "minutes_since_chat": minutes_since_chat,
         "language": get_language(user_id),
         "style": get_ai_style(user_id),
-        "pace": pace_history(user_id, now_local) if with_pace else {"days": 0, "avg_by_now": 0.0, "avg_total": 0.0},
+        "pace": pace_history(user_id, now_local) if with_pace else {"days": 0, "avg_by_now": 0.0, "avg_total": 0.0, "yesterday": 0, "active_7": 0},
     }
     return fill_counts(state)
 
@@ -242,6 +272,8 @@ def pick_scenario(state, slot, chat_day=False):
             return ("all_done", "всё выполнено, чатовый день") if chat_day else (None, "всё выполнено, не чатовый день")
         if done == 0:
             return "zero_done_evening", "вечер, ничего не выполнено"
+        if chat_day and state.get("struggling"):
+            return "struggling", "привычка не получается, чатовый день"
         return ("one_left", "остался один пункт") if left == 1 else ("evening_left", "вечер, осталось несколько пунктов")
     # 'app': человек сам зашёл в чат — отвечаем на то, что происходит сейчас
     if state["hour"] < 12:
@@ -266,6 +298,21 @@ SCENARIO_GUIDE = {
     "all_done": "Всё на сегодня выполнено. Похвали конкретно и задай ОДИН открытый вопрос для рефлексии: что было самым интересным сегодня, что получилось лучше всего или чем планирует заняться вечером.",
     "free_chat": "Дел на сегодня нет. Задай ОДИН нешаблонный открытый вопрос про цели, энергию или планы (не «как дела»).",
     "morning": "Сейчас утро: вопросов НЕ задавай. Коротко отреагируй на уже сделанное (если есть) и спокойно назови, что стоит в плане дальше.",
+    "struggling": "Одна привычка не получается несколько дней подряд (название и число дней — в контексте). Без упрёка: скажи, что чаще дело в размере задачи, а не в лени, и задай ОДИН конкретный вопрос — сколько минут для человека точно реально или что мешает. Можно предложить уменьшить планку.",
+}
+
+# Эталонные сообщения. Первые три — от владельца проекта (как должно звучать); остальные в том же тоне. В промпт идут как
+# ориентир стиля («не копируй слова»), в лаборатории админки показываются рядом с тем, что написал Адам. {name} — имя из состояния.
+REFERENCE_EXAMPLES = {
+    "zero_done": "{name}, смотрю на твой дашборд — уже середина дня, а галочек пока нет. День выдался сумасшедшим или просто нет сил? Давай попробуем закрыть хотя бы самую лёгкую задачу на сегодня.",
+    "one_left": "Вижу отличный прогресс! Две привычки уже в копилке. Осталось только «Чтение 15 минут». Найдёшь на это время до сна, или сегодня ставим на паузу?",
+    "all_done": "Идеальный день, все привычки закрыты! Закинул тебе в статистику отличный результат. Раз уж мы всё успели, расскажи, что сегодня вообще было классного помимо рутины?",
+    "behind": "Две из шести — для тебя это медленнее обычного. Что сегодня отъедает время? Возьми «Зарядку»: пять минут, и ритм вернётся.",
+    "zero_done_evening": "Вечер, а список пока пустой — но день ещё твой. Серия в 12 дней держится даже от одной отметки: давай «Чтение», хотя бы на десять минут?",
+    "evening_left": "Сегодня закрыто 2 из 5, остался вечер. Выбери одно дело — хоть «Английский» — и закрой его до сна. Что сейчас проще всего?",
+    "free_chat": "На сегодня ничего не запланировано — редкая свобода. Над чем хочется поработать на этой неделе, без оглядки на список дел?",
+    "morning": "Утро, а «Зарядка» уже отмечена — отличный старт. Дальше по плану «Чтение», остальное сложится по ходу.",
+    "struggling": "«Чтение» не получается уже четвёртый день из пяти — это чаще про размер задачи, чем про лень. Сколько минут для тебя точно реально?",
 }
 
 
@@ -315,11 +362,22 @@ def build_checkin_prompt(state, scenario, opener, recent_messages=()):
     pace = state.get("pace") or {}
     if pace.get("days", 0) >= PACE_MIN_DAYS:
         lines.append(f"Обычно к этому времени человек закрывает около {pace['avg_by_now']:.1f} привычки из {pace['avg_total']:.1f} за день")
+    # История дней — по факту, без оценок; в сообщение идёт не больше ОДНОГО такого факта и только если он помогает сценарию.
+    if pace.get("days", 0) >= PACE_MIN_DAYS:
+        lines.append(f"Вчера закрыто привычек: {pace.get('yesterday', 0)}; дней с отметками за последнюю неделю: {pace.get('active_7', 0)} из 7")
+    best = int(state.get("best_streak") or 0)
+    if 0 < best - state["streak"] <= 3 and state["streak"] > 0:
+        lines.append(f"До личного рекорда серии ({best} дн.) осталось {best - state['streak']} дн.")
+    if state.get("struggling"):
+        lines.append(f"Привычка «{state['struggling']['title']}» не выполнена {state['struggling']['missed']} из последних 5 дней")
     if state.get("mood_hint"):
         lines.append(f"Недавняя тема из разговора (мягко учти, не цитируй): {state['mood_hint']}")
     lines.append("")
     lines.append("Сценарий: " + SCENARIO_GUIDE[scenario])
     lines.append("Подача: " + OPENER_GUIDE[opener])
+    example = REFERENCE_EXAMPLES.get(scenario)
+    if example:
+        lines.append("Ориентир по тону, длине и структуре (это ПРИМЕР: не копируй из него слова, имя и названия дел): «" + example.format(name="<имя>") + "»")
     if recent_messages:
         lines.append("")
         lines.append("Недавно ты уже писал (не повторяй формулировки):")
@@ -337,6 +395,7 @@ FALLBACKS = {
         "день уже в разгаре, а список ещё нетронут. Возьми самое простое — «{p1}» — и считай, что разогнался.",
         "тихо сегодня 🙂 Может, начнём с малого? «{p1}» займёт пару минут.",
         "пока пусто, и это нормально. Один маленький шаг — «{p1}» — и день пойдёт.",
+        "смотрю на список — уже середина дня, а галочек пока нет. День сумасшедший или нет сил? Закроем хотя бы «{p1}».",
     ),
     "zero_done_evening": (
         "вечер, а отметок пока нет — день не потерян. {streak_line}Хватит одного маленького шага: «{p1}».",
@@ -352,6 +411,7 @@ FALLBACKS = {
         "остался последний шаг — «{p1}». Сделай его, и день закрыт 🙌",
         "{done} из {total} уже позади, остался один рывок: «{p1}».",
         "почти финиш: всего «{p1}» отделяет от полностью закрытого дня.",
+        "{done} из {total} уже в копилке, осталось только «{p1}». Найдёшь на это время до сна?",
     ),
     "evening_left": (
         "вечер, закрыто {done} из {total}. Начать проще всего с «{p1}» — что мешает сделать это сейчас?",
@@ -362,6 +422,12 @@ FALLBACKS = {
         "все дела на сегодня закрыты — {total} из {total}! Что из сегодняшнего получилось лучше всего?",
         "полный комплект: {total} из {total}. Чем займёшься вечером, когда всё сделано?",
         "сегодня всё выполнено, красиво! Какой момент дня запомнился больше всего?",
+        "идеальный день — {total} из {total}! Расскажи, что сегодня было классного помимо рутины?",
+    ),
+    "struggling": (
+        "«{p1}» не получается уже несколько дней подряд — чаще дело в размере задачи, а не в лени. Сколько минут для тебя точно реально?",
+        "заметил, что «{p1}» который день не складывается. Давай уменьшим планку — на сколько минут согласен?",
+        "«{p1}» ускользает {missed} дня из 5 — это сигнал, что задача великовата. Какой кусочек точно по силам сегодня?",
     ),
     "free_chat": (
         "сегодня в списке пусто, и это хороший повод выбрать главное. Над чем хочется поработать на этой неделе?",
@@ -405,8 +471,11 @@ def fallback_text(state, scenario, user_id=None, day_iso=None):
     # «Начни с самого лёгкого» — это привычка (задача, особенно главная, обычно тяжелее); для остальных сценариев — первое по списку.
     easy = (state.get("pending_habits") or state.get("pending_tasks") or [""])[0]
     p1 = easy if scenario in ("zero_done", "zero_done_evening", "behind", "evening_left") else pending[0]
+    if scenario == "struggling" and state.get("struggling"):
+        p1 = state["struggling"]["title"]
     body = rng.choice(pool).format(
         p1=p1, done=state["done"], total=state["total"], left=state["left"],
+        missed=(state.get("struggling") or {}).get("missed", 4),
         count_phrase=_count_phrase(state["total"]), left_phrase=_count_phrase(state["left"]),
         streak_line=f"Серия {streak} {streak_unit} держится, и её сохранит даже одна отметка. " if streak > 0 else "",
     ).replace("  ", " ").strip()
@@ -587,21 +656,23 @@ def checkin_stats(days=7):
 
 # ------------------------------------------------------------------ демо для «Лаборатории» админки
 
-def _lab_state(first_name, hour, minute, habits, tasks, streak=5, pace=None, gender="m", mood_hint="", style="neutral"):
+def _lab_state(first_name, hour, minute, habits, tasks, streak=5, pace=None, gender="m", mood_hint="", style="neutral", struggling=None):
     state = {
         "user_id": 0, "first_name": first_name, "gender": gender, "hour": hour, "minute": minute,
         "time": f"{hour:02d}:{minute:02d}", "part": part_of_day(hour), "weekday": 2,
         "habits": [{"title": t, "done": d} for t, d in habits],
         "tasks": [{"title": t, "done": d, "main": m} for t, d, m in tasks],
-        "main_goal": next((t for t, _d, m in tasks if m), ""), "streak": streak, "mood_hint": mood_hint,
+        "main_goal": next((t for t, _d, m in tasks if m), ""), "streak": streak, "best_streak": streak,
+        "struggling": struggling, "mood_hint": mood_hint,
         "minutes_since_chat": None, "language": "ru", "style": style,
-        "pace": pace or {"days": 9, "avg_by_now": 2.4, "avg_total": 4.2},
+        "pace": pace or {"days": 9, "avg_by_now": 2.4, "avg_total": 4.2, "yesterday": 4, "active_7": 6},
     }
     return fill_counts(state)
 
 
 _LAB_HABITS = [("Зарядка", False), ("Чтение 20 минут", False), ("Холодный душ", False), ("Английский", False)]
 _LAB_TASKS = [("Отправить предложение клиенту", False, True), ("Созвон с командой", False, False)]
+_OWNER_HABITS = [("Зарядка", False), ("Чтение 15 минут", False), ("Холодный душ", False)]
 
 
 def lab_scenarios():
@@ -626,6 +697,16 @@ def lab_scenarios():
                     _lab_state("Александр", 9, 10, done(_LAB_HABITS, 1), _LAB_TASKS)),
         "tired": ("Вчера писал про усталость (15:20)", "day",
                   _lab_state("Алексей", 15, 20, _LAB_HABITS, [], mood_hint="вчера жаловался на усталость и мало сна")),
+        "struggling": ("Привычка не получается 4 дня из 5 (20:30)", "evening",
+                       _lab_state("Анна", 20, 30, [("Зарядка", True), ("Чтение 20 минут", False), ("Холодный душ", True), ("Английский", False)], [],
+                                  gender="f", struggling={"title": "Чтение 20 минут", "missed": 4})),
+        # три примера владельца проекта: время и счёт — как в его описании
+        "owner_a": ("Пример А: дневной провал (14:45, 0/3)", "day",
+                    _lab_state("Александр", 14, 45, _OWNER_HABITS, [])),
+        "owner_b": ("Пример Б: почти у цели (19:20, 2/3)", "evening",
+                    _lab_state("Александр", 19, 20, [("Зарядка", True), ("Холодный душ", True), ("Чтение 15 минут", False)], [])),
+        "owner_v": ("Пример В: рефлексия (20:15, 3/3)", "evening",
+                    _lab_state("Александр", 20, 15, [("Зарядка", True), ("Холодный душ", True), ("Чтение 15 минут", True)], [])),
     }
 
 
@@ -635,5 +716,5 @@ def lab_state_summary(state):
         "time": state["time"], "done": state["done"], "total": state["total"], "streak": state["streak"],
         "pending": state["pending"][:6], "habits": f'{state["habits_done"]}/{state["habits_total"]}',
         "tasks": f'{state["tasks_done"]}/{state["tasks_total"]}', "mood_hint": state.get("mood_hint") or "",
-        "pace": state.get("pace"),
+        "pace": state.get("pace"), "struggling": state.get("struggling"),
     }

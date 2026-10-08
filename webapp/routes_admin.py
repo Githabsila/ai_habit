@@ -210,9 +210,10 @@ async def _adam_preview(admin_id, body):
         text, source = adam_ck.fallback_text(state, scenario, admin_id, f"{day_iso}:{datetime.now().microsecond}"), "fallback"
     else:
         text, source = await compose_message(state, scenario, admin_id, day_iso)
+    reference = adam_ck.REFERENCE_EXAMPLES.get(scenario, "").format(name=state.get("first_name") or "друг")
     return {
         "title": title, "scenario": scenario, "reason": reason, "decisions": decisions, "state": adam_ck.lab_state_summary(state),
-        "text": text, "source": source, "prompt": prompt,
+        "text": text, "source": source, "prompt": prompt, "reference": reference,
     }
 
 

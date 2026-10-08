@@ -789,11 +789,14 @@ textarea.field{resize:vertical;min-height:88px}
       var bubble = r.text
         ? '<div style="background:rgba(124,92,252,.14);border:1px solid rgba(124,92,252,.35);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.45;margin:6px 0">' + escapeHtml(r.text) + '</div>'
         : '<div class="empty-note">Сейчас Адам бы ничего не написал: ' + escapeHtml(r.reason || '') + '</div>';
+      var reference = r.reference
+        ? '<div class="empty-note" style="padding:4px 0 8px;line-height:1.45">📌 Эталон: ' + escapeHtml(r.reference) + '</div>'
+        : '';
       out.innerHTML =
         '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(r.title) + '</b>' +
           '<small>сценарий: ' + escapeHtml(r.scenario || '—') + ' · ' + escapeHtml(r.reason || '') + ' · текст: ' + (r.source === 'llm' ? 'от модели' : r.source === 'fallback' ? 'запасной (без модели)' : '—') + '</small></div></div>' +
         '<div class="empty-note" style="padding:6px 0;line-height:1.5">' + facts + '</div>' + decisions + bubble +
-        (r.text ? '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
+        reference + (r.text ? '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
           '<button class="btn" id="adamAgain">🔄 Ещё вариант</button>' +
           '<button class="btn" id="adamFallback">🧯 Запасной текст</button>' +
           '<button class="btn btn-accent" id="adamSend">📲 Отправить мне</button>' +

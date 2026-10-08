@@ -595,3 +595,131 @@ def test_wiring_job_label_flag_seed_and_admin_card():
     admin = (ROOT / "webapp" / "static" / "admin_panel.html").read_text(encoding="utf-8")
     assert 'id="adamLabBox"' in admin and "/api/admin/lab/adam/preview" in admin and "/api/admin/lab/adam/send" in admin
     assert admin.index("Тесты и нововведения") < admin.index("Адам пишет первым") < admin.index("Рейтинг пар (тест)")
+
+
+# --- примеры владельца проекта и история дней ------------------------------------------------------------------
+
+OWNER_EXAMPLES = {
+    "owner_a": ("zero_done", "Александр, смотрю на твой дашборд — уже середина дня, а галочек пока нет. День выдался сумасшедшим или просто нет сил? Давай попробуем закрыть хотя бы самую лёгкую задачу на сегодня."),
+    "owner_b": ("one_left", "Вижу отличный прогресс! Две привычки уже в копилке. Осталось только «Чтение 15 минут». Найдёшь на это время до сна, или сегодня ставим на паузу?"),
+    "owner_v": ("all_done", "Идеальный день, все привычки закрыты! Закинул тебе в статистику отличный результат. Раз уж мы всё успели, расскажи, что сегодня вообще было классного помимо рутины?"),
+}
+
+
+def test_the_owners_three_examples_are_lab_scenarios_with_the_same_time_and_score():
+    labs = ac.lab_scenarios()
+    for key, (scenario, example) in OWNER_EXAMPLES.items():
+        _title, slot, state = labs[key]
+        assert ac.pick_scenario(state, slot, chat_day=True)[0] == scenario, key
+        assert ac.is_acceptable(ac.clean_text(example), scenario), f"эталон {key} проходит нашу же проверку текста"
+        assert ac.REFERENCE_EXAMPLES[scenario].format(name="Александр") == example, "эталон в коде — слово в слово текст владельца"
+    a, b, v = (labs[k][2] for k in ("owner_a", "owner_b", "owner_v"))
+    assert (a["time"], a["done"], a["total"]) == ("14:45", 0, 3)
+    assert (b["time"], b["done"], b["total"], b["pending"]) == ("19:20", 2, 3, ["Чтение 15 минут"])
+    assert (v["time"], v["done"], v["total"]) == ("20:15", 3, 3)
+
+
+def test_every_scenario_has_a_reference_example_that_goes_into_the_prompt_without_the_name():
+    extras = {"morning_progress", "morning_done", "morning_empty"}
+    assert set(ac.REFERENCE_EXAMPLES) == set(ac.SCENARIOS) == set(ac.SCENARIO_GUIDE) == set(ac.FALLBACKS) - extras
+    for scenario, text in ac.REFERENCE_EXAMPLES.items():
+        assert ac.is_acceptable(text.format(name="Александр"), scenario), scenario
+    _t, _slot, state = ac.lab_scenarios()["owner_a"]
+    prompt = ac.build_checkin_prompt(state, "zero_done", "no_greeting")
+    assert "Ориентир по тону" in prompt and "<имя>, смотрю на твой дашборд" in prompt
+    assert "Александр, смотрю" not in prompt and "не копируй" in prompt, "имя из примера в промпт не попадает"
+
+
+def test_pace_history_reports_yesterday_and_the_active_days_of_the_week(uid):
+    _user(uid)
+    rows = _habits(uid, ["А", "Б", "В"])
+    _events(uid, [r["id"] for r in rows], hours=(9, 10, 11), days=[1, 2, 4])
+    pace = ac.pace_history(uid, _local(15, 0))
+    assert (pace["days"], pace["yesterday"], pace["active_7"]) == (3, 3, 3)
+    other = uid + 1
+    _user(other)
+    rows = _habits(other, ["А"])
+    _events(other, [rows[0]["id"]], hours=(9,), days=[3])
+    assert ac.pace_history(other, _local(15, 0))["yesterday"] == 0
+
+
+def test_the_prompt_gets_history_facts_only_when_they_exist(uid):
+    _user(uid)
+    rows = _habits(uid, ["Зарядка", "Чтение"])
+    _events(uid, [r["id"] for r in rows], hours=(9, 10))
+    conn = connect(); conn.execute("UPDATE users SET streak=19, best_streak=21 WHERE telegram_id=?", (uid,)); conn.commit(); conn.close()
+    prompt = ac.build_checkin_prompt(ac.build_checkin_state(uid, _local(20, 0)), "zero_done_evening", "no_greeting")
+    assert "Вчера закрыто привычек: 2; дней с отметками за последнюю неделю: 5 из 7" in prompt
+    assert "До личного рекорда серии (21 дн.) осталось 2 дн." in prompt
+    assert "Серия: 19 дн. подряд (под угрозой" in prompt
+
+    fresh = uid + 1
+    _user(fresh)
+    _habits(fresh, ["Зарядка"])
+    plain = ac.build_checkin_prompt(ac.build_checkin_state(fresh, _local(20, 0)), "zero_done_evening", "no_greeting")
+    assert "Вчера закрыто" not in plain and "рекорда" not in plain and "не выполнена" not in plain.replace("Главная", "")
+
+
+def _miss_logs(uid_, habit_id, title, missed=4):
+    conn = connect()
+    for back in range(1, missed + 1):
+        conn.execute("INSERT INTO habit_logs(user_id, habit_id, habit_title, day, completed, skipped) VALUES (?,?,?, date('now', ?), 0, 0)",
+                     (uid_, habit_id, title, f"-{back} days"))
+    conn.commit()
+    conn.close()
+
+
+def test_a_habit_that_keeps_failing_gets_its_own_scenario_on_chat_days(uid):
+    _user(uid)
+    rows = _habits(uid, ["Зарядка", "Чтение"], done=1)
+    _miss_logs(uid, rows[1]["id"], "Чтение")
+    state = ac.build_checkin_state(uid, _local(20, 30))
+    assert state["struggling"] == {"title": "Чтение", "missed": 4}
+    assert ac.pick_scenario(state, "evening", chat_day=True)[0] == "struggling"
+    assert ac.pick_scenario(state, "evening", chat_day=False)[0] == "one_left", "в обычный день — как раньше"
+    prompt = ac.build_checkin_prompt(state, "struggling", "no_greeting")
+    assert "Привычка «Чтение» не выполнена 4 из последних 5 дней" in prompt and ac.SCENARIO_GUIDE["struggling"] in prompt
+    for day in range(1, 12):
+        text = ac.fallback_text(state, "struggling", uid, f"2026-10-{day:02d}")
+        assert "Чтение" in text and ac.is_acceptable(text, "struggling"), text
+    assert ac.pick_scenario(dict(state, done=0, habits_done=0, left=2), "evening", chat_day=True)[0] == "zero_done_evening", "сначала защита серии"
+    complete_habit(rows[1]["id"])
+    assert ac.build_checkin_state(uid, _local(20, 30))["struggling"] is None, "сделал сегодня — повода нет"
+
+
+async def test_adam_yields_to_the_reminders_that_bring_a_person_back_into_the_streak(uid, flag_on, monkeypatch):
+    from db.streak import local_today
+    _generate_returns(monkeypatch, "Один маленький шаг — «Зарядка».")
+    bot = FakeBot()
+    away = uid
+    _ready_user(away)
+    conn = connect()
+    conn.execute("INSERT OR REPLACE INTO streak_days(user_id, day, status, streak_after) VALUES (?,?, 'completed', 5)", (away, str(local_today(away) - timedelta(days=3))))
+    conn.commit(); conn.close()
+    assert "возвращают в серию" in await adam_proactive.process_user(bot, away, "s", _due(away, "day"))
+
+    active = uid + 1
+    _ready_user(active)
+    conn = connect()
+    conn.execute("INSERT OR REPLACE INTO streak_days(user_id, day, status, streak_after) VALUES (?,?, 'completed', 5)", (active, str(local_today(active) - timedelta(days=1))))
+    conn.commit(); conn.close()
+    assert (await adam_proactive.process_user(bot, active, "s", _due(active, "day"))).startswith("sent"), "вчера всё было — пропуска нет, Адам пишет"
+
+
+def test_system_prompt_allows_one_history_fact_and_treats_examples_as_style_only():
+    from multi_agent import ADAM_CHECKIN_SYSTEM
+    assert "ОДИН факт" in ADAM_CHECKIN_SYSTEM and "без запугивания потерей серии" in ADAM_CHECKIN_SYSTEM
+    assert "Ориентир по тону" in ADAM_CHECKIN_SYSTEM and "не копируй" in ADAM_CHECKIN_SYSTEM
+
+
+async def test_lab_shows_the_owners_reference_next_to_what_adam_wrote(client, uid, monkeypatch):
+    import webapp.routes_admin as ra
+    _user(uid)
+    monkeypatch.setattr(ra, "ADMIN_IDS", {uid})
+    _generate_returns(monkeypatch, "Тихо сегодня — всё в порядке? Начни с «Зарядки».")
+    headers = {"Authorization": f"tma {sign_init_data(uid)}"}
+    data = await (await client.post("/api/admin/lab/adam/preview", json={"scenario": "owner_a"}, headers=headers)).json()
+    assert data["reference"].startswith("Александр, смотрю на твой дашборд") and data["scenario"] == "zero_done"
+    assert "Ориентир по тону" in data["prompt"]
+    admin = (ROOT / "webapp" / "static" / "admin_panel.html").read_text(encoding="utf-8")
+    assert "📌 Эталон: " in admin and "r.reference" in admin
