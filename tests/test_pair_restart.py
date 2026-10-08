@@ -280,7 +280,7 @@ def test_today_status_glows_only_while_it_is_the_users_turn():
     assert '"🔥 Оба сегодня", tone: "ok"' in summary and '"✓ Ты в деле", tone: "ok"' in summary
     assert 'q.waiting_for === "me"' in summary and 'q.waiting_for === "partner"' in summary
     assert '"🎁 Сундук ждёт", tone: "glow"' in summary
-    glow = CSS[CSS.index(".pair-chip--glow::after"):][:300]
+    glow = CSS[CSS.index("\n.pair-chip--glow::after{"):][:300]            # само правило — в начале строки (в списке паузы при прокрутке селектор не первый)
     assert "animation:pairChipGlow" in glow
     frames = CSS[CSS.index("@keyframes pairChipGlow"):][:140]
     assert "transform" in frames and "filter" not in frames

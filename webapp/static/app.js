@@ -153,9 +153,37 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) _lastFrameTime = performance.now();
   });
+  // Жалоба: после повышения уровня прокрутка вверх «фризит». Чтобы увидеть это в цифрах, кадры дольше 48 мс в первые 30 с
+  // после праздничного экрана пишем отдельным типом lvl_long_frame (админка → perf-events). В счётчик «слабого устройства»
+  // (performance-lite) они НЕ входят и не расходуют лимит обычных событий.
+  const LVL_FRAME_THRESHOLD_MS = 48;
+  let _lvlFramesSent = 0;
+  function reportLevelUpFrame(gap, scrolling) {
+    if (_lvlFramesSent >= 10) return;
+    _lvlFramesSent += 1;
+    try {
+      const initDataRaw = (tg && tg.initData) || (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || "";
+      fetch("/api/perf/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "tma " + initDataRaw },
+        body: JSON.stringify({
+          event_type: "lvl_long_frame",
+          duration_ms: Math.round(gap),
+          tab: document.querySelector(".tab-panel:not([hidden])")?.dataset.tab || null,
+          path: location.pathname,
+          is_scrolling: !!scrolling,
+          device_info: JSON.stringify({ ua: (navigator.userAgent || "").slice(0, 200), mem: navigator.deviceMemory || null, cores: navigator.hardwareConcurrency || null }),
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch (_) {}
+  }
   function frameWatcher(now) {
     const gap = now - _lastFrameTime;
     _lastFrameTime = now;
+    if (gap > LVL_FRAME_THRESHOLD_MS && gap <= LONG_FRAME_THRESHOLD_MS && !document.hidden && now - (window.__adamLevelUpAt || -1e9) < 30000) {
+      reportLevelUpFrame(gap, document.querySelector("header.player-card")?.classList.contains("is-scrolling") || document.documentElement.classList.contains("adam-scrolling"));
+    }
     if (gap > LONG_FRAME_THRESHOLD_MS && !document.hidden) {
       const scrolling =
         document.querySelector(".tab-bar")?.classList.contains("is-scrolling") ||
@@ -2239,8 +2267,22 @@
     unlockBackgroundScroll();
     if (!spotlight) return;
     spotlight.classList.remove('show');
-    setTimeout(() => { if (!spotlight.classList.contains('show')) spotlight.hidden = true; }, 340);
+    setTimeout(() => {
+      if (!spotlight.classList.contains('show')) spotlight.hidden = true;
+      releaseStaleScrollLock();
+    }, 340);
   }
+
+  // Подсказка закрыта, а body так и остался position:fixed (отложенный показ прожектора мог отработать после закрытия):
+  // страница «залипает», а каждое такое переключение — полный пересчёт раскладки и отрисовки. Снимаем, если ни подсказки,
+  // ни прожектора на экране нет.
+  function releaseStaleScrollLock() {
+    const hint = document.getElementById('productOnboardingHint');
+    const spot = document.getElementById('onboardingSpotlight');
+    if ((hint && !hint.hidden) || (spot && !spot.hidden)) return;
+    unlockBackgroundScroll();
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) releaseStaleScrollLock(); });
 
   // Пока подсказка открыта, цель может уехать (скролл, поворот экрана) —
   // держим прожектор точно на ней. rAF-throttled, почти бесплатно, когда
@@ -3402,10 +3444,11 @@
     // Force the browser to animate the level number only when its value changes.
     const levelValue = u.level || 1;
     const previousLevel = levelEl?.dataset.level;
+    const levelChanged = previousLevel !== undefined && previousLevel !== String(levelValue);
     if (levelEl) {
       levelEl.dataset.level = String(levelValue);
       levelEl.textContent = levelValue;
-      if (previousLevel !== undefined && previousLevel !== String(levelValue)) {
+      if (levelChanged) {
         badge?.classList.remove("is-changing");
         void badge?.offsetWidth;
         badge?.classList.add("is-changing");
@@ -3414,9 +3457,18 @@
     }
 
     if (xpBarFill) {
-      requestAnimationFrame(() => {
+      if (levelChanged) {
+        // Повышение уровня: полоса перескакивает на новое значение сразу. Сверху идёт праздничный экран, а долгая
+        // анимация «сброса» из почти полной шкалы в ноль на слабом телефоне только съедала кадры.
+        xpBarFill.style.transition = "none";
         xpBarFill.style.width = xpIntoLevel + "%";
-      });
+        void xpBarFill.offsetWidth;
+        xpBarFill.style.transition = "";
+      } else {
+        requestAnimationFrame(() => {
+          xpBarFill.style.width = xpIntoLevel + "%";
+        });
+      }
     }
 
     if (ringFill) {
@@ -3430,7 +3482,7 @@
       // двигаем все вместе, чтобы свечение не отставало от дуги.
       const ringParts = [ringFill, ...document.querySelectorAll(".level-ring__glow")];
 
-      if (!initialized) {
+      if (!initialized || levelChanged) {
         ringParts.forEach((part) => {
           part.style.transition = "none";
           part.style.strokeDashoffset = String(offset);
@@ -4732,7 +4784,9 @@ function applyActionPatch(result) {
     renderHeroWidget();
     announceHeroGrowth(previousHero, result.hero);
   }
-  stabilizeFirstPaint();
+  // «Пинок» перерисовки — только заменённой строке привычки и дням серии (а не всему списку).
+  const changedRow = habitPatched && result.habit ? document.querySelector(`.habit-item[data-id="${result.habit.id}"]`) : null;
+  stabilizeFirstPaint([changedRow, "streakDays"].filter(Boolean), { lists: false });
   scheduleAdamNudge();
 }
 
@@ -4744,7 +4798,7 @@ function applyPlanPatch(result) {
   state.daily_plan = result.daily_plan;
   renderPlan();
   renderTodayFocus();
-  stabilizeFirstPaint();
+  stabilizeFirstPaint(["planList"], { lists: false });
   scheduleAdamNudge();
 }
 
@@ -5861,7 +5915,7 @@ function initPlanActions() {
   let levelUpTimer = null;
 
   function burstCoins() {
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 6; i++) {
       const el = document.createElement("div");
       el.className = "coin-burst";
       el.textContent = "🪙";
@@ -5903,7 +5957,9 @@ function initPlanActions() {
     }
 
     overlay.hidden = false;
+    void overlay.offsetWidth;                 // оверлей теперь display:none, пока скрыт: без пересчёта плавное появление не сыграет
     overlay.classList.add("show");
+    window.__adamLevelUpAt = performance.now();
     burstCoins();
     haptic("success");
 
@@ -5937,7 +5993,7 @@ function initPlanActions() {
 // Магазин/Достижения/Рейтинг/Календарь рисуются лениво, при первом
 // открытии вкладки — их не было смысла держать в фиксированном списке
 // критичных элементов, они просто ещё не существуют до первого рендера).
-function stabilizeFirstPaint(extraTargets) {
+function stabilizeFirstPaint(extraTargets, { lists = true } = {}) {
     // Раньше бралась только Главная (hardcoded 'section[data-tab="home"]') —
     // но эта функция теперь вызывается и при остановке скролла (см.
     // initScrollPerfGuard), когда открыта может быть ЛЮБАЯ вкладка. Берём
@@ -5968,11 +6024,14 @@ function stabilizeFirstPaint(extraTargets) {
         el.style.visibility = "visible";
         el.style.contain = "layout style";
     });
-    const dynamic = [
+    // lists:false — точечные обновления (отметка привычки, тумблер плана): «пинок» только тому, что реально перерисовали.
+    // Весь список привычек (до ~20 МБ видеопамяти на время двух кадров) на каждый тап — это и есть всплеск памяти, после
+    // которого на телефоне пропадают куски экрана.
+    const dynamic = lists ? [
         document.getElementById("habitList"),
         document.getElementById("planList"),
         document.getElementById("streakDays"),
-    ].filter(Boolean);
+    ].filter(Boolean) : [];
     const extra = (Array.isArray(extraTargets) ? extraTargets : [])
         .map(x => (typeof x === "string" ? document.getElementById(x) : x))
         .filter(Boolean);

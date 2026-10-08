@@ -2378,7 +2378,7 @@ async def client_error_route(request):
 # приём, что и у /api/client-error выше: сама отправка телеметрии не
 # должна уметь уронить что-то ещё, поэтому любая проблема тихо
 # превращается в 204.
-_VALID_PERF_EVENT_TYPES = {"long_frame", "long_task"}
+_VALID_PERF_EVENT_TYPES = {"long_frame", "long_task", "lvl_long_frame"}
 
 
 @routes.post("/api/perf/report")

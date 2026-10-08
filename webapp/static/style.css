@@ -14317,6 +14317,65 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
   box-shadow:0 0 0 1.5px #0E0B14,0 0 6px rgba(239,68,68,.6);
 }
 
+/* ===== Диета для отрисовки (скрины 09.10: пустые квадраты на месте кнопок ✏️ и целых карточек привычек; фризы при
+   прокрутке вверх после повышения уровня). Измерено в живой странице: ничего нового не рисуем, убираем лишнее. ===== */
+
+/* 1) Оверлей «LEVEL UP» имеет атрибут hidden, но display:flex (выше) перебивал его: оверлей висел НА ВЕСЬ ЭКРАН невидимым с
+   самой загрузки, внутри него вечно крутились ✨, а после первого показа оставался отдельным слоем. Теперь скрыт по-настоящему. */
+.levelup-overlay[hidden]{display:none !important}
+
+/* 2) backface-visibility:hidden стоял на КАЖДОЙ кнопке и карточке (привычки, план, магазин, рейтинг, ячейки календаря).
+   Элемент с «невидимой изнанкой» браузер выносит в отдельный слой — десятки слоёв на экран; когда телефону не хватает
+   видеопамяти, часть слоёв остаётся пустой: плоские квадраты на месте ✏️ и строки привычек без текста (скрин).
+   Ничего не вращается в 3D — свойство было лишним. */
+button:not(:disabled),
+.tab-bar__item,
+.habit-item,
+.plan-card,
+.streak-widget,
+.shop-item,
+.achievement-item,
+.rating-item,
+.cal-cell,
+.today-focus__quests-btn,
+.freeze-buy-btn,
+.plan-icon-btn,
+.btn{
+  backface-visibility:visible;
+  -webkit-backface-visibility:visible;
+}
+/* Главная задача дня: translateZ(0) делал из неё отдельный слой со скруглённой маской (overflow+radius) — тот самый
+   «пустой прямоугольник плана». Нажатие/наведение по-прежнему двигают карточку (:hover ниже сильнее по специфичности). */
+.plan-item--main{transform:none}
+
+/* 3) Блик шапки: opacity:0 !important делает его невидимым, но анимация крутилась всё время — впустую. */
+.decor-settled .player-card::before{animation:none !important;display:none !important}
+
+/* 3б) Искры на карточке серии и фоновые частицы под «успокоением» декора (.decor-settled включён всегда) уже невидимы
+   (opacity:0 !important выше по файлу), но оставались отдельными слоями на паузе — убираем из отрисовки совсем. */
+.decor-settled .bg-particles,
+.decor-settled .streak-widget__spark{display:none !important}
+
+/* 4) Подсказка Адама/тура: затемнение было размытием (blur) на 4 полноэкранных слоях поверх живой страницы — самый дорогой
+   эффект, а она появляется сразу после отметки привычки (то есть вместе с повышением уровня). Остаётся затемнение. */
+.onboarding-spotlight__panel{
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+  background:rgba(8,6,16,.62);
+}
+
+/* 5) will-change навсегда на кольце уровня и XP-полосе: stroke-dashoffset и width композитор не анимирует, подсказка давала
+   только лишние слои, которые перерисовываются при каждом повышении уровня. */
+.xp-bar__fill,
+.player-card__ring-wrap .level-ring__fill{will-change:auto !important}
+
+/* 6) Пока идёт прокрутка (класс ставит app.js), бесконечные декоративные анимации на паузе: аврора шапки двигает три больших
+   пятна под скруглённой маской, и именно при возврате к шапке всё это конкурировало с самой прокруткой. */
+.adam-scrolling .player-card__aurora i,
+.adam-scrolling .streak-orbit,
+.adam-scrolling .streak-widget__flame-halo,
+.adam-scrolling .streak-widget__mini-flame,
+.adam-scrolling .pair-chip--glow::after{animation-play-state:paused !important}
+
 /* Звезда в «Главная задача дня» — рисованная SVG: текстовый символ «✦» сидел в квадрате чуть
    левее и ниже центра (у глифа несимметричные поля шрифта). Квадрат 24px, звезда по центру. */
 .plan-label-icon svg{display:block;width:12px;height:12px;pointer-events:none}
