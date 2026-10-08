@@ -219,36 +219,50 @@ async def test_no_invite_if_reminders_are_off(uid, monkeypatch):
 
 # --- Mini App --------------------------------------------------------------------------------
 
-def test_active_card_compares_two_numbers_in_the_same_unit():
-    """«7 дней до конца» рядом с «8 очков ещё» — разные единицы: непонятно, хватит ли дней. Теперь обе
-    плашки в очках: сколько нужно набрать и сколько ещё можно набрать до конца."""
-    body = APP_JS[APP_JS.index("function pairQuestBodyHtml("):][:4200]
-    assert '<div class="pair-facts">' in body and "нужно набрать" in body and "можно набрать до конца" in body
-    assert "до конца задания" not in body and "ещё набрать вместе" not in body
-    assert "вместе нужно ещё" not in body, "старая фраза «Осталось 7 дней, вместе нужно ещё 9» путала"
-    assert "из ${q.goal} очков" in body and "pairPointsWord(q.mine)" in body
-    assert "pairPaceHint(q, pace)" in body
+def test_expanded_card_is_pictures_and_numbers_not_text():
+    """Развёрнутая карточка v2 (по просьбе: «люди не любят читать — потыкают кнопки»): сегментный бар с сундуком, три «точки»
+    на человека за сегодня, неделя столбцами; правила — только по тапу на ⓘ, обычного текста-абзаца в активном задании нет."""
+    body = APP_JS[APP_JS.index("function pairQuestBodyHtml("):][:3600]
+    for part in ("pairHeroHtml(q, boxKey)", "pairTodayHtml(q)", "pairWeekHtml(q)", "pairInfoHtml(q)", "pairActionsHtml(q)"):
+        assert part in body, part
+    assert "pair-hint" not in body and "pair-facts" not in body, "абзацы с объяснением убраны"
+    hero = APP_JS[APP_JS.index("function pairHeroHtml("):][:1500]
+    assert "pq-score" in hero and "pq-chest" in hero and "pairSegmentsHtml(q, boxKey)" in hero
+    assert "нужны оба" in hero and "быстрее" in hero and "не успеть" in hero
+    for gone in ("pairPointsWord", "pairPaceHint", "pairDaysGridHtml", "нужно набрать", "можно набрать до конца"):
+        assert gone not in APP_JS, gone
 
 
-def test_pace_counts_what_can_still_be_earned_and_names_the_reserve():
-    pace = APP_JS[APP_JS.index("function pairPace("):APP_JS.index("function pairDateLabel(")]
-    assert 'd.state === "future") can += 2' in pace
-    assert 'd.state === "today") can += (d.me ? 0 : 1) + (d.partner ? 0 : 1)' in pace
-    assert "cap: (q.days || []).length * 2" in pace
-    assert "Вдвоём за ${q.days.length}" in pace and "до ${pace.cap} очков, цель — ${q.goal}" in pace
-    assert "Запас сейчас" in pace and "Запаса не осталось" in pace and "Цель уже не набрать" in pace
+def test_week_columns_light_up_when_both_friends_were_in_action_and_info_is_on_demand():
+    week = APP_JS[APP_JS.index("function pairWeekHtml("):][:1200]
+    assert 'd.both ? " is-both"' in week and 'd.done ? " is-finish"' in week and "pq-n${d.me}" in week
+    info = APP_JS[APP_JS.index("function pairInfoHtml("):][:700]
+    assert 'if (!pairInfoOpen || q.rules !== "habits") return ""' in info
+    assert "привычек на двоих" in info and "в день с каждого" in info and "финиш — только вдвоём" in info
+    assert 'if (act === "info") { pairInfoOpen = !pairInfoOpen;' in APP_JS
+    assert ".pq-col.is-both" in CSS and ".pq-seg.is-new{animation:pqPop" in CSS
 
 
-def test_goal_is_always_shown_next_to_the_maximum_possible():
-    """Цель 10 из 14: 7 дней × 2 человека — максимум, 4 очка — запас на пропуски. Об этом говорим везде, где есть цель."""
-    assert "из ${2 * (pq.window_days || 7)} возможных" in APP_JS
-    assert "из ${2 * pairCandidates.window_days} возможных" in APP_JS
+def test_segments_flash_only_for_newly_filled_ones():
+    seg = APP_JS[APP_JS.index("function pairSegmentsHtml("):][:900]
+    assert "pairShownProgress[key] ?? q.progress" in seg, "первый показ — без вспышки"
+    assert 'on && i >= before ? " is-new"' in seg and "for (let i = 0; i < q.goal; i++)" in seg
+    for frames in ("pqPop", "pqTurn", "pqChest"):
+        block = CSS[CSS.index(f"@keyframes {frames}"):][:260]
+        assert "filter" not in block
+    pq_css = CSS[CSS.index(".pq-hero{"):CSS.index("@keyframes pqPop")]
+    assert "infinite" not in pq_css and "filter:" not in pq_css
 
 
-def test_pair_pushes_count_points_not_days():
+def test_goal_and_cap_are_named_in_the_empty_state_and_the_choose_sheet():
+    assert "<b>${pq.goal}</b> привычек на двоих · <b>${pq.window_days || 7}</b> дней" in APP_JS
+    assert "привычек на двоих за ${pairCandidates.window_days} дней · до ${pairCandidates.day_cap || 3} в день с каждого" in APP_JS
+
+
+def test_pair_pushes_count_habits_not_points_or_days():
     src = (ROOT / "streak_scheduler.py").read_text(encoding="utf-8")
-    assert "вы набрали {PAIR_GOAL} очков" in src and "вы набрали {PAIR_GOAL} дней" not in src
-    assert "plural_ru(left, 'очка', 'очков', 'очков')" in src and "'дня' if left == 1" not in src
+    assert "вы закрыли {PAIR_GOAL} привычек на двоих" in src and "вы набрали {PAIR_GOAL}" not in src
+    assert "plural_ru(left, 'привычки', 'привычек', 'привычек')" in src and "'дня' if left == 1" not in src
 
 
 def test_home_card_collapses_by_default_and_toggles_with_chevrons():
@@ -262,8 +276,9 @@ def test_home_card_collapses_by_default_and_toggles_with_chevrons():
 
 def test_today_status_glows_only_while_it_is_the_users_turn():
     summary = APP_JS[APP_JS.index("function pairSummary("):][:2600]
-    assert '"⚡ Твой ход", tone: "glow"' in summary
-    assert '"🔥 Оба сегодня", tone: "ok"' in summary and '"✓ Ты отметился", tone: "ok"' in summary
+    assert '"⚡ Твой ход", tone: "glow"' in summary and '"⏳ Ждём друга", tone: "muted"' in summary
+    assert '"🔥 Оба сегодня", tone: "ok"' in summary and '"✓ Ты в деле", tone: "ok"' in summary
+    assert 'q.waiting_for === "me"' in summary and 'q.waiting_for === "partner"' in summary
     assert '"🎁 Сундук ждёт", tone: "glow"' in summary
     glow = CSS[CSS.index(".pair-chip--glow::after"):][:300]
     assert "animation:pairChipGlow" in glow
@@ -282,7 +297,7 @@ def test_rating_tab_has_the_full_card_right_after_the_league_and_friends_go_befo
 def test_quests_modal_has_the_short_version_after_the_month_card():
     modal = INDEX[INDEX.index('id="dailyQuestsOverlay"'):][:3200]
     assert modal.index('id="monthCard"') < modal.index('id="pairQuestMini"')
-    assert "function renderPairMini()" in APP_JS and "renderPairMini();" in APP_JS[APP_JS.index("function renderPairCard()"):][:300]
+    assert "function renderPairMini()" in APP_JS and "renderPairMini();" in APP_JS[APP_JS.index("function renderPairCard()"):][:520]
 
 
 def test_choose_sheet_shows_recommended_friends_first():

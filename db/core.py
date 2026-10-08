@@ -1144,6 +1144,18 @@ def create_tables():
         invitee_claimed_day TEXT
     )
     """)
+    # rules: 'habits' — вклад считается закрытыми привычками (новые задания), 'days' — старые задания, где вклад — дни
+    # с отметкой; они доживают по прежним правилам (db/pair_quests.py).
+    cursor.execute("PRAGMA table_info(pair_quests)")
+    pair_quests_columns = {row[1] for row in cursor.fetchall()}
+    if "rules" not in pair_quests_columns:
+        cursor.execute("ALTER TABLE pair_quests ADD COLUMN rules TEXT DEFAULT 'days'")
+    # rules: 'habits' — вклад считается закрытыми привычками (новые задания), 'days' — старые задания, где вклад — дни
+    # с отметкой; они доживают по прежним правилам (db/pair_quests.py).
+    cursor.execute("PRAGMA table_info(pair_quests)")
+    pair_quests_columns = {row[1] for row in cursor.fetchall()}
+    if "rules" not in pair_quests_columns:
+        cursor.execute("ALTER TABLE pair_quests ADD COLUMN rules TEXT DEFAULT 'days'")
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_pair_quests_inviter ON pair_quests(inviter_id, status)"
     )

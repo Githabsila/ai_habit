@@ -6519,7 +6519,6 @@ function ruPlural(n, forms) {
 }
 
 function pairDaysWord(n) { return `${n} ${ruPlural(n, ["день", "дня", "дней"])}`; }
-function pairPointsWord(n) { return `${n} ${ruPlural(n, ["очко", "очка", "очков"])}`; }
 
 // Карточка на Главной по умолчанию свёрнута (узкая); развернул — остаётся развёрнутой, пока открыто приложение.
 let pairHomeExpanded = false;
@@ -6543,10 +6542,12 @@ function pairSummary(pq) {
         ? { ...base, chip: "🎁 Сундук ждёт", tone: "glow", days: "✓ выполнено" }
         : { ...base, chip: "✓ Выполнено", tone: "ok", days: "✓ выполнено" };
     }
-    const today = (q.days || []).find((d) => d.state === "today");
+    const today = q.today || { me: 0, partner: 0 };
     const days = `осталось ${q.days_left} дн.`;
-    if (!today || !today.me) return { ...base, chip: "⚡ Твой ход", tone: "glow", days };
-    if (!today.partner) return { ...base, chip: "✓ Ты отметился", tone: "ok", days };
+    if (q.waiting_for === "me") return { ...base, chip: "⚡ Твой ход", tone: "glow", days };
+    if (q.waiting_for === "partner") return { ...base, chip: "⏳ Ждём друга", tone: "muted", days };
+    if (!today.me) return { ...base, chip: "⚡ Твой ход", tone: "glow", days };
+    if (!today.partner) return { ...base, chip: "✓ Ты в деле", tone: "ok", days };
     return { ...base, chip: "🔥 Оба сегодня", tone: "ok", days };
   }
   const reward = `+${pq.reward.coins} ${ADAM_COIN_ICON} · 💎${pq.reward.diamonds}`;
@@ -6583,27 +6584,6 @@ function pairCollapsedHtml(pq) {
     </div>`;
 }
 
-// Темп задания: сколько очков нужно и сколько ещё можно набрать до конца. Сегодня — по одному очку за
-// каждого, кто ещё не отметился, каждый следующий день — по два (у каждого не больше одного в сутки).
-// Раньше рядом стояли «7 дней до конца» и «8 очков ещё набрать» — разные единицы, и непонятно,
-// хватит ли дней; теперь обе плашки в очках и сравниваются напрямую.
-function pairPace(q) {
-  const need = Math.max(0, q.goal - q.progress);
-  let can = 0;
-  for (const d of q.days || []) {
-    if (d.state === "future") can += 2;
-    else if (d.state === "today") can += (d.me ? 0 : 1) + (d.partner ? 0 : 1);
-  }
-  return { need, can, spare: can - need, cap: (q.days || []).length * 2 };
-}
-
-function pairPaceHint(q, pace) {
-  const rule = `Очко — день с отметкой привычки (не больше одного в сутки у каждого). Вдвоём за ${q.days.length} ${ruPlural(q.days.length, ["день", "дня", "дней"])} — до ${pace.cap} очков, цель — ${q.goal}.`;
-  if (pace.spare < 0) return `${rule} Цель уже не набрать.`;
-  if (pace.spare === 0) return `${rule} Запаса не осталось — отмечаться нужно обоим каждый день.`;
-  return `${rule} Запас сейчас — ${pace.spare} ${ruPlural(pace.spare, ["пропуск", "пропуска", "пропусков"])}: столько раз можно не отметиться, и цель всё равно будет в руках.`;
-}
-
 function pairDateLabel(day) {
   const d = new Date(`${day}T00:00:00`);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
@@ -6613,68 +6593,137 @@ function pairAvatarHtml(person, extra = "") {
   return `<span class="pair-avatar ${avatarFrameClass(person)} ${extra}">${avatarInner(person)}</span>`;
 }
 
-function pairDaysGridHtml(quest) {
-  const cells = (key) => quest.days.map((d) =>
-    `<i class="pair-dot${d[key] ? " is-done" : ""}${d.state === "today" ? " is-today" : ""}${d.state === "future" ? " is-future" : ""}"></i>`
-  ).join("");
-  const head = quest.days.map((d) => `<b class="${d.state === "today" ? "is-today" : ""}">${escapeHtml(d.weekday)}</b>`).join("");
+// ---- развёрнутая карточка: минимум текста, максимум картинок ----
+// Правила (db/pair_quests.py): цель — 20 закрытых привычек на двоих за 7 дней, с человека в день до 3, закрывается днём,
+// когда отметились оба. Экран показывает это без объяснений: сегментный бар с сундуком в конце, три «точки» на человека
+// за сегодня, неделя столбцами (золотой столбец — оба были в деле), подсказка «как это работает» — по тапу на ⓘ.
+let pairInfoOpen = false;
+const pairShownProgress = {};   // «карточка:задание» → сколько сегментов уже показано (новые вспыхивают)
+
+const PAIR_INFO_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v5.5M12 7.6v.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+
+function pairSegmentsHtml(q, boxKey) {
+  const key = `${boxKey}:${q.id}`;
+  const before = pairShownProgress[key] ?? q.progress;
+  pairShownProgress[key] = q.progress;
+  let html = "";
+  for (let i = 0; i < q.goal; i++) {
+    const on = i < q.progress;
+    html += `<i class="pq-seg${on ? " is-on" : ""}${on && i >= before ? " is-new" : ""}"></i>`;
+  }
+  return `<div class="pq-bar${q.phase === "completed" ? " is-done" : ""}" style="--pq-goal:${q.goal}">${html}</div>`;
+}
+
+function pairPipsHtml(count, cap, held = 0) {
+  let html = "";
+  for (let i = 0; i < cap; i++) {
+    const on = i < count;
+    html += `<i class="pq-pip${on ? " is-on" : ""}${on && i >= count - held ? " is-held" : ""}"></i>`;
+  }
+  return `<span class="pq-pips" aria-hidden="true">${html}</span>`;
+}
+
+function pairHeroHtml(q, boxKey) {
+  const chips = [];
+  if (q.phase === "active" && q.waiting_for) chips.push('<span class="pq-chip pq-chip--lock">🔒 нужны оба</span>');
+  if (q.phase === "active" && q.pace === "tight") chips.push('<span class="pq-chip pq-chip--tight">⚠️ быстрее</span>');
+  if (q.phase === "active" && q.pace === "lost") chips.push('<span class="pq-chip pq-chip--lost">😬 не успеть</span>');
+  const chest = `<span class="pq-chest${q.phase === "completed" ? " is-open" : (q.need > 0 && q.need <= 3 ? " is-near" : "")}" aria-hidden="true">🎁</span>`;
   return `
-    <div class="pair-days" style="--pair-days:${quest.days.length}">
-      <div class="pair-days__row pair-days__row--head"><span class="pair-days__who"></span>${head}</div>
-      <div class="pair-days__row"><span class="pair-days__who">Ты</span>${cells("me")}</div>
-      <div class="pair-days__row"><span class="pair-days__who">${escapeHtml(quest.partner.first_name)}</span>${cells("partner")}</div>
+    <div class="pq-hero">
+      <div class="pq-score"><b>${q.progress}</b><span>/${q.goal}</span></div>
+      <div class="pq-hero__right">${chips.join("")}${chest}</div>
+    </div>
+    ${pairSegmentsHtml(q, boxKey)}`;
+}
+
+function pairTodayHtml(q) {
+  const me = state?.user || {};
+  const t = q.today || { me: 0, partner: 0, held: 0 };
+  const holder = q.waiting_for === "partner" ? "me" : (q.waiting_for === "me" ? "partner" : null);
+  const myTurn = q.waiting_for === "me" || (q.waiting_for !== "partner" && !t.me && t.partner > 0);
+  const theirTurn = q.waiting_for === "partner" || (q.waiting_for !== "me" && !t.partner && t.me > 0);
+  return `
+    <div class="pq-today">
+      <div class="pq-person${myTurn ? " is-turn" : ""}">${pairAvatarHtml(me)}${pairPipsHtml(t.me, q.cap, holder === "me" ? t.held : 0)}<b>Ты</b></div>
+      <span class="pq-vs" aria-hidden="true">🤝</span>
+      <div class="pq-person${theirTurn ? " is-wait" : ""}">${pairAvatarHtml(q.partner)}${pairPipsHtml(t.partner, q.cap, holder === "partner" ? t.held : 0)}<b>${escapeHtml(q.partner.first_name)}</b></div>
     </div>`;
 }
 
-function pairQuestBodyHtml(pq, q) {
+function pairWeekHtml(q) {
   const me = state?.user || {};
-  const partner = q.partner;
-  const pct = Math.max(0, Math.min(100, Math.round(100 * q.progress / q.goal)));
-  const duo = `
-    <div class="pair-duo">
-      <div class="pair-person">${pairAvatarHtml(me)}<b>Ты</b><small>${pairPointsWord(q.mine)}</small></div>
-      <div class="pair-score"><b>${q.progress}</b><span>из ${q.goal} очков</span></div>
-      <div class="pair-person">${pairAvatarHtml(partner)}<b>${escapeHtml(partner.first_name)}</b><small>${pairPointsWord(q.partner_count)}</small></div>
-    </div>
-    <div class="pair-bar${q.phase === "completed" ? " is-done" : ""}"><i style="width:${pct}%"></i></div>`;
+  const cols = q.days.map((d) => `
+      <div class="pq-col${d.both ? " is-both" : ""}${d.state === "today" ? " is-today" : ""}${d.state === "future" ? " is-future" : ""}${d.done ? " is-finish" : ""}">
+        <b>${escapeHtml(d.weekday)}</b>
+        <i class="pq-cell pq-n${d.me}">${d.me || ""}</i>
+        <i class="pq-cell pq-n${d.partner}">${d.partner || ""}</i>
+      </div>`).join("");
+  return `
+    <div class="pq-week" style="--pq-days:${q.days.length}">
+      <div class="pq-who"><span></span>${pairAvatarHtml(me, "pair-avatar--xs")}${pairAvatarHtml(q.partner, "pair-avatar--xs")}</div>
+      ${cols}
+    </div>`;
+}
 
+function pairInfoHtml(q) {
+  if (!pairInfoOpen || q.rules !== "habits") return "";
+  return `
+    <div class="pq-info">
+      <div><span>🎯</span><b>${q.goal}</b> привычек на двоих · ${q.days.length} дн.</div>
+      <div><span>☝️</span>до <b>${q.cap}</b> в день с каждого</div>
+      <div><span>🤝</span>финиш — только вдвоём</div>
+    </div>`;
+}
+
+function pairActionsHtml(q) {
+  const partner = q.partner;
+  let nudge = "";
+  if (q.partner_state === "can_remind") {
+    nudge = `<button type="button" class="pq-nudge" data-pair-act="nudge" data-id="${partner.telegram_id}">👋 Напомнить</button>`;
+  } else if (q.partner_state === "reminded") {
+    nudge = `<span class="pq-nudge is-sent">✓ Напомнили</span>`;
+  }
+  const info = q.rules === "habits"
+    ? `<button type="button" class="pq-info-btn${pairInfoOpen ? " is-open" : ""}" data-pair-act="info" aria-label="Как это работает" aria-expanded="${pairInfoOpen}">${PAIR_INFO_ICON}</button>`
+    : "";
+  return `<div class="pq-actions">${nudge || "<span></span>"}${info}</div>`;
+}
+
+function pairQuestBodyHtml(pq, q, boxKey) {
   if (q.phase === "scheduled") {
     const when = q.starts_in <= 1 ? "завтра" : `через ${pairDaysWord(q.starts_in)}`;
-    return `${duo}
-      <div class="pair-hint">Задание стартует <b>${when}</b>. С первого дня отмечайте привычки — каждый день с отметкой даёт очко. Цель — ${q.goal} очков из ${2 * (pq.window_days || 7)} возможных: пару пропусков можно себе позволить.</div>
-      <button type="button" class="pair-btn pair-btn--ghost" data-pair-act="cancel" data-id="${q.id}" data-confirm="Выйти из парного задания?">Выйти из задания</button>`;
+    const me = state?.user || {};
+    return `
+      <div class="pq-start">
+        <div class="pq-start__duo">${pairAvatarHtml(me)}<span aria-hidden="true">🤝</span>${pairAvatarHtml(q.partner)}</div>
+        <div class="pq-start__when">🕒 Старт <b>${when}</b></div>
+      </div>
+      ${pairSegmentsHtml(q, boxKey)}
+      ${pairInfoHtml(q)}
+      <div class="pq-actions"><button type="button" class="pair-btn pair-btn--ghost pq-leave" data-pair-act="cancel" data-id="${q.id}" data-confirm="Выйти из парного задания?">Выйти</button>${q.rules === "habits" ? `<button type="button" class="pq-info-btn${pairInfoOpen ? " is-open" : ""}" data-pair-act="info" aria-label="Как это работает">${PAIR_INFO_ICON}</button>` : ""}</div>`;
   }
 
   if (q.phase === "completed") {
     if (q.claimable) {
-      return `${pairDaysGridHtml(q)}
-        <div class="pair-hint pair-hint--win">🏆 Цель набрана — вы справились! Сундук ждёт.</div>
-        <button type="button" class="pair-btn pair-btn--primary" data-pair-act="claim" data-id="${q.id}">
-          🎁 Открыть сундук · +${pq.reward.coins} ${ADAM_COIN_ICON} · 💎${pq.reward.diamonds}
+      return `
+        ${pairHeroHtml(q, boxKey)}
+        ${pairWeekHtml(q)}
+        <button type="button" class="pair-btn pair-btn--primary pq-claim" data-pair-act="claim" data-id="${q.id}">
+          🎁 Открыть · +${pq.reward.coins} ${ADAM_COIN_ICON} · 💎${pq.reward.diamonds}
         </button>`;
     }
-    const next = pq.choose_from_day ? ` Новое задание — с ${escapeHtml(pairDateLabel(pq.choose_from_day))}.` : "";
-    return `${duo}${pairDaysGridHtml(q)}
-      <div class="pair-hint">Награда получена ✓${next}</div>`;
+    const next = pq.choose_from_day ? `<div class="pq-next">🗓 Новое — с ${escapeHtml(pairDateLabel(pq.choose_from_day))}</div>` : "";
+    return `${pairHeroHtml(q, boxKey)}${pairWeekHtml(q)}<div class="pq-next">✓ Награда получена</div>${next}`;
   }
 
   // active
-  let nudge = "";
-  if (q.partner_state === "can_remind") {
-    nudge = `<button type="button" class="pair-btn pair-btn--ghost" data-pair-act="nudge" data-id="${partner.telegram_id}">👋 Напомнить напарнику</button>`;
-  } else if (q.partner_state === "reminded") {
-    nudge = `<div class="pair-tag pair-tag--sent">Напомнили ✓</div>`;
-  } else if (q.partner_state === "done") {
-    nudge = `<div class="pair-tag">✓ ${escapeHtml(partner.first_name)} уже отметил(а) день</div>`;
-  }
-  const pace = pairPace(q);
-  return `${duo}${pairDaysGridHtml(q)}
-    <div class="pair-facts">
-      <div class="pair-fact"><b>${pace.need}</b><span>${ruPlural(pace.need, ["очко", "очка", "очков"])} нужно набрать</span></div>
-      <div class="pair-fact"><b>${pace.can}</b><span>${ruPlural(pace.can, ["очко", "очка", "очков"])} можно набрать до конца</span></div>
-    </div>
-    <div class="pair-hint">${pairPaceHint(q, pace)}</div>
-    ${nudge}`;
+  return `
+    ${pairHeroHtml(q, boxKey)}
+    ${pairTodayHtml(q)}
+    ${pairWeekHtml(q)}
+    ${pairInfoHtml(q)}
+    ${pairActionsHtml(q)}`;
 }
 
 function pairInvitesHtml(pq) {
@@ -6690,6 +6739,7 @@ function pairInvitesHtml(pq) {
 }
 
 function renderPairCard() {
+  if (labMode?.payload) state.pair_quest = labMode.payload;      // демо: свежий bootstrap не должен затирать сценарий
   renderPairCardInto(document.getElementById("pairQuestCard"), true);
   renderPairCardInto(document.getElementById("pairQuestCardRating"), false);
   renderPairMini();
@@ -6711,23 +6761,31 @@ function renderPairCardInto(box, collapsible) {
   let badge = reward;
   let body = "";
   if (q) {
-    badge = q.phase === "scheduled" ? "скоро старт"
-      : q.phase === "completed" ? "✓ выполнено"
-      : `осталось ${pairDaysWord(q.days_left)}`;
-    body = pairQuestBodyHtml(pq, q);
+    badge = q.phase === "scheduled" ? "🕒 скоро"
+      : q.phase === "completed" ? "✓ готово"
+      : `⏳ ${q.days_left} дн.`;
+    body = pairQuestBodyHtml(pq, q, box.id || "pair");
   } else {
     if (pq.incoming.length) body += pairInvitesHtml(pq);
     if (pq.outgoing) {
       body += `
-        <div class="pair-hint">Приглашение отправлено — <b>${escapeHtml(pq.outgoing.to.first_name)}</b> ещё не ответил(а). Оно действует 3 дня.</div>
-        <button type="button" class="pair-btn pair-btn--ghost" data-pair-act="cancel" data-id="${pq.outgoing.id}">Отозвать приглашение</button>`;
+        <div class="pq-empty">
+          <div class="pq-empty__icons">${pairAvatarHtml(pq.outgoing.to)}<span aria-hidden="true">⏳</span></div>
+          <div class="pq-empty__line">Ждём <b>${escapeHtml(pq.outgoing.to.first_name)}</b></div>
+        </div>
+        <button type="button" class="pair-btn pair-btn--ghost" data-pair-act="cancel" data-id="${pq.outgoing.id}">Отозвать</button>`;
     } else if (pq.can_choose) {
-      const intro = pq.recent_fail
-        ? "В этот раз не вышло — бывает. Попробуйте снова!"
-        : `Позови друга и вместе за неделю наберите <b>${pq.goal} очков</b> из ${2 * (pq.window_days || 7)} возможных (очко — день с отметкой привычки): у каждого свой вклад, прогресс общий, пару пропусков можно себе позволить. Одному не вытянуть — нужны оба. За победу — сундук ${reward}.`;
+      const line = pq.needs_habit
+        ? "Сначала добавь привычку"
+        : (pq.recent_fail
+          ? "В этот раз не вышло — ещё раз?"
+          : `<b>${pq.goal}</b> привычек на двоих · <b>${pq.window_days || 7}</b> дней`);
       body += `
-        <div class="pair-hint">${pq.needs_habit ? "Сначала добавь привычку — без неё вклада в задание не будет." : intro}</div>
-        <button type="button" class="pair-btn pair-btn--primary" data-pair-act="choose"${pq.needs_habit ? " disabled" : ""}>🤝 ${pq.recent_fail ? "Выбрать нового союзника" : "Выбрать союзника"}</button>`;
+        <div class="pq-empty">
+          <div class="pq-empty__icons"><span aria-hidden="true">🤝</span><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span aria-hidden="true">🎁</span></div>
+          <div class="pq-empty__line">${line}</div>
+        </div>
+        <button type="button" class="pair-btn pair-btn--primary" data-pair-act="choose"${pq.needs_habit ? " disabled" : ""}>🤝 ${pq.recent_fail ? "Новый союзник" : "Выбрать союзника"}</button>`;
     }
   }
   const total = Number(pq.completed_total || 0);
@@ -6740,7 +6798,7 @@ function renderPairCardInto(box, collapsible) {
       <div class="pair-card__right"><div class="pair-card__badge">${badge}</div>${toggle}</div>
     </div>
     ${body}
-    ${total > 0 ? `<div class="pair-card__foot">Выполнено вместе: ${total}</div>` : ""}`;
+    ${total > 0 ? `<div class="pair-card__foot">🏆 ${total}</div>` : ""}`;
 }
 
 // Краткая версия в «Квестах дня» — после заданий месяца (как в Duolingo).
@@ -6762,7 +6820,7 @@ function renderPairMini() {
 
 // Принять свежее состояние и отметить сдвиги: прогресс, выполнение.
 function applyPairQuest(next) {
-  if (!state) return;
+  if (!state || labMode) return;
   const prev = state.pair_quest?.quest;
   state.pair_quest = next || null;
   const cur = next?.quest;
@@ -6771,7 +6829,7 @@ function applyPairQuest(next) {
       haptic("success");
       showToast("🏆 Парное задание выполнено — открой сундук на Главной", "praise", 4600);
     } else if (cur.phase === "active" && cur.progress > prev.progress) {
-      showToast(`🤝 Парное задание: ${cur.progress} из ${cur.goal}`, "success", 2600);
+      showToast(`🤝 ${cur.progress}/${cur.goal}`, "success", 2200);
     }
   }
   renderPairCard();
@@ -6807,7 +6865,7 @@ function renderPairSheet() {
   }
   if (sub) {
     const hasRecommended = friends.some((f) => f.recommended);
-    sub.textContent = `Вместе за ${pairCandidates.window_days} дней нужно набрать ${pairCandidates.goal} очков из ${2 * pairCandidates.window_days} возможных (очко — день с отметкой привычки) — одному не вытянуть. Задание стартует завтра.${hasRecommended ? " Начни с самых активных друзей — так задание точно получится, и необязательно брать того же союзника." : ""}`;
+    sub.textContent = `🎯 ${pairCandidates.goal} привычек на двоих за ${pairCandidates.window_days} дней · до ${pairCandidates.day_cap || 3} в день с каждого · старт завтра.${hasRecommended ? " ⭐ — самые активные друзья." : ""}`;
   }
   if (confirmBtn) confirmBtn.disabled = pairBusy || !picked;
   if (!friends.length) {
@@ -6901,6 +6959,8 @@ async function confirmPairInvite() {
 async function pairCardAction(button) {
   const act = button.dataset.pairAct;
   const id = Number(button.dataset.id);
+  if (act === "info") { pairInfoOpen = !pairInfoOpen; haptic("light"); renderPairCard(); return; }
+  if (labMode) { haptic("light"); showToast("🧪 Демо: действие не выполняется", "success", 1800); return; }
   if (act === "choose") { await openPairSheet(); return; }
   if (act === "nudge") { await pairNudge(id, button); return; }
   if (pairBusy) return;
@@ -6954,6 +7014,65 @@ async function pairNudge(friendId, button) {
   }
 }
 
+// ===================== ЛАБОРАТОРИЯ (только админ) =====================
+// Админка → «Тесты и нововведения» открывает приложение с ?lab=<сценарий>. Сервер (db/pair_lab.py) отдаёт демо-состояние в
+// формате обычного pair_quest; рисует его настоящий код карточки. Ничего не сохраняется: действия на карточке заблокированы,
+// пока включена лаборатория (labMode). Новые экраны сюда добавляются сценариями — до пользователей они доходят проверенными.
+let labMode = null;   // { list, index, payload }
+
+async function initLabMode() {
+  const key = new URLSearchParams(location.search).get("lab");
+  if (!key || !state?.user?.is_admin) return;
+  try {
+    const list = (await api("/api/admin/lab/scenarios")).scenarios || [];
+    if (!list.length) return;
+    labMode = { list, index: Math.max(0, list.findIndex((item) => item.key === key)), payload: null };
+    await applyLabScenario();
+  } catch (err) {
+    console.error("initLabMode failed:", err);
+    labMode = null;
+  }
+}
+
+async function applyLabScenario() {
+  const item = labMode.list[labMode.index];
+  const data = await api(`/api/admin/lab/pair/${encodeURIComponent(item.key)}`);
+  labMode.payload = data.pair_quest;
+  pairHomeExpanded = true;
+  pairInfoOpen = false;
+  renderPairCard();
+  renderLabBar();
+  document.getElementById("pairQuestCard")?.scrollIntoView({ block: "center" });
+}
+
+const LAB_ICON_PREV = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const LAB_ICON_NEXT = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function renderLabBar() {
+  let bar = document.getElementById("labBar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "labBar";
+    bar.className = "lab-bar";
+    document.body.appendChild(bar);
+    bar.addEventListener("click", async (e) => {
+      const act = e.target.closest("[data-lab]")?.dataset.lab;
+      if (!act || !labMode) return;
+      haptic("light");
+      if (act === "exit") { window.location.href = "/admin"; return; }
+      const n = labMode.list.length;
+      labMode.index = (labMode.index + (act === "next" ? 1 : n - 1)) % n;
+      try { await applyLabScenario(); } catch (err) { showToast(friendlyError(err), "error"); }
+    });
+  }
+  const item = labMode.list[labMode.index];
+  bar.innerHTML = `
+    <button type="button" class="lab-bar__btn" data-lab="prev" aria-label="Назад">${LAB_ICON_PREV}</button>
+    <div class="lab-bar__text"><b>🧪 Демо ${labMode.index + 1}/${labMode.list.length}</b><small>${escapeHtml(item.title)}</small></div>
+    <button type="button" class="lab-bar__btn" data-lab="next" aria-label="Дальше">${LAB_ICON_NEXT}</button>
+    <button type="button" class="lab-bar__btn lab-bar__btn--exit" data-lab="exit" aria-label="Выйти из лаборатории">${ICON_X}</button>`;
+}
+
 function togglePairHome() {
   pairHomeExpanded = !pairHomeExpanded;
   haptic("light");
@@ -6978,7 +7097,7 @@ function initPairQuest() {
   const mini = document.getElementById("pairQuestMini");
   const openFromMini = async () => {
     const pq = state?.pair_quest;
-    if (!pq) return;
+    if (!pq || labMode) return;
     document.getElementById("dailyQuestsClose")?.click();
     if (pq.quest || pq.incoming.length || pq.outgoing) {
       document.querySelector('.tab-bar__item[data-tab="rating"]')?.click();
@@ -9148,6 +9267,7 @@ async function boot() {
             initLanguageActions();
             initGenderActions();
             postBootstrapInitDone = true;
+            initLabMode();
         }
         if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {
           document.getElementById("archetypeQuizBtn").textContent = state.user.archetype;

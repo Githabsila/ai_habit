@@ -1,12 +1,19 @@
 """
 Парное задание — как «Задания с друзьями» в Duolingo.
 
-Двое друзей (db/friends.py) берутся за общую цель на неделю и тянут её вместе:
-вклад каждого — дни, когда он отметил привычку (запись дня в streak_days
-со статусом completed, ровно как в ударном режиме). Цель — PAIR_GOAL дней на
-двоих из окна в PAIR_WINDOW_DAYS: у каждого вклад не больше семи, значит
-в одиночку задание не вытянуть — нужны оба. Награда — сундук каждому
-(Adam Coin и алмаз) плюс очки в «Заданиях месяца».
+Двое друзей (db/friends.py) берутся за общую цель на неделю и тянут её вместе.
+
+Правила (rules='habits', с 08.10): вклад — ЗАКРЫТЫЕ ПРИВЫЧКИ. Цель — PAIR_GOAL (20) привычек на двоих
+за окно в PAIR_WINDOW_DAYS (7) дней, как в Duolingo: один может закрыть больше, другой меньше, важна сумма.
+  • с человека в день засчитывается не больше PAIR_DAY_CAP (3) привычек — активные друзья набирают
+    6 в день на двоих, и задание закрывается за 4–7 дней в зависимости от темпа;
+  • цель закрывается только днём, когда ОБА закрыли хотя бы по одной привычке: если до цели осталось, скажем, 3,
+    а друг утром закрыл три, зачтутся две, а последняя ждёт напарника; если осталось 2 — зачтётся одна, и т.д.
+    (compute_progress — единственное место, где это записано);
+  • закрыли цель раньше срока — задание выполнено сразу, сверх цели ничего не копится.
+Старые задания (rules='days') доживают по прежним правилам: вклад — дни с отметкой (streak_days), цель 10.
+
+Награда — сундук каждому (Adam Coin и алмаз) плюс очки в «Заданиях месяца».
 
 Как проходит задание:
   1. Один зовёт друга (send_pair_invite) — выбирает союзника из друзей, которые
@@ -25,20 +32,26 @@
 перестали быть друзьями, заблокировали друг друга или кого-то забанили —
 задание отменяется само.
 
-Прогресс нигде не хранится отдельным счётчиком — он считается по streak_days
-в момент запроса (_settle), поэтому отметка привычки где угодно (Mini App,
-бот, «восстановление» дня) засчитывается без дополнительных хуков. Хуки в
-маршрутах нужны только для мгновенных пушей (on_day_completed).
+Прогресс нигде не хранится отдельным счётчиком — он считается в момент запроса (_settle) по журналу выполнений
+привычек (habit_completion_events; у старых заданий — по streak_days), поэтому отметка привычки где угодно (Mini App,
+бот) засчитывается без дополнительных хуков. Хуки в маршрутах нужны только для мгновенных пушей (on_day_completed).
 """
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from .core import connect
 
-# Сколько дней на двоих нужно набрать. Окно — 7 дней, вклад каждого не больше 7:
-# 10 значит «каждому хотя бы 3 дня, если напарник не пропустил ни одного».
-PAIR_GOAL = 10
+# Сколько привычек на двоих нужно закрыть за окно (новые задания). Максимум в день — 3 + 3, значит быстрее всего
+# задание закрывается за 4 дня (6 + 6 + 6 + 2), а неактивной паре нужно ~3 привычки в день на двоих.
+PAIR_GOAL = 20
 PAIR_WINDOW_DAYS = 7
+# Больше стольки привычек в день с одного человека в парном задании не засчитывается.
+PAIR_DAY_CAP = 3
+# Старые задания, начатые до 08.10: вклад — дни с отметкой, цель 10.
+LEGACY_PAIR_GOAL = 10
+RULES_HABITS = "habits"
+RULES_DAYS = "days"
 # Награда каждому участнику; коины идут через add_xp, как и награды за обычные
 # задания (в уровень — да, подарить нельзя).
 PAIR_REWARD_COINS = 60
@@ -129,6 +142,92 @@ def _contribution_days(cursor, user_id, start, end):
     return {r["day"] for r in rows}
 
 
+def _rules(q):
+    keys = q.keys()
+    return RULES_HABITS if "rules" in keys and q["rules"] == RULES_HABITS else RULES_DAYS
+
+
+def _habit_counts(cursor, user_id, start, end):
+    """{день: сколько РАЗНЫХ привычек человек закрыл в этот день} в окне [start, end] (даты строками) — по журналу
+    выполнений, в локальных днях человека. Журнал только дописывается: удалённая привычка уже засчитанное не
+    стирает, а закрыть одну и ту же привычку дважды за день нельзя."""
+    tz = ZoneInfo(_timezone_of(user_id))
+    low = date.fromisoformat(start) - timedelta(days=1)
+    high = date.fromisoformat(end) + timedelta(days=2)
+    rows = cursor.execute(
+        "SELECT habit_id, completed_at FROM habit_completion_events WHERE user_id=? AND completed_at>=? AND completed_at<?",
+        (user_id, f"{low} 00:00:00", f"{high} 00:00:00"),
+    ).fetchall()
+    per_day = {}
+    for r in rows:
+        try:
+            moment = datetime.fromisoformat(str(r["completed_at"]).replace("T", " ")).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        local = str(moment.astimezone(tz).date())
+        if start <= local <= end:
+            per_day.setdefault(local, set()).add(r["habit_id"])
+    return {day: len(ids) for day, ids in per_day.items()}
+
+
+def _timezone_of(user_id):
+    from .streak import get_timezone
+    return get_timezone(user_id)
+
+
+def _window_days(start, end):
+    first, last = date.fromisoformat(start), date.fromisoformat(end)
+    return [str(first + timedelta(days=i)) for i in range((last - first).days + 1)]
+
+
+def compute_progress(rules, goal, days, a_counts, b_counts):
+    """Единственное место, где записаны правила подсчёта. days — даты окна по порядку (строки), a_counts / b_counts —
+    {день: сколько привычек} приглашающего и приглашённого (у старых заданий — 1 за день с отметкой).
+
+    {"total", "cap", "rows": [{"day", "a", "b"}] (a, b — уже с потолком на день), "done_day", "held_by_day"}.
+    total — засчитанные привычки (для habits не больше goal). Для habits: если за день набралась бы цель, а один из
+    двоих сегодня ещё ничего не закрыл, засчитывается goal-1 (цель ждёт напарника), «лишнее» — в held_by_day."""
+    cap = PAIR_DAY_CAP if rules == RULES_HABITS else 1
+    total = 0
+    done_day = None
+    held_by_day = {}
+    rows = []
+    for day in days:
+        a = min(int(a_counts.get(day, 0)), cap)
+        b = min(int(b_counts.get(day, 0)), cap)
+        rows.append({"day": day, "a": a, "b": b})
+        if done_day is not None:
+            continue                                   # цель уже набрана — дальше ничего не копится
+        gained = a + b
+        if rules != RULES_HABITS:                       # старые задания: просто сумма дней
+            total += gained
+            if total >= goal:
+                done_day = day
+            continue
+        if total + gained < goal:
+            total += gained
+        elif a >= 1 and b >= 1:
+            held_by_day.pop(day, None)
+            total, done_day = goal, day                  # в день завершения отметились оба
+        else:
+            held_by_day[day] = total + gained - (goal - 1)
+            total = goal - 1                              # последняя привычка ждёт напарника
+    return {"total": total, "cap": cap, "rows": rows, "done_day": done_day, "held_by_day": held_by_day}
+
+
+def _calc_for_quest(cursor, q):
+    """compute_progress по настоящим данным задания (нужны start_day / end_day)."""
+    rules = _rules(q)
+    start, end = q["start_day"], q["end_day"]
+    if rules == RULES_HABITS:
+        a_counts = _habit_counts(cursor, q["inviter_id"], start, end)
+        b_counts = _habit_counts(cursor, q["invitee_id"], start, end)
+    else:
+        a_counts = {d: 1 for d in _contribution_days(cursor, q["inviter_id"], start, end)}
+        b_counts = {d: 1 for d in _contribution_days(cursor, q["invitee_id"], start, end)}
+    return compute_progress(rules, int(q["goal"]), _window_days(start, end), a_counts, b_counts)
+
+
 def _finish(conn, quest_id, from_status, to_status):
     """Переводит задание в итоговый статус ровно один раз: True только тому,
     кто реально сменил статус (параллельный запрос получит False)."""
@@ -166,9 +265,7 @@ def _settle(quest_id):
             if not _compatible(q):
                 transition = "cancelled" if _finish(conn, quest_id, "active", "cancelled") else None
             else:
-                mine = _contribution_days(conn, q["inviter_id"], q["start_day"], q["end_day"])
-                theirs = _contribution_days(conn, q["invitee_id"], q["start_day"], q["end_day"])
-                if len(mine) + len(theirs) >= q["goal"]:
+                if _calc_for_quest(conn, q)["total"] >= q["goal"]:
                     transition = "completed" if _finish(conn, quest_id, "active", "completed") else None
                 else:
                     last_day = min(
@@ -233,6 +330,92 @@ def _claimed_by(q, user_id):
 # СОСТОЯНИЕ ДЛЯ ЭКРАНА
 # ---------------------------------------------------------------------------
 
+def _build_view(*, quest_id, status, goal, rules, start_day, end_day, viewer_is_inviter, partner, calc, today,
+                claimed, partner_state):
+    """Чистая функция (без БД): то, что получает карточка. Её же использует «Лаборатория» в админке для демо-состояний."""
+    start = date.fromisoformat(start_day)
+    end = date.fromisoformat(end_day)
+    phase = ("scheduled" if today < start else "active") if status == "active" else status
+    cap = calc["cap"]
+    days = []
+    for r in calc["rows"]:
+        d = date.fromisoformat(r["day"])
+        mine = r["a"] if viewer_is_inviter else r["b"]
+        theirs = r["b"] if viewer_is_inviter else r["a"]
+        days.append({
+            "day": r["day"],
+            "weekday": WEEKDAYS[d.weekday()],
+            "label": d.day,
+            "state": "past" if d < today else ("today" if d == today else "future"),
+            "me": mine,                       # сколько привычек засчитано (старые задания: 1 за день с отметкой)
+            "partner": theirs,
+            "both": mine >= 1 and theirs >= 1,
+            "done": r["day"] == calc["done_day"],
+        })
+    today_row = next((x for x in days if x["state"] == "today"), None)
+    me_today = today_row["me"] if today_row else 0
+    partner_today = today_row["partner"] if today_row else 0
+    total = calc["total"]
+    need = max(0, goal - total)
+    # Сколько ещё можно набрать до конца: сегодня — остаток потолка у каждого, дальше — полный потолок у обоих.
+    can = 0
+    if phase == "active":
+        for x in days:
+            if x["state"] == "future":
+                can += 2 * cap
+            elif x["state"] == "today":
+                can += max(0, cap - x["me"]) + max(0, cap - x["partner"])
+    elif phase == "scheduled":
+        can = len(days) * 2 * cap
+    if phase == "completed" or need == 0:
+        pace = "done"
+    elif phase == "scheduled":
+        pace = "ok"
+    elif can < need:
+        pace = "lost"
+    elif can < need * 1.5:
+        pace = "tight"
+    else:
+        pace = "ok"
+    # Последняя привычка ждёт напарника: кто сегодня ещё ничего не закрыл.
+    waiting_for = None
+    if rules == RULES_HABITS and phase == "active" and need == 1:
+        if me_today >= 1 and partner_today == 0:
+            waiting_for = "partner"
+        elif partner_today >= 1 and me_today == 0:
+            waiting_for = "me"
+        else:
+            waiting_for = "both"
+    return {
+        "id": quest_id,
+        "phase": phase,
+        "partner": partner,
+        "goal": goal,
+        "rules": rules,
+        "cap": cap,
+        "progress": min(total, goal) if status == "completed" else total,
+        "mine": sum(x["me"] for x in days),
+        "partner_count": sum(x["partner"] for x in days),
+        "start_day": start_day,
+        "end_day": end_day,
+        "starts_in": max(0, (start - today).days) if phase == "scheduled" else 0,
+        "days_left": max(0, (end - today).days + 1) if phase == "active" else 0,
+        "days": days,
+        "today": {"me": me_today, "partner": partner_today, "held": calc["held_by_day"].get(str(today), 0)},
+        "need": need,
+        "can": can,
+        "pace": pace,
+        "waiting_for": waiting_for,
+        "joint_days": sum(1 for x in days if x["both"]),
+        "claimable": status == "completed" and not claimed,
+        "claimed": claimed,
+        # Можно ли подтолкнуть напарника — решает то же правило, что и у кнопки
+        # «Напомнить» в друзьях (db/friends.py).
+        "partner_state": partner_state,
+        "can_cancel": phase == "scheduled",
+    }
+
+
 def _quest_view(cursor, q, user_id, today):
     from .friends import get_friend_state
 
@@ -241,50 +424,21 @@ def _quest_view(cursor, q, user_id, today):
     if partner_row is None:
         return None
     start = date.fromisoformat(q["start_day"])
-    end = date.fromisoformat(q["end_day"])
-    my_days = _contribution_days(cursor, user_id, q["start_day"], q["end_day"])
-    partner_days = _contribution_days(cursor, partner_id, q["start_day"], q["end_day"])
-    total = len(my_days) + len(partner_days)
-
-    status = q["status"]
-    if status == "active":
-        phase = "scheduled" if today < start else "active"
-    else:
-        phase = status                                   # completed / expired
-
-    days = []
-    for i in range((end - start).days + 1):
-        d = start + timedelta(days=i)
-        key = str(d)
-        days.append({
-            "day": key,
-            "weekday": WEEKDAYS[d.weekday()],
-            "label": d.day,
-            "state": "past" if d < today else ("today" if d == today else "future"),
-            "me": key in my_days,
-            "partner": key in partner_days,
-        })
-    claimed = _claimed_by(q, user_id) is not None
-    return {
-        "id": q["id"],
-        "phase": phase,
-        "partner": _person(partner_row),
-        "goal": int(q["goal"]),
-        "progress": min(total, int(q["goal"])) if status == "completed" else total,
-        "mine": len(my_days),
-        "partner_count": len(partner_days),
-        "start_day": q["start_day"],
-        "end_day": q["end_day"],
-        "starts_in": max(0, (start - today).days) if phase == "scheduled" else 0,
-        "days_left": max(0, (end - today).days + 1) if phase == "active" else 0,
-        "days": days,
-        "claimable": status == "completed" and not claimed,
-        "claimed": claimed,
-        # Можно ли подтолкнуть напарника — решает то же правило, что и у кнопки
-        # «Напомнить» в друзьях (db/friends.py).
-        "partner_state": get_friend_state(user_id, partner_id, partner_row) if phase == "active" else None,
-        "can_cancel": phase == "scheduled",
-    }
+    active_now = q["status"] == "active" and today >= start
+    return _build_view(
+        quest_id=q["id"],
+        status=q["status"],
+        goal=int(q["goal"]),
+        rules=_rules(q),
+        start_day=q["start_day"],
+        end_day=q["end_day"],
+        viewer_is_inviter=q["inviter_id"] == user_id,
+        partner=_person(partner_row),
+        calc=_calc_for_quest(cursor, q),
+        today=today,
+        claimed=_claimed_by(q, user_id) is not None,
+        partner_state=get_friend_state(user_id, partner_id, partner_row) if active_now else None,
+    )
 
 
 def _last_partner_id(conn, user_id):
@@ -313,6 +467,7 @@ def _state_template(needs_habit):
     return {
         "goal": PAIR_GOAL,
         "window_days": PAIR_WINDOW_DAYS,
+        "day_cap": PAIR_DAY_CAP,
         "reward": {"coins": PAIR_REWARD_COINS, "diamonds": PAIR_REWARD_DIAMONDS},
         "month_points": PAIR_MONTH_POINTS,
         "needs_habit": needs_habit,
@@ -481,6 +636,7 @@ def list_pair_candidates(user_id):
         "needs_habit": state["needs_habit"],
         "goal": PAIR_GOAL,
         "window_days": PAIR_WINDOW_DAYS,
+        "day_cap": PAIR_DAY_CAP,
         "active_window": ACTIVE_FRIEND_DAYS,
     }
 
@@ -539,8 +695,8 @@ def send_pair_invite(user_id, friend_id):
             return {"error": "partner_inactive"}
         try:
             cursor = conn.execute(
-                "INSERT INTO pair_quests(inviter_id, invitee_id, status, goal) VALUES (?, ?, 'pending', ?)",
-                (user_id, friend_id, PAIR_GOAL),
+                "INSERT INTO pair_quests(inviter_id, invitee_id, status, goal, rules) VALUES (?, ?, 'pending', ?, ?)",
+                (user_id, friend_id, PAIR_GOAL, RULES_HABITS),
             )
         except sqlite3.IntegrityError:
             # Частичный UNIQUE по inviter_id: параллельный запрос успел раньше.
@@ -746,22 +902,28 @@ def on_day_completed(user_id):
             "type": "completed", "quest_id": q["id"],
             "users": [q["inviter_id"], q["invitee_id"]],
         }]
-    if q["status"] != "active" or has_completed_today(partner_id):
+    if q["status"] != "active":
         return []
     conn = connect()
     try:
         partner_row = _user_row(conn, partner_id)
-        mine = _contribution_days(conn, q["inviter_id"], q["start_day"], q["end_day"])
-        theirs = _contribution_days(conn, q["invitee_id"], q["start_day"], q["end_day"])
+        calc = _calc_for_quest(conn, q)
     finally:
         conn.close()
+    today_row = next((r for r in calc["rows"] if r["day"] == today_s), None)
+    partner_today = 0 if today_row is None else (today_row["b"] if q["inviter_id"] == user_id else today_row["a"])
+    if partner_today >= 1:
+        return []                             # напарник сегодня уже в деле — подталкивать не нужно
     if partner_row is None or not _can_receive_nudge(partner_row):
         return []
     if not _claim_ping(q["id"], partner_id, _local_day(partner_id)):
         return []
+    goal = int(q["goal"])
     return [{
         "type": "partner_done", "to": partner_id, "from": user_id, "quest_id": q["id"],
-        "progress": len(mine) + len(theirs), "goal": int(q["goal"]),
+        "progress": calc["total"], "goal": goal,
+        # до сундука осталась одна привычка и она за напарником
+        "final": _rules(q) == RULES_HABITS and calc["total"] == goal - 1,
     }]
 
 
@@ -794,32 +956,32 @@ def get_active_pair_quests():
 
 
 def last_day_reminder(quest, user_id):
-    """Текст-подсказка для вечернего пуша в ПОСЛЕДНИЙ день окна или None.
-    Шлём, только если цель ещё не набрана, человек сегодня не отмечался и цель
-    ещё достижима (хватит сегодняшних отметок тех, кто их не сделал)."""
-    from .friends import has_completed_today
-
+    """Подсказка для вечернего пуша в ПОСЛЕДНИЙ день окна или None. Шлём, только если цель ещё не набрана, у человека
+    сегодня ещё есть что закрыть до потолка и цель достижима (хватит остатка потолков сегодняшнего дня у обоих)."""
     today = _local_today(user_id)
     if str(today) != quest["end_day"]:
-        return None
-    if has_completed_today(user_id):
         return None
     partner_id = _partner_of(quest, user_id)
     conn = connect()
     try:
         partner_row = _user_row(conn, partner_id)
-        mine = _contribution_days(conn, quest["inviter_id"], quest["start_day"], quest["end_day"])
-        theirs = _contribution_days(conn, quest["invitee_id"], quest["start_day"], quest["end_day"])
+        calc = _calc_for_quest(conn, quest)
     finally:
         conn.close()
     if partner_row is None:
         return None
-    left = int(quest["goal"]) - len(mine) - len(theirs)
+    today_row = next((r for r in calc["rows"] if r["day"] == str(today)), None)
+    if today_row is None:
+        return None
+    mine, theirs = (today_row["a"], today_row["b"]) if quest["inviter_id"] == user_id else (today_row["b"], today_row["a"])
+    cap = calc["cap"]
+    if mine >= cap:
+        return None                            # свой максимум на сегодня уже закрыт
+    left = int(quest["goal"]) - calc["total"]
     if left <= 0:
         return None
-    still_to_come = 1 + (0 if has_completed_today(partner_id) else 1)
-    if left > still_to_come:
-        return None
+    if left > (cap - mine) + (cap - theirs):
+        return None                            # до цели сегодня уже не дотянуть
     return {"left": left, "partner_name": _person(partner_row)["first_name"]}
 
 
@@ -849,3 +1011,59 @@ def users_due_for_new_quest():
             continue                              # сундук ещё не открыт — сначала он
         due.append({"user_id": uid, "quest_id": q["id"], "end_day": q["end_day"], "status": q["status"]})
     return due
+
+
+# ---------------------------------------------------------------------------
+# РЕЙТИНГ ПАР (сырая тестовая версия — только админка)
+# ---------------------------------------------------------------------------
+
+def get_pair_rating(limit=30):
+    """Сырой рейтинг пар для админ-панели (пока без показа пользователям — смотрим, как он выглядит): по паре
+    (неупорядоченные два человека) — сколько заданий выполнено, самое быстрое завершение в днях, сколько привычек
+    засчитано за всё время и как идёт текущее задание. Порядок: больше выполненных → быстрее → больше привычек."""
+    conn = connect()
+    try:
+        quests = conn.execute(
+            "SELECT * FROM pair_quests WHERE accepted_at IS NOT NULL AND start_day IS NOT NULL "
+            "AND status IN ('active','completed','expired') ORDER BY id"
+        ).fetchall()
+        pairs = {}
+        for q in quests:
+            key = tuple(sorted((q["inviter_id"], q["invitee_id"])))
+            entry = pairs.setdefault(key, {
+                "users": key, "completed": 0, "fastest_days": None, "habits_total": 0, "current": None, "quests": 0,
+            })
+            calc = _calc_for_quest(conn, q)
+            goal = int(q["goal"])
+            entry["quests"] += 1
+            entry["habits_total"] += min(calc["total"], goal)
+            if q["status"] == "completed":
+                entry["completed"] += 1
+                if calc["done_day"]:
+                    days = [r["day"] for r in calc["rows"]].index(calc["done_day"]) + 1
+                    if entry["fastest_days"] is None or days < entry["fastest_days"]:
+                        entry["fastest_days"] = days
+            elif q["status"] == "active":
+                entry["current"] = {"progress": calc["total"], "goal": goal, "rules": _rules(q), "end_day": q["end_day"]}
+        names = {}
+        for key in pairs:
+            for uid in key:
+                if uid not in names:
+                    row = _user_row(conn, uid)
+                    names[uid] = _person(row) if row is not None else {"telegram_id": uid, "first_name": str(uid), "handle": None}
+    finally:
+        conn.close()
+    ranked = sorted(
+        pairs.values(),
+        key=lambda e: (-e["completed"], e["fastest_days"] if e["fastest_days"] is not None else 99, -e["habits_total"]),
+    )
+    result = []
+    for rank, entry in enumerate(ranked[:int(limit)], start=1):
+        entry = dict(entry)
+        entry["rank"] = rank
+        entry["users"] = [
+            {"telegram_id": uid, "first_name": names[uid]["first_name"], "handle": names[uid].get("handle")}
+            for uid in entry["users"]
+        ]
+        result.append(entry)
+    return result

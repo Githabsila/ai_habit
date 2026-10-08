@@ -435,6 +435,20 @@ textarea.field{resize:vertical;min-height:88px}
         '<div class="btn-row">' +
           '<button class="btn btn-block" id="exportDbBtn">💾 Скачать дамп .db</button>' +
         '</div>' +
+      '</div>' +
+
+      '<div class="section-label">Лаборатория</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--teal">🧪</span>Тесты и нововведения</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Новые экраны на демо-данных — настоящая карточка и дизайн, но ничего не сохраняется и не отправляется. Внизу экрана — стрелки между состояниями.</div>' +
+        '<div id="labBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--gold">🏆</span>Рейтинг пар (тест)</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Сырая версия: сколько заданий выполнено, самое быстрое завершение и как идёт текущее. Пользователи этого пока не видят.</div>' +
+        '<div id="pairRatingBox"><div class="empty-note">Загружаю…</div></div>' +
       '</div>';
 
     document.getElementById('backBtn').addEventListener('click', function(){
@@ -452,6 +466,8 @@ textarea.field{resize:vertical;min-height:88px}
 
     loadPending();
     loadActiveUsers();
+    loadLab();
+    loadPairRating();
     loadChurnRisk();
     loadClientErrors();
     loadBroadcastSegments();
@@ -703,6 +719,41 @@ textarea.field{resize:vertical;min-height:88px}
         giveBadge(parseInt(btn.dataset.badge, 10), loadActiveUsers);
       });
     });
+  }
+
+  // «Тесты и нововведения»: каждое демо-состояние открывает приложение с ?lab=<ключ> (app.js::initLabMode).
+  async function loadLab(){
+    var box = document.getElementById('labBox');
+    if (!box) return;
+    try{
+      var items = (await api('/api/admin/lab/scenarios')).scenarios || [];
+      box.innerHTML = '<div class="btn-row" style="flex-direction:column;align-items:stretch;gap:6px">' +
+        items.map(function(s){
+          return '<a class="btn" style="text-align:left;text-decoration:none" href="/?lab=' + encodeURIComponent(s.key) + '">🤝 ' + escapeHtml(s.title) + '</a>';
+        }).join('') + '</div>';
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  async function loadPairRating(){
+    var box = document.getElementById('pairRatingBox');
+    if (!box) return;
+    try{
+      var pairs = (await api('/api/admin/pair-rating')).pairs || [];
+      if (!pairs.length){ box.innerHTML = '<div class="empty-note">Пар пока нет</div>'; return; }
+      box.innerHTML = pairs.map(function(p){
+        var names = p.users.map(function(u){ return escapeHtml(u.first_name || '—') + (u.handle ? ' <small>@' + escapeHtml(u.handle) + '</small>' : ''); }).join(' + ');
+        var now = p.current ? ' · сейчас ' + p.current.progress + '/' + p.current.goal : '';
+        var fast = p.fastest_days ? ' · быстрее всего ' + p.fastest_days + ' дн.' : '';
+        return '<div class="list-row">' +
+          '<div class="list-row-name"><b>#' + p.rank + ' ' + names + '</b>' +
+            '<small>✅ ' + p.completed + ' из ' + p.quests + fast + ' · привычек ' + p.habits_total + now + '</small></div>' +
+        '</div>';
+      }).join('');
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
   }
 
   async function loadActiveUsers(){

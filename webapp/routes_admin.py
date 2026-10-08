@@ -40,6 +40,8 @@ from db import (
 from db.core import DB_PATH
 from db.admin_gifts import grant_admin_badge
 from db.admin_support import find_users_for_admin, list_active_users_for_admin
+from db.pair_lab import build_scenario, lab_scenarios
+from db.pair_quests import get_pair_rating
 from admin_digest_scheduler import build_stats_report
 
 logger = logging.getLogger("webapp.routes_admin")
@@ -130,6 +132,31 @@ async def admin_approve_route(request):
     telegram_id = int(request.match_info["telegram_id"])
     set_access_status(telegram_id, "approved")
     return web.json_response({"ok": True})
+
+
+@routes.get("/api/admin/pair-rating")
+async def admin_pair_rating_route(request):
+    """Сырой рейтинг пар — пока только для админов (смотрим, как он выглядит, до показа пользователям)."""
+    await _authenticate_admin(request)
+    return web.json_response({"pairs": get_pair_rating()})
+
+
+@routes.get("/api/admin/lab/scenarios")
+async def admin_lab_scenarios_route(request):
+    """«Лаборатория»: список демо-состояний новых экранов (db/pair_lab.py)."""
+    await _authenticate_admin(request)
+    return web.json_response({"scenarios": lab_scenarios()})
+
+
+@routes.get("/api/admin/lab/pair/{key}")
+async def admin_lab_pair_route(request):
+    """Демо-состояние парного задания в формате обычного pair_quest — приложение открывает его с ?lab=<ключ>
+    настоящей карточкой, ничего не сохраняя."""
+    await _authenticate_admin(request)
+    payload = build_scenario(request.match_info["key"])
+    if payload is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response({"pair_quest": payload})
 
 
 @routes.get("/api/admin/users/search")

@@ -668,7 +668,7 @@ async def run_pair_quest_notifications(bot):
                     await _send_pair_push(
                         bot, uid,
                         f"🏆 Парное задание выполнено! Вместе с напарником (<b>{_display(get_user(other))}</b>) "
-                        f"вы набрали {PAIR_GOAL} очков — открой сундук в ADAM.",
+                        f"вы закрыли {PAIR_GOAL} привычек на двоих — открой сундук в ADAM.",
                     )
     except Exception:
         logger.exception("Ошибка засчёта парных заданий")
@@ -699,7 +699,7 @@ async def run_pair_quest_notifications(bot):
                 sent = await _send_pair_push(
                     bot, uid,
                     f"⏳ Последний день парного задания (напарник — <b>{_display(get_user(other))}</b>): "
-                    f"не хватает {left} {plural_ru(left, 'очка', 'очков', 'очков')}. Не подведи напарника — отметь привычку!",
+                    f"до сундука не хватает {left} {plural_ru(left, 'привычки', 'привычек', 'привычек')}. Не подведи напарника!",
                 )
                 if not sent:
                     release_notification(uid, day, "pairlast", scope)

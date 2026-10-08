@@ -629,10 +629,11 @@ async def _push_pair_event(app, actor_id, event):
             )
     elif event["type"] == "partner_done":
         name = html.escape(_display_name(get_user(event["from"])))
-        await _send_social_push(
-            app, event["to"],
-            f"🤝 <b>{name}</b> уже отметил(а) день — на двоих {event['progress']}/{event['goal']}. Твой ход! 🔥",
-        )
+        if event.get("final"):
+            text = f"🎁 <b>{name}</b> уже закрыл(а) свои — до сундука осталась одна привычка, и её закрываешь ты!"
+        else:
+            text = f"🤝 <b>{name}</b> уже в деле — на двоих {event['progress']}/{event['goal']} привычек. Твой ход! 🔥"
+        await _send_social_push(app, event["to"], text)
 
 
 def _pair_after_mark(app, telegram_id):

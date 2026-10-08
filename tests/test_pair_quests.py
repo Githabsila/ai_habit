@@ -24,6 +24,7 @@ from db import (
     PAIR_GOAL, PAIR_WINDOW_DAYS, PAIR_REWARD_COINS, PAIR_REWARD_DIAMONDS, PAIR_MONTH_POINTS,
 )
 from db.core import connect
+from db.pair_quests import LEGACY_PAIR_GOAL
 from db.streak import local_today
 from tests.conftest import sign_init_data
 
@@ -77,12 +78,16 @@ def _pair(uid_, active=True):
     return a, b
 
 
-def _start(a, b):
-    """Приглашение принято; возвращает id задания (окно ещё в будущем)."""
+def _start(a, b, rules="days"):
+    """Приглашение принято; возвращает id задания (окно ещё в будущем). По умолчанию это СТАРОЕ задание (rules='days',
+    цель 10, вклад — дни с отметкой): на нём проверяются жизненный цикл и правила старых заданий; правила v2
+    (привычки, потолок 3 в день, оба в день завершения) — tests/test_pair_habits.py."""
     invited = send_pair_invite(a, b)
     assert invited.get("ok"), invited
     accepted = accept_pair_invite(b, invited["quest_id"])
     assert accepted.get("ok"), accepted
+    if rules == "days":
+        _sql("UPDATE pair_quests SET rules='days', goal=? WHERE id=?", (LEGACY_PAIR_GOAL, invited["quest_id"]))
     return invited["quest_id"]
 
 
@@ -296,7 +301,7 @@ def test_progress_counts_days_of_both_inside_the_window(uid):
     quest = get_pair_quest(a)["quest"]
     assert quest["phase"] == "active"
     assert (quest["progress"], quest["mine"], quest["partner_count"]) == (5, 3, 2)
-    assert quest["goal"] == PAIR_GOAL and quest["days_left"] == 5
+    assert quest["goal"] == LEGACY_PAIR_GOAL and quest["days_left"] == 5
     mine = [d["me"] for d in quest["days"]]
     assert mine[:3] == [True, True, True] and not any(mine[3:])
     assert [d["state"] for d in quest["days"]][:4] == ["past", "past", "today", "future"]
@@ -312,7 +317,7 @@ def test_goal_reached_completes_at_once_and_clamps_progress(uid):
     _fill(a, quest_id, 7)
     _fill(b, quest_id, 4)                                              # 11 > 10
     quest = get_pair_quest(b)["quest"]
-    assert quest["phase"] == "completed" and quest["progress"] == PAIR_GOAL and quest["claimable"] is True
+    assert quest["phase"] == "completed" and quest["progress"] == LEGACY_PAIR_GOAL and quest["claimable"] is True
     assert _status(quest_id) == "completed"
 
 
@@ -322,7 +327,7 @@ def test_one_player_cannot_carry_alone(uid):
     _window(quest_id, start_offset=-6)
     _fill(a, quest_id, 7)
     assert get_pair_quest(a)["quest"]["phase"] == "active"             # 7 из 10, напарник молчит
-    assert PAIR_WINDOW_DAYS < PAIR_GOAL
+    assert PAIR_WINDOW_DAYS < LEGACY_PAIR_GOAL
 
 
 def test_window_end_closes_an_unfinished_quest(uid):
@@ -438,7 +443,7 @@ def test_partner_done_event_is_sent_once_a_day(uid, monkeypatch):
     _day(a, 0)
     events = pair_on_day_completed(a)
     assert len(events) == 1 and events[0]["type"] == "partner_done"
-    assert (events[0]["to"], events[0]["from"], events[0]["goal"]) == (b, a, PAIR_GOAL)
+    assert (events[0]["to"], events[0]["from"], events[0]["goal"]) == (b, a, LEGACY_PAIR_GOAL)
     assert pair_on_day_completed(a) == []                              # повторно в тот же день — нет
 
 
@@ -576,6 +581,7 @@ async def test_invite_accept_claim_flow_over_http(client, uid):
     await _flush_background()
     assert bot.send_message.call_args.args[0] == a and "Борис" in bot.send_message.call_args.args[1]
 
+    _sql("UPDATE pair_quests SET rules='days', goal=? WHERE id=?", (LEGACY_PAIR_GOAL, quest_id))   # маршруты те же; здесь — старый счёт
     _window(quest_id)
     _fill(a, quest_id, 5)
     _fill(b, quest_id, 5)
