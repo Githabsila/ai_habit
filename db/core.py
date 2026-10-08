@@ -1296,6 +1296,16 @@ def create_tables():
         UNIQUE(user_id, day, slot)
     )
     """)
+    # Заходы в приложение (db/analytics.py::touch_last_seen: новый «заход» — после 25 минут тишины). Из них складывается привычное
+    # время человека (db/adam_checkin.py::activity_profile): когда он обычно заходит днём и вечером.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS app_opens(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        at TIMESTAMP NOT NULL
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_app_opens_user_at ON app_opens(user_id, at)")
     # Флаг раскатки виден в админке («Feature flags») сразу; выключен — Адам пишет первым только админам.
     cursor.execute(
         "INSERT OR IGNORE INTO feature_flags(key, enabled, rollout_pct, description) VALUES (?,?,?,?)",

@@ -141,6 +141,16 @@ def build_user_context(user_id: int, max_chars: int = 2800) -> str:
             + ". Не повторяй эти ошибки."
         )
 
+    # Адам сам начал разговор (пуш / первое сообщение в чате) — при ответе человека он помнит, почему написал и что сказал.
+    try:
+        from db import adam_checkin as _adam_checkin
+        proactive = _adam_checkin.last_proactive_context(user_id)
+    except Exception:
+        proactive = ""
+    if proactive:
+        lines.append("")
+        lines.append(proactive)
+
     return "\n".join(lines)
 
 

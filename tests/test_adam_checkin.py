@@ -150,7 +150,9 @@ def test_system_prompt_counts_tasks_and_forbids_the_template_questions():
     from multi_agent import ADAM_CHECKIN_SYSTEM
     assert "Привычки И ЗАДАЧИ" in ADAM_CHECKIN_SYSTEM and "выполнено X из Y" in ADAM_CHECKIN_SYSTEM
     assert "НИКОГДА" in ADAM_CHECKIN_SYSTEM and "Как дела?" in ADAM_CHECKIN_SYSTEM
-    assert "1–3 предложения" in ADAM_CHECKIN_SYSTEM and "без markdown" in ADAM_CHECKIN_SYSTEM and "иногда без приветствия" in ADAM_CHECKIN_SYSTEM
+    assert "1–2 коротких предложения" in ADAM_CHECKIN_SYSTEM and "без markdown" in ADAM_CHECKIN_SYSTEM and "иногда без приветствия" in ADAM_CHECKIN_SYSTEM
+    assert "Привычки — ядро, задачи — контекст дня" in ADAM_CHECKIN_SYSTEM and "не упоминай ни их, ни планирование" in ADAM_CHECKIN_SYSTEM
+    assert "Цифры называй, только если они усиливают смысл" in ADAM_CHECKIN_SYSTEM and "ленишься" in ADAM_CHECKIN_SYSTEM
 
 
 # --- сценарии ---------------------------------------------------------------------------------------------------
@@ -231,9 +233,11 @@ def test_slot_is_due_only_after_the_planned_moment_and_inside_the_window(uid):
     assert ac.slot_due(uid, at(16 * 60 + 29)) == "day"
     assert ac.slot_due(uid, at(16 * 60 + 30)) is None, "окно закончилось"
     assert ac.slot_due(uid, at(9 * 60)) is None, "утром Адам не пишет"
-    assert ac.slot_due(uid, at(18 * 60)) is None and ac.slot_due(uid, at(23 * 60)) is None
+    assert ac.slot_due(uid, at(12 * 60)) is None and ac.slot_due(uid, at(18 * 60)) is None, "между окнами и до 12:30 — тишина"
+    assert ac.slot_due(uid, at(22 * 60)) is None and ac.slot_due(uid, at(23 * 60)) is None, "после 22:00 Адам не пишет"
     evening = ac.planned_minute(uid, day.isoformat(), "evening")
-    assert 19 * 60 + 30 <= evening < 21 * 60 + 30 and ac.slot_due(uid, at(evening)) == "evening"
+    assert 18 * 60 + 30 <= evening < 21 * 60 + 30 and ac.slot_due(uid, at(evening)) == "evening"
+    assert ac.SLOT_WINDOWS == {"day": (12 * 60 + 30, 16 * 60 + 30), "evening": (18 * 60 + 30, 21 * 60 + 30)}, "окна из ТЗ 222.md"
 
 
 def test_chat_days_are_two_or_three_a_week_never_adjacent_and_stable():
@@ -268,6 +272,9 @@ def test_template_questions_long_and_markdown_replies_are_rejected():
 def test_fallback_texts_are_acceptable_name_the_task_and_never_ask_how_are_you():
     for key, (title, slot, state) in ac.lab_scenarios().items():
         scenario, _ = ac.pick_scenario(state, slot, chat_day=True)
+        if scenario is None:
+            assert key in ("rest_day", "on_pace"), f"{key}: молчит только там, где так задумано"
+            continue
         for day in range(1, 25):
             text = ac.fallback_text(state, scenario, 5, f"2026-10-{day:02d}")
             assert ac.is_acceptable(text, scenario), (key, text)
@@ -281,13 +288,19 @@ def test_fallback_texts_are_acceptable_name_the_task_and_never_ask_how_are_you()
         assert "Отправить предложение клиенту" not in ac.fallback_text(state, "zero_done", 3, f"2026-10-{day:02d}")
 
 
-def test_greetings_vary_between_days_and_sometimes_skip_the_name():
-    _t, slot, state = ac.lab_scenarios()["evening_left"]
-    texts = [ac.fallback_text(state, "evening_left", 11, f"2026-10-{d:02d}") for d in range(1, 29)]
+def test_greetings_vary_between_days_and_the_name_is_an_accent_not_a_habit():
+    """ТЗ §23–24: не начинать каждое сообщение с «Привет», имя — для акцента (заметное отклонение, успех)."""
+    days = [(date(2026, 1, 1) + timedelta(days=i)).isoformat() for i in range(120)]
+    _t, slot, state = ac.lab_scenarios()["zero_done"]
+    texts = [ac.fallback_text(state, "zero_done", 11, day) for day in days[:28]]
     assert len(set(texts)) > 3
-    named = sum(t.startswith("Анна, ") for t in texts)
-    assert 4 <= named <= 24, "обращение по имени — не в каждом сообщении"
-    assert {ac.opener_style(11, f"2026-10-{d:02d}", "evening_left") for d in range(1, 29)} == {"no_greeting", "by_name", "short_greeting"}
+    named = sum(t.startswith("Александр, ") for t in texts)
+    assert 5 <= named <= 20, "обращение по имени — не в каждом сообщении"
+    styles = [ac.opener_style(11, day, "zero_done") for day in days]
+    assert set(styles) == {"no_greeting", "by_name", "short_greeting"} and styles.count("no_greeting") > styles.count("by_name")
+    plain = [ac.opener_style(11, day, "evening_left") for day in days]
+    assert "by_name" not in plain, "в обычных сообщениях («осталось несколько дел») имени нет"
+    assert plain.count("short_greeting") < len(days) * 0.12, "«Привет» — редкость"
 
 
 # --- обычный темп человека --------------------------------------------------------------------------------------
@@ -555,7 +568,7 @@ async def test_admin_previews_every_scenario_and_sends_the_text_only_to_themselv
     _generate_returns(monkeypatch, "Остался последний шаг — «Созвон с командой».")
 
     overview = await (await client.get("/api/admin/lab/adam", headers=headers)).json()
-    assert overview["windows"] == {"day": "14:00–16:30", "evening": "19:30–21:30"}
+    assert overview["windows"] == {"day": "12:30–16:30", "evening": "18:30–21:30"}
     assert overview["limits"] == {"per_day": 1, "per_week": 5, "chat_days": [2, 3]} and overview["flag"]["enabled"] is False
     assert {s["key"] for s in overview["scenarios"]} >= {"zero_done", "behind", "one_left", "zero_done_evening", "evening_left", "all_done", "free_chat", "morning"}
 
@@ -563,10 +576,15 @@ async def test_admin_previews_every_scenario_and_sends_the_text_only_to_themselv
         for source in ("llm", "fallback"):
             resp = await client.post("/api/admin/lab/adam/preview", json={"scenario": scenario["key"], "source": source}, headers=headers)
             data = await resp.json()
+            if scenario["key"] in ("rest_day", "on_pace"):
+                assert resp.status == 200 and data["scenario"] is None and data["text"] == "" and data["reason"], "тишина показана как результат"
+                continue
             assert resp.status == 200 and data["text"] and data["scenario"], scenario["key"]
             assert data["source"] == source, (scenario["key"], source, data["source"])
             assert ac.is_acceptable(data["text"], data["scenario"])
-            assert "Дел на сегодня выполнено" in data["prompt"] or scenario["key"] == "free_chat"
+            assert data["intent"] == ac.INTENT_LABELS[data["scenario"]], scenario["key"]
+            assert (data["candidates"][0]["scenario"] == data["scenario"]) if data["candidates"] else scenario["slot"] == "app", scenario["key"]
+            assert "выполнено" in data["prompt"] or "нет" in data["prompt"]
     mine = await (await client.post("/api/admin/lab/adam/preview", json={"scenario": "mine", "source": "fallback"}, headers=headers)).json()
     assert set(mine["decisions"]) == {"day", "evening", "chat_day"}
     assert (await client.post("/api/admin/lab/adam/preview", json={"scenario": "нет-такого"}, headers=headers)).status == 404
@@ -620,8 +638,8 @@ def test_the_owners_three_examples_are_lab_scenarios_with_the_same_time_and_scor
 
 
 def test_every_scenario_has_a_reference_example_that_goes_into_the_prompt_without_the_name():
-    extras = {"morning_progress", "morning_done", "morning_empty"}
-    assert set(ac.REFERENCE_EXAMPLES) == set(ac.SCENARIOS) == set(ac.SCENARIO_GUIDE) == set(ac.FALLBACKS) - extras
+    extras = {"morning_progress", "morning_done", "morning_empty", "positive_habit"}
+    assert set(ac.REFERENCE_EXAMPLES) == set(ac.SCENARIOS) == set(ac.SCENARIO_GUIDE) == set(ac.INTENT_LABELS) == set(ac.FALLBACKS) - extras
     for scenario, text in ac.REFERENCE_EXAMPLES.items():
         assert ac.is_acceptable(text.format(name="Александр"), scenario), scenario
     _t, _slot, state = ac.lab_scenarios()["owner_a"]

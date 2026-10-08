@@ -771,6 +771,11 @@ textarea.field{resize:vertical;min-height:88px}
     }
   }
 
+  function hm(minute){
+    if (minute === null || minute === undefined) return 'пока неизвестно (мало данных)';
+    return 'обычно около ' + ('0' + Math.floor(minute / 60)).slice(-2) + ':' + ('0' + (minute % 60)).slice(-2);
+  }
+
   async function showAdamPreview(key, source){
     var out = document.getElementById('adamPreview');
     if (!out) return;
@@ -789,14 +794,21 @@ textarea.field{resize:vertical;min-height:88px}
       var bubble = r.text
         ? '<div style="background:rgba(124,92,252,.14);border:1px solid rgba(124,92,252,.35);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.45;margin:6px 0">' + escapeHtml(r.text) + '</div>'
         : '<div class="empty-note">Сейчас Адам бы ничего не написал: ' + escapeHtml(r.reason || '') + '</div>';
+      var cands = (r.candidates || []).length
+        ? '<div class="empty-note" style="padding:2px 0 6px;line-height:1.5">Все уместные поводы: ' + r.candidates.map(function(c){ return escapeHtml(c.intent) + ' (' + escapeHtml(c.scenario) + ', вес ' + c.priority + ')'; }).join(' → ') + '</div>'
+        : '';
+      var base = r.baseline
+        ? '<div class="empty-note" style="padding:2px 0 6px;line-height:1.5">Твой ритм: днём — ' + escapeHtml(hm(r.baseline.usual_day)) + ', вечером — ' + escapeHtml(hm(r.baseline.usual_evening)) +
+          ', первая привычка — ' + escapeHtml(hm(r.baseline.first_habit_minute)) + ' · последние поводы: ' + escapeHtml((r.baseline.recent_scenarios || []).join(', ') || '—') + '</div>'
+        : '';
       var reference = r.reference
         ? '<div class="empty-note" style="padding:4px 0 8px;line-height:1.45">📌 Эталон: ' + escapeHtml(r.reference) + '</div>'
         : '';
       out.innerHTML =
         '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(r.title) + '</b>' +
-          '<small>сценарий: ' + escapeHtml(r.scenario || '—') + ' · ' + escapeHtml(r.reason || '') + ' · текст: ' + (r.source === 'llm' ? 'от модели' : r.source === 'fallback' ? 'запасной (без модели)' : '—') + '</small></div></div>' +
+          '<small>повод: ' + escapeHtml(r.intent || '—') + ' (' + escapeHtml(r.scenario || 'тишина') + ') · ' + escapeHtml(r.reason || '') + ' · текст: ' + (r.source === 'llm' ? 'от модели' : r.source === 'fallback' ? 'запасной (без модели)' : '—') + '</small></div></div>' +
         '<div class="empty-note" style="padding:6px 0;line-height:1.5">' + facts + '</div>' + decisions + bubble +
-        reference + (r.text ? '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
+        cands + base + reference + (r.text ? '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
           '<button class="btn" id="adamAgain">🔄 Ещё вариант</button>' +
           '<button class="btn" id="adamFallback">🧯 Запасной текст</button>' +
           '<button class="btn btn-accent" id="adamSend">📲 Отправить мне</button>' +

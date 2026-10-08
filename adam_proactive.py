@@ -3,7 +3,8 @@
 
 Данные, расписание, выбор сценария и запасные тексты — в db/adam_checkin.py; здесь — всё, что зовёт модель и Telegram:
   • run_adam_checkins(bot) — тик планировщика (раз в несколько минут): у кого сейчас наступил запланированный момент в окне
-    14:00–16:30 или 19:30–21:30, тому один раз за окно решаем «писать или нет» и, если нужно, отправляем сообщение;
+    12:30–16:30 или 18:30–21:30 (рядом с привычным временем самого человека), тому один раз за окно решаем «писать или промолчать»
+    (ТЗ 222.md: допуск → повод → приоритет → cooldown → текст) и, если нужно, отправляем сообщение;
   • compose_message — текст от модели; не прошёл проверку или модель недоступна — запасной текст (тоже без «Как дела?»);
   • compose_app_greeting — первое сообщение Адама, когда человек сам заходит в чат (db/ai_nudge.py → /api/ai/greet).
 
@@ -40,7 +41,7 @@ async def _generate(prompt, style):
 async def compose_message(state, scenario, user_id, day_iso, timeout=PUSH_LLM_TIMEOUT):
     """(текст, источник): 'llm' | 'fallback' | 'none' (английский интерфейс без модели — русский запасной текст не шлём)."""
     opener = ac.opener_style(user_id, day_iso, scenario)
-    prompt = ac.build_checkin_prompt(state, scenario, opener, ac.recent_adam_messages(user_id))
+    prompt = ac.build_checkin_prompt(state, scenario, opener, ac.recent_adam_messages(user_id), state.get("recent_scenarios") or ())
     text = ""
     try:
         text = ac.clean_text(await asyncio.wait_for(_generate(prompt, state.get("style") or "neutral"), timeout))
@@ -101,6 +102,11 @@ def skip_reason(telegram_id, now_local, settings):
             return "человека возвращают в серию отдельные напоминания (пропущенные дни)"
     if ac.adam_wrote_today(telegram_id, day_iso):
         return "Адам уже писал сегодня"
+    if ac.chatted_today(telegram_id, now_local):
+        return "человек сам уже общался с Адамом сегодня"
+    seen = ac.seen_minutes_ago(telegram_id)
+    if seen is not None and seen <= ac.ACTIVE_NOW_MINUTES:
+        return "человек прямо сейчас в приложении"
     if ac.pushes_since(telegram_id, (now_local.date() - timedelta(days=6)).isoformat()) >= ac.MAX_PUSH_PER_WEEK:
         return "лимит пушей за неделю"
     return None
@@ -109,22 +115,27 @@ def skip_reason(telegram_id, now_local, settings):
 async def process_user(bot, telegram_id, scope, now_local=None):
     """Один человек за один тик. Возвращает строку-итог (для логов и тестов)."""
     now_local = now_local or datetime.now(ZoneInfo(get_timezone(telegram_id)))
-    slot = ac.slot_due(telegram_id, now_local)
-    if slot is None:
+    if ac.window_slot(now_local) is None:
         return "not_due"
     if not ac.is_enabled_for(telegram_id):
         return "disabled"
+    # Момент внутри окна — рядом с привычным временем самого человека (профиль считается раз в день), иначе случайный.
+    slot = ac.slot_due(telegram_id, now_local, ac.preferred_minutes(telegram_id, now_local))
+    if slot is None:
+        return "not_due"
     day_iso = now_local.date().isoformat()
     if not ac.claim_slot(telegram_id, day_iso, slot):
         return "already_handled"
     try:
         reason = skip_reason(telegram_id, now_local, get_settings(telegram_id))
-        if reason is None and slot == "evening" and other_push_recently(telegram_id):
+        if reason is None and other_push_recently(telegram_id):
             reason = "недавно уже приходил другой пуш"
         scenario = None
         if reason is None:
             state = ac.build_checkin_state(telegram_id, now_local)
-            scenario, reason = ac.pick_scenario(state, slot, ac.is_chat_day(telegram_id, now_local.date()))
+            scenario, reason, _candidates = ac.choose_scenario(
+                state, slot, ac.is_chat_day(telegram_id, now_local.date()), state["recent_scenarios"]
+            )
         if scenario is None:
             ac.finish_slot(telegram_id, day_iso, slot, "skipped", note=reason)
             return f"skipped: {reason}"

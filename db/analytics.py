@@ -9,17 +9,35 @@ from datetime import date, datetime, timedelta, timezone
 from .core import connect
 
 
+SESSION_GAP_MINUTES = 25        # пауза, после которой следующий запрос считается новым «заходом»
+OPENS_KEEP_DAYS = 45
+
+
 def touch_last_seen(user_id):
     """Отмечает активность пользователя — источник для DAU/WAU. Вызывается
     и из Mini App (webapp/auth_helpers.authenticate), и из бота
-    (middlewares/access_control.py), чтобы отражать обе поверхности."""
+    (middlewares/access_control.py), чтобы отражать обе поверхности.
+
+    Заодно копит заходы (app_opens): новый заход — если прошлая активность была 25+ минут назад. По ним «Адам пишет первым»
+    узнаёт привычное время самого человека (db/adam_checkin.py::activity_profile)."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     conn = connect()
-    conn.execute(
-        "UPDATE users SET last_seen=? WHERE telegram_id=?",
-        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), user_id),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        row = conn.execute("SELECT last_seen FROM users WHERE telegram_id=?", (user_id,)).fetchone()
+        conn.execute("UPDATE users SET last_seen=? WHERE telegram_id=?", (now.isoformat(), user_id))
+        previous = None
+        if row and row["last_seen"]:
+            try:
+                previous = datetime.fromisoformat(str(row["last_seen"]))
+            except ValueError:
+                previous = None
+        if previous is None or now - previous >= timedelta(minutes=SESSION_GAP_MINUTES):
+            conn.execute("INSERT INTO app_opens(user_id, at) VALUES (?, ?)", (user_id, now.strftime("%Y-%m-%d %H:%M:%S")))
+            conn.execute("DELETE FROM app_opens WHERE user_id=? AND at<?",
+                         (user_id, (now - timedelta(days=OPENS_KEEP_DAYS)).strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_dau(days=1):

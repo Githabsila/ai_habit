@@ -193,6 +193,9 @@ async def _adam_preview(admin_id, body):
         decisions = {
             s: dict(zip(("scenario", "reason"), adam_ck.pick_scenario(state, s, chat_day))) for s in ("day", "evening")
         }
+        for s in ("day", "evening"):
+            picked, why, _all = adam_ck.choose_scenario(state, s, chat_day, state.get("recent_scenarios") or ())
+            decisions[s] = {"scenario": picked, "reason": why, "intent": adam_ck.INTENT_LABELS.get(picked)}
         decisions["chat_day"] = chat_day
     else:
         item = adam_ck.lab_scenarios().get(key)
@@ -202,17 +205,26 @@ async def _adam_preview(admin_id, body):
         chat_day = True
     state["user_id"] = admin_id
     scenario, reason = adam_ck.pick_scenario(state, slot, chat_day)
+    # Все уместные поводы с весом — видно, ПОЧЕМУ выбран именно этот (и почему при тишине выбирать нечего).
+    candidates = adam_ck.list_candidates(state, slot, chat_day) if slot in ("day", "evening") else []
+    baseline = {
+        "usual_day": state.get("usual", {}).get("day"), "usual_evening": state.get("usual", {}).get("evening"),
+        "first_habit_minute": state.get("first_habit_minute"), "task_hist": state.get("task_hist"),
+        "seen_minutes_ago": state.get("seen_minutes_ago"), "recent_scenarios": state.get("recent_scenarios"),
+    } if key == "mine" else None
     if scenario is None:
-        return {"title": title, "scenario": None, "reason": reason, "decisions": decisions, "state": adam_ck.lab_state_summary(state), "text": "", "source": "none"}
+        return {"title": title, "scenario": None, "intent": None, "reason": reason, "decisions": decisions, "candidates": candidates,
+                "baseline": baseline, "state": adam_ck.lab_state_summary(state), "text": "", "source": "none"}
     opener = adam_ck.opener_style(admin_id, day_iso, scenario)
-    prompt = adam_ck.build_checkin_prompt(state, scenario, opener, adam_ck.recent_adam_messages(admin_id))
+    prompt = adam_ck.build_checkin_prompt(state, scenario, opener, adam_ck.recent_adam_messages(admin_id), state.get("recent_scenarios") or ())
     if body.get("source") == "fallback":
         text, source = adam_ck.fallback_text(state, scenario, admin_id, f"{day_iso}:{datetime.now().microsecond}"), "fallback"
     else:
         text, source = await compose_message(state, scenario, admin_id, day_iso)
     reference = adam_ck.REFERENCE_EXAMPLES.get(scenario, "").format(name=state.get("first_name") or "друг")
     return {
-        "title": title, "scenario": scenario, "reason": reason, "decisions": decisions, "state": adam_ck.lab_state_summary(state),
+        "title": title, "scenario": scenario, "intent": adam_ck.INTENT_LABELS.get(scenario), "reason": reason, "decisions": decisions,
+        "candidates": candidates, "baseline": baseline, "state": adam_ck.lab_state_summary(state),
         "text": text, "source": source, "prompt": prompt, "reference": reference,
     }
 
