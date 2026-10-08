@@ -17,7 +17,7 @@ from aiogram.exceptions import TelegramForbiddenError
 from aiogram.methods import SendMessage
 
 from db import (
-    add_user, add_habit, get_all_users, is_bot_blocked, log_error, mark_bot_blocked,
+    add_user as _add_user, set_access_status, add_habit, get_all_users, is_bot_blocked, log_error, mark_bot_blocked,
 )
 from db.streak import get_streak_users
 
@@ -45,6 +45,12 @@ class ForbiddenBot:
             message="Forbidden: bot was blocked by the user",
         )
 
+
+
+def add_user(uid, username, first_name):
+    """Рассылки получают только прошедшие анкету (db/push_access.py) — в этих тестах пользователь «свой»."""
+    _add_user(uid, username, first_name)
+    set_access_status(uid, "approved")
 
 def _forbidden():
     return TelegramForbiddenError(

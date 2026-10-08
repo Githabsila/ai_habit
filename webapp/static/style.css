@@ -14315,7 +14315,12 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
 }
 
 /* ===== Парное задание: сворачиваемая карточка, краткая версия, подсказка «очки / дни» ===== */
-.pair-card--collapsed{padding:12px 14px}
+.pair-card--collapsed{padding:10px 12px}
+.pair-card__head--row{display:flex;align-items:center;gap:8px;margin-bottom:0}
+.pair-row__icon{flex:0 0 auto;font-size:20px;line-height:1}
+.pair-row__text{flex:1 1 auto;min-width:0}
+.pair-row__text b{display:block;font:800 14px 'Space Grotesk',sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-row__text small{display:block;margin-top:2px;font-size:11px;line-height:1.25;color:#B9B3D6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pair-card__title{white-space:nowrap}
 .pair-card--collapsed .pair-card__head{margin-bottom:0}
 .pair-card__head--toggle{cursor:pointer;-webkit-tap-highlight-color:transparent}

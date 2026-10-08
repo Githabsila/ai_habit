@@ -1070,7 +1070,16 @@ async def rename_habit(request):
 async def _maybe_push_first_win(app, telegram_id, result_type):
     """После первого закрытого результата отправляет один отдельный push от ADAM.
     Сообщение специально ведёт в живой чат наставника, а не просто в Mini App.
+
+    Возвращает True, если ушло ПОЛНОЕ сообщение (с приглашением в чат). Вторая победа
+    (первая задача после первой привычки или наоборот) раньше слала почти то же самое
+    ещё раз — «Красиво. Первая задача закрыта…» сразу после «Красиво. Первый результат
+    закрыт…» с теми же вопросами про чат; теперь это одна короткая строка без повторов.
     """
+    before = get_onboarding_state(telegram_id) or {}
+    other_win_done = bool(
+        before.get("first_task_completed_at") if result_type == "habit" else before.get("first_habit_completed_at")
+    )
     claimed = claim_first_win_push(telegram_id, result_type)
     # Onboarding считается завершённым после двух первых реальных побед:
     # хотя бы одна привычка + хотя бы одна задача. Это не требует закрывать
@@ -1079,8 +1088,16 @@ async def _maybe_push_first_win(app, telegram_id, result_type):
     if onboarding and onboarding.get("first_habit_completed_at") and onboarding.get("first_task_completed_at"):
         mark_app_tour_seen(telegram_id)
     if not claimed:
-        return
-    if result_type == "habit":
+        return False
+    short = other_win_done
+    if short:
+        what = "первая привычка" if result_type == "habit" else "первая задача"
+        text = (
+            f"✅ <b>И {what} закрыта.</b> Привычка и задача в один день — так и выглядит Ударный день."
+            "\n\n"
+            "Завтра жду тебя снова."
+        )
+    elif result_type == "habit":
         text = (
             "🔥 <b>Красиво. Первый результат закрыт.</b> Ты не просто настроил ADAM — ты уже начал действовать."
             "\n\n"
@@ -1099,14 +1116,14 @@ async def _maybe_push_first_win(app, telegram_id, result_type):
             " Тогда жду тебя в чате 👇"
         )
     markup = None
-    if WEBAPP_URL:
+    if WEBAPP_URL and not short:
         from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
         markup = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="🤖 Открыть чат с Адамом", web_app=WebAppInfo(url=f"{WEBAPP_URL.rstrip('/')}/coach"))
         ]])
     bot = app.get("bot")
     if bot is None:
-        return
+        return False
 
     async def _send():
         try:
@@ -1120,6 +1137,7 @@ async def _maybe_push_first_win(app, telegram_id, result_type):
     # онбординга выше остаются синхронными, чтобы гонки двух быстрых тапов
     # по-прежнему не давали два одинаковых сообщения.
     _spawn_background(_send())
+    return not short
 
 
 @routes.post("/api/habits/{habit_id}/complete")
@@ -1131,12 +1149,14 @@ async def complete_habit_route(request):
     if not success:
         return web.json_response({"error": "already_completed"}, status=409)
 
-    await _maybe_push_first_win(request.app, telegram_id, "habit")
+    first_win_sent = await _maybe_push_first_win(request.app, telegram_id, "habit")
     event = consume_completion_event(telegram_id)
     # Если событие уже было доставлено в боте, Mini App всё равно получает
     # состояние streak, но не показывает повторное сообщение.
     streak = get_streak_status(telegram_id)
-    if event:
+    # «+1 день ударного режима» сразу после «Красиво. Первый результат закрыт» — три сообщения
+    # подряд про одно и то же: первую победу это сообщение уже покрывает.
+    if event and not first_win_sent:
         try:
             phrase = event["message"]
             _push_in_background(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{phrase}")
@@ -1243,10 +1263,10 @@ async def habit_progress_route(request):
     # Цель достигнута этим нажатием — привычка только что выполнена целиком,
     # дальше то же самое, что и в complete_habit_route (streak-событие,
     # доступ в канал, окно удвоения, идеальный день).
-    await _maybe_push_first_win(request.app, telegram_id, "habit")
+    first_win_sent = await _maybe_push_first_win(request.app, telegram_id, "habit")
     event = consume_completion_event(telegram_id)
     streak = get_streak_status(telegram_id)
-    if event:
+    if event and not first_win_sent:
         try:
             _push_in_background(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{event['message']}")
         except Exception:

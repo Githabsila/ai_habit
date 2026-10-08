@@ -11,12 +11,18 @@ db.get_users_needing_ai_welcome_nudge (coach.py::run_ai_welcome_nudge) —
 """
 from datetime import datetime, timedelta, timezone
 
-from db import add_user, claim_ai_first_message, ban_user
+from db import add_user as _add_user, claim_ai_first_message, ban_user, set_access_status
 from db.core import connect
 from db.ai import get_users_needing_ai_welcome_nudge
 
 from tests.conftest import sign_init_data
 
+
+
+def add_user(uid, username, first_name):
+    """Рассылки получают только прошедшие анкету (db/push_access.py) — в этих тестах пользователь «свой»."""
+    _add_user(uid, username, first_name)
+    set_access_status(uid, "approved")
 
 def _backdate(telegram_id, minutes_ago):
     conn = connect()

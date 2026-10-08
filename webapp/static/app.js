@@ -6506,23 +6506,18 @@ function pairSummary(pq) {
 // Свёрнутая карточка (Главная): заголовок с «осталось N дн.» и стрелкой, ниже — прогресс и статус «сегодня».
 function pairCollapsedHtml(pq) {
   const s = pairSummary(pq);
-  const me = state?.user || {};
   const chip = s.act
     ? `<button type="button" class="pair-chip pair-chip--${s.tone}" data-pair-act="${s.act}">${s.chip}</button>`
     : `<span class="pair-chip pair-chip--${s.tone}">${s.chip}</span>`;
-  const middle = pq.quest
-    ? `<div class="pair-mini__avatars">${pairAvatarHtml(me, "pair-avatar--sm")}${pairAvatarHtml(s.partner, "pair-avatar--sm")}</div>
-       <div class="pair-mini__bar"><div class="pair-bar${pq.quest.phase === "completed" ? " is-done" : ""}"><i style="width:${s.pct}%"></i></div><span class="pair-mini__score">${s.score}</span></div>`
-    : `<div class="pair-mini__text">${s.line}</div>`;
+  // Одна узкая строка: «Парное задание / 3/10 · осталось 5 дн.», справа статус «сегодня» и стрелка.
+  const sub = pq.quest ? `${s.score} · ${s.days}` : s.line;
   return `
-    <div class="pair-card__head pair-card__head--toggle" data-pair-toggle role="button" tabindex="0" aria-expanded="false">
-      <div class="pair-card__title">🤝 Парное задание</div>
-      <div class="pair-card__right">
-        ${s.days ? `<span class="pair-card__badge">${s.days}</span>` : ""}
-        <button type="button" class="pair-toggle" data-pair-toggle aria-label="Развернуть парное задание">${PAIR_CHEVRON_DOWN}</button>
-      </div>
-    </div>
-    <div class="pair-mini" data-pair-toggle>${middle}${chip}</div>`;
+    <div class="pair-card__head pair-card__head--toggle pair-card__head--row" data-pair-toggle role="button" tabindex="0" aria-expanded="false">
+      <span class="pair-row__icon" aria-hidden="true">🤝</span>
+      <div class="pair-row__text"><b>Парное задание</b><small>${sub}</small></div>
+      ${chip}
+      <button type="button" class="pair-toggle" data-pair-toggle aria-label="Развернуть парное задание">${PAIR_CHEVRON_DOWN}</button>
+    </div>`;
 }
 
 function pairDateLabel(day) {

@@ -339,10 +339,11 @@ def get_users_needing_ai_welcome_nudge(min_minutes=4, max_minutes=30):
     сообщение, а не только реально свежим регистрациям."""
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute("""
+    from .push_access import push_allowed_sql
+    cursor.execute(f"""
         SELECT telegram_id FROM users
         WHERE COALESCE(ai_intro_shown, 0) = 0
-          AND COALESCE(banned, 0) = 0
+          AND {push_allowed_sql('users')}
           AND created_at <= datetime('now', ?)
           AND created_at >= datetime('now', ?)
     """, (f"-{min_minutes} minutes", f"-{max_minutes} minutes"))

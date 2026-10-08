@@ -207,10 +207,10 @@ def get_users_count():
 
 
 def get_all_users(include_blocked=True):
-    """Все пользователи. include_blocked=False — без тех, кто заблокировал
-    бота (см. mark_bot_blocked): так делают рассылочные job'ы, иначе на каждого
-    заблокировавшего каждый тик каждого job'а уходит заведомо проваливающийся
-    запрос и пишется ошибка. Обслуживание данных (новый день, статистика,
+    """Все пользователи. include_blocked=False — выборка для РАССЫЛОК: без тех, кто
+    заблокировал бота (см. mark_bot_blocked — иначе на каждого заблокировавшего каждый
+    тик каждого job'а уходит заведомо проваливающийся запрос), без забаненных и без тех,
+    кто ещё не прошёл анкету (db/push_access.py). Обслуживание данных (новый день, статистика,
     рассылки админа) оставляет True — они не должны терять этих пользователей."""
     conn = connect()
     cursor = conn.cursor()
@@ -218,7 +218,10 @@ def get_all_users(include_blocked=True):
     if include_blocked:
         cursor.execute("SELECT * FROM users ORDER BY id")
     else:
-        cursor.execute("SELECT * FROM users WHERE bot_blocked_at IS NULL ORDER BY id")
+        from .push_access import push_allowed_sql
+        cursor.execute(
+            f"SELECT * FROM users WHERE bot_blocked_at IS NULL AND {push_allowed_sql('users')} ORDER BY id"
+        )
     users = cursor.fetchall()
 
     conn.close()

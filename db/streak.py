@@ -877,7 +877,11 @@ def get_streak_users(include_blocked=True):
     job'ы. Админские выборки оставляют True и по-прежнему видят всех."""
     conn = connect()
     c = conn.cursor()
-    blocked_filter = "" if include_blocked else "AND u.bot_blocked_at IS NULL"
+    if include_blocked:
+        blocked_filter = ""
+    else:
+        from .push_access import push_allowed_sql
+        blocked_filter = f"AND u.bot_blocked_at IS NULL AND {push_allowed_sql('u')}"
     c.execute(f"""SELECT u.telegram_id FROM users u
                  WHERE EXISTS(SELECT 1 FROM habits h WHERE h.user_id=u.telegram_id)
                  {blocked_filter}""")
