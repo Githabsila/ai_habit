@@ -404,12 +404,19 @@ textarea.field{resize:vertical;min-height:88px}
       '<div class="section-label">Управление</div>' +
 
       '<div class="card">' +
-        '<div class="card-title"><span class="card-icon card-icon--teal">🔎</span>Пользователь по ID</div>' +
-        '<input class="field" id="userIdInput" type="number" inputmode="numeric" placeholder="Telegram ID">' +
+        '<div class="card-title"><span class="card-icon card-icon--teal">🔎</span>Найти пользователя</div>' +
+        '<input class="field" id="userIdInput" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="@ник, имя или Telegram ID">' +
         '<div class="btn-row" style="margin-top:10px">' +
           '<button class="btn btn-accent" id="lookupBtn">🔎 Найти</button>' +
         '</div>' +
+        '<div id="userMatchesBox"></div>' +
         '<div id="userCardBox"></div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--gold">🏅</span>Кому выдать медаль</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Активные за неделю, у кого самая длинная серия. Медаль выдаёт только админ — в магазине её нет.</div>' +
+        '<div id="activeUsersBox"><div class="empty-note">Загружаю…</div></div>' +
       '</div>' +
 
       '<div class="card">' +
@@ -439,7 +446,12 @@ textarea.field{resize:vertical;min-height:88px}
     document.getElementById('broadcastBtn').addEventListener('click', sendBroadcast);
     document.getElementById('exportDbBtn').addEventListener('click', exportDb);
 
+    document.getElementById('userIdInput').addEventListener('keydown', function(e){
+      if (e.key === 'Enter') lookupUser();
+    });
+
     loadPending();
+    loadActiveUsers();
     loadChurnRisk();
     loadClientErrors();
     loadBroadcastSegments();
@@ -638,14 +650,72 @@ textarea.field{resize:vertical;min-height:88px}
   async function lookupUser(){
     var input = document.getElementById('userIdInput');
     var box = document.getElementById('userCardBox');
-    var id = (input.value || '').trim();
-    if (!id){ showToast('Введи ID'); return; }
+    var matches = document.getElementById('userMatchesBox');
+    var q = (input.value || '').trim();
+    if (!q){ showToast('Введи @ник, имя или ID'); return; }
+    matches.innerHTML = '';
     box.innerHTML = '<div class="empty-note">Ищу…</div>';
     try{
-      var u = await api('/api/admin/user/' + id);
-      renderUserCard(u);
+      if (/^\d+$/.test(q)){
+        renderUserCard(await api('/api/admin/user/' + q));
+        return;
+      }
+      var found = (await api('/api/admin/users/search?q=' + encodeURIComponent(q))).users || [];
+      if (!found.length){
+        box.innerHTML = '<div class="empty-note">Никого не нашёл. Человек должен хотя бы раз запустить бота.</div>';
+      } else if (found.length === 1){
+        renderUserCard(await api('/api/admin/user/' + found[0].telegram_id));
+      } else {
+        box.innerHTML = '';
+        matches.innerHTML = '<div class="empty-note" style="padding:10px 0 4px">Нашлось несколько — выбери:</div>' +
+          found.map(function(u){ return userRowHtml(u, false); }).join('');
+        bindUserRows(matches);
+      }
     }catch(e){
       box.innerHTML = '<div class="empty-note">Пользователь не найден</div>';
+    }
+  }
+
+  // Строка человека в списках («нашлось несколько», «кому выдать медаль»): имя, @ник, серия и кнопки.
+  function userRowHtml(u, withBadgeBtn){
+    var nick = u.username ? '@' + u.username : (u.handle ? '@' + u.handle : '');
+    return '<div class="list-row">' +
+      '<div class="list-row-name"><b>' + escapeHtml(u.first_name || '—') + (u.badge ? ' 🏅' : '') + '</b>' +
+        '<small>' + escapeHtml(nick) + ' · 🔥 ' + u.streak + ' · ' + u.xp + ' XP</small></div>' +
+      (withBadgeBtn
+        ? (u.badge ? '<span class="badge badge-ok">есть</span>'
+                   : '<button class="btn btn-gold" data-badge="' + u.telegram_id + '">🏅 Выдать</button>')
+        : '<button class="btn" data-open="' + u.telegram_id + '">Открыть</button>') +
+    '</div>';
+  }
+
+  function bindUserRows(root){
+    root.querySelectorAll('[data-open]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        try{
+          document.getElementById('userMatchesBox').innerHTML = '';
+          renderUserCard(await api('/api/admin/user/' + btn.dataset.open));
+        }catch(e){ showToast('Ошибка'); }
+      });
+    });
+    root.querySelectorAll('[data-badge]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        giveBadge(parseInt(btn.dataset.badge, 10), loadActiveUsers);
+      });
+    });
+  }
+
+  async function loadActiveUsers(){
+    var box = document.getElementById('activeUsersBox');
+    if (!box) return;
+    try{
+      var users = (await api('/api/admin/users/active')).users || [];
+      box.innerHTML = users.length
+        ? users.map(function(u){ return userRowHtml(u, true); }).join('')
+        : '<div class="empty-note">Пока никого активного за неделю</div>';
+      bindUserRows(box);
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }
   }
 
@@ -654,7 +724,7 @@ textarea.field{resize:vertical;min-height:88px}
     // теперь ещё привычки/недавние отметки/подписка/дни без захода —
     // то, что раньше приходилось смотреть в нескольких разных местах.
     var box = document.getElementById('userCardBox');
-    var name = u.username ? ('@' + escapeHtml(u.username)) : escapeHtml(u.first_name || '—');
+    var name = (u.username ? ('@' + escapeHtml(u.username)) : escapeHtml(u.first_name || '—')) + (u.badge ? ' 🏅' : '');
     var sub = u.subscription || {};
     var habitsDone = (u.habits || []).filter(function(h){ return h.completed; }).length;
     var recentLogsHtml = (u.recent_logs || []).slice(0, 6).map(function(l){
@@ -684,7 +754,8 @@ textarea.field{resize:vertical;min-height:88px}
             ? '<button class="btn btn-accent" id="unbanBtn">✅ Разбанить</button>'
             : '<button class="btn btn-danger" id="banBtn">🚫 Заблокировать</button>') +
           '<button class="btn btn-gold" id="premiumBtn">💎 Premium</button>' +
-          '<button class="btn btn-gold" id="badgeBtn">🏅 Медаль</button>' +
+          (u.badge ? '<button class="btn" id="badgeBtn" disabled>🏅 Медаль выдана</button>'
+                    : '<button class="btn btn-gold" id="badgeBtn">🏅 Медаль</button>') +
         '</div>' +
         '<div class="btn-row" style="margin-top:8px">' +
           '<button class="btn" data-xp="10">+10 XP</button>' +
@@ -718,15 +789,17 @@ textarea.field{resize:vertical;min-height:88px}
   }
 
   // Эксклюзивный подарок: медаль 🏅 — человек увидит окно с анимацией при следующем входе.
-  async function giveBadge(id){
+  async function giveBadge(id, after){
     var note = window.prompt('Подпись к подарку (за что медаль):', 'За пользу и вклад в развитие ADAM');
     if (note === null) return;
     try{
       var res = await api('/api/admin/user/' + id + '/badge', { method: 'POST', body: JSON.stringify({ note: note }) });
       haptic('medium');
       showToast(res.notified ? '🏅 Медаль выдана, пуш отправлен' : '🏅 Медаль выдана');
+      if (after){ after(); return; }
       var u = await api('/api/admin/user/' + id);
       renderUserCard(u);
+      loadActiveUsers();
     }catch(e){
       showToast(e && e.status === 409 ? 'Медаль у него уже есть' : 'Ошибка');
     }

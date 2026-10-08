@@ -39,6 +39,7 @@ from db import (
 )
 from db.core import DB_PATH
 from db.admin_gifts import grant_admin_badge
+from db.admin_support import find_users_for_admin, list_active_users_for_admin
 from admin_digest_scheduler import build_stats_report
 
 logger = logging.getLogger("webapp.routes_admin")
@@ -129,6 +130,20 @@ async def admin_approve_route(request):
     telegram_id = int(request.match_info["telegram_id"])
     set_access_status(telegram_id, "approved")
     return web.json_response({"ok": True})
+
+
+@routes.get("/api/admin/users/search")
+async def admin_users_search_route(request):
+    """Поиск для админ-панели: ID, @ник (Telegram или в приложении) или часть имени."""
+    await _authenticate_admin(request)
+    return web.json_response({"users": find_users_for_admin(request.query.get("q", ""))})
+
+
+@routes.get("/api/admin/users/active")
+async def admin_users_active_route(request):
+    """Активные за неделю (по серии) — список «кому выдать медаль»."""
+    await _authenticate_admin(request)
+    return web.json_response({"users": list_active_users_for_admin()})
 
 
 @routes.get("/api/admin/user/{telegram_id}")

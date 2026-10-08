@@ -7,6 +7,8 @@ Roadmap #43 (сегментированная рассылка), #44 (карто
 здесь та же логика просто агрегируется по всем пользователям для админа
 вместо одного конкретного.
 """
+from datetime import datetime, timedelta, timezone
+
 from .core import connect
 
 # =====================================
@@ -157,9 +159,11 @@ def get_user_support_card(user_id):
     return {
         "telegram_id": user_id,
         "username": user["username"],
+        "handle": user["handle"] if "handle" in keys else None,
         "first_name": user["first_name"],
         "banned": bool(user["banned"]),
         "premium": bool(user["premium"]),
+        "badge": _has_badge(user_id),
         "xp": user["xp"],
         "level": user["level"],
         "streak": user["streak"],
@@ -177,3 +181,89 @@ def get_user_support_card(user_id):
         "purchases_count": purchases_row["cnt"] if purchases_row else 0,
         "subscription": get_subscription_status(user_id),
     }
+
+
+# =====================================
+# Поиск людей для админ-панели (выдача медали 🏅 и т.п.)
+# =====================================
+# Людей, которые приходят из инсты, админ знает по @нику, а не по Telegram ID — искать только по
+# числу было неудобно. Ищем по ID, @нику Telegram, @нику в приложении или части имени.
+BADGE_ITEM_ID = 3  # как в db/admin_gifts.py
+_ADMIN_USER_COLS = (
+    "u.telegram_id, u.first_name, u.username, u.handle, u.streak, u.xp, u.banned, u.last_seen, "
+    f"EXISTS(SELECT 1 FROM user_items ui WHERE ui.user_id=u.telegram_id AND ui.item_id={BADGE_ITEM_ID}) AS badge"
+)
+
+
+def _has_badge(user_id):
+    conn = connect()
+    try:
+        return conn.execute(
+            "SELECT 1 FROM user_items WHERE user_id=? AND item_id=? LIMIT 1", (user_id, BADGE_ITEM_ID)
+        ).fetchone() is not None
+    finally:
+        conn.close()
+
+
+def _admin_user_row(row):
+    return {
+        "telegram_id": row["telegram_id"],
+        "first_name": row["first_name"] or row["username"] or "Игрок",
+        "username": row["username"],
+        "handle": row["handle"],
+        "streak": int(row["streak"] or 0),
+        "xp": int(row["xp"] or 0),
+        "banned": bool(row["banned"]),
+        "badge": bool(row["badge"]),
+    }
+
+
+def find_users_for_admin(query, limit=8):
+    """Точный ID, либо подстрока @ника/имени без регистра; точные совпадения ника — первыми."""
+    q = str(query or "").strip().lstrip("@").casefold()
+    if not q:
+        return []
+    conn = connect()
+    try:
+        if q.isdigit():
+            rows = conn.execute(
+                f"SELECT {_ADMIN_USER_COLS} FROM users u WHERE u.telegram_id=?", (int(q),)
+            ).fetchall()
+        else:
+            # Сравнение — в Python: lower()/LIKE в SQLite понижают регистр только у латиницы, и
+            # «светлана» не находила бы «Светлана». Поиск админский и редкий, таблица небольшая.
+            rows = conn.execute(f"SELECT {_ADMIN_USER_COLS} FROM users u").fetchall()
+    finally:
+        conn.close()
+    if q.isdigit():
+        return [_admin_user_row(r) for r in rows]
+
+    def fields(r):
+        return [str(r[k] or "").casefold() for k in ("username", "handle", "first_name")]
+
+    hits = [r for r in rows if any(q in f for f in fields(r))]
+    hits.sort(key=lambda r: str(r["last_seen"] or ""), reverse=True)            # недавно заходившие — выше
+    hits.sort(key=lambda r: not any(f == q for f in fields(r)[:2]))              # точный ник — первым (sort стабильный)
+    return [_admin_user_row(r) for r in hits[:int(limit)]]
+
+
+def list_active_users_for_admin(limit=10, days=7):
+    """Кому выдать медаль: заходили за последние `days` дней, с самой длинной серией. Админов и
+    забаненных нет; кто уже получил медаль — в списке с пометкой (badge)."""
+    from config import ADMIN_IDS
+
+    cutoff = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)).isoformat()
+    admins = [int(i) for i in ADMIN_IDS]
+    skip_admins = f"AND u.telegram_id NOT IN ({','.join('?' * len(admins))})" if admins else ""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            f"""SELECT {_ADMIN_USER_COLS} FROM users u
+                WHERE u.banned = 0 AND COALESCE(u.access_status, 'approved') = 'approved'
+                  AND u.last_seen IS NOT NULL AND u.last_seen >= ? {skip_admins}
+                ORDER BY u.streak DESC, u.xp DESC LIMIT ?""",
+            (cutoff, *admins, int(limit)),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [_admin_user_row(r) for r in rows]

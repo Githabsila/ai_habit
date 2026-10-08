@@ -14166,6 +14166,11 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
   animation:none !important;
 }
 
+/* Вкладка «Сезон» прячет подиум и шапку списка «Всё время» через атрибут hidden, но display:grid/flex у них
+   перебивал [hidden] — подиум остался на экране с очками за всё время над сезонным списком (скрин 07.10). */
+.rating-podium[hidden],
+.rating-rest-head[hidden]{display:none !important}
+
 /* Звезда в «Главная задача дня» — рисованная SVG: текстовый символ «✦» сидел в квадрате чуть
    левее и ниже центра (у глифа несимметричные поля шрифта). Квадрат 24px, звезда по центру. */
 .plan-label-icon svg{display:block;width:12px;height:12px;pointer-events:none}
