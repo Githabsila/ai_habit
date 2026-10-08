@@ -3205,10 +3205,25 @@
   // тосты ждут своей очереди вместо того, чтобы обрезать чужую кнопку "Отменить".
   let toastQueue = [];
   let toastActive = false;
+  const TOAST_PRAISE_QUEUED_MS = 1200;
+  let toastShownAt = 0;
+  let toastIsPraise = false;      // показывается обычная похвала (монеты) — её можно сократить, если за ней идёт следующая
 
   function showToast(message, kind, duration, action) {
     toastQueue.push({ message, kind, duration, action });
-    if (!toastActive) _drainToastQueue();
+    if (!toastActive) { _drainToastQueue(); return; }
+    // Пришла следующая похвала, пока ещё висит предыдущая («+10 Adam Coin» за серию быстрых отметок): прежнюю не держим
+    // дольше TOAST_PRAISE_QUEUED_MS от её появления, иначе очередь монет тянется по 2.2 с на каждую привычку.
+    if (kind === "praise" && !duration && !action && toastIsPraise) {
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(_endActiveToast, Math.max(0, toastShownAt + TOAST_PRAISE_QUEUED_MS - Date.now()));
+    }
+  }
+
+  function _endActiveToast() {
+    document.getElementById("toast").classList.remove("is-visible");
+    toastActive = false;
+    _drainToastQueue();
   }
 
   function _drainToastQueue() {
@@ -3244,12 +3259,12 @@
       el.textContent = message;
       el.style.pointerEvents = "none";
     }
-    const ms = duration || 2200;
-    toastTimer = setTimeout(() => {
-      el.classList.remove("is-visible");
-      toastActive = false;
-      _drainToastQueue();
-    }, ms);
+    // Монеты за несколько отметок подряд идут одна за другой: если за ними ещё очередь, каждая показывается 1.2 с, а не 2.2 —
+    // иначе после четвёртой привычки ждёшь, пока доиграют все уведомления.
+    toastShownAt = Date.now();
+    toastIsPraise = kind === "praise" && !duration && !(action && action.label);
+    const ms = (toastIsPraise && toastQueue.length) ? TOAST_PRAISE_QUEUED_MS : (duration || 2200);
+    toastTimer = setTimeout(_endActiveToast, ms);
     // Промт 7.1: короткие микро-победы (похвала за задачу, монеты за
     // привычку) сопровождаются вибрацией и мягким звуком — обычные тосты
     // (сохранено, ошибка и т.п.) молчат, чтобы не звенеть по любому поводу.
@@ -3259,6 +3274,31 @@
     } else if (kind === "error" && !document.hidden) {
       haptic("warning");
     }
+  }
+
+  // «⚡ Ещё 30 минут x2 Adam Coin — успей закрыть следующую привычку». Раньше он ставился в очередь после КАЖДОЙ отметки, и
+  // человек, закрывший сразу 3–4 привычки, ждал ещё по 3.6 с на каждый такой тост. Теперь отметки подряд откладывают его, а
+  // показывается он один раз — когда новых отметок нет и все «+N Adam Coin» уже показаны.
+  const BONUS_HINT_TEXT = "⚡️ Ещё 30 минут x2 Adam Coin — успей закрыть следующую привычку";
+  const BONUS_HINT_QUIET_MS = 1200;
+  const BONUS_HINT_RETRY_MS = 350;
+  let bonusHintTimer = null;
+
+  function scheduleBonusHint() {
+    clearTimeout(bonusHintTimer);
+    bonusHintTimer = setTimeout(flushBonusHint, BONUS_HINT_QUIET_MS);
+  }
+
+  function flushBonusHint() {
+    if (toastActive || toastQueue.length) {            // монеты ещё показываются — подсказка идёт после них
+      bonusHintTimer = setTimeout(flushBonusHint, BONUS_HINT_RETRY_MS);
+      return;
+    }
+    bonusHintTimer = null;
+    // «Успей закрыть следующую привычку» — но если все привычки дня уже закрыты, закрывать нечего (тост был бы про воздух)
+    const habits = state?.habits;
+    if (Array.isArray(habits) && habits.length && habits.every((h) => h.completed)) return;
+    showToast(BONUS_HINT_TEXT, "success", 3600);
   }
 
   // ===================== PROFILE AVATAR / FRAMES =====================
@@ -4600,7 +4640,7 @@ async function celebrateHabitCompletion(result) {
     // окно бонуса тоже продлевается на 30 минут (см. db/habits.py::
     // complete_habit), но пользователь никак об этом не узнавал — простой
     // короткий тост вместо полноразмерного окна, как и просили.
-    setTimeout(() => showToast("⚡️ Ещё 30 минут x2 Adam Coin — успей закрыть следующую привычку", "success", 3600), 1400);
+    scheduleBonusHint();
   }
   // Пром 8 (доп.): "идеальный день" и, раз в месяц, награда за идеальный
   // месяц — показываем следом за тостом монет, со сдвигом, чтобы не
