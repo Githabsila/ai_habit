@@ -380,6 +380,8 @@ async def test_the_first_message_in_the_chat_is_remembered_the_same_way(client, 
     nudge_user(uid, chatted_before=True)
     _habits(uid, ["Зарядка", "Чтение"], done=1)
     _generate_returns(monkeypatch, "Остался один шаг — «Чтение». Найдёшь время до сна?")
+    real_pick = ac.pick_scenario                                      # до 12:00 UTC (пояс по умолчанию) — «утро» без вопросов: час фиксируем
+    monkeypatch.setattr(ac, "pick_scenario", lambda state, slot, chat_day=False: real_pick({**state, "hour": 15}, slot, chat_day))
     reply = await client.post("/api/ai/greet", json={"init_data": sign_init_data(uid)})
     assert (await reply.json())["greeting"]["message"].startswith("Остался один шаг")
     assert "в чате при заходе написал человеку «Остался один шаг" in ac.last_proactive_context(uid)

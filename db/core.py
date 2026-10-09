@@ -1568,3 +1568,12 @@ def create_tables():
     # сам делает "from .core import connect" на уровне модуля.
     from .streak import ensure_tables as _ensure_streak_tables
     _ensure_streak_tables()
+
+    # Парные задания, начатые по старым правилам (дни, цель 10), переходят на новые (привычки, цель 20) — см.
+    # db/pair_quests.py::upgrade_legacy_quests. Локальный импорт — по той же причине, что и выше.
+    from .pair_quests import upgrade_legacy_quests
+    try:
+        upgrade_legacy_quests()
+    except Exception:
+        import logging
+        logging.getLogger("db.core").exception("pair quests: не удалось перевести старые задания на новые правила")

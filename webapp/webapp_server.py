@@ -681,8 +681,8 @@ async def pair_invite_route(request):
     name = html.escape(_display_name(get_user(telegram_id)))
     _spawn_background(_send_social_push(
         request.app, int(body["friend_id"]),
-        f"🤝 <b>{name}</b> зовёт тебя в парное задание! Отмечайте привычки вместе: нужно набрать "
-        f"{PAIR_GOAL} дней на двоих за неделю — и сундук ваш. Открой ADAM → Главная.",
+        f"🤝 <b>{name}</b> зовёт тебя в парное задание! Отмечайте привычки вместе: нужно закрыть "
+        f"{PAIR_GOAL} привычек на двоих за неделю — и сундук ваш. Открой ADAM → Главная.",
     ))
     return web.json_response({"ok": True, "pair_quest": get_pair_quest(telegram_id)})
 

@@ -6447,7 +6447,7 @@ async function openFriendInvite() {
 // закрываются сами или по кнопке — ждём, пока они уйдут, плюс пару секунд
 // тишины, чтобы окно не наехало на тосты с монетами.
 const REMIND_BLOCKING_OVERLAYS = [
-  "streakCelebrationOverlay", "doubleBonusOverlay", "levelupOverlay", "streakOnboardingOverlay",
+  "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
   "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay",
 ];
@@ -6655,8 +6655,8 @@ function pairAvatarHtml(person, extra = "") {
 // ---- развёрнутая карточка: минимум текста, максимум картинок ----
 // Правила (db/pair_quests.py): цель — 20 закрытых привычек на двоих за 7 дней, с человека в день до 3, закрывается днём,
 // когда отметились оба. Экран показывает это без объяснений: сегментный бар с сундуком в конце, три «точки» на человека
-// за сегодня, неделя столбцами (золотой столбец — оба были в деле), подсказка «как это работает» — по тапу на ⓘ.
-let pairInfoOpen = false;
+// за сегодня, неделя столбцами (золотой столбец — оба были в деле); «как это работает» — отдельное окно (ⓘ в шапке, а в
+// Рейтинге ещё и тап по любому месту карточки), а не текст на самой карточке.
 const pairShownProgress = {};   // «карточка:задание» → сколько сегментов уже показано (новые вспыхивают)
 
 const PAIR_INFO_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v5.5M12 7.6v.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
@@ -6725,28 +6725,55 @@ function pairWeekHtml(q) {
     </div>`;
 }
 
-function pairInfoHtml(q) {
-  if (!pairInfoOpen || q.rules !== "habits") return "";
-  return `
-    <div class="pq-info">
-      <div><span>🎯</span><b>${q.goal}</b> привычек на двоих · ${q.days.length} дн.</div>
-      <div><span>☝️</span>до <b>${q.cap}</b> в день с каждого</div>
-      <div><span>🤝</span>финиш — только вдвоём</div>
-    </div>`;
+// ---- окно «Как это работает» ----
+// Числа берутся из состояния сервера, чтобы текст не разошёлся с правилами (db/pair_quests.py). Заголовок уже называет цель
+// и срок, поэтому строки ниже их не повторяют.
+let pairGuideOpenedAt = 0;
+
+function pairGuideContent(pq) {
+  const goal = Number(pq?.goal) || 20;
+  const days = Number(pq?.window_days) || 7;
+  const cap = Number(pq?.day_cap) || 3;
+  const reward = pq?.reward || {};
+  const rows = [
+    ["☝️", `С каждого засчитывается до <b>${cap}</b> привычек в день`],
+    ["🤝", "Закончить можно только вдвоём — в день, когда отметились <b>оба</b>"],
+    ["🎁", `Сундук каждому: <b>+${reward.coins ?? 60}</b> ${ADAM_COIN_ICON} и 💎${reward.diamonds ?? 1}, плюс очки «Заданий месяца»`],
+  ];
+  return {
+    title: `${goal} ${ruPlural(goal, ["привычка", "привычки", "привычек"])} на двоих за ${pairDaysWord(days)}`,
+    list: rows.map(([icon, text]) => `<li><span class="pq-guide-ico" aria-hidden="true">${icon}</span><span>${text}</span></li>`).join(""),
+  };
+}
+
+function openPairGuide() {
+  const overlay = document.getElementById("pairGuideOverlay");
+  if (!overlay || !overlay.hidden) return;
+  const { title, list } = pairGuideContent(state?.pair_quest);
+  document.getElementById("pairGuideTitle").textContent = title;
+  document.getElementById("pairGuideList").innerHTML = list;
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  pairGuideOpenedAt = performance.now();
+  requestAnimationFrame(() => overlay.classList.add("show"));
+  haptic("light");
+}
+
+function closePairGuide() {
+  const overlay = document.getElementById("pairGuideOverlay");
+  if (!overlay || overlay.hidden) return;
+  overlay.classList.remove("show");
+  overlay.setAttribute("aria-hidden", "true");
+  setTimeout(() => { overlay.hidden = true; }, 240);
 }
 
 function pairActionsHtml(q) {
   const partner = q.partner;
-  let nudge = "";
   if (q.partner_state === "can_remind") {
-    nudge = `<button type="button" class="pq-nudge" data-pair-act="nudge" data-id="${partner.telegram_id}">👋 Напомнить</button>`;
-  } else if (q.partner_state === "reminded") {
-    nudge = `<span class="pq-nudge is-sent">✓ Напомнили</span>`;
+    return `<div class="pq-actions"><button type="button" class="pq-nudge" data-pair-act="nudge" data-id="${partner.telegram_id}">👋 Напомнить</button></div>`;
   }
-  const info = q.rules === "habits"
-    ? `<button type="button" class="pq-info-btn${pairInfoOpen ? " is-open" : ""}" data-pair-act="info" aria-label="Как это работает" aria-expanded="${pairInfoOpen}">${PAIR_INFO_ICON}</button>`
-    : "";
-  return `<div class="pq-actions">${nudge || "<span></span>"}${info}</div>`;
+  if (q.partner_state === "reminded") return `<div class="pq-actions"><span class="pq-nudge is-sent">✓ Напомнили</span></div>`;
+  return "";
 }
 
 function pairQuestBodyHtml(pq, q, boxKey) {
@@ -6759,8 +6786,7 @@ function pairQuestBodyHtml(pq, q, boxKey) {
         <div class="pq-start__when">🕒 Старт <b>${when}</b></div>
       </div>
       ${pairSegmentsHtml(q, boxKey)}
-      ${pairInfoHtml(q)}
-      <div class="pq-actions"><button type="button" class="pair-btn pair-btn--ghost pq-leave" data-pair-act="cancel" data-id="${q.id}" data-confirm="Выйти из парного задания?">Выйти</button>${q.rules === "habits" ? `<button type="button" class="pq-info-btn${pairInfoOpen ? " is-open" : ""}" data-pair-act="info" aria-label="Как это работает">${PAIR_INFO_ICON}</button>` : ""}</div>`;
+      <div class="pq-actions"><button type="button" class="pair-btn pair-btn--ghost pq-leave" data-pair-act="cancel" data-id="${q.id}" data-confirm="Выйти из парного задания?">Выйти</button></div>`;
   }
 
   if (q.phase === "completed") {
@@ -6781,7 +6807,6 @@ function pairQuestBodyHtml(pq, q, boxKey) {
     ${pairHeroHtml(q, boxKey)}
     ${pairTodayHtml(q)}
     ${pairWeekHtml(q)}
-    ${pairInfoHtml(q)}
     ${pairActionsHtml(q)}`;
 }
 
@@ -6812,6 +6837,7 @@ function renderPairCardInto(box, collapsible) {
   box.hidden = false;
   const expanded = !collapsible || pairHomeExpanded;
   box.classList.toggle("pair-card--collapsed", !expanded);
+  box.classList.toggle("pair-card--tappable", !collapsible);        // Рейтинг: тап по любому месту карточки — инструкция
   if (!expanded) { box.innerHTML = pairCollapsedHtml(pq); return; }
 
   const q = pq.quest;
@@ -6848,13 +6874,14 @@ function renderPairCardInto(box, collapsible) {
     }
   }
   const total = Number(pq.completed_total || 0);
+  const infoBtn = `<button type="button" class="pq-info-btn pq-info-btn--head" data-pair-act="info" aria-label="Как это работает">${PAIR_INFO_ICON}</button>`;
   const toggle = collapsible
     ? `<button type="button" class="pair-toggle" data-pair-toggle aria-label="Свернуть парное задание">${PAIR_CHEVRON_UP}</button>`
     : "";
   box.innerHTML = `
     <div class="pair-card__head${collapsible ? " pair-card__head--toggle" : ""}"${collapsible ? ' data-pair-toggle role="button" tabindex="0" aria-expanded="true"' : ""}>
       <div class="pair-card__title">🤝 Парное задание</div>
-      <div class="pair-card__right"><div class="pair-card__badge">${badge}</div>${toggle}</div>
+      <div class="pair-card__right"><div class="pair-card__badge">${badge}</div>${infoBtn}${toggle}</div>
     </div>
     ${body}
     ${total > 0 ? `<div class="pair-card__foot">🏆 ${total}</div>` : ""}`;
@@ -7018,7 +7045,7 @@ async function confirmPairInvite() {
 async function pairCardAction(button) {
   const act = button.dataset.pairAct;
   const id = Number(button.dataset.id);
-  if (act === "info") { pairInfoOpen = !pairInfoOpen; haptic("light"); renderPairCard(); return; }
+  if (act === "info") { openPairGuide(); return; }
   if (labMode) { haptic("light"); showToast("🧪 Демо: действие не выполняется", "success", 1800); return; }
   if (act === "choose") { await openPairSheet(); return; }
   if (act === "nudge") { await pairNudge(id, button); return; }
@@ -7098,7 +7125,6 @@ async function applyLabScenario() {
   const data = await api(`/api/admin/lab/pair/${encodeURIComponent(item.key)}`);
   labMode.payload = data.pair_quest;
   pairHomeExpanded = true;
-  pairInfoOpen = false;
   renderPairCard();
   renderLabBar();
   document.getElementById("pairQuestCard")?.scrollIntoView({ block: "center" });
@@ -7150,7 +7176,11 @@ function initPairQuest() {
   home?.addEventListener("keydown", (e) => {
     if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-pair-toggle][role=button]")) { e.preventDefault(); togglePairHome(); }
   });
-  document.getElementById("pairQuestCardRating")?.addEventListener("click", onCardClick);
+  // Рейтинг: кнопки на карточке работают как обычно, а тап по любому другому месту открывает короткую инструкцию.
+  document.getElementById("pairQuestCardRating")?.addEventListener("click", (e) => {
+    if (e.target.closest("button, a, [data-pair-act], [data-pair-toggle]")) return onCardClick(e);
+    openPairGuide();
+  });
 
   // Краткая версия в «Квестах дня»: есть задание/приглашение — ведёт к полной карточке в Рейтинге, иначе — к выбору союзника.
   const mini = document.getElementById("pairQuestMini");
@@ -7180,6 +7210,13 @@ function initPairQuest() {
   document.getElementById("pairSheetConfirm")?.addEventListener("click", confirmPairInvite);
   document.getElementById("pairSheetLater")?.addEventListener("click", () => { haptic("light"); closePairSheet(); });
   document.getElementById("pairBackdrop")?.addEventListener("click", closePairSheet);
+
+  const guide = document.getElementById("pairGuideOverlay");
+  guide?.addEventListener("click", (e) => {
+    if (performance.now() - pairGuideOpenedAt < 300) return;        // двойной тап по карточке не должен тут же закрыть окно
+    if (e.target === guide || e.target.closest("#pairGuideClose")) { haptic("light"); closePairGuide(); }
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePairGuide(); });
 }
 
 // ===================== ЭВОЛЮЦИИ ADAM И РАНГИ =====================

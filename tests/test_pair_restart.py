@@ -223,7 +223,7 @@ def test_expanded_card_is_pictures_and_numbers_not_text():
     """Развёрнутая карточка v2 (по просьбе: «люди не любят читать — потыкают кнопки»): сегментный бар с сундуком, три «точки»
     на человека за сегодня, неделя столбцами; правила — только по тапу на ⓘ, обычного текста-абзаца в активном задании нет."""
     body = APP_JS[APP_JS.index("function pairQuestBodyHtml("):][:3600]
-    for part in ("pairHeroHtml(q, boxKey)", "pairTodayHtml(q)", "pairWeekHtml(q)", "pairInfoHtml(q)", "pairActionsHtml(q)"):
+    for part in ("pairHeroHtml(q, boxKey)", "pairTodayHtml(q)", "pairWeekHtml(q)", "pairActionsHtml(q)"):
         assert part in body, part
     assert "pair-hint" not in body and "pair-facts" not in body, "абзацы с объяснением убраны"
     hero = APP_JS[APP_JS.index("function pairHeroHtml("):][:1500]
@@ -236,10 +236,8 @@ def test_expanded_card_is_pictures_and_numbers_not_text():
 def test_week_columns_light_up_when_both_friends_were_in_action_and_info_is_on_demand():
     week = APP_JS[APP_JS.index("function pairWeekHtml("):][:1200]
     assert 'd.both ? " is-both"' in week and 'd.done ? " is-finish"' in week and "pq-n${d.me}" in week
-    info = APP_JS[APP_JS.index("function pairInfoHtml("):][:700]
-    assert 'if (!pairInfoOpen || q.rules !== "habits") return ""' in info
-    assert "привычек на двоих" in info and "в день с каждого" in info and "финиш — только вдвоём" in info
-    assert 'if (act === "info") { pairInfoOpen = !pairInfoOpen;' in APP_JS
+    assert 'if (act === "info") { openPairGuide(); return; }' in APP_JS      # ⓘ открывает окно (tests/test_pair_guide.py), а не плашку на карточке
+    assert "pairInfoOpen" not in APP_JS and "pairInfoHtml" not in APP_JS
     assert ".pq-col.is-both" in CSS and ".pq-seg.is-new{animation:pqPop" in CSS
 
 

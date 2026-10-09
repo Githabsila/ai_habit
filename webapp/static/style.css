@@ -14266,15 +14266,10 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
 .pq-n1{background:#FFE08A}
 .pq-n2{background:#FFC13D}
 .pq-n3{background:#7be3a4}
-.pq-info{display:grid;gap:7px;margin:0 0 10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-size:12.5px;color:#EAE5FA}
-.pq-info div{display:flex;align-items:center;gap:9px}
-.pq-info span{flex:0 0 22px;text-align:center;font-size:16px;line-height:1}
-.pq-info b{color:#FFD54F}
 .pq-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .pq-nudge{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#EAE5FA;font:700 13px 'Inter',sans-serif;cursor:pointer}
 .pq-nudge.is-sent{color:#7be3a4;border-color:rgba(47,210,125,.35);cursor:default}
 .pq-info-btn{display:grid;place-items:center;width:36px;height:36px;padding:0;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#B9B3D6;cursor:pointer}
-.pq-info-btn.is-open{color:#FFD54F;border-color:rgba(255,213,79,.5)}
 .pq-info-btn svg{display:block;width:18px;height:18px;pointer-events:none}
 .pq-start{display:flex;flex-direction:column;align-items:center;gap:8px;margin:2px 0 12px}
 .pq-start__duo{display:flex;align-items:center;gap:10px;font-size:24px}
@@ -14587,3 +14582,23 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 /* Окно выбора союзника: рекомендации сверху. */
 .pair-section{list-style:none;padding:8px 4px 4px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#9a94bd}
 .pair-row .friend-row__meta{white-space:normal}
+
+/* ===== Парное задание: окно «Как это работает» (ⓘ в шапке и тап по карточке в Рейтинге) =====
+   Без фильтров, размытия и бесконечных анимаций — как и остальной хвост «диеты для отрисовки». */
+.pair-card--tappable{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pq-info-btn--head{width:30px;height:30px;border-radius:50%}
+.pq-info-btn--head svg{width:16px;height:16px}
+.pq-guide-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:18px;background:rgba(4,4,10,.9);opacity:0;transition:opacity .22s ease;overscroll-behavior:contain}
+.pq-guide-overlay.show{opacity:1}
+.pq-guide-overlay[hidden]{display:none}
+.pq-guide-card{position:relative;width:min(380px,100%);padding:26px 20px 20px;border-radius:30px;text-align:center;background:radial-gradient(120% 60% at 50% 0%,rgba(255,200,92,.2),transparent 65%),linear-gradient(165deg,#221d33,#11111a 70%);border:1px solid rgba(255,210,120,.4);box-shadow:0 28px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,240,200,.18);transform:translateY(12px) scale(.97);transition:transform .26s cubic-bezier(.2,.9,.3,1)}
+.pq-guide-overlay.show .pq-guide-card{transform:none}
+.pq-guide-emblem{display:grid;place-items:center;width:72px;height:72px;margin:0 auto 12px;border-radius:50%;background:radial-gradient(circle at 32% 26%,#fff0bd,#f7bd45 52%,#c98314);box-shadow:0 0 0 7px rgba(247,189,69,.13),0 10px 24px rgba(247,189,69,.28)}
+.pq-guide-emblem svg{display:block;width:42px;height:42px}
+.pq-guide-eyebrow{font-size:10px;font-weight:800;letter-spacing:.2em;color:#F7C766}
+.pq-guide-card h2{margin:8px 0 16px;font:800 24px/1.18 'Space Grotesk',sans-serif;color:#fff}
+.pq-guide-list{display:grid;gap:8px;margin:0 0 18px;padding:0;list-style:none;text-align:left}
+.pq-guide-list li{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);font-size:14px;line-height:1.4;color:#D9D6EA}
+.pq-guide-list b{color:#FFD76E}
+.pq-guide-ico{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border-radius:50%;font-size:17px;line-height:1;background:rgba(247,189,69,.14);border:1px solid rgba(247,189,69,.3)}
+.pq-guide-btn{width:100%;padding:14px 20px;border:0;border-radius:17px;font:800 15px 'Inter',sans-serif;color:#2b1a00;background:linear-gradient(135deg,#FFD97A,#F59E1B);box-shadow:0 10px 24px rgba(245,158,27,.26);cursor:pointer}

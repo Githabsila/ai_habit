@@ -371,6 +371,7 @@ async def test_model_outage_falls_back_and_english_users_get_nothing_in_russian(
 
 async def test_nothing_is_sent_for_a_person_who_is_on_pace_or_has_nothing_to_do(uid, flag_on, monkeypatch):
     _generate_returns(monkeypatch, "Не должно отправиться.")
+    monkeypatch.setattr(ac, "is_chat_day", lambda *a: False)          # «чатовый день» зависит от даты — иначе по такому дню Адам напишет check_in
     bot = FakeBot()
     rows = _ready_user(uid, done=3)                                   # всё выполнено
     assert (await adam_proactive.process_user(bot, uid, "scope", _due(uid, "day"))).startswith("skipped: всё уже выполнено")
@@ -515,6 +516,8 @@ async def test_chat_greeting_is_contextual_when_enabled_and_static_otherwise(cli
     add_daily_task(uid, "Позвонить клиенту")
     prompts = []
     _generate_returns(monkeypatch, "Остались «Чтение» и звонок клиенту — с чего начнёшь?", prompts)
+    real_pick = ac.pick_scenario                                      # часовой пояс по умолчанию UTC: до 12:00 UTC это «утро» (без вопросов) — час фиксируем
+    monkeypatch.setattr(ac, "pick_scenario", lambda state, slot, chat_day=False: real_pick({**state, "hour": 15}, slot, chat_day))
     reply = await client.post("/api/ai/greet", json={"init_data": sign_init_data(uid)})
     greeting = (await reply.json())["greeting"]
     assert greeting["message"].startswith("Остались «Чтение»") and "Позвонить клиенту" in prompts[0]

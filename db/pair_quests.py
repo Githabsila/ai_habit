@@ -11,7 +11,8 @@
     а друг утром закрыл три, зачтутся две, а последняя ждёт напарника; если осталось 2 — зачтётся одна, и т.д.
     (compute_progress — единственное место, где это записано);
   • закрыли цель раньше срока — задание выполнено сразу, сверх цели ничего не копится.
-Старые задания (rules='days') доживают по прежним правилам: вклад — дни с отметкой (streak_days), цель 10.
+Старые незавершённые задания (rules='days': вклад — дни с отметкой, цель 10) при старте переводятся на эти же правила
+(upgrade_legacy_quests); выполненные остаются как были — их сундук заработан по старым правилам.
 
 Награда — сундук каждому (Adam Coin и алмаз) плюс очки в «Заданиях месяца».
 
@@ -36,11 +37,14 @@
 привычек (habit_completion_events; у старых заданий — по streak_days), поэтому отметка привычки где угодно (Mini App,
 бот) засчитывается без дополнительных хуков. Хуки в маршрутах нужны только для мгновенных пушей (on_day_completed).
 """
+import logging
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from .core import connect
+
+logger = logging.getLogger(__name__)
 
 # Сколько привычек на двоих нужно закрыть за окно (новые задания). Максимум в день — 3 + 3, значит быстрее всего
 # задание закрывается за 4 дня (6 + 6 + 6 + 2), а неактивной паре нужно ~3 привычки в день на двоих.
@@ -1067,3 +1071,40 @@ def get_pair_rating(limit=30):
         ]
         result.append(entry)
     return result
+
+
+def upgrade_legacy_quests():
+    """Разовый перевод НЕзавершённых заданий (приглашение или идущее) со старых правил (дни, цель 10) на новые (привычки,
+    цель 20, до 3 в день с человека, финиш только вдвоём). Иначе у тех, кто начал задание до 08.10, две привычки за день
+    давали одно очко, а цель оставалась 10.
+
+    Вклад считается по журналу отметок, а не хранится счётчиком, поэтому прогресс пересчитывается сам, с первого дня окна.
+    Выполненные задания (сундук ждёт или уже открыт) не трогаем. Повторный запуск ничего не меняет: старых pending/active
+    не остаётся, а новые создаются сразу с rules='habits'.
+
+    Возвращает [{"id", "status", "start_day", "end_day", "progress", "need", "pace", "days_left"}] по переведённым —
+    в лог при старте, чтобы было видно, у каких пар времени на 20 привычек уже не хватает."""
+    conn = connect()
+    try:
+        where = "status IN ('pending','active') AND (rules IS NULL OR rules<>?)"
+        rows = conn.execute(f"SELECT * FROM pair_quests WHERE {where}", (RULES_HABITS,)).fetchall()
+        if not rows:
+            return []
+        conn.execute(f"UPDATE pair_quests SET rules=?, goal=? WHERE {where}", (RULES_HABITS, PAIR_GOAL, RULES_HABITS))
+        conn.commit()
+        upgraded = []
+        for old in rows:
+            entry = {"id": old["id"], "status": old["status"], "start_day": old["start_day"], "end_day": old["end_day"]}
+            if old["status"] == "active":
+                try:
+                    fresh = conn.execute("SELECT * FROM pair_quests WHERE id=?", (old["id"],)).fetchone()
+                    view = _quest_view(conn, fresh, fresh["inviter_id"], _local_today(fresh["inviter_id"]))
+                    if view:
+                        entry.update({k: view[k] for k in ("progress", "need", "pace", "days_left")})
+                except Exception:
+                    logger.exception("pair quest %s: не удалось посчитать прогресс после перевода", old["id"])
+            upgraded.append(entry)
+            logger.info("pair quest: старые правила -> новые (привычки, цель %s): %s", PAIR_GOAL, entry)
+        return upgraded
+    finally:
+        conn.close()
