@@ -18,24 +18,31 @@ def build_history_text(
     user_id: int,
     limit: int = 4,
     max_chars_per_msg: int = 200,
+    last_assistant_chars: int | None = None,
 ) -> str:
     """
     Берёт последние сообщения переписки с AI-наставником из БД и
     превращает их в текстовый блок-контекст для мультиагентного пайплайна.
+
+    last_assistant_chars — сколько символов оставить от ПОСЛЕДНЕГО ответа наставника (остальные режутся по
+    max_chars_per_msg): без этого просьба «а второй пункт подробнее?» приходила к модели, когда сам план уже обрезан.
     """
     history = get_ai_history(user_id, limit=limit)
     if not history:
         return ""
 
     lines = []
+    window = history[-limit:]
+    last_assistant = max((i for i, row in enumerate(window) if row["role"] != "user"), default=None)
 
-    for row in history[-limit:]:
+    for index, row in enumerate(window):
         role = "Пользователь" if row["role"] == "user" else "Наставник"
 
         text = row["message"]
+        cap = last_assistant_chars if (index == last_assistant and last_assistant_chars) else max_chars_per_msg
 
-        if len(text) > max_chars_per_msg:
-            text = text[:max_chars_per_msg] + "…"
+        if len(text) > cap:
+            text = text[:cap] + "…"
 
         lines.append(f"{role}: {text}")
 

@@ -61,7 +61,7 @@ from db import (
     get_secondary_task_praise_state, record_secondary_task_praise,
     get_month_quests, claim_month_chest,
     get_pair_quest, list_pair_candidates, send_pair_invite, accept_pair_invite,
-    decline_pair_invite, cancel_pair_quest, claim_pair_chest, pair_on_day_completed, PAIR_GOAL,
+    decline_pair_invite, cancel_pair_quest, claim_pair_chest, pair_on_day_completed, pair_partner_done_text, PAIR_GOAL,
     get_gift_options, send_gift, get_received_gifts, count_unseen_gifts, mark_gifts_seen,
     get_subscription_status, try_grant_channel_access, bot_access_allowed,
     should_show_app_tour, mark_app_tour_seen,
@@ -629,11 +629,7 @@ async def _push_pair_event(app, actor_id, event):
             )
     elif event["type"] == "partner_done":
         name = html.escape(_display_name(get_user(event["from"])))
-        if event.get("final"):
-            text = f"🎁 <b>{name}</b> уже закрыл(а) свои — до сундука осталась одна привычка, и её закрываешь ты!"
-        else:
-            text = f"🤝 <b>{name}</b> уже в деле — на двоих {event['progress']}/{event['goal']} привычек. Твой ход! 🔥"
-        await _send_social_push(app, event["to"], text)
+        await _send_social_push(app, event["to"], pair_partner_done_text(name, event))
 
 
 def _pair_after_mark(app, telegram_id):

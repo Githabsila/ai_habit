@@ -6696,6 +6696,12 @@ function pairHeroHtml(q, boxKey) {
     ${pairSegmentsHtml(q, boxKey)}`;
 }
 
+// Вклад человека за всё задание под его именем: «6 привычек». Ноль не показываем — пустая строка честнее, чем «0 привычек».
+function pairShareHtml(count) {
+  const n = Number(count) || 0;
+  return n > 0 ? `<small class="pq-share"><i>${n}</i> ${ruPlural(n, ["привычка", "привычки", "привычек"])}</small>` : "";
+}
+
 function pairTodayHtml(q) {
   const me = state?.user || {};
   const t = q.today || { me: 0, partner: 0, held: 0 };
@@ -6704,9 +6710,9 @@ function pairTodayHtml(q) {
   const theirTurn = q.waiting_for === "partner" || (q.waiting_for !== "me" && !t.partner && t.me > 0);
   return `
     <div class="pq-today">
-      <div class="pq-person${myTurn ? " is-turn" : ""}">${pairAvatarHtml(me)}${pairPipsHtml(t.me, q.cap, holder === "me" ? t.held : 0)}<b>Ты</b></div>
+      <div class="pq-person${myTurn ? " is-turn" : ""}">${pairAvatarHtml(me)}${pairPipsHtml(t.me, q.cap, holder === "me" ? t.held : 0)}<b>Ты</b>${pairShareHtml(q.mine)}</div>
       <span class="pq-vs" aria-hidden="true">🤝</span>
-      <div class="pq-person${theirTurn ? " is-wait" : ""}">${pairAvatarHtml(q.partner)}${pairPipsHtml(t.partner, q.cap, holder === "partner" ? t.held : 0)}<b>${escapeHtml(q.partner.first_name)}</b></div>
+      <div class="pq-person${theirTurn ? " is-wait" : ""}">${pairAvatarHtml(q.partner)}${pairPipsHtml(t.partner, q.cap, holder === "partner" ? t.held : 0)}<b>${escapeHtml(q.partner.first_name)}</b>${pairShareHtml(q.partner_count)}</div>
     </div>`;
 }
 

@@ -188,11 +188,13 @@ def compute_progress(rules, goal, days, a_counts, b_counts):
     """Единственное место, где записаны правила подсчёта. days — даты окна по порядку (строки), a_counts / b_counts —
     {день: сколько привычек} приглашающего и приглашённого (у старых заданий — 1 за день с отметкой).
 
-    {"total", "cap", "rows": [{"day", "a", "b"}] (a, b — уже с потолком на день), "done_day", "held_by_day"}.
-    total — засчитанные привычки (для habits не больше goal). Для habits: если за день набралась бы цель, а один из
-    двоих сегодня ещё ничего не закрыл, засчитывается goal-1 (цель ждёт напарника), «лишнее» — в held_by_day."""
+    {"total", "cap", "rows": [{"day", "a", "b"}] (a, b — уже с потолком на день), "done_day", "held_by_day", "a_total",
+    "b_total"}. total — засчитанные привычки (для habits не больше goal). Для habits: если за день набралась бы цель, а один из
+    двоих сегодня ещё ничего не закрыл, засчитывается goal-1 (цель ждёт напарника), «лишнее» — в held_by_day.
+    a_total / b_total — вклад каждого В ЗАЧЁТ (a_total + b_total == total): удержанное и всё, что после цели, не входит."""
     cap = PAIR_DAY_CAP if rules == RULES_HABITS else 1
     total = 0
+    a_total = b_total = 0
     done_day = None
     held_by_day = {}
     rows = []
@@ -205,18 +207,36 @@ def compute_progress(rules, goal, days, a_counts, b_counts):
         gained = a + b
         if rules != RULES_HABITS:                       # старые задания: просто сумма дней
             total += gained
+            a_total += a
+            b_total += b
             if total >= goal:
                 done_day = day
             continue
         if total + gained < goal:
             total += gained
+            a_total += a
+            b_total += b
         elif a >= 1 and b >= 1:
+            need = goal - total                          # в день завершения отметились оба: берём ровно столько, сколько нужно
+            took_a = min(a, need - 1)
+            took_b = need - took_a
+            if took_b > b:
+                took_b = b
+                took_a = need - took_b
+            a_total += took_a
+            b_total += took_b
             held_by_day.pop(day, None)
-            total, done_day = goal, day                  # в день завершения отметились оба
+            total, done_day = goal, day
         else:
+            counted = goal - 1 - total                    # последняя привычка ждёт напарника; засчитанное — тому, кто сегодня отметился
+            if a >= 1:
+                a_total += counted
+            else:
+                b_total += counted
             held_by_day[day] = total + gained - (goal - 1)
-            total = goal - 1                              # последняя привычка ждёт напарника
-    return {"total": total, "cap": cap, "rows": rows, "done_day": done_day, "held_by_day": held_by_day}
+            total = goal - 1
+    return {"total": total, "cap": cap, "rows": rows, "done_day": done_day, "held_by_day": held_by_day,
+            "a_total": a_total, "b_total": b_total}
 
 
 def _calc_for_quest(cursor, q):
@@ -398,8 +418,9 @@ def _build_view(*, quest_id, status, goal, rules, start_day, end_day, viewer_is_
         "rules": rules,
         "cap": cap,
         "progress": min(total, goal) if status == "completed" else total,
-        "mine": sum(x["me"] for x in days),
-        "partner_count": sum(x["partner"] for x in days),
+        # вклад каждого В ЗАЧЁТ: вместе дают progress (удержанное для напарника и всё, что после цели, сюда не входит)
+        "mine": calc["a_total"] if viewer_is_inviter else calc["b_total"],
+        "partner_count": calc["b_total"] if viewer_is_inviter else calc["a_total"],
         "start_day": start_day,
         "end_day": end_day,
         "starts_in": max(0, (start - today).days) if phase == "scheduled" else 0,
@@ -889,8 +910,6 @@ def on_day_completed(user_id):
     на задание), {"type": "partner_done", "to", ...} — напарнику, который ещё не
     отмечался, пора догонять (не чаще раза в день, и только если он не против
     напоминаний — те же правила, что у «Напомнить» в друзьях)."""
-    from .friends import _can_receive_nudge, _local_day, has_completed_today
-
     q = _active_quest_of(user_id)
     if q is None:
         return []
@@ -900,7 +919,6 @@ def on_day_completed(user_id):
     q, transition = _settle(q["id"])
     if q is None:
         return []
-    partner_id = _partner_of(q, user_id)
     if transition == "completed":
         return [{
             "type": "completed", "quest_id": q["id"],
@@ -908,6 +926,16 @@ def on_day_completed(user_id):
         }]
     if q["status"] != "active":
         return []
+    event = _partner_nudge_event(q, user_id, today_s)
+    return [event] if event else []
+
+
+def _partner_nudge_event(q, actor_id, today_s):
+    """Событие «напарник уже в деле — твой ход» для напарника человека actor_id или None. Не чаще раза в день на задание
+    (журнал pair_quest_pings) и только если напарника можно подтолкнуть: те же правила, что у «Напомнить» в друзьях."""
+    from .friends import _can_receive_nudge, _local_day
+
+    partner_id = _partner_of(q, actor_id)
     conn = connect()
     try:
         partner_row = _user_row(conn, partner_id)
@@ -915,20 +943,57 @@ def on_day_completed(user_id):
     finally:
         conn.close()
     today_row = next((r for r in calc["rows"] if r["day"] == today_s), None)
-    partner_today = 0 if today_row is None else (today_row["b"] if q["inviter_id"] == user_id else today_row["a"])
+    partner_today = 0 if today_row is None else (today_row["b"] if q["inviter_id"] == actor_id else today_row["a"])
     if partner_today >= 1:
-        return []                             # напарник сегодня уже в деле — подталкивать не нужно
+        return None                           # напарник сегодня уже в деле — подталкивать не нужно
     if partner_row is None or not _can_receive_nudge(partner_row):
-        return []
+        return None
     if not _claim_ping(q["id"], partner_id, _local_day(partner_id)):
-        return []
+        return None
     goal = int(q["goal"])
-    return [{
-        "type": "partner_done", "to": partner_id, "from": user_id, "quest_id": q["id"],
+    return {
+        "type": "partner_done", "to": partner_id, "from": actor_id, "quest_id": q["id"],
         "progress": calc["total"], "goal": goal,
         # до сундука осталась одна привычка и она за напарником
         "final": _rules(q) == RULES_HABITS and calc["total"] == goal - 1,
-    }]
+    }
+
+
+def pending_partner_events():
+    """Для планировщика: «напарник уже в деле — твой ход» для отметок, сделанных МИМО Mini App (чат с Адамом, кнопки бота): там
+    после отметки никто не звал on_day_completed, и напарник так и не узнавал, что его ждут. Тот же журнал pair_quest_pings, что и
+    у приложения, поэтому второго пуша за день не будет; если напарника сейчас подталкивать нельзя (ночь, тихие часы, дел не
+    осталось), событие появится позже, когда можно. Выполненные задания не трогаем: их засчитывает settle_active_quests."""
+    events = []
+    for q in get_active_pair_quests():
+        try:
+            conn = connect()
+            try:
+                calc = _calc_for_quest(conn, q)
+            finally:
+                conn.close()
+            if calc["total"] >= int(q["goal"]):
+                continue
+            for actor_id in (q["inviter_id"], q["invitee_id"]):
+                today_s = str(_local_today(actor_id))
+                if not (q["start_day"] <= today_s <= q["end_day"]):
+                    continue
+                row = next((r for r in calc["rows"] if r["day"] == today_s), None)
+                if row is None or (row["a"] if q["inviter_id"] == actor_id else row["b"]) < 1:
+                    continue                  # сам человек сегодня ещё ничего не закрыл — напарнику сообщать нечего
+                event = _partner_nudge_event(q, actor_id, today_s)
+                if event:
+                    events.append(event)
+        except Exception:
+            logger.exception("pair quest: не удалось проверить задание %s", q.get("id"))
+    return events
+
+
+def partner_done_text(name_html, event):
+    """Текст пуша «напарник уже в деле» (name_html — имя уже экранированное). Один для Mini App и для планировщика."""
+    if event.get("final"):
+        return f"🎁 <b>{name_html}</b> уже закрыл(а) свои — до сундука осталась одна привычка, и её закрываешь ты!"
+    return f"🤝 <b>{name_html}</b> уже в деле — на двоих {event['progress']}/{event['goal']} привычек. Твой ход! 🔥"
 
 
 def settle_active_quests():
@@ -997,24 +1062,34 @@ def users_due_for_new_quest():
     try:
         since = str(date.today() - timedelta(days=RESTART_NUDGE_DAYS + 2))
         rows = conn.execute(
-            "SELECT id, inviter_id, invitee_id, status, end_day, inviter_claimed_day, invitee_claimed_day "
-            "FROM pair_quests WHERE accepted_at IS NOT NULL AND status IN ('completed','expired') AND end_day>=? "
+            "SELECT * FROM pair_quests WHERE accepted_at IS NOT NULL AND status IN ('completed','expired') AND end_day>=? "
             "ORDER BY id",
             (since,),
         ).fetchall()
+        latest = {}
+        for q in rows:
+            for uid in (q["inviter_id"], q["invitee_id"]):
+                latest[uid] = q                  # id по возрастанию: последнее перезаписывает
+        due = []
+        scores = {}
+        for uid, q in latest.items():
+            claimed = q["inviter_claimed_day"] if q["inviter_id"] == uid else q["invitee_claimed_day"]
+            if q["status"] == "completed" and claimed is None:
+                continue                          # сундук ещё не открыт — сначала он
+            item = {"user_id": uid, "quest_id": q["id"], "end_day": q["end_day"], "status": q["status"]}
+            if q["status"] == "expired":          # сколько не хватило: пуш скажет «вышло 14 из 20», а не просто «новое задание»
+                if q["id"] not in scores:
+                    try:
+                        scores[q["id"]] = min(int(_calc_for_quest(conn, q)["total"]), int(q["goal"]))
+                    except Exception:
+                        logger.exception("pair quest: не удалось посчитать итог задания %s", q["id"])
+                        scores[q["id"]] = None
+                if scores[q["id"]] is not None:
+                    item["progress"], item["goal"] = scores[q["id"]], int(q["goal"])
+            due.append(item)
+        return due
     finally:
         conn.close()
-    latest = {}
-    for q in rows:
-        for uid in (q["inviter_id"], q["invitee_id"]):
-            latest[uid] = q                      # id по возрастанию: последнее перезаписывает
-    due = []
-    for uid, q in latest.items():
-        claimed = q["inviter_claimed_day"] if q["inviter_id"] == uid else q["invitee_claimed_day"]
-        if q["status"] == "completed" and claimed is None:
-            continue                              # сундук ещё не открыт — сначала он
-        due.append({"user_id": uid, "quest_id": q["id"], "end_day": q["end_day"], "status": q["status"]})
-    return due
 
 
 # ---------------------------------------------------------------------------
@@ -1108,3 +1183,125 @@ def upgrade_legacy_quests():
         return upgraded
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# ФАКТЫ ДЛЯ АДАМА И НАПОМИНАНИЕ «ЗАКАНЧИВАЕТСЯ ЗАВТРА»
+# ---------------------------------------------------------------------------
+
+def _plain_name(person):
+    return " ".join(str((person or {}).get("first_name") or "друг").split())[:40]
+
+
+def context_lines_from_state(pq, include_idle=True):
+    """Факты о парном задании для Адама (чат и «Адам пишет первым») — готовые строки без разметки, по состоянию из
+    get_pair_quest. Идущее задание: счёт, срок, вклад сегодня, кто кого ждёт, темп. include_idle — ещё и «тихие» состояния
+    (приглашение, старт завтра, сундук, недавняя неудача): в чате они уместны, в пуше Адама — нет. [] — сказать нечего."""
+    pq = pq or {}
+    q = pq.get("quest")
+    lines = []
+    if q:
+        name = _plain_name(q.get("partner"))
+        phase = q.get("phase")
+        if phase == "active":
+            lines.append(
+                f"Парное задание с напарником «{name}»: общий счёт {q['progress']} из {q['goal']}, до конца {q['days_left']} дн., "
+                f"нужно закрыть ещё {q['need']}"
+            )
+            t = q.get("today") or {}
+            lines.append(
+                f"Сегодня в зачёт парного задания: у человека {t.get('me', 0)}, у напарника {t.get('partner', 0)} "
+                f"(не больше {q['cap']} в день с каждого)"
+            )
+            waiting = q.get("waiting_for")
+            if waiting == "me":
+                lines.append("До сундука одна привычка, и она за самим человеком: напарник сегодня уже отметился")
+            elif waiting == "partner":
+                lines.append("До сундука одна привычка, и она за напарником: человек сегодня уже отметился")
+            elif waiting == "both":
+                lines.append("До сундука одна привычка: закрыть её можно только в день, когда отметятся оба")
+            if q.get("pace") == "tight":
+                lines.append("Темп парного задания впритык: чтобы успеть, нужно закрывать почти по максимуму")
+            elif q.get("pace") == "lost":
+                lines.append("Набрать нужное до конца окна уже не получится — не обещай сундук, предложи держать ритм и начать новое задание")
+        elif include_idle and phase == "scheduled":
+            when = "завтра" if q.get("starts_in", 0) <= 1 else f"через {q['starts_in']} дн."
+            lines.append(f"Парное задание с напарником «{name}» стартует {when}")
+        elif include_idle and phase == "completed":
+            lines.append(
+                f"Парное задание с «{name}» выполнено — сундук ещё не открыт" if q.get("claimable")
+                else f"Парное задание с «{name}» недавно выполнено, награда получена"
+            )
+        return lines
+    if not include_idle:
+        return []
+    incoming = pq.get("incoming") or []
+    if incoming:
+        lines.append(f"«{_plain_name(incoming[0].get('from'))}» зовёт человека в парное задание — приглашение ждёт ответа")
+    elif pq.get("outgoing"):
+        lines.append(f"Приглашение в парное задание для «{_plain_name(pq['outgoing'].get('to'))}» отправлено, ответа пока нет")
+    elif pq.get("recent_fail"):
+        lines.append(f"Недавнее парное задание с «{_plain_name(pq['recent_fail'].get('partner'))}» не набрало цель — без упрёков, можно начать новое")
+    return lines
+
+
+def context_lines(user_id, include_idle=True):
+    try:
+        return context_lines_from_state(get_pair_quest(user_id), include_idle)
+    except Exception:
+        logger.exception("pair quest: не удалось собрать факты для Адама (%s)", user_id)
+        return []
+
+
+def eve_reminder(quest, user_id):
+    """Подсказка для пуша «задание заканчивается завтра» (как в Duolingo: «Парное задание заканчивается завтра! 19/25») или
+    None. Шлём в ПРЕДПОСЛЕДНИЙ день окна, если цель ещё не набрана и достижима: остаток потолка сегодня у обоих плюс полный
+    потолок обоих завтра."""
+    today = _local_today(user_id)
+    if str(today + timedelta(days=1)) != quest["end_day"]:
+        return None
+    partner_id = _partner_of(quest, user_id)
+    conn = connect()
+    try:
+        partner_row = _user_row(conn, partner_id)
+        calc = _calc_for_quest(conn, quest)
+    finally:
+        conn.close()
+    if partner_row is None:
+        return None
+    today_row = next((r for r in calc["rows"] if r["day"] == str(today)), None)
+    if today_row is None:
+        return None
+    mine, theirs = (today_row["a"], today_row["b"]) if quest["inviter_id"] == user_id else (today_row["b"], today_row["a"])
+    cap = calc["cap"]
+    goal = int(quest["goal"])
+    left = goal - calc["total"]
+    if left <= 0:
+        return None
+    if left > (cap - mine) + (cap - theirs) + 2 * cap:
+        return None                            # даже при максимуме у обоих не дотянуть — зря пугать нечем
+    return {
+        "left": left, "progress": calc["total"], "goal": goal, "mine_today": mine,
+        "partner_name": _person(partner_row)["first_name"],
+    }
+
+
+def chat_line(user_id):
+    """Одна строка про парное задание для ответа в чате после отметки привычки («🤝 Парное задание: 10/20 · …») или "" —
+    задания нет или оно не идёт. Имя напарника не склоняем: оно здесь не нужно."""
+    try:
+        q = get_pair_quest(user_id).get("quest")
+    except Exception:
+        logger.exception("pair quest: не удалось собрать строку для чата (%s)", user_id)
+        return ""
+    if not q or q.get("phase") != "active":
+        return ""
+    line = f"🤝 Парное задание: {q['progress']}/{q['goal']}"
+    today = q.get("today") or {}
+    if q.get("waiting_for") == "partner":
+        return line + " — последняя привычка за напарником"
+    if q.get("waiting_for") == "me":
+        return line + " — последняя привычка за тобой"
+    if not today.get("partner"):
+        return line + " · напарник сегодня ещё не отметился"
+    return line + " · вы оба сегодня в деле 🔥"

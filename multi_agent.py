@@ -806,6 +806,7 @@ async def fast_answer(
     mood_note: str = "",
     style_note: str = "",
     humor_note: str = "",
+    scenario_note: str = "",
 ) -> str:
     user = task
     if user_context:
@@ -813,7 +814,8 @@ async def fast_answer(
     if history:
         user = f"История переписки:\n{history}\n\n{user}"
 
-    system = FAST_SYSTEM + "\n\n" + _combine_notes(mood_note, style_note, humor_note)
+    # scenario_note — что это за сообщение и как на него отвечать (webapp/services/chat_brain.py)
+    system = FAST_SYSTEM + "\n\n" + _combine_notes(mood_note, style_note, scenario_note, humor_note)
     # Было 300 — для "1-3 предложений" по-русски модели иногда впритык не
     # хватало, и это резало ответ на полуслове (Проблема №1). У _ask теперь
     # есть свой аварийный повтор/подрезка, но на первом заходе лучше сразу
@@ -1169,6 +1171,30 @@ HABIT_EXTRACT_SYSTEM = (
 )
 
 
+# Дешёвый фильтр перед извлечением: лишний вызов модели нужен, только когда ответ вообще предлагает завести привычку.
+_HABIT_SUGGEST_MARKERS = (
+    "добав", "завед", "заведи", "попробуй", "внедр", "начни с", "рекоменду", "предлагаю", "введи", "ввести",
+)
+SUGGEST_HABIT_TIMEOUT = 4.0
+
+
+def _may_suggest_habit(answer: str) -> bool:
+    low = (answer or "").lower()
+    return "привычк" in low and any(marker in low for marker in _HABIT_SUGGEST_MARKERS)
+
+
+async def suggest_habit_from_answer(answer: str) -> Optional[str]:
+    """Название новой привычки, которую предложил ответ (для кнопки «Добавить» в чате), или None. Быстрый путь ответа раньше
+    не вызывал извлечение вовсе, и кнопка не появлялась никогда. Вызов модели — только если ответ похож на предложение, и не
+    дольше SUGGEST_HABIT_TIMEOUT: ответ человеку из-за кнопки не задерживаем."""
+    if not _may_suggest_habit(answer):
+        return None
+    try:
+        return await asyncio.wait_for(extract_suggested_habit(answer), SUGGEST_HABIT_TIMEOUT)
+    except Exception:
+        return None
+
+
 async def extract_suggested_habit(answer: str) -> Optional[str]:
     raw = await _ask(HABIT_EXTRACT_SYSTEM, answer, temperature=0.0, max_tokens=60, model=FAST_MODEL)
     try:
@@ -1355,6 +1381,8 @@ async def solve_task_multiagent(
     trace: Optional[AgentTrace] = None,
     first_message: bool = False,
     humor_note: str = "",
+    scenario_note: str = "",
+    mood: str = "",
 ) -> dict:
     """
     Полный пайплайн:
@@ -1390,6 +1418,10 @@ async def solve_task_multiagent(
         trace = AgentTrace(task=task)
 
     style_note = STYLE_NOTES.get(style, "")
+    # Настроение по словам сообщения (webapp/services/chat_brain.py): раньше в быстром пути оно считалось «нейтрально» всегда
+    # и подсказка MOOD_GUIDANCE до модели не доходила.
+    mood = mood if mood in _KNOWN_MOODS else "нейтрально"
+    mood_note = MOOD_GUIDANCE.get(mood, "")
 
     # Первое сообщение пользователя — единственный момент, когда ADAM
     # может коротко отметить текущий прогресс. Дальше эта фраза не повторяется,
@@ -1412,17 +1444,17 @@ async def solve_task_multiagent(
     # ADAM получает тот же актуальный user_context и историю, но отвечает
     # напрямую — это и есть основной режим приложения.
     if not _has_crisis_signal(task):
-        trace.mood = "нейтрально"
+        trace.mood = mood
         trace.complexity = "прямой быстрый ответ"
         trace.is_crisis = False
-        answer = await fast_answer(task, history, user_context, "", style_note, humor_note)
+        answer = await fast_answer(task, history, user_context, mood_note, style_note, humor_note, scenario_note)
         answer = _apply_first_response_note(answer, first_message, user_context)
         trace.final_answer = answer
         return {
             "answer": answer,
-            "mood": "нейтрально",
+            "mood": mood,
             "is_crisis": False,
-            "suggested_habit": None,
+            "suggested_habit": await suggest_habit_from_answer(answer),
             "complexity": "прямой быстрый ответ",
         }
 
@@ -1444,14 +1476,14 @@ async def solve_task_multiagent(
             "complexity": "кризис",
         }
 
-    answer = await fast_answer(task, history, user_context, "", style_note, humor_note)
+    answer = await fast_answer(task, history, user_context, MOOD_GUIDANCE.get(mood, mood_note), style_note, humor_note, scenario_note)
     answer = _apply_first_response_note(answer, first_message, user_context)
     trace.final_answer = answer
     return {
         "answer": answer,
         "mood": mood,
         "is_crisis": False,
-        "suggested_habit": None,
+        "suggested_habit": await suggest_habit_from_answer(answer),
         "complexity": complexity or "прямой быстрый ответ",
     }
 

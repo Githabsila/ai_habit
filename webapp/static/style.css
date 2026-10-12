@@ -14602,3 +14602,7 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .pq-guide-list b{color:#FFD76E}
 .pq-guide-ico{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border-radius:50%;font-size:17px;line-height:1;background:rgba(247,189,69,.14);border:1px solid rgba(247,189,69,.3)}
 .pq-guide-btn{width:100%;padding:14px 20px;border:0;border-radius:17px;font:800 15px 'Inter',sans-serif;color:#2b1a00;background:linear-gradient(135deg,#FFD97A,#F59E1B);box-shadow:0 10px 24px rgba(245,158,27,.26);cursor:pointer}
+
+/* ===== Парное задание: вклад каждого под именем («6 привычек») ===== */
+.pq-person .pq-share{display:block;margin-top:-3px;font:700 11px 'Space Grotesk',sans-serif;color:rgba(255,255,255,.6);white-space:nowrap}
+.pq-person .pq-share i{font-style:normal;font-weight:800;color:#FFD97A}

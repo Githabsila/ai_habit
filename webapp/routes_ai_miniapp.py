@@ -61,6 +61,7 @@ from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
 from db.ai_nudge import begin_ai_greeting, finish_ai_greeting, pick_greeting
 from db import adam_checkin as adam_ck
 from webapp.services.ai_jobs import ai_jobs
+from webapp.services import chat_brain
 
 logger = logging.getLogger("webapp.ai_miniapp")
 
@@ -245,6 +246,26 @@ async def ai_chat_miniapp(request):
     return web.json_response(job.payload, status=job.status)
 
 
+HABIT_LIMIT = 10          # столько привычек можно завести (db/habits.py); при полном списке кнопку «Добавить» не показываем
+
+
+def _fresh_suggestion(user_id: int, suggested):
+    """Кнопка «Добавить привычку» — только для НОВОЙ привычки и пока есть место в списке."""
+    title = " ".join(str(suggested or "").split())
+    if not title:
+        return None
+    try:
+        existing = [" ".join(str(h["title"]).lower().split()) for h in get_habits(user_id)]
+    except Exception:
+        return title
+    if len(existing) >= HABIT_LIMIT:
+        return None
+    low = title.lower()
+    if any(low == t or low in t or t in low for t in existing if t):
+        return None
+    return title
+
+
 async def _answer_chat(user_id: int, pro: bool, message_text: str):
     """Тело ответа ADAM: (http_status, json) — как раньше строилось прямо в обработчике. Запускается задачей ai_jobs."""
     # Фиксируем первое реально обработанное сообщение только после
@@ -283,14 +304,18 @@ async def _answer_chat(user_id: int, pro: bool, message_text: str):
         }
 
     # Собирем контекст
-    history_text = build_history_text(user_id, limit=4, max_chars_per_msg=180)
+    history_text = build_history_text(user_id, limit=6, max_chars_per_msg=180, last_assistant_chars=1200)
     user_context = build_user_context(user_id)
     style = get_ai_style(user_id)
+
+    # Ситуация человека и тип сообщения (webapp/services/chat_brain.py): история дней, время суток, парное задание, «устал»,
+    # «что делать сейчас», итоги дня и т.д. Сбой здесь ответ не ломает — получим пустой результат.
+    user_context, brain = chat_brain.enrich(user_id, message_text, user_context)
 
     previous = get_ai_history(user_id, limit=6)
     assistant_count = sum(1 for row in previous if row.get("role") == "assistant")
     humor_note = ""
-    if (assistant_count + 1) % 3 == 0:
+    if (assistant_count + 1) % 3 == 0 and brain["humor_ok"]:
         humor_note = (
             "Если уместно, можешь закончить ответ одной короткой умной шуткой, "
             "ироничной репликой или интересным фактом по теме. Только если это "
@@ -317,10 +342,12 @@ async def _answer_chat(user_id: int, pro: bool, message_text: str):
                 style=style,
                 first_message=first_message,
                 humor_note=humor_note,
+                scenario_note=brain["scenario_note"],
+                mood=brain["mood"],
             )
             answer = result["answer"]
             is_crisis = result["is_crisis"]
-            suggested_habit = result["suggested_habit"]
+            suggested_habit = _fresh_suggestion(user_id, result["suggested_habit"])
             complexity = result.get("complexity", "сложно")
         except Exception as e:
             logger.exception(f"Ошибка AI-пайплайна для {user_id}")

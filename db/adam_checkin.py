@@ -412,6 +412,16 @@ def _main_age_minutes(user_id, today_iso, has_main):
     return int((datetime.now(timezone.utc) - created).total_seconds() // 60) if created else None
 
 
+def _pair_lines(user_id):
+    """Факты об ИДУЩЕМ парном задании для сообщения Адама (счёт, срок, кто кого ждёт). Ни приглашений, ни старта завтра: о них говорят
+    отдельные пуши задания. Сбой — просто без фактов."""
+    try:
+        from .pair_quests import context_lines
+        return context_lines(user_id, include_idle=False)
+    except Exception:
+        return []
+
+
 def build_checkin_state(user_id, now_local=None, with_pace=True):
     """User_State для выбора повода и для модели. Привычки и задачи на сегодня считаются ВМЕСТЕ; плюс история человека (темп,
     привычное время привычек, как он обращается с задачами), сколько назад заходил и какие поводы уже были."""
@@ -467,6 +477,7 @@ def build_checkin_state(user_id, now_local=None, with_pace=True):
         "task_hist": _task_history(user_id, plan_date) if with_pace else {"days_with_main": 0, "main_done_days": 0, "tasks_set": 0, "tasks_done": 0},
         "main_age_min": _main_age_minutes(user_id, plan_date, bool(main_goal)),
         "mood_hint": _short(get_proactive_topic(user_id), 160),
+        "pair_lines": _pair_lines(user_id),
         "minutes_since_chat": minutes_since_chat,
         "seen_minutes_ago": seen_minutes_ago(user_id),
         "recent_scenarios": recent_scenarios(user_id, 6),
@@ -752,6 +763,13 @@ def build_checkin_prompt(state, scenario, opener, recent_messages=(), recent_sce
         lines.append("Результат сегодня выше обычного для этого человека")
     if state.get("mood_hint"):
         lines.append(f"Недавняя тема из разговора (мягко учти, не цитируй): {state['mood_hint']}")
+    pair = state.get("pair_lines") or []
+    if pair:
+        lines.extend(pair)
+        lines.append(
+            "Парное задание упомяни, только когда это естественно усиливает сообщение, одной короткой фразой и не главной темой; "
+            "имя напарника — как написано, без склонения и без догадок о поле; напарником не упрекай и не пугай"
+        )
     if recent_scenarios:
         lines.append("Поводы последних сообщений (не повторяй тот же): " + ", ".join(INTENT_LABELS.get(x, x) for x in recent_scenarios))
     lines.append("")

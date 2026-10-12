@@ -23,7 +23,8 @@ from db import (
     get_gender, gender_forms,
     is_bot_blocked, mark_bot_blocked,
     get_user, settle_pair_quests, get_active_pair_quests, pair_last_day_reminder, PAIR_GOAL,
-    pair_users_due_for_new_quest, get_pair_quest, list_pair_candidates,
+    pair_users_due_for_new_quest, get_pair_quest, list_pair_candidates, pair_eve_reminder,
+    pair_pending_partner_events, pair_partner_done_text,
 )
 
 logger = logging.getLogger("streak_scheduler")
@@ -582,14 +583,27 @@ async def _send_pair_push(bot, uid, text):
     return False
 
 
-def pair_restart_text(kind, recommended):
+def pair_restart_text(kind, recommended, fail=None):
     """Текст пуша «начни новое парное задание» с самыми активными друзьями (или None, если
-    рекомендовать некого). kind: pairnew1 — на следующий день после конца, pairnew2 — через три дня."""
+    рекомендовать некого). kind: pairnew1 — на следующий день после конца, pairnew2 — через три дня.
+    fail — {"progress", "goal"}, если прошлое задание не набрало цель: пуш начинается с итога, без упрёка."""
     if not recommended:
         return None
     names = ", ".join(
         f"<b>{html.escape(str(f['first_name']))}</b> ({f['active_days']} из 7 дней)" for f in recommended
     )
+    if kind == "pairnew1" and fail:
+        progress, goal = int(fail["progress"]), int(fail["goal"])
+        head = (
+            f"🤝 <b>В этот раз не хватило совсем немного — {progress} из {goal}.</b>\n"
+            if goal and progress * 10 >= goal * 7 else
+            f"🤝 <b>В этот раз вышло {progress} из {goal}.</b>\n"
+        )
+        return (
+            head +
+            "Новое задание — чистый счёт и новый шанс: выбери союзника, можно и нового. "
+            f"Сейчас самые активные: {names}. Награда та же — сундук."
+        )
     if kind == "pairnew1":
         return (
             "🤝 <b>Новое парное задание!</b>\n"
@@ -630,7 +644,8 @@ async def _run_pair_restart_nudges(bot, scope):
             if state["needs_habit"] or not state["can_choose"] or state["incoming"] or state["outgoing"]:
                 continue
             recommended = [f for f in list_pair_candidates(uid)["friends"] if f["recommended"]]
-            text = pair_restart_text(kind, recommended)
+            fail = {"progress": item["progress"], "goal": item["goal"]} if item.get("status") == "expired" and "progress" in item else None
+            text = pair_restart_text(kind, recommended, fail)
             if text is None:
                 continue
             day = f"q{item['quest_id']}"
@@ -646,6 +661,23 @@ def _display(user_row):
     import html
     name = (user_row["first_name"] if user_row else None) or (user_row["username"] if user_row else None) or "Друг"
     return html.escape(str(name))
+
+
+def pair_deadline_text(kind, info, partner_name):
+    """Пуши про срок парного задания. pairprev — за день до конца (как в Duolingo: «заканчивается завтра! 19/25»), pairlast — в
+    последний день. Имя напарника — как есть, без склонения (partner_name уже экранировано)."""
+    left = info["left"]
+    short = f"не хватает {left} {plural_ru(left, 'привычки', 'привычек', 'привычек')}"
+    if kind == "pairprev":
+        ask = "Сегодня твои отметки очень нужны." if not info.get("mine_today") else "Ты уже в деле — теперь очередь напарника."
+        return (
+            f"⏳ <b>Парное задание заканчивается завтра!</b> {info['progress']}/{info['goal']}: до сундука {short}. "
+            f"Напарник — <b>{partner_name}</b>. {ask}"
+        )
+    return (
+        f"⏳ Последний день парного задания (напарник — <b>{partner_name}</b>): "
+        f"до сундука {short}. Не подведи напарника!"
+    )
 
 
 async def run_pair_quest_notifications(bot):
@@ -673,6 +705,13 @@ async def run_pair_quest_notifications(bot):
     except Exception:
         logger.exception("Ошибка засчёта парных заданий")
 
+    # «Напарник уже в деле — твой ход» для отметок мимо Mini App (чат с Адамом, кнопки бота): приложение шлёт этот пуш само.
+    try:
+        for event in pair_pending_partner_events():
+            await _send_pair_push(bot, event["to"], pair_partner_done_text(_display(get_user(event["from"])), event))
+    except Exception:
+        logger.exception("Ошибка пушей «напарник в деле»")
+
     scope = notification_scope(bot)
     await _run_pair_restart_nudges(bot, scope)
     try:
@@ -690,18 +729,18 @@ async def run_pair_quest_notifications(bot):
                 if not in_time_window(now, hour=18, minute=0) or in_quiet_hours(settings, now):
                     continue
                 info = pair_last_day_reminder(quest, uid)
+                kind = "pairlast"
+                if not info:
+                    info = pair_eve_reminder(quest, uid)
+                    kind = "pairprev"
                 if not info:
                     continue
                 day = now.date().isoformat()
-                if not claim_notification(uid, day, "pairlast", scope):
+                if not claim_notification(uid, day, kind, scope):
                     continue
-                left = info["left"]
-                sent = await _send_pair_push(
-                    bot, uid,
-                    f"⏳ Последний день парного задания (напарник — <b>{_display(get_user(other))}</b>): "
-                    f"до сундука не хватает {left} {plural_ru(left, 'привычки', 'привычек', 'привычек')}. Не подведи напарника!",
-                )
+                text = pair_deadline_text(kind, info, _display(get_user(other)))
+                sent = await _send_pair_push(bot, uid, text)
                 if not sent:
-                    release_notification(uid, day, "pairlast", scope)
+                    release_notification(uid, day, kind, scope)
             except Exception:
                 logger.exception("Ошибка напоминания о парном задании для %s", uid)

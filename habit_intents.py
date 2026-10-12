@@ -13,7 +13,28 @@ from db import (
     toggle_daily_main_goal,
     toggle_daily_task,
     consume_completion_event,
+    get_incomplete_habits,
 )
+from db.pair_quests import chat_line as pair_chat_line
+
+
+def _after_mark_tail(user_id: int) -> str:
+    """Что дальше после отметки в чате: сколько осталось сегодня и как идёт парное задание (без модели, 1–2 строки)."""
+    lines = []
+    try:
+        left = [h["title"] for h in get_incomplete_habits(user_id)]
+    except Exception:
+        left = None
+    if left is not None:
+        if not left:
+            lines.append("🎉 Все привычки на сегодня выполнены!")
+        else:
+            names = ", ".join(f"«{t}»" for t in left[:3]) + (f" и ещё {len(left) - 3}" if len(left) > 3 else "")
+            lines.append(f"Осталось: {names}.")
+    pair = pair_chat_line(user_id)
+    if pair:
+        lines.append(pair)
+    return ("\n\n" + "\n".join(lines)) if lines else ""
 
 # =====================================
 # УПРАВЛЕНИЕ ПРИВЫЧКАМИ ЧЕРЕЗ AI-ЧАТ
@@ -273,7 +294,7 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
                 event = consume_completion_event(user_id)
                 extra = f"\n\n🔥 +1 день ударного режима!\n{event['message']}" if event else ""
                 coin_line = reward_line(done)
-                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!\n{coin_line}{extra}"
+                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!\n{coin_line}{extra}{_after_mark_tail(user_id)}"
             return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
         if ambiguous:
             return _ambiguous_reply(ambiguous)
@@ -288,7 +309,7 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
                 event = consume_completion_event(user_id)
                 extra = f"\n\n🔥 +1 день ударного режима!\n{event['message']}" if event else ""
                 coin_line = reward_line(done)
-                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!\n{coin_line}{extra}"
+                return f"🔥 Привычка «{habit['title']}» отмечена выполненной!\n{coin_line}{extra}{_after_mark_tail(user_id)}"
             return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
         if len(habits) > 1:
             return "🤔 У тебя несколько привычек — уточни, какую из них: напиши «выполни привычку <название>»."
@@ -433,7 +454,7 @@ async def try_handle_habit_intent_ai(user_id: int, text: str) -> str | None:
         done = complete_habit(habit["id"])
         if done:
             coin_line = reward_line(done)
-            return f"🔥 Привычка «{habit['title']}» отмечена выполненной!\n{coin_line}"
+            return f"🔥 Привычка «{habit['title']}» отмечена выполненной!\n{coin_line}{_after_mark_tail(user_id)}"
         return f"✅ Привычка «{habit['title']}» уже была отмечена выполненной."
 
     if action == "delete_habit":
