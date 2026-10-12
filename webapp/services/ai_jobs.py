@@ -78,7 +78,7 @@ class ChatJobs:
         except Exception:
             logger.exception("ответ ADAM: необработанная ошибка задачи")
             job.status = 500
-            job.payload = {"error": "ai_error", "message": "Не получилось сформировать ответ. Попробуйте ещё раз через минуту."}
+            job.payload = {"error": "ai_error", "message": "Не получилось сформировать ответ. Попробуй ещё раз через минуту."}
         job.finished_at = time.monotonic()
 
     def cancel(self, user_id: int):

@@ -137,7 +137,7 @@ async def _run_countdown(bot, uid, message_id, tz_name, deadline):
                     await bot.edit_message_text(
                         chat_id=uid,
                         message_id=message_id,
-                        text="🔥 <b>Ударный режим спасён!</b>\n\nТы успел закрыть привычку. Хорошая работа.",
+                        text="🔥 <b>Ударный режим спасён!</b>\n\nПривычка закрыта вовремя. Хорошая работа.",
                         parse_mode="HTML",
                     )
                 except Exception:
@@ -437,7 +437,7 @@ async def run_weekly_streak_bonus(bot):
             try:
                 await bot.send_message(
                     uid,
-                    "🎁 Неделя в огне!\n\nТы прошёл предыдущие 7 дней без пропусков. "
+                    "🎁 Неделя в огне!\n\nПредыдущие 7 дней — без пропусков. "
                     "Открой ADAM и выбери награду: 200 Adam Coin или временную рамку на 7 дней."
                 )
             except Exception:

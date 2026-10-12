@@ -31,7 +31,7 @@ def _candidates(templates, pool, **kwargs):
 
 
 def test_habit_checkpoint_zero_completed_avoids_already_done_wording():
-    kwargs = dict(time=12, completed=0, total=6, left=1, habits="«Разминка»", left_phrase="одна привычка", timed_note="")
+    kwargs = dict(time=12, completed=0, total=6, left=1, habits="«Разминка»", left_phrase="одна привычка", timed_note="", total_gen="привычек")
     msg = format_habit_checkpoint_message([{"title": "Разминка"}], hour=12, completed=0, total=6)
 
     assert msg in _candidates(HABIT_CHECKPOINT_ZERO_TEMPLATES, SOFT_EMOJIS, **kwargs)
@@ -39,7 +39,7 @@ def test_habit_checkpoint_zero_completed_avoids_already_done_wording():
 
 
 def test_habit_checkpoint_nonzero_completed_uses_progress_wording():
-    kwargs = dict(time=12, completed=2, total=6, left=1, habits="«Разминка»", left_phrase="одна привычка", timed_note="")
+    kwargs = dict(time=12, completed=2, total=6, left=1, habits="«Разминка»", left_phrase="одна привычка", timed_note="", total_gen="привычек")
     msg = format_habit_checkpoint_message([{"title": "Разминка"}], hour=12, completed=2, total=6)
 
     assert msg in _candidates(HABIT_CHECKPOINT_TEMPLATES, SOFT_EMOJIS, **kwargs)

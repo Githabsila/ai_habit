@@ -624,7 +624,7 @@
       el.classList.add("is-done");
       icon.textContent = "🎉";
       title.textContent = "Всё готово на сегодня!";
-      sub.textContent = "Ты закрыл всё, что планировал — отличная работа.";
+      sub.textContent = "Всё из плана закрыто — отличная работа.";
       return;
     }
 

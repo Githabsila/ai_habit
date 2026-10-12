@@ -1,4 +1,5 @@
 import json
+import math
 import time
 import hashlib
 import asyncio
@@ -206,7 +207,7 @@ async def ai_chat(message: Message, state: FSMContext):
     wait = _is_throttled(message.from_user.id)
     if wait is not None:
         await message.answer(
-            f"⏳ Не так быстро — подожди {wait} сек. и напиши ещё раз."
+            f"⏳ Не так быстро — подожди {max(1, math.ceil(wait))} сек. и напиши ещё раз."
         )
         return
 
@@ -298,7 +299,7 @@ async def ai_chat(message: Message, state: FSMContext):
         log_error("ai_pipeline", e, user_id)
         answer = (
             "❌ Не получилось сформировать ответ. "
-            "Попробуйте ещё раз через минуту."
+            "Попробуй ещё раз через минуту."
         )
         is_crisis = False
         suggested_habit = None

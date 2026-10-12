@@ -56,6 +56,7 @@ from adam_messages import (
     format_month_start_message,
     format_month_end_message,
     format_planned_time_reminder_message,
+    day_word,
 )
 
 logger = logging.getLogger("coach")
@@ -771,7 +772,7 @@ def _fallback_habit_feedback(breakdown, period_phrase="на этой недел�
 
     return (
         f"📊 <b>{heading}</b>\n\n"
-        f"Ты пропустил {worst['missed']} дн. привычки «{worst['habit_title']}» {period_phrase}. "
+        f"{period_phrase.capitalize()} привычка «{worst['habit_title']}» пропущена {worst['missed']} {day_word(worst['missed'])}. "
         "Попробуй на первое время сделать её полегче или покороче — "
         "чтобы было проще вернуться в ритм, чем совсем бросить 🌱"
     )

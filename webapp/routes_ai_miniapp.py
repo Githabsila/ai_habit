@@ -13,6 +13,7 @@ API endpoints для мини-приложения AI-наставника.
 
 import json
 import logging
+import math
 from aiohttp import web
 from datetime import date
 from db import (
@@ -230,7 +231,7 @@ async def ai_chat_miniapp(request):
                 {
                     "error": "throttled",
                     "wait_seconds": wait,
-                    "message": f"⏳ Не так быстро — подожди {wait} сек. и напиши ещё раз.",
+                    "message": f"⏳ Не так быстро — подожди {max(1, math.ceil(wait))} сек. и напиши ещё раз.",
                 },
                 status=429
             )
@@ -354,7 +355,7 @@ async def _answer_chat(user_id: int, pro: bool, message_text: str):
             log_error("ai_pipeline", e, user_id)
             return 500, {
                 "error": "ai_error",
-                "message": "Не получилось сформировать ответ. Попробуйте ещё раз через минуту."
+                "message": "Не получилось сформировать ответ. Попробуй ещё раз через минуту."
             }
 
         if complexity == "просто" and not is_crisis:

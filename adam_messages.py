@@ -8,6 +8,7 @@
 - формулировки меняются, но остаются короткими и естественными.
 """
 import random
+import re
 
 # Эмодзи разделены по смыслу: медали/награды больше не попадают в обычные
 # напоминания случайно.
@@ -22,7 +23,8 @@ def random_emoji(pool=MOTIVATION_EMOJIS) -> str:
 
 def pick(templates: list[str], pool=MOTIVATION_EMOJIS, **kwargs) -> str:
     template = random.choice(templates)
-    return template.format(emoji=random_emoji(pool), **kwargs)
+    # пустая вставка (например, нет списка оставшихся задач) не должна оставлять двойной пробел
+    return re.sub(r"[ 	]{2,}", " ", template.format(emoji=random_emoji(pool), **kwargs)).strip()
 
 
 def plural_ru(n: int, one: str, few: str, many: str) -> str:
@@ -42,6 +44,29 @@ def task_word(n: int) -> str:
     return plural_ru(n, "задача", "задачи", "задач")
 
 
+def habit_word(n: int) -> str:
+    return plural_ru(n, "привычка", "привычки", "привычек")
+
+
+def diamond_word(n: int) -> str:
+    return plural_ru(n, "алмаз", "алмаза", "алмазов")
+
+
+def _genitive_after_iz(n: int, one: str, many: str) -> str:
+    """Форма после «из»: из 1 задачи, из 2 задач, из 21 задачи, из 12 задач."""
+    n = abs(int(n))
+    return one if n % 10 == 1 and n % 100 != 11 else many
+
+
+def habit_genitive(n: int) -> str:
+    return _genitive_after_iz(n, "привычки", "привычек")
+
+
+def left_phrase_tasks(left: int) -> str:
+    """«Осталась одна задача» / «Осталось 2 задачи» / «Осталось 5 задач»."""
+    return "Осталась одна задача" if int(left) == 1 else f"Осталось {int(left)} {task_word(left)}"
+
+
 def day_word(n: int) -> str:
     return plural_ru(n, "день", "дня", "дней")
 
@@ -56,10 +81,10 @@ def streak_phrase(n: int) -> str:
 
 HABIT_CHECKPOINT_TEMPLATES = [
     "⏱️ Контрольная точка дня: уже закрыто {completed} из {total}. Сейчас остаётся {left_phrase}: {habits}.{timed_note} Начни с ближайшей — и продолжай двигаться по плану {emoji}",
-    "🎯 {time}:00 — сверка курса. Ты уже выполнил {completed} из {total}. В фокусе сейчас {left_phrase}: {habits}.{timed_note} Закрой следующий пункт и продолжай день {emoji}",
+    "🎯 {time}:00 — сверка курса. Уже выполнено {completed} из {total}. В фокусе сейчас {left_phrase}: {habits}.{timed_note} Закрой следующий пункт и продолжай день {emoji}",
     "☀️ На {time}:00 вижу реальный прогресс: {completed} из {total} уже выполнено. Остаётся {left_phrase}: {habits}.{timed_note} Следующий шаг — закрыть один из этих пунктов {emoji}",
     "📍 Точка дня: {completed} из {total} уже закрыто. Сейчас в плане {left_phrase}: {habits}.{timed_note} Двигайся дальше с ближайшего пункта {emoji}",
-    "⚡️ Уже есть результат: {completed} из {total} привычек выполнено. Осталось {left_phrase}: {habits}.{timed_note} Закрой следующую и сохрани темп {emoji}",
+    "⚡️ Уже есть результат: {completed} из {total} {total_gen} выполнено. Остаётся {left_phrase}: {habits}.{timed_note} Закрой следующую и сохрани темп {emoji}",
 ]
 
 # Когда completed == 0, формулировки выше звучат как противоречие ("уже
@@ -101,7 +126,7 @@ def format_habit_checkpoint_message(incomplete_habits, hour: int, completed: int
     templates = HABIT_CHECKPOINT_TEMPLATES if completed > 0 else HABIT_CHECKPOINT_ZERO_TEMPLATES
     timed_note = _format_timed_note(timed_habits)
     return pick(templates, pool=SOFT_EMOJIS, time=hour,
-                completed=completed, total=total, left=left, habits=habits,
+                completed=completed, total=total, total_gen=habit_genitive(total), left=left, habits=habits,
                 left_phrase=left_phrase, timed_note=timed_note)
 
 
@@ -211,13 +236,13 @@ DAY_PROGRESS_TEMPLATES = [
     "Вечерняя сверка: готово {done} из {total} {total_gen}. {remaining_block} Можно спокойно двигаться дальше {emoji}",
     "Проверил весь план: выполнено {done} из {total} {total_gen}. {remaining_block} {emoji}",
     "19:00 — время свериться с планом. Закрыто {done} из {total} {total_gen}. {remaining_block} Выбери следующий пункт {emoji}",
-    "До финиша осталось {left} {left_word}. {remaining_block} Двигайся по своему порядку и закрой оставшееся {emoji}",
+    "До финиша {finish_phrase}. {remaining_block} Двигайся по своему порядку и закрой оставшееся {emoji}",
 ]
 
 
 def task_genitive(n: int) -> str:
-    """Форма после «из»: из 1 задачи, из 2 задач, из 5 задач."""
-    return "задачи" if abs(int(n)) == 1 else "задач"
+    """Форма после «из»: из 1 задачи, из 2 задач, из 5 задач, из 21 задачи."""
+    return _genitive_after_iz(n, "задачи", "задач")
 
 
 def _format_named_items(items: list[str]) -> str:
@@ -244,19 +269,16 @@ def format_remaining_plan_block(open_items=None) -> str:
 
     parts = []
     if main:
-        parts.append(f"Главная: {_format_named_items(main)}")
+        parts.append(f"Главная: {_format_named_items(main)}.")
     if secondary:
-        parts.append(f"Второстепенные: {_format_named_items(secondary)}")
+        parts.append(f"Второстепенные: {_format_named_items(secondary)}.")
     return " ".join(parts)
 
 
 def format_day_progress_message(done: int, total: int, open_items=None) -> str:
     left = max(0, total - done)
     remaining_block = format_remaining_plan_block(open_items)
-    left_phrase = (
-        "Осталась одна задача" if left == 1
-        else f"Осталось {left} задач"
-    )
+    left_phrase = left_phrase_tasks(left)
 
     return pick(
         DAY_PROGRESS_TEMPLATES,
@@ -267,6 +289,7 @@ def format_day_progress_message(done: int, total: int, open_items=None) -> str:
         total_gen=task_genitive(total),
         left_word=task_word(left),
         left_phrase=left_phrase,
+        finish_phrase=left_phrase[0].lower() + left_phrase[1:],
         remaining_block=remaining_block,
     )
 
@@ -302,10 +325,7 @@ def format_evening_progress_message(done: int, total: int, task_list=None, main_
     if len(names) > 6:
         listed += f" и ещё {len(names) - 6}"
 
-    left_phrase = (
-        "Осталась одна задача" if left == 1
-        else f"Осталось {left} задач"
-    )
+    left_phrase = left_phrase_tasks(left)
     action_phrase = (
         "Закрой её — это последний пункт плана" if left == 1
         else "Начни с одной из них и последовательно закрой оставшееся"
@@ -313,6 +333,9 @@ def format_evening_progress_message(done: int, total: int, task_list=None, main_
     return pick(
         EVENING_PROGRESS_TEMPLATES,
         pool=TASK_EMOJIS,
+        done=done,
+        total=total,
+        total_gen=task_genitive(total),
         left=left,
         left_word=left_word,
         left_verb=left_verb,
@@ -324,9 +347,9 @@ def format_evening_progress_message(done: int, total: int, task_list=None, main_
 
 
 ALL_TASKS_DONE_TEMPLATES = [
-    "Ты закрыл все задачи дня. Чисто. Теперь можно выдохнуть и не тащить незакрытые дела в вечер {emoji}",
-    "План дня закрыт полностью. Хорошая работа — сегодня ты довёл начатое до конца {emoji}",
-    "Все задачи готовы. Я бы на твоём месте сейчас просто спокойно отдохнул — день ты уже сделал {emoji}",
+    "Все задачи дня закрыты. Чисто. Теперь можно выдохнуть и не тащить незакрытые дела в вечер {emoji}",
+    "План дня закрыт полностью. Хорошая работа — сегодня начатое доведено до конца {emoji}",
+    "Все задачи готовы. Я бы на твоём месте сейчас просто спокойно отдохнул — день уже сделан {emoji}",
     "Финиш есть: все задачи выполнены. Заслуженный отдых без чувства, что что-то висит {emoji}",
 ]
 
@@ -357,27 +380,29 @@ def format_goal_reminder_message(goal: str) -> str:
 # т.е. пользователь "прошёл" всю цепочку двойных начислений подряд.
 
 PERFECT_HABIT_STREAK_TEMPLATES = [
-    "Идеальный страйк из {n} привычек подряд закрыт! Мало кто такое может 💪",
+    "Идеальный страйк из {n} {gen} подряд закрыт! Мало кто такое может 💪",
     "{n} из {n} — всё закрыто одним махом. Это не каждый день бывает ⚡️",
-    "Чисто. Все {n} привычки дня закрыты подряд — вот это дисциплина 🏆",
-    "Идеальный день: {n} привычек, ни одной пропущенной. Уважение 🫡",
-    "Ты закрыл всю цепочку из {n} привычек за один день. Это заметно 👊",
+    "Чисто. Все {n} {habits} дня закрыты подряд — вот это дисциплина 🏆",
+    "Идеальный день: {n} {habits}, ни одной пропущенной. Уважение 🫡",
+    "Вся цепочка из {n} {gen} закрыта за один день. Это заметно 👊",
 ]
 
 
 def format_perfect_habit_streak_message(total_habits: int) -> str:
-    return random.choice(PERFECT_HABIT_STREAK_TEMPLATES).format(n=total_habits)
+    return random.choice(PERFECT_HABIT_STREAK_TEMPLATES).format(
+        n=total_habits, habits=habit_word(total_habits), gen=habit_genitive(total_habits)
+    )
 
 
 MONTH_END_REWARD_TEMPLATE = (
-    "💎 Идеальный месяц! Каждый день ты закрывал 2+ привычки подряд — "
-    "{days}/{days}. Держи награду: +{coins} Adam Coin и {diamonds} 💎 алмазов "
+    "💎 Идеальный месяц! Каждый день — 2+ привычки подряд: "
+    "{days}/{days}. Держи награду: +{coins} Adam Coin и {diamonds} {diamond_word} 💎 "
     "— такое удаётся не всем."
 )
 
 
 def format_month_end_reward_message(days: int, coins: int, diamonds: int) -> str:
-    return MONTH_END_REWARD_TEMPLATE.format(days=days, coins=coins, diamonds=diamonds)
+    return MONTH_END_REWARD_TEMPLATE.format(days=days, coins=coins, diamonds=diamonds, diamond_word=diamond_word(diamonds))
 
 
 # =====================================
@@ -442,13 +467,13 @@ FIRST_PLAN_ACTION_TEMPLATES = {
     # сообщение про порядок выполнения (первой/сначала/начал с).
     "главная задача": [
         "Главная задача закрыта первой — день уже сдвинулся с места {emoji}",
-        "Главная задача закрыта: начал с неё — и это хороший старт дня {emoji}",
+        "Главная задача закрыта первой: с неё начался день — это хороший старт {emoji}",
         "Главная задача закрыта — сначала она, а дальше по плану {emoji}",
     ],
     "задача": [
-        "Сначала закрыл первую задачу — день уже сдвинулся с места {emoji}",
+        "Сначала закрыта первая задача — день уже сдвинулся с места {emoji}",
         "Первой закрыта обычная задача — хороший старт дня {emoji}",
-        "Начал с первой задачи — движение пошло {emoji}",
+        "Первой в этот день закрыта задача — движение пошло {emoji}",
     ],
 }
 
@@ -482,8 +507,8 @@ def format_main_goal_done_message(remaining_count: int = 0) -> str:
         ])
     if remaining_count > 1:
         return pick([
-            "Главная задача закрыта. В плане осталось {} задач — двигайся по своему порядку {{emoji}}".format(remaining_count),
-            "Главная задача выполнена. Осталось {} открытых задач — выбери следующую {{emoji}}".format(remaining_count),
+            "Главная задача закрыта. В плане {} — двигайся по своему порядку {{emoji}}".format(left_phrase_tasks(remaining_count).lower()),
+            "Главная задача выполнена. {} — выбери следующую {{emoji}}".format(left_phrase_tasks(remaining_count)),
         ])
     return pick(MAIN_GOAL_DONE_TEMPLATES)
 
@@ -543,7 +568,7 @@ def format_month_end_message() -> str:
 def format_trial_day2_nudge(streak: int) -> str:
     if streak >= 1:
         return (
-            "Второй день триала. Ты уже начал серию — выполни привычку ещё раз завтра, "
+            "Второй день триала. Серия уже идёт — выполни привычку ещё раз завтра, "
             "и на третий день откроется доступ в закрытый канал 🔑"
         )
     return (
@@ -563,7 +588,7 @@ def format_trial_last_day_banner(price_stars: int) -> str:
 def format_trial_channel_progress_nudge(streak: int, needed: int) -> str:
     left = max(0, needed - streak)
     return (
-        f"Подписка уже активна 👍 Осталось {left} {task_word(left)} ударного режима подряд "
+        f"Подписка уже активна 👍 Ещё {left} {day_word(left)} ударного режима подряд "
         "до автоматического доступа в закрытый канал — не теряй темп."
     )
 
