@@ -28,11 +28,14 @@ def _parse_dt(value):
 
 def get_trial_day(user_id):
     """1 в день регистрации, 2 на следующий день, и т.д. Считаем от
-    users.created_at (UTC) — отдельного поля для старта триала не нужно."""
+    users.created_at (UTC); у аккаунта в режиме «сценарий триала» (db/access.py) — от users.trial_started_at."""
     user = get_user(user_id)
     if not user:
         return None
-    created = _parse_dt(user["created_at"] if "created_at" in user.keys() else None)
+    started = None
+    if "access_mode" in user.keys() and user["access_mode"] == "trial":
+        started = _parse_dt(user["trial_started_at"] if "trial_started_at" in user.keys() else None)
+    created = started or _parse_dt(user["created_at"] if "created_at" in user.keys() else None)
     if not created:
         return 1
     return max(1, (datetime.now(timezone.utc).date() - created.date()).days + 1)
@@ -92,12 +95,21 @@ def record_subscription_payment(user_id, months=1):
 def gate_applies_to(user_id):
     """Гейт применяется ТОЛЬКО к пользователям, зарегистрированным после
     SUBSCRIPTION_GATE_CUTOVER — уже существующие пользователи бота никогда
-    не блокируются этой функцией задним числом, даже если гейт включён."""
+    не блокируются этой функцией задним числом, даже если гейт включён.
+
+    Исключение — аккаунты, которым админ выдал временный доступ или включил сценарий триала (db/access.py): для них гейт
+    работает всегда, независимо от общего выключателя."""
+    return gate_applies_to_user(get_user(user_id))
+
+
+def gate_applies_to_user(user):
+    """То же по уже загруженной строке пользователя (планировщик перебирает всех — лишний запрос на каждого не нужен)."""
     from config import SUBSCRIPTION_GATE_ENABLED, SUBSCRIPTION_GATE_CUTOVER
-    if not SUBSCRIPTION_GATE_ENABLED:
-        return False
-    user = get_user(user_id)
     if not user:
+        return False
+    if "access_mode" in user.keys() and user["access_mode"] in ("timed", "trial"):
+        return True
+    if not SUBSCRIPTION_GATE_ENABLED:
         return False
     created = _parse_dt(user["created_at"] if "created_at" in user.keys() else None)
     if not created:
@@ -115,9 +127,13 @@ def bot_access_allowed(user_id):
     активна оплаченная подписка."""
     if not gate_applies_to(user_id):
         return True
-    if is_in_trial(user_id):
+    from .access import free_period_active
+    user = get_user(user_id)
+    if has_active_subscription(user_id) or free_period_active(user):
         return True
-    return has_active_subscription(user_id)
+    if user is not None and "access_mode" in user.keys() and user["access_mode"] == "timed":
+        return False                     # временный доступ закончился (триал для таких аккаунтов не действует)
+    return is_in_trial(user_id)
 
 
 def get_subscription_status(user_id):
@@ -126,7 +142,9 @@ def get_subscription_status(user_id):
     user = get_user(user_id)
     streak = int(user["streak"] or 0) if user else 0
     trial_day = get_trial_day(user_id)
+    access_mode = (user["access_mode"] if user and "access_mode" in user.keys() else None) or "open"
     return {
+        "access_mode": access_mode,
         "trial_day": trial_day,
         "trial_days_total": SUBSCRIPTION_TRIAL_DAYS,
         "in_trial": is_in_trial(user_id),

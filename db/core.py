@@ -184,6 +184,17 @@ def create_tables():
     if "channel_access_granted_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN channel_access_granted_at TIMESTAMP")
 
+    # ---------------- ДОСТУП: свободный / временный / сценарий триала (db/access.py) ----------------
+    # access_mode: 'open' — как у первых тестировщиков (без ограничений, без триала и сообщений об оплате; так у всех по умолчанию),
+    # 'timed' — временный доступ, который выдаёт админ (3/7/14 дней), 'trial' — аккаунт идёт по сценарию триала.
+    # access_until — конец бесплатного/подарочного периода (UTC), trial_started_at — с какого дня идёт триал в режиме 'trial'.
+    if "access_mode" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN access_mode TEXT DEFAULT 'open'")
+    if "access_until" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN access_until TIMESTAMP")
+    if "trial_started_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN trial_started_at TIMESTAMP")
+
     # last_seen — для DAU/WAU в аналитике (db/analytics.py). Обновляется на
     # каждый заход в Mini App (webapp/auth_helpers.py) и на каждое сообщение
     # боту (middlewares/access_control.py), поэтому отражает обе поверхности.
@@ -625,6 +636,26 @@ def create_tables():
     )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_token_log_day ON ai_token_log(day)")
+
+    # Журнал выдачи доступа админом (db/access.py): кто, кому, на сколько и что было до/после — «под нашим контролем».
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS access_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        admin_id INTEGER,
+        action TEXT NOT NULL,
+        days INTEGER,
+        mode_before TEXT,
+        mode_after TEXT,
+        until_before TEXT,
+        until_after TEXT,
+        paid_before TEXT,
+        paid_after TEXT,
+        note TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_access_log_user ON access_log(user_id, id)")
 
     # Косметика профиля: рамки за Adam Coin. Повторный INSERT безопасен для существующей БД.
     cursor.execute("UPDATE shop_items SET item_type='premium' WHERE id=1")

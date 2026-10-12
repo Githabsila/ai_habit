@@ -1607,7 +1607,7 @@
   // реального списания Stars (SUBSCRIPTION_GATE_ENABLED осознанно остаётся
   // выключен, просьба пользователя — сначала UI, включать биллинг будем
   // отдельно и осознанно).
-  const START_QUIZ_STEPS = [
+  const START_QUIZ_STEPS_ALL = [
     {
       type: "choice",
       key: "age_range",
@@ -1643,6 +1643,9 @@
     { type: "referral", title: "Позови друзей — бонус обоим" },
     { type: "paywall", title: "ADAM после пробного периода" },
   ];
+  // Окно «ADAM после пробного периода» (цены) — только аккаунтам в сценарии триала (state.access.paywall). Тестировщикам со
+  // свободным или временным доступом сообщения об оплате не показываем: список собирается при открытии квиза.
+  let START_QUIZ_STEPS = START_QUIZ_STEPS_ALL;
   let startQuizArchetypeKey = null;
   let startQuizArchetypeLabel = null;
   let startQuizArchetypeComputed = false;
@@ -1870,6 +1873,7 @@
   }
 
   function openStartQuiz() {
+    START_QUIZ_STEPS = START_QUIZ_STEPS_ALL.filter((step) => step.type !== "paywall" || state?.access?.paywall);
     const overlay = document.getElementById("startQuizOverlay");
     if (!overlay) { maybeShowAppTour(); return; }
     startQuizStep = 0;
@@ -5848,6 +5852,8 @@ function initPlanActions() {
         habit_limit: "Можно добавить не больше 10 привычек",
         daily_limit_reached: "Этот пакет уже куплен сегодня — доступен снова завтра",
         habit_add_locked: "Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00",
+        access_expired: "Тестовый доступ закончился. Напиши администратору — он продлит.",
+        trial_expired: "Пробный период закончился",
         invalid_init_data: "Telegram не передал данные авторизации. Закройте Mini App и откройте его снова.",
         request_failed: "Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.",
         not_admin: "Доступно только администраторам",

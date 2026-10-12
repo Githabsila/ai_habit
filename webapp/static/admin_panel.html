@@ -414,6 +414,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--teal">🔑</span>Доступы</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Кому выдан временный доступ или включён сценарий триала, и сколько осталось. Новый человек по умолчанию входит свободно — как сейчас. Чтобы выдать доступ, найди человека по @нику выше.</div>' +
+        '<div id="accessOverviewBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--gold">🏅</span>Кому выдать медаль</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Активные за неделю, у кого самая длинная серия. Медаль выдаёт только админ — в магазине её нет.</div>' +
         '<div id="activeUsersBox"><div class="empty-note">Загружаю…</div></div>' +
@@ -471,6 +477,7 @@ textarea.field{resize:vertical;min-height:88px}
     });
 
     loadPending();
+    loadAccessOverview();
     loadActiveUsers();
     loadLab();
     loadAdamLab();
@@ -718,6 +725,8 @@ textarea.field{resize:vertical;min-height:88px}
         try{
           document.getElementById('userMatchesBox').innerHTML = '';
           renderUserCard(await api('/api/admin/user/' + btn.dataset.open));
+          var cardBox = document.getElementById('userCardBox');
+          if (cardBox && cardBox.scrollIntoView) cardBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }catch(e){ showToast('Ошибка'); }
       });
     });
@@ -895,6 +904,7 @@ textarea.field{resize:vertical;min-height:88px}
         '</div>' +
         '<div class="empty-note" style="padding:10px 0 4px">Привычки сейчас: ' + habitsDone + '/' + (u.habits || []).length + ' · последние отметки:</div>' +
         '<div class="btn-row" style="flex-wrap:wrap;gap:6px">' + recentLogsHtml + '</div>' +
+        '<div id="accessSection">' + accessHtml(u) + '</div>' +
         '<div class="btn-row" style="margin-top:12px">' +
           (u.banned
             ? '<button class="btn btn-accent" id="unbanBtn">✅ Разбанить</button>'
@@ -918,10 +928,124 @@ textarea.field{resize:vertical;min-height:88px}
     if (unbanBtn) unbanBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'unban'); });
     premiumBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'premium'); });
     document.getElementById('badgeBtn').addEventListener('click', function(){ giveBadge(u.telegram_id); });
+    bindAccess(u);
 
     box.querySelectorAll('[data-xp]').forEach(function(btn){
       btn.addEventListener('click', function(){ giveXp(u.telegram_id, parseInt(btn.dataset.xp, 10)); });
     });
+  }
+
+  // ---------- Доступ: временный на 3/7/14 дней, подарочные дни, триал для аккаунта (db/access.py) ----------
+  function pad2(n){ return (n < 10 ? '0' : '') + n; }
+
+  function fmtDate(iso){
+    if (!iso) return '—';
+    var s = String(iso).replace(' ', 'T');
+    var d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z');
+    if (isNaN(d.getTime())) return '—';
+    return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  var ACCESS_ACTIONS = {
+    grant: 'выдан доступ', gift: 'подарок', unlimited: 'снято ограничение', trial_on: 'включён триал', trial_restart: 'триал заново'
+  };
+  var MODE_SHORT = { open: 'свободный', timed: 'временный', trial: 'триал' };
+
+  function accessHtml(u){
+    var a = u.access || {};
+    var state = a.allowed ? '<span class="badge badge-ok">доступ открыт</span>' : '<span class="badge badge-bad">доступ закрыт</span>';
+    var until;
+    if (a.mode === 'open') until = 'без ограничений';
+    else if (a.free_end) until = 'до ' + fmtDate(a.free_end) + (a.days_left ? ' · осталось ' + a.days_left + ' дн.' : ' · закончился');
+    else until = '—';
+    var paid = a.paid_active ? ('<div class="empty-note" style="padding:2px 0">💳 Подписка оплачена до ' + fmtDate(a.paid_until) + ' — подарочные дни сдвинут и срок списания</div>') : '';
+    var trial = a.mode === 'trial' ? ('<div class="empty-note" style="padding:2px 0">Триал: день ' + (a.trial_day || 1) + ' из ' + (a.trial_days_total || 3) + '</div>') : '';
+    var log = (u.access_log || []).slice(0, 5).map(function(l){
+      var days = l.days ? ' ' + l.days + ' дн.' : '';
+      return '<div class="empty-note" style="padding:1px 0">' + fmtDate(l.created_at) + ' · ' + escapeHtml(ACCESS_ACTIONS[l.action] || l.action) + days +
+        ' (' + escapeHtml(MODE_SHORT[l.mode_before] || '—') + ' → ' + escapeHtml(MODE_SHORT[l.mode_after] || '—') + ')</div>';
+    }).join('');
+    function row(title, action, values, cls){
+      return '<div class="empty-note" style="padding:8px 0 4px">' + title + '</div><div class="btn-row">' +
+        values.map(function(d){
+          return '<button class="btn ' + (cls || '') + '" data-access="' + action + '" data-days="' + d + '">' + (action === 'gift' ? '+' : '') + d + ' дн.</button>';
+        }).join('') + '</div>';
+    }
+    return '<div class="section-label" style="margin:16px 2px 8px">Доступ</div>' +
+      '<div class="user-card-head" style="margin-bottom:6px"><div><b>' + escapeHtml(a.mode_label || '—') + '</b><div class="empty-note" style="padding:2px 0">' + until + '</div></div>' + state + '</div>' +
+      trial + paid +
+      row('Временный доступ (тестировщику)', 'grant', [3, 7, 14], 'btn-accent') +
+      row('Подарить дни (платящему или после триала)', 'gift', [3, 7, 14, 30], 'btn-gold') +
+      '<div class="empty-note" style="padding:8px 0 4px">Сценарий триала для этого аккаунта (проверка с нового аккаунта)</div>' +
+      '<div class="btn-row">' +
+        '<button class="btn" data-access="trial_on">▶ Включить триал</button>' +
+        '<button class="btn" data-access="trial_restart">↺ Триал заново</button>' +
+        '<button class="btn" data-access="unlimited">∞ Без ограничений</button>' +
+      '</div>' +
+      '<label class="empty-note" style="display:flex;gap:8px;align-items:center;padding:8px 0 0"><input type="checkbox" id="accessReset"> с триалом — показать онбординг заново</label>' +
+      '<label class="empty-note" style="display:flex;gap:8px;align-items:center;padding:4px 0 0"><input type="checkbox" id="accessNotify" checked> написать человеку о выданных днях</label>' +
+      (log ? '<div class="empty-note" style="padding:10px 0 2px">Журнал:</div>' + log : '');
+  }
+
+  function bindAccess(u){
+    var box = document.getElementById('accessSection');
+    if (!box) return;
+    box.querySelectorAll('[data-access]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var action = btn.dataset.access;
+        var days = btn.dataset.days ? parseInt(btn.dataset.days, 10) : null;
+        var question = {
+          grant: 'Выдать временный доступ на ' + days + ' дн.?',
+          gift: 'Подарить ' + days + ' дн.?',
+          unlimited: 'Снять ограничения? Человек снова будет входить свободно, без триала и срока.',
+          trial_on: 'Включить сценарий триала для этого аккаунта?',
+          trial_restart: 'Начать триал этого аккаунта заново (с дня 1)?'
+        }[action];
+        if (!window.confirm(question)) return;
+        accessAction(u.telegram_id, action, days);
+      });
+    });
+  }
+
+  async function accessAction(id, action, days){
+    var reset = document.getElementById('accessReset');
+    var notify = document.getElementById('accessNotify');
+    try{
+      var res = await api('/api/admin/user/' + id + '/access', { method: 'POST', body: JSON.stringify({
+        action: action, days: days, notify: notify ? notify.checked : true, reset_onboarding: !!(reset && reset.checked && action.indexOf('trial') === 0)
+      })});
+      haptic('medium');
+      showToast(res.notified ? 'Готово ✅ Человеку написали' : 'Готово ✅');
+      renderUserCard(await api('/api/admin/user/' + id));
+      loadAccessOverview();
+    }catch(e){
+      var code = e && e.data && e.data.error;
+      showToast(code === 'unlimited' ? 'У человека доступ без ограничений — подарок не нужен' : (code === 'invalid_days' ? 'Такого срока нет' : 'Ошибка'));
+    }
+  }
+
+  async function loadAccessOverview(){
+    var box = document.getElementById('accessOverviewBox');
+    if (!box) return;
+    try{
+      var data = await api('/api/admin/access/overview');
+      var c = data.counts || {};
+      var chips = '<div class="btn-row" style="gap:6px;margin-bottom:8px">' +
+        '<span class="stat-chip">временных: <b>' + (c.timed || 0) + '</b></span>' +
+        '<span class="stat-chip">в триале: <b>' + (c.trial || 0) + '</b></span>' +
+        '<span class="stat-chip">заканчиваются ≤3 дн.: <b>' + (c.soon || 0) + '</b></span>' +
+        '<span class="stat-chip">закрыт доступ: <b>' + (c.expired || 0) + '</b></span></div>';
+      box.innerHTML = chips + ((data.items || []).length ? data.items.map(function(x){
+        var nick = x.username ? '@' + x.username : '';
+        var left = x.allowed ? (x.days_left ? 'осталось ' + x.days_left + ' дн. · до ' + fmtDate(x.free_end) : (x.paid_active ? 'подписка' : '')) : 'доступ закрыт';
+        return '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(x.first_name || '—') + ' <small>' + escapeHtml(nick) + '</small></b>' +
+          '<small>' + escapeHtml(x.mode_label) + (x.mode === 'trial' ? ' · день ' + (x.trial_day || 1) : '') + ' · ' + left + '</small></div>' +
+          '<button class="btn" data-open="' + x.telegram_id + '">Открыть</button></div>';
+      }).join('') : '<div class="empty-note">Ограничений ни у кого нет — все входят свободно</div>');
+      bindUserRows(box);
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
   }
 
   async function userAction(id, action){

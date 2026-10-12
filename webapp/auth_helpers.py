@@ -67,7 +67,13 @@ async def authenticate(init_data):
                 "Доступ к приложению пока ожидает подтверждения",
             )
         if not bot_access_allowed(telegram_id):
-            raise _error(web.HTTPForbidden, "trial_expired", "Пробный период закончился")
+            from db import get_subscription_status
+            timed = get_subscription_status(telegram_id).get("access_mode") == "timed"
+            raise _error(
+                web.HTTPForbidden,
+                "access_expired" if timed else "trial_expired",
+                "Тестовый доступ закончился" if timed else "Пробный период закончился",
+            )
 
     touch_last_seen(telegram_id)
     return telegram_id, is_admin

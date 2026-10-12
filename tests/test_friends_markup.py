@@ -69,7 +69,7 @@ def test_styles_for_every_new_block_exist():
 
 def test_asset_versions_were_bumped_together_with_the_change():
     assert "style.css?v=20261012_PAIRSUM_V54" in INDEX
-    assert "app.js?v=20261012_PAIRSUM_V61" in INDEX
+    assert "app.js?v=20261012_ACCESS_V62" in INDEX
 
 
 # ---------------------------------------------------------------------------

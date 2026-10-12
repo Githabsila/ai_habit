@@ -23,6 +23,7 @@ from adam_messages import (
     format_trial_day2_nudge, format_trial_last_day_banner, format_trial_channel_progress_nudge,
 )
 from keyboards import subscription_buy_keyboard
+from db.access import trial_scenario_for_user
 
 logger = logging.getLogger("subscription_scheduler")
 
@@ -38,6 +39,12 @@ async def run_trial_reminders(bot):
 
     for user in users:
         telegram_id = user["telegram_id"]
+
+        # Сообщения об оплате и триале — только тем, кто идёт по сценарию триала (режим «триал» у аккаунта или общий гейт подписки).
+        # Тестировщики со свободным или временным доступом их не получают: раньше «Второй день триала» и «Завтра бот закроется»
+        # уходили всем подряд, хотя гейт выключен.
+        if not trial_scenario_for_user(user):
+            continue
 
         settings = get_settings(telegram_id)
         if not settings or settings["reminders"] == 0:

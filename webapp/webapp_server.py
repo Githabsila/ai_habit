@@ -63,7 +63,7 @@ from db import (
     get_pair_quest, list_pair_candidates, send_pair_invite, accept_pair_invite,
     decline_pair_invite, cancel_pair_quest, claim_pair_chest, pair_on_day_completed, pair_partner_done_text, PAIR_GOAL,
     get_gift_options, send_gift, get_received_gifts, count_unseen_gifts, mark_gifts_seen,
-    get_subscription_status, try_grant_channel_access, bot_access_allowed,
+    get_subscription_status, try_grant_channel_access, bot_access_allowed, public_access,
     should_show_app_tour, mark_app_tour_seen,
     should_show_handle_intro, mark_handle_intro_seen,
     should_show_start_quiz, mark_start_quiz_seen,
@@ -216,10 +216,11 @@ async def _authenticate(request):
     # см. db/subscription.py bot_access_allowed/gate_applies_to.
     if not is_admin and not bot_access_allowed(telegram_id):
         status = get_subscription_status(telegram_id)
+        timed = status.get("access_mode") == "timed"
         raise web.HTTPForbidden(
             text=json.dumps({
-                "error": "trial_expired",
-                "message": "Пробный период закончился",
+                "error": "access_expired" if timed else "trial_expired",
+                "message": "Тестовый доступ закончился" if timed else "Пробный период закончился",
                 "subscription": status,
             }),
             content_type="application/json",
@@ -511,6 +512,8 @@ async def bootstrap(request):
         "admin_gift": get_unseen_admin_gift(telegram_id),
         "show_handle_intro": should_show_handle_intro(telegram_id),
         "show_start_quiz": should_show_start_quiz(telegram_id),
+        # Режим доступа (db/access.py): paywall — показывать ли окно оплаты в стартовом квизе (только в сценарии триала).
+        "access": public_access(telegram_id),
         "self_reward_cost": SELF_REWARD_COST,
         "product_onboarding": get_onboarding_state(telegram_id),
         "settings": {

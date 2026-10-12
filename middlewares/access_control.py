@@ -57,12 +57,20 @@ class AccessControlMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         status = get_subscription_status(user_id)
-        text = (
-            "⏳ <b>Пробный период закончился.</b>\n\n"
-            f"Чтобы продолжить пользоваться ботом и мини-приложением, оформи доступ "
-            f"за <b>{status['price_stars']} ⭐</b> (Telegram Stars)."
-        )
-        keyboard = subscription_buy_keyboard(status["price_stars"])
+        if status.get("access_mode") == "timed":
+            # Временный доступ тестировщика: оплаты ещё нет — просто просим написать администратору.
+            text = (
+                "⏳ <b>Тестовый доступ закончился.</b>\n\n"
+                "Спасибо, что помогаешь делать ADAM лучше. Напиши администратору — он продлит доступ."
+            )
+            keyboard = None
+        else:
+            text = (
+                "⏳ <b>Пробный период закончился.</b>\n\n"
+                f"Чтобы продолжить пользоваться ботом и мини-приложением, оформи доступ "
+                f"за <b>{status['price_stars']} ⭐</b> (Telegram Stars)."
+            )
+            keyboard = subscription_buy_keyboard(status["price_stars"])
         try:
             if isinstance(event, CallbackQuery):
                 await event.answer()

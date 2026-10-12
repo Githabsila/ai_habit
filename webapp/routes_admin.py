@@ -36,6 +36,7 @@ from db import (
     get_all_flags, set_feature_flag, delete_feature_flag,
     get_recent_client_errors,
     get_recent_perf_events, get_perf_summary,
+    get_access, get_access_log, grant_access, gift_days, set_unlimited, start_trial_mode, access_overview,
 )
 from db.core import DB_PATH
 from db.admin_gifts import grant_admin_badge
@@ -285,7 +286,87 @@ async def admin_user_card_route(request):
     card = get_user_support_card(telegram_id)
     if card is None:
         return web.json_response({"error": "not_found"}, status=404)
+    card["access"] = get_access(telegram_id)
+    card["access_log"] = get_access_log(telegram_id, limit=8)
     return web.json_response(card)
+
+
+# ---------------------------------------------------------------------------------------------------------------- доступ
+
+ACCESS_ERRORS = {"user_not_found": 404, "invalid_days": 400, "unlimited": 409}
+
+
+def _access_push_text(action, days, access):
+    """Короткое сообщение человеку о выданном доступе. Без обращения по полу, без слов про оплату."""
+    from adam_messages import day_word
+    until = (access.get("free_end") or "")[:10]
+    try:
+        until = datetime.fromisoformat(until).strftime("%d.%m")
+    except ValueError:
+        until = ""
+    tail = f" — до {until}" if until else ""
+    if action == "gift":
+        return f"🎁 Тебе подарили {days} {day_word(days)} использования ADAM{tail}. Спасибо, что ты с нами!"
+    return f"🔑 Тебе открыт тестовый доступ к ADAM на {days} {day_word(days)}{tail}. Спасибо, что помогаешь делать приложение лучше!"
+
+
+@routes.get("/api/admin/user/{telegram_id}/access")
+async def admin_access_get_route(request):
+    await _authenticate_admin(request)
+    telegram_id = int(request.match_info["telegram_id"])
+    info = get_access(telegram_id)
+    if info is None:
+        return web.json_response({"error": "user_not_found"}, status=404)
+    return web.json_response({"access": info, "log": get_access_log(telegram_id, limit=15)})
+
+
+@routes.post("/api/admin/user/{telegram_id}/access")
+async def admin_access_set_route(request):
+    """Управление доступом человека. body: {"action": "grant"|"gift"|"unlimited"|"trial_on"|"trial_restart", "days": 7,
+    "notify": true, "reset_onboarding": false}.
+      grant  — временный доступ на 3 / 7 / 14 дней (свободному аккаунту включает режим «временный»);
+      gift   — подарочные дни 3 / 7 / 14 / 30: платящему сдвигают срок подписки (и срок списания), остальным удлиняют бесплатный период;
+      unlimited — снять ограничения (как у первых тестировщиков);
+      trial_on / trial_restart — аккаунт идёт по сценарию триала (reset_onboarding — заодно показать весь онбординг заново)."""
+    admin_id = await _authenticate_admin(request)
+    telegram_id = int(request.match_info["telegram_id"])
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    action = (body.get("action") or "").strip()
+    days = body.get("days")
+    if action == "grant":
+        result = grant_access(telegram_id, days, admin_id)
+    elif action == "gift":
+        result = gift_days(telegram_id, days, admin_id)
+    elif action == "unlimited":
+        result = set_unlimited(telegram_id, admin_id)
+    elif action in ("trial_on", "trial_restart"):
+        result = start_trial_mode(telegram_id, admin_id, restart=(action == "trial_restart"))
+        if "error" not in result and body.get("reset_onboarding"):
+            reset_onboarding(telegram_id)
+    else:
+        return web.json_response({"error": "invalid_action"}, status=400)
+    if "error" in result:
+        return web.json_response(result, status=ACCESS_ERRORS.get(result["error"], 400))
+
+    notified = False
+    bot = request.app.get("bot")
+    if bot is not None and action in ("grant", "gift") and body.get("notify", True):
+        try:
+            await bot.send_message(telegram_id, _access_push_text(action, int(days), result))
+            notified = True
+        except Exception:
+            logger.warning("Не удалось отправить пуш о доступе пользователю %s", telegram_id)
+    return web.json_response({"ok": True, "access": result, "notified": notified, "log": get_access_log(telegram_id, limit=8)})
+
+
+@routes.get("/api/admin/access/overview")
+async def admin_access_overview_route(request):
+    """Все, у кого не безлимит: временный доступ и сценарий триала, ближайшие к концу — первыми."""
+    await _authenticate_admin(request)
+    return web.json_response(access_overview())
 
 
 @routes.get("/api/admin/flags")

@@ -318,6 +318,11 @@ from .subscription import (
     mark_channel_access_granted, try_grant_channel_access,
 )
 
+from .access import (
+    get_access, public_access, grant_access, gift_days, set_unlimited, start_trial_mode, get_access_log, access_overview,
+    trial_scenario_active, trial_scenario_for_user, ACCESS_MODES,
+)
+
 from .analytics import (
     touch_last_seen, get_dau, get_subscription_conversion,
     get_ai_usage_today, get_habit_completion_rate,
@@ -457,6 +462,8 @@ __all__ = [
     "get_subscription_price_stars", "record_subscription_payment",
     "gate_applies_to", "bot_access_allowed", "get_subscription_status",
     "mark_channel_access_granted", "try_grant_channel_access",
+    "get_access", "public_access", "grant_access", "gift_days", "set_unlimited", "start_trial_mode", "get_access_log",
+    "access_overview", "trial_scenario_active", "trial_scenario_for_user", "ACCESS_MODES",
     "export_full_account_data", "request_account_deletion",
     "add_changelog_entry", "get_unseen_changelog_entries", "mark_changelog_seen",
     "publish_release_notes", "RELEASE_NOTES",
