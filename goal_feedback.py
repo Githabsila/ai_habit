@@ -9,6 +9,7 @@ import logging
 
 from db import get_surveys_due_for_feedback, mark_feedback_sent, get_progress, get_user, log_error
 from multi_agent import analyze_goal_progress
+from db import ai_usage
 from alerts import notify_admins
 
 logger = logging.getLogger("goal_feedback")
@@ -29,12 +30,13 @@ async def run_goal_feedback(bot):
                 if progress.get("total") else 0
             )
 
-            feedback = await analyze_goal_progress(
-                life_goal=survey["life_goal"] or "",
-                bot_goal=survey["bot_goal"] or "",
-                streak=user["streak"] if user else 0,
-                completed_ratio=completed_ratio,
-            )
+            with ai_usage.scope(user_id, "goal"):
+                feedback = await analyze_goal_progress(
+                    life_goal=survey["life_goal"] or "",
+                    bot_goal=survey["bot_goal"] or "",
+                    streak=user["streak"] if user else 0,
+                    completed_ratio=completed_ratio,
+                )
 
             if feedback:
                 await bot.send_message(

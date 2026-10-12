@@ -52,6 +52,8 @@ async def authenticate(init_data):
             username=tg_user.get("username"),
             first_name=tg_user.get("first_name", ""),
         )
+        from db.traffic import attribute_from_init_data
+        attribute_from_init_data(telegram_id, init_data)
 
     if is_banned(telegram_id):
         raise _error(web.HTTPForbidden, "banned")

@@ -329,7 +329,7 @@ def test_only_the_last_answer_is_kept_long(uid):
 def test_the_chat_asks_for_a_longer_history_and_the_whole_last_answer():
     import webapp.routes_ai_miniapp as route_mod
     import inspect
-    assert "limit=6, max_chars_per_msg=180, last_assistant_chars=1200" in inspect.getsource(route_mod._answer_chat)
+    assert "limit=6, max_chars_per_msg=180, last_assistant_chars=1200" in inspect.getsource(route_mod._answer_chat_inner)
 
 
 @pytest.mark.parametrize("answer,expected", [

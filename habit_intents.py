@@ -436,11 +436,13 @@ async def try_handle_habit_intent_ai(user_id: int, text: str) -> str | None:
     plan_tasks = [t["text"] for t in (plan["tasks"] if plan else []) if t["text"]]
 
     try:
-        decision = await classify_habit_action(
-            text,
-            habits=[h["title"] for h in habits],
-            plan_tasks=plan_tasks,
-        )
+        from db import ai_usage
+        with ai_usage.scope(user_id, "intent"):
+            decision = await classify_habit_action(
+                text,
+                habits=[h["title"] for h in habits],
+                plan_tasks=plan_tasks,
+            )
     except Exception:
         return None
 

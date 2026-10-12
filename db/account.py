@@ -67,6 +67,10 @@ def request_account_deletion(telegram_id):
     cursor.execute("DELETE FROM user_survey WHERE user_id=?", (telegram_id,))
     cursor.execute("DELETE FROM habit_notes WHERE user_id=?", (telegram_id,))
     cursor.execute("DELETE FROM client_errors WHERE user_id=?", (telegram_id,))
+    # Учёт пути (db/tracking.py): события несут названия привычек и задач, сессии — что человек нажимал, сводки — пересказ его данных.
+    cursor.execute("DELETE FROM user_events WHERE user_id=?", (telegram_id,))
+    cursor.execute("DELETE FROM app_sessions WHERE user_id=?", (telegram_id,))
+    cursor.execute("DELETE FROM user_summaries WHERE user_id=?", (telegram_id,))
 
     cursor.execute(
         """UPDATE users SET

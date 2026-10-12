@@ -185,6 +185,8 @@ def add_habit(user_id, title, planned_time=None, time_window_minutes=60, categor
     habit_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    from .tracking import track_server
+    track_server(user_id, "habit_added", meta={"title": title[:60]})
     return habit_id
 
 
@@ -290,6 +292,8 @@ def delete_habit(habit_id):
     conn.close()
     if row:
         log_habit_deletion(row["user_id"])
+        from .tracking import track_server
+        track_server(row["user_id"], "habit_deleted")
 
 
 def reset_habits():

@@ -63,6 +63,7 @@ from db.ai_nudge import begin_ai_greeting, finish_ai_greeting, pick_greeting
 from db import adam_checkin as adam_ck
 from webapp.services.ai_jobs import ai_jobs
 from webapp.services import chat_brain
+from db import ai_usage
 
 logger = logging.getLogger("webapp.ai_miniapp")
 
@@ -110,7 +111,8 @@ async def _update_memory(user_id: int):
         profile = get_user_profile(user_id)
         existing_summary = profile["summary"] if profile else ""
         recent_history = build_history_text(user_id, limit=MEMORY_UPDATE_EVERY + 2)
-        memory = await summarize_user_memory(existing_summary, recent_history)
+        with ai_usage.scope(user_id, "memory"):
+            memory = await summarize_user_memory(existing_summary, recent_history)
         import json as _json
         from datetime import datetime as _dt, timedelta as _td
         summary = existing_summary
@@ -268,7 +270,13 @@ def _fresh_suggestion(user_id: int, suggested):
 
 
 async def _answer_chat(user_id: int, pro: bool, message_text: str):
-    """Тело ответа ADAM: (http_status, json) — как раньше строилось прямо в обработчике. Запускается задачей ai_jobs."""
+    """Тело ответа ADAM: (http_status, json) — как раньше строилось прямо в обработчике. Запускается задачей ai_jobs.
+    Все вызовы модели внутри записываются на этого человека (db/ai_usage.py)."""
+    with ai_usage.scope(user_id, "chat"):
+        return await _answer_chat_inner(user_id, pro, message_text)
+
+
+async def _answer_chat_inner(user_id: int, pro: bool, message_text: str):
     # Фиксируем первое реально обработанное сообщение только после
     # успешного прохождения троттлинга.
     first_message = claim_ai_first_message(user_id)
@@ -292,6 +300,14 @@ async def _answer_chat(user_id: int, pro: bool, message_text: str):
             "suggested_habit": None,
             "message_id": message_id,
             "quota": get_ai_quota(user_id, pro),
+        }
+
+    # ИИ для человека отключён админом или исчерпан его дневной лимит токенов (db/ai_usage.py) — отвечаем по-человечески, без ошибки.
+    verdict = ai_usage.check_allowed(user_id)
+    if not verdict["ok"]:
+        return 429, {
+            "error": "ai_limited", "reason": verdict["reason"], "until": verdict.get("until"),
+            "message": ai_usage.restriction_message(verdict["reason"]),
         }
 
     # Обычные свободные ответы расходуют дневной лимит; управление привычками/планом — нет.
@@ -350,6 +366,8 @@ async def _answer_chat(user_id: int, pro: bool, message_text: str):
             is_crisis = result["is_crisis"]
             suggested_habit = _fresh_suggestion(user_id, result["suggested_habit"])
             complexity = result.get("complexity", "сложно")
+        except ai_usage.AIRestricted as exc:
+            return 429, {"error": "ai_limited", "reason": exc.reason, "until": exc.until, "message": ai_usage.restriction_message(exc.reason)}
         except Exception as e:
             logger.exception(f"Ошибка AI-пайплайна для {user_id}")
             log_error("ai_pipeline", e, user_id)
@@ -607,7 +625,8 @@ async def ai_daily_tip_miniapp(request):
     style = get_ai_style(user_id)
     user_context = build_proactive_context(user_id)
     try:
-        tip = await generate_daily_tip(user_context, style)
+        with ai_usage.scope(user_id, "tip"):
+            tip = await generate_daily_tip(user_context, style)
     except Exception as e:
         logger.exception(f"Не удалось сформировать совет дня для {user_id}")
         log_error("daily_tip", e, user_id)

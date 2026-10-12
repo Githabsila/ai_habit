@@ -25,6 +25,7 @@ from db import (
     mark_bot_blocked, notification_scope, reminder_category_enabled, release_notification,
 )
 from db import adam_checkin as ac
+from db import ai_usage
 
 logger = logging.getLogger("adam_proactive")
 
@@ -44,7 +45,8 @@ async def compose_message(state, scenario, user_id, day_iso, timeout=PUSH_LLM_TI
     prompt = ac.build_checkin_prompt(state, scenario, opener, ac.recent_adam_messages(user_id), state.get("recent_scenarios") or ())
     text = ""
     try:
-        text = ac.clean_text(await asyncio.wait_for(_generate(prompt, state.get("style") or "neutral"), timeout))
+        with ai_usage.scope(user_id, "checkin"):
+            text = ac.clean_text(await asyncio.wait_for(_generate(prompt, state.get("style") or "neutral"), timeout))
     except Exception as exc:
         logger.warning("Адам пишет первым: модель недоступна (%s)", exc)
     if text and ac.is_acceptable(text, scenario):
@@ -95,6 +97,8 @@ def skip_reason(telegram_id, now_local, settings):
         return "аккаунт слишком новый"
     if ac.is_dormant(telegram_id):
         return "давно не заходил — это работа напоминаний о возврате"
+    if not ai_usage.check_allowed(telegram_id)["ok"]:
+        return "ИИ для человека ограничен админом"
     if reminder_category_enabled(settings, "streak"):
         from db.streak import get_streak_reengagement_state, has_completed_today
         back = get_streak_reengagement_state(telegram_id)

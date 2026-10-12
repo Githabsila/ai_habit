@@ -523,7 +523,7 @@ def _trim_to_last_sentence(text: str) -> str:
     return text[:matches[-1].end()].rstrip()
 
 
-def _log_usage(response, provider: str) -> None:
+def _log_usage(response, provider: str, model: str = "") -> None:
     """Пишет реальный расход токенов этого вызова в db/analytics.py —
     единственное место во всём проекте, где это делается, поэтому
     покрывает ВСЕ фичи на LLM (чат, совет дня, утренние сообщения,
@@ -544,7 +544,9 @@ def _log_usage(response, provider: str) -> None:
         )
         if tokens:
             from db.analytics import log_ai_tokens
-            log_ai_tokens(tokens, provider)
+            prompt = getattr(usage, "prompt_tokens", None) or getattr(usage, "input_tokens", 0) or 0
+            completion = getattr(usage, "completion_tokens", None) or getattr(usage, "output_tokens", 0) or 0
+            log_ai_tokens(tokens, provider, model or str(getattr(response, "model", "") or ""), prompt, completion)
     except Exception:
         pass
 
@@ -589,6 +591,15 @@ async def _ask(
     """
     import time
 
+    # Админ может временно отключить ИИ для человека или задать ему дневной лимит токенов (db/ai_usage.py): проверка здесь, в единственной
+    # точке вызовов модели, поэтому действует на чат, утренние сообщения, «Адам пишет первым» и всё остальное сразу.
+    from db import ai_usage
+    who = ai_usage.current().get("user_id")
+    if who is not None:
+        verdict = ai_usage.check_allowed(who)
+        if not verdict["ok"]:
+            raise ai_usage.AIRestricted(verdict["reason"], verdict.get("until"))
+
     async def _groq_call():
         client = _get_groq_client()
         if client is None:
@@ -603,7 +614,7 @@ async def _ask(
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        _log_usage(response, "groq")
+        _log_usage(response, "groq", GROQ_MODEL)
         choice = response.choices[0]
         result = _strip_markdown((choice.message.content or "").strip())
         # Жалоба пользователя: ответ обрывается посреди слова/списка ("1." и
@@ -632,7 +643,7 @@ async def _ask(
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            _log_usage(response, "groq")
+            _log_usage(response, "groq", GROQ_MODEL)
             choice = response.choices[0]
             cont = _strip_markdown((choice.message.content or "").strip())
             if not cont:
@@ -659,7 +670,7 @@ async def _ask(
             input=user,
             max_output_tokens=max_tokens,
         )
-        _log_usage(response, "openai")
+        _log_usage(response, "openai", model)
         text = _strip_markdown((response.output_text or "").strip())
         status = getattr(response, "status", None)
         if status == "incomplete":
@@ -686,7 +697,7 @@ async def _ask(
                 ],
                 max_output_tokens=max_tokens,
             )
-            _log_usage(response, "openai")
+            _log_usage(response, "openai", model)
             cont = _strip_markdown((response.output_text or "").strip())
             if not cont:
                 return _trim_to_last_sentence(partial)

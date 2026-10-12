@@ -99,6 +99,9 @@ from db import (
 
 from datetime import date, datetime, timezone
 from multi_agent import generate_progress_analysis
+from db import ai_usage
+from db.tracking import ingest as ingest_track
+from db.traffic import attribute_from_init_data
 from webapp.services.ai_utils import build_user_context
 
 logger = logging.getLogger("webapp")
@@ -187,6 +190,7 @@ async def _authenticate(request):
             username=tg_user.get("username"),
             first_name=tg_user.get("first_name", "")
         )
+        attribute_from_init_data(telegram_id, init_data)      # пришёл по ссылке канала на само приложение (startapp=src_<код>)
 
     if is_banned(telegram_id):
         raise web.HTTPForbidden(text='{"error":"banned"}', content_type="application/json")
@@ -600,6 +604,35 @@ async def claim_month_chest_route(request):
         "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
         "month_quests": get_month_quests(telegram_id),
     })
+
+
+# ====================== ПУТЬ ЧЕЛОВЕКА (tracker.js → db/tracking.py) ======================
+
+MAX_TRACK_BODY = 64 * 1024
+
+
+@routes.post("/api/track")
+async def track_route(request):
+    """Пакет учёта пути человека: снимок сессии + события. initData — в теле (navigator.sendBeacon не умеет заголовки).
+    Не обновляет «последний заход» и не требует доступа: учёт не должен ничего менять в приложении и не должен ломаться."""
+    if request.content_length and request.content_length > MAX_TRACK_BODY:
+        return web.json_response({"ok": False}, status=413)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return web.json_response({"ok": False}, status=400)
+    if not isinstance(body, dict):
+        return web.json_response({"ok": False}, status=400)
+    tg_user = validate_init_data(body.get("init_data", ""), BOT_TOKEN)
+    if tg_user is None:
+        return web.json_response({"ok": False}, status=401)
+    telegram_id = tg_user["id"]
+    if get_user(telegram_id) is None:
+        return web.json_response({"ok": True, "accepted": 0})
+    session = body.get("session") if isinstance(body.get("session"), dict) else None
+    events = body.get("events") if isinstance(body.get("events"), list) else []
+    accepted = ingest_track(telegram_id, session, events, body.get("now"))
+    return web.json_response({"ok": True, "accepted": accepted})
 
 
 # ====================== ПАРНОЕ ЗАДАНИЕ ======================
@@ -2435,7 +2468,8 @@ async def progress_ai_analysis_route(request):
         style = get_ai_style(telegram_id)
 
         try:
-            text = await generate_progress_analysis(user_context, weekly_text, style)
+            with ai_usage.scope(telegram_id, "progress"):
+                text = await generate_progress_analysis(user_context, weekly_text, style)
         except Exception as e:
             logger.exception(f"Не удалось сформировать AI-анализ прогресса для {telegram_id}")
             log_error("progress_analysis", e, telegram_id)

@@ -88,7 +88,7 @@ def get_ai_usage_today():
     return n
 
 
-def log_ai_tokens(tokens, provider=""):
+def log_ai_tokens(tokens, provider="", model="", prompt=0, completion=0):
     """Пишет ОДИН реальный вызов LLM — вызывается из multi_agent.py::_ask,
     единственной точки, через которую идут вообще все обращения к
     Groq/OpenAI (ручной чат, совет дня, утренние сообщения, еженедельный
@@ -96,16 +96,9 @@ def log_ai_tokens(tokens, provider=""):
     Не должно ронять сам AI-ответ, если запись не удалась."""
     if not tokens:
         return
-    try:
-        conn = connect()
-        conn.execute(
-            "INSERT INTO ai_token_log(day, tokens, provider) VALUES (?, ?, ?)",
-            (str(date.today()), int(tokens), provider or ""),
-        )
-        conn.commit()
-        conn.close()
-    except Exception:
-        pass
+    # Чей это вызов и для какой функции — из scope(user_id, feature) вокруг вызова модели (db/ai_usage.py).
+    from .ai_usage import record
+    record(tokens, provider, model, prompt, completion)
 
 
 def get_ai_tokens_today():

@@ -69,6 +69,8 @@ PREMIUM_PRICE_STARS = int(os.getenv("PREMIUM_PRICE_STARS", "150"))
 # включением. Курс Stars→USD задаёт сама Telegram и время от времени
 # меняется (ориентир на момент написания: 1 Star ≈ $0.013), поэтому точную
 # сумму для 1.99$/5.99$ нужно свериться в актуальном курсе Telegram.
+# Общий дневной лимит токенов ИИ на человека (db/ai_usage.py). 0 — выключен; личный лимит из админки сильнее.
+AI_USER_DAY_TOKENS = int(os.getenv("AI_USER_DAY_TOKENS", "0"))
 SUBSCRIPTION_TRIAL_DAYS = int(os.getenv("SUBSCRIPTION_TRIAL_DAYS", "3"))
 SUBSCRIPTION_INTRO_PRICE_STARS = int(os.getenv("SUBSCRIPTION_INTRO_PRICE_STARS", "153"))   # ≈ $1.99
 SUBSCRIPTION_RENEWAL_PRICE_STARS = int(os.getenv("SUBSCRIPTION_RENEWAL_PRICE_STARS", "461"))  # ≈ $5.99

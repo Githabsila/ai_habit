@@ -195,6 +195,17 @@ def create_tables():
     if "trial_started_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN trial_started_at TIMESTAMP")
 
+    # Ограничения ИИ для человека под контролем админа (db/ai_usage.py): отключение до момента и личный дневной лимит токенов.
+    # Откуда пришёл человек: код канала из ссылки t.me/<бот>?start=src_<код> (db/traffic.py) — для статистики по каналам.
+    if "source_code" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN source_code TEXT")
+    if "source_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN source_at TIMESTAMP")
+    if "ai_blocked_until" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN ai_blocked_until TIMESTAMP")
+    if "ai_tokens_day_limit" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN ai_tokens_day_limit INTEGER")
+
     # last_seen — для DAU/WAU в аналитике (db/analytics.py). Обновляется на
     # каждый заход в Mini App (webapp/auth_helpers.py) и на каждое сообщение
     # боту (middlewares/access_control.py), поэтому отражает обе поверхности.
@@ -636,6 +647,14 @@ def create_tables():
     )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_token_log_day ON ai_token_log(day)")
+    # Расход по людям и функциям (db/ai_usage.py): чей вызов, какая функция, какая модель, сколько вошло и вышло.
+    cursor.execute("PRAGMA table_info(ai_token_log)")
+    token_columns = {row[1] for row in cursor.fetchall()}
+    for column, ddl in (("user_id", "INTEGER"), ("feature", "TEXT"), ("model", "TEXT"), ("prompt_tokens", "INTEGER DEFAULT 0"),
+                        ("completion_tokens", "INTEGER DEFAULT 0")):
+        if column not in token_columns:
+            cursor.execute(f"ALTER TABLE ai_token_log ADD COLUMN {column} {ddl}")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_token_log_user ON ai_token_log(user_id, day)")
 
     # Журнал выдачи доступа админом (db/access.py): кто, кому, на сколько и что было до/после — «под нашим контролем».
     cursor.execute("""
@@ -656,6 +675,70 @@ def create_tables():
     )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_access_log_user ON access_log(user_id, id)")
+
+    # ---------------- Путь человека (db/tracking.py) ----------------
+    # user_events — значимые шаги: регистрация, шаги анкеты и онбординга, «пропустить», первая привычка/задача, сообщения Адаму.
+    # Клики не пишутся по одному: последние действия сессии лежат в app_sessions.last_actions («после чего вышел»).
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        name TEXT NOT NULL,
+        step TEXT,
+        screen TEXT,
+        meta TEXT,
+        session_id TEXT,
+        surface TEXT
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events(user_id, id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_events_name ON user_events(name, at)")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS app_sessions(
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        started_at TIMESTAMP,
+        last_at TIMESTAMP,
+        active_seconds INTEGER DEFAULT 0,
+        actions INTEGER DEFAULT 0,
+        last_action TEXT,
+        last_screen TEXT,
+        last_actions TEXT,
+        ended INTEGER DEFAULT 0,
+        ended_at TIMESTAMP,
+        platform TEXT,
+        tz_offset INTEGER
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_app_sessions_user ON app_sessions(user_id, started_at)")
+
+    # Каналы трафика (db/traffic.py): у каждого канала/блогера своя ссылка t.me/<бот>?start=src_<code>.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS traffic_sources(
+        code TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        kind TEXT,
+        note TEXT,
+        archived INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_source ON users(source_code)")
+
+    # ИИ-сводки для админа (db/user_summary.py): по человеку (kind short/extended) и общий разбор (user_id=0, kind insights).
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_summaries(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        text TEXT NOT NULL,
+        stamp TEXT,
+        tokens INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_summaries_user ON user_summaries(user_id, kind, id)")
 
     # Косметика профиля: рамки за Adam Coin. Повторный INSERT безопасен для существующей БД.
     cursor.execute("UPDATE shop_items SET item_type='premium' WHERE id=1")

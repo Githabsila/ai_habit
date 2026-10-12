@@ -1,0 +1,545 @@
+"""
+Путь человека в приложении: события, сессии, «после какого действия вышел», воронка и пропуски.
+
+Что где живёт:
+  • user_events — значимые шаги (регистрация, анкета, онбординг, «пропустить», первая привычка/задача, сообщение Адаму);
+    пишут и сервер (track_server — из мест, где это случилось), и приложение (tracker.js → /api/track → ingest);
+  • app_sessions — одна запись на сессию: сколько человек реально был в приложении, сколько действий сделал, последние 10
+    действий и экран — по ним видно, ПОСЛЕ ЧЕГО он вышел;
+  • всё остальное (когда добавил первую привычку, когда написал Адаму и ЧТО) берётся из таблиц, которые уже есть
+    (habits, daily_plans, ai_messages…), поэтому путь виден и у тех, кто пришёл до появления этого учёта.
+
+Ничего из этого не должно ломать основной сценарий: любая запись обёрнута в try/except.
+"""
+import json
+import re
+from datetime import datetime, timedelta, timezone
+
+from .core import connect
+
+EVENT_LABELS = {
+    "registered": ("🆕", "Зарегистрировался"),
+    "survey_started": ("📝", "Начал анкету"),
+    "survey_step": ("📝", "Ответил на вопрос анкеты"),
+    "survey_completed": ("✅", "Закончил анкету"),
+    "access_approved": ("🔓", "Открыли доступ"),
+    "session_start": ("📱", "Открыл приложение"),
+    "screen": ("🧭", "Открыл раздел"),
+    "onb_streak_shown": ("🔥", "Увидел «Ударный режим»"),
+    "onb_streak_ok": ("🔥", "Нажал «Я в игре»"),
+    "quiz_start": ("❓", "Начал стартовый квиз"),
+    "quiz_step": ("❓", "Шаг стартового квиза"),
+    "quiz_done": ("❓", "Закончил стартовый квиз"),
+    "tour_start": ("👋", "Увидел вводный тур"),
+    "tour_step": ("👋", "Шаг вводного тура"),
+    "tour_skip": ("⏭", "Пропустил вводный тур"),
+    "tour_done": ("👋", "Закончил вводный тур"),
+    "handle_intro_shown": ("🏷", "Увидел экран с @ником"),
+    "handle_intro_done": ("🏷", "Продолжил на экране с @ником"),
+    "hint_shown": ("💡", "Подсказка онбординга"),
+    "hint_next": ("💡", "Следующая подсказка"),
+    "hint_skip": ("⏭", "Пропустил подсказки"),
+    "habit_form_open": ("✏️", "Открыл форму привычки"),
+    "habit_added": ("➕", "Добавил привычку"),
+    "habit_deleted": ("🗑", "Удалил привычку"),
+    "habit_completed": ("✅", "Отметил привычку"),
+    "main_goal_set": ("🎯", "Записал главную задачу"),
+    "main_goal_done": ("🏁", "Выполнил главную задачу"),
+    "task_added": ("🗒", "Добавил задачу"),
+    "task_done": ("☑️", "Выполнил задачу"),
+    "ai_message": ("💬", "Написал Адаму"),
+    "friend_added": ("🤝", "Добавил друга"),
+    "pair_invite": ("🤝", "Позвал в парное задание"),
+    "purchase": ("🛍", "Покупка в магазине"),
+}
+SKIP_EVENTS = ("tour_skip", "hint_skip")
+
+# Подписи для админки: что нажал человек (id кнопки → по-русски) и где он был (вкладка или окно). Всё, чего здесь нет, показывается как есть.
+UI_LABELS = {
+    "addHabitTrigger": "Добавить привычку", "newHabitPriorityBtn": "Приоритет привычки", "newHabitAdvancedToggle": "Расширенные настройки привычки",
+    "saveMainGoalBtn": "Сохранить главную задачу", "addPlanTaskTrigger": "Добавить задачу",
+    "aiCoachBtn": "Открыть чат с Адамом", "progressAiBtn": "ИИ-разбор прогресса", "openShopBtn": "Магазин", "openStatsBtn": "Статистика",
+    "openGiftsBtn": "Подарки", "dailyQuestsBtn": "Квесты дня", "monthCardOpen": "Задания месяца", "openSettingsBtn": "Настройки",
+    "appTourSkip": "Пропустить вводный тур", "appTourNext": "Далее (вводный тур)", "appTourBack": "Назад (вводный тур)",
+    "startQuizContinue": "Далее (стартовый квиз)", "startQuizBack": "Назад (стартовый квиз)",
+    "productOnboardingHintSkip": "Пропустить подсказки", "streakOnboardingContinue": "Я в игре (ударный режим)",
+    "handleIntroContinue": "Продолжить на экране @ника", "bootRetryBtn": "Повторить загрузку", "feedbackSend": "Отправить отзыв",
+    "openFeedbackBtn": "Написать отзыв", "adminPanelBtn": "Админ-панель", "heroWidgetPortrait": "Портрет Адама", "pairGuideClose": "Понятно (парное задание)",
+    "replayOnboardingBtn": "Повторить онбординг", "deleteAccountBtn": "Удалить аккаунт", "resetProgressBtn": "Сбросить прогресс",
+    "remindersToggle": "Переключатель напоминаний", "userHandleSaveBtn": "Сохранить @ник", "publicProfileToggle": "Публичный профиль",
+    "selfRewardActionBtn": "Вознаградить себя", "freezeBuyBtn": "Купить заморозку", "streakCelebrationContinue": "Продолжить (праздник серии)",
+}
+SCREEN_LABELS = {
+    "home": "Главная", "calendar": "Календарь", "rating": "Рейтинг", "profile": "Профиль", "coach": "Чат с Адамом", "ai": "Чат с Адамом",
+    "startQuiz": "Стартовый квиз", "appTour": "Вводный тур", "handleIntro": "Экран @ника", "streakOnboarding": "Ударный режим",
+    "shop": "Магазин", "settings": "Настройки", "stats": "Статистика", "dailyQuests": "Квесты дня", "pairGuide": "Парное задание: инструкция",
+    "userProfile": "Профиль игрока", "streakCelebration": "Праздник серии", "levelup": "Новый уровень", "evolution": "Эволюция",
+    "doubleBonus": "Двойные очки", "archetypeQuiz": "Тест архетипа", "avatarEdit": "Аватар", "identity": "Имя и ник", "adminGift": "Подарок от админа",
+}
+
+
+def ui_label(label):
+    return UI_LABELS.get(label, label)
+
+
+def screen_label(screen):
+    return SCREEN_LABELS.get(screen, screen)
+NAME_RE = re.compile(r"^[a-z][a-z0-9_.-]{1,40}$")
+MAX_EVENTS_PER_REQUEST = 40
+MAX_EVENTS_PER_MINUTE = 200
+MAX_META_CHARS = 500
+MAX_LAST_ACTIONS = 10
+
+
+def _now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _fmt(moment):
+    return moment.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _parse(value):
+    if not value:
+        return None
+    text = str(value).replace("T", " ")[:19]
+    try:
+        return datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def _short(value, limit):
+    return " ".join(str(value or "").split())[:limit] or None
+
+
+def _admin_ids():
+    try:
+        from config import ADMIN_IDS
+        return [int(i) for i in ADMIN_IDS]
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------------------------------------------- запись
+
+def track_server(user_id, name, step=None, meta=None, surface="server", screen=None, session_id=None, at=None):
+    """Одно событие с сервера. Никогда не бросает исключение: учёт не должен мешать тому, что делает человек."""
+    try:
+        if not user_id or not NAME_RE.match(str(name or "")):
+            return False
+        payload = None
+        if meta:
+            payload = json.dumps(meta, ensure_ascii=False, separators=(",", ":"))[:MAX_META_CHARS]
+        conn = connect()
+        try:
+            conn.execute(
+                "INSERT INTO user_events(user_id, at, name, step, screen, meta, session_id, surface) VALUES (?,?,?,?,?,?,?,?)",
+                (int(user_id), _fmt(at or _now()), name, _short(step, 40), _short(screen, 40), payload, _short(session_id, 40), surface),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return True
+    except Exception:
+        return False
+
+
+def _clean_sid(value):
+    text = str(value or "")
+    return text if re.match(r"^[A-Za-z0-9_-]{6,40}$", text) else None
+
+
+def _clean_actions(raw):
+    out = []
+    for item in (raw or [])[-MAX_LAST_ACTIONS:]:
+        if not isinstance(item, dict):
+            continue
+        label = _short(item.get("l"), 40)
+        if label:
+            out.append({"l": label, "s": _short(item.get("s"), 40), "t": int(item.get("t") or 0) if str(item.get("t") or "0").lstrip("-").isdigit() else 0})
+    return out
+
+
+def ingest(user_id, session, events, client_now=None):
+    """Пакет от приложения: снимок сессии и события. Возвращает сколько событий принято. Ошибки не пробрасываем."""
+    accepted = 0
+    try:
+        now = _now()
+        conn = connect()
+        try:
+            sid = _clean_sid((session or {}).get("sid"))
+            if sid:
+                started = now
+                try:
+                    started_ms, now_ms = int(session.get("started")), int(client_now)
+                    started = now - timedelta(seconds=max(0, min((now_ms - started_ms) / 1000, 24 * 3600)))
+                except (TypeError, ValueError):
+                    pass
+                active = max(0, min(int(session.get("active") or 0), 24 * 3600))
+                actions = max(0, min(int(session.get("actions") or 0), 100000))
+                last = _clean_actions(session.get("last"))
+                last_action = last[-1]["l"] if last else None
+                inserted = conn.execute(
+                    "INSERT OR IGNORE INTO app_sessions(id, user_id, started_at, last_at, platform, tz_offset) VALUES (?,?,?,?,?,?)",
+                    (sid, user_id, _fmt(started), _fmt(now), _short(session.get("platform"), 20), _int_or_none(session.get("tz"))),
+                ).rowcount
+                conn.execute(
+                    "UPDATE app_sessions SET last_at=?, active_seconds=MAX(active_seconds,?), actions=MAX(actions,?), "
+                    "last_action=COALESCE(?, last_action), last_screen=COALESCE(?, last_screen), "
+                    "last_actions=CASE WHEN ? IS NULL THEN last_actions ELSE ? END, ended=?, ended_at=CASE WHEN ?=1 THEN ? ELSE NULL END "
+                    "WHERE id=? AND user_id=?",
+                    (_fmt(now), active, actions, last_action, _short(session.get("screen"), 40),
+                     json.dumps(last, ensure_ascii=False) if last else None, json.dumps(last, ensure_ascii=False) if last else None,
+                     1 if session.get("hidden") else 0, 1 if session.get("hidden") else 0, _fmt(now), sid, user_id),
+                )
+                if inserted:
+                    conn.execute(
+                        "INSERT INTO user_events(user_id, at, name, session_id, surface, meta) VALUES (?,?,?,?,?,?)",
+                        (user_id, _fmt(started), "session_start", sid, "app",
+                         json.dumps({"platform": _short(session.get("platform"), 20)}, ensure_ascii=False)),
+                    )
+            recent = conn.execute(
+                "SELECT COUNT(*) AS n FROM user_events WHERE user_id=? AND at>=?", (user_id, _fmt(now - timedelta(minutes=1)))
+            ).fetchone()["n"]
+            budget = max(0, MAX_EVENTS_PER_MINUTE - int(recent))
+            for event in (events or [])[:min(MAX_EVENTS_PER_REQUEST, budget)]:
+                if not isinstance(event, dict) or not NAME_RE.match(str(event.get("n") or "")):
+                    continue
+                at = now
+                try:
+                    at = now - timedelta(seconds=max(0, min((int(client_now) - int(event["t"])) / 1000, 3600)))
+                except (KeyError, TypeError, ValueError):
+                    pass
+                meta = event.get("m")
+                payload = json.dumps(meta, ensure_ascii=False, separators=(",", ":"))[:MAX_META_CHARS] if isinstance(meta, (dict, list)) and meta else None
+                conn.execute(
+                    "INSERT INTO user_events(user_id, at, name, step, screen, meta, session_id, surface) VALUES (?,?,?,?,?,?,?,?)",
+                    (user_id, _fmt(at), event["n"], _short(event.get("s"), 40), _short(event.get("sc"), 40), payload, sid, "app"),
+                )
+                accepted += 1
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        return accepted
+    return accepted
+
+
+def _int_or_none(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+# ---------------------------------------------------------------------------------------------------------------- чтение: человек
+
+def _one(conn, query, params=()):
+    row = conn.execute(query, params).fetchone()
+    return row[0] if row is not None else None
+
+
+def _minutes(created, moment):
+    return int((moment - created).total_seconds() // 60) if created and moment else None
+
+
+def _earliest(*values):
+    parsed = [_parse(v) for v in values if v]
+    parsed = [p for p in parsed if p]
+    return min(parsed) if parsed else None
+
+
+def sessions(user_id, limit=10):
+    conn = connect()
+    try:
+        rows = conn.execute("SELECT * FROM app_sessions WHERE user_id=? ORDER BY started_at DESC LIMIT ?", (user_id, int(limit))).fetchall()
+    finally:
+        conn.close()
+    out = []
+    for r in rows:
+        try:
+            last = json.loads(r["last_actions"]) if r["last_actions"] else []
+        except ValueError:
+            last = []
+        started, last_at = _parse(r["started_at"]), _parse(r["last_at"])
+        out.append({
+            "id": r["id"], "started_at": r["started_at"], "last_at": r["last_at"],
+            "span_seconds": int((last_at - started).total_seconds()) if started and last_at else 0,
+            "active_seconds": int(r["active_seconds"] or 0), "actions": int(r["actions"] or 0),
+            "last_action": ui_label(r["last_action"]) if r["last_action"] else None,
+            "last_screen": screen_label(r["last_screen"]) if r["last_screen"] else None,
+            "last_actions": [{"l": ui_label(a["l"]), "s": screen_label(a["s"]) if a.get("s") else None, "t": a.get("t", 0)} for a in last],
+            "ended": bool(r["ended"]), "platform": r["platform"],
+        })
+    return out
+
+
+def journey(user_id):
+    """Сводка пути человека: когда что сделал (и через сколько минут после регистрации), онбординг, пропуски, время в приложении,
+    после чего выходит. Часть берётся из событий, часть — из обычных таблиц (habits, daily_plans, ai_messages …)."""
+    conn = connect()
+    try:
+        user = conn.execute("SELECT * FROM users WHERE telegram_id=?", (user_id,)).fetchone()
+        if user is None:
+            return None
+        created = _parse(user["created_at"])
+        keys = user.keys()
+
+        def event_first(name, step=None):
+            q, p = "SELECT MIN(at) FROM user_events WHERE user_id=? AND name=?", [user_id, name]
+            if step:
+                q += " AND step=?"
+                p.append(step)
+            return _one(conn, q, p)
+
+        first_open = _earliest(_one(conn, "SELECT MIN(started_at) FROM app_sessions WHERE user_id=?", (user_id,)),
+                               _one(conn, "SELECT MIN(at) FROM app_opens WHERE user_id=?", (user_id,)))
+        first_habit = _earliest(_one(conn, "SELECT MIN(created_at) FROM habits WHERE user_id=?", (user_id,)), event_first("habit_added"))
+        habit_row = conn.execute("SELECT title FROM habits WHERE user_id=? ORDER BY id LIMIT 1", (user_id,)).fetchone()
+        first_done = _earliest(user["first_habit_completed_at"] if "first_habit_completed_at" in keys else None,
+                               _one(conn, "SELECT MIN(completed_at) FROM habit_completion_events WHERE user_id=?", (user_id,)))
+        first_main = _earliest(event_first("main_goal_set"),
+                               _one(conn, "SELECT MIN(created_at) FROM daily_plans WHERE user_id=? AND COALESCE(main_goal,'')!=''", (user_id,)))
+        first_task = _earliest(event_first("task_added"),
+                               _one(conn, "SELECT MIN(t.created_at) FROM daily_plan_tasks t JOIN daily_plans p ON p.id=t.plan_id WHERE p.user_id=?", (user_id,)))
+        first_ai = conn.execute("SELECT created_at, message FROM ai_messages WHERE user_id=? AND role='user' ORDER BY id LIMIT 1", (user_id,)).fetchone()
+        ai_count = _one(conn, "SELECT COUNT(*) FROM ai_messages WHERE user_id=? AND role='user'", (user_id,)) or 0
+        first_friend = _one(conn, "SELECT MIN(created_at) FROM friendships WHERE user_id=?", (user_id,))
+        paid = _earliest(user["subscription_first_payment_at"] if "subscription_first_payment_at" in keys else None,
+                         _one(conn, "SELECT MIN(created_at) FROM stars_payments WHERE user_id=?", (user_id,)))
+        survey_done = _earliest(user["survey_completed_at"] if "survey_completed_at" in keys else None, event_first("survey_completed"))
+        approved = _earliest(event_first("access_approved"))
+
+        def milestone(key, label, moment, extra=None):
+            return {"key": key, "label": label, "at": _fmt(moment) if moment else None, "minutes": _minutes(created, moment),
+                    "minutes_since_open": _minutes(first_open, moment) if first_open and moment and key != "opened" else None, "extra": extra}
+
+        milestones = [
+            milestone("registered", "Регистрация", created),
+            milestone("survey", "Закончил анкету", survey_done),
+            milestone("approved", "Открыли доступ", approved if approved else (survey_done if (user["access_status"] if "access_status" in keys else None) == "approved" else None)),
+            milestone("opened", "Первый заход в приложение", first_open),
+            milestone("habit", "Первая привычка", first_habit, habit_row["title"] if habit_row else None),
+            milestone("habit_done", "Первая отметка привычки", first_done),
+            milestone("main_goal", "Главная задача", first_main),
+            milestone("task", "Второстепенная задача", first_task),
+            milestone("ai", "Первое сообщение Адаму", _parse(first_ai["created_at"]) if first_ai else None, _short(first_ai["message"], 200) if first_ai else None),
+            milestone("friend", "Первый друг", _parse(first_friend)),
+            milestone("paid", "Первая оплата", paid),
+        ]
+
+        # онбординг: до какого шага дошёл и где пропускал
+        quiz_steps = [r["step"] for r in conn.execute(
+            "SELECT step FROM user_events WHERE user_id=? AND name='quiz_step' AND step IS NOT NULL ORDER BY id", (user_id,)).fetchall()]
+        tour_steps = [r["step"] for r in conn.execute(
+            "SELECT step FROM user_events WHERE user_id=? AND name='tour_step' ORDER BY id", (user_id,)).fetchall()]
+        skips = [{"name": r["name"], "step": r["step"], "at": r["at"]} for r in conn.execute(
+            "SELECT name, step, at FROM user_events WHERE user_id=? AND name IN ('tour_skip','hint_skip') ORDER BY id", (user_id,)).fetchall()]
+        onboarding = {
+            "stage": int(user["onboarding_stage"] or 0) if "onboarding_stage" in keys else 0,
+            "streak_seen": bool(event_first("onb_streak_shown")), "streak_ok": bool(event_first("onb_streak_ok")),
+            "quiz_seen": bool(user["start_quiz_seen"]) if "start_quiz_seen" in keys else False,
+            "quiz_last_step": quiz_steps[-1] if quiz_steps else None, "quiz_steps": len(set(quiz_steps)),
+            "tour_seen": bool(user["app_tour_seen"]) if "app_tour_seen" in keys else False,
+            "tour_last_step": tour_steps[-1] if tour_steps else None,
+            "skips": skips,
+        }
+
+        sess = conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(active_seconds),0) AS active, COALESCE(MAX(started_at),'') AS last_start FROM app_sessions WHERE user_id=?",
+            (user_id,)).fetchone()
+        days_active = _one(conn, "SELECT COUNT(DISTINCT date(at)) FROM app_opens WHERE user_id=?", (user_id,)) or 0
+        exits = [{"label": ui_label(r["last_action"]), "count": r["n"]} for r in conn.execute(
+            "SELECT last_action, COUNT(*) AS n FROM app_sessions WHERE user_id=? AND last_action IS NOT NULL GROUP BY last_action ORDER BY n DESC LIMIT 5",
+            (user_id,)).fetchall()]
+        returns = {}
+        if created:
+            for key, delta in (("d1", 1), ("d7", 7)):
+                later = _one(conn, "SELECT MIN(at) FROM app_opens WHERE user_id=? AND date(at)>=date(?, ?)", (user_id, _fmt(created), f"+{delta} days"))
+                returns[key] = bool(later)
+    finally:
+        conn.close()
+
+    last_sessions = sessions(user_id, limit=1)
+    return {
+        "user_id": user_id,
+        "registered_at": _fmt(created) if created else None,
+        "source": user["source_code"] if "source_code" in user.keys() else None,
+        "milestones": milestones,
+        "onboarding": onboarding,
+        "sessions": {
+            "count": int(sess["n"]), "active_seconds": int(sess["active"]), "days_active": int(days_active),
+            "avg_active_seconds": int(sess["active"] / sess["n"]) if sess["n"] else 0,
+            "last": last_sessions[0] if last_sessions else None, "top_exits": exits,
+        },
+        "ai_messages": int(ai_count),
+        "returns": returns,
+    }
+
+
+def timeline(user_id, limit=60):
+    """Лента действий человека, новые сверху: события, отметки привычек, сообщения Адаму (с текстом), сессии."""
+    limit = max(1, min(int(limit), 300))
+    items = []
+    conn = connect()
+    try:
+        for r in conn.execute("SELECT at, name, step, screen, meta FROM user_events WHERE user_id=? AND name!='session_start' ORDER BY id DESC LIMIT ?", (user_id, limit)).fetchall():
+            icon, label = EVENT_LABELS.get(r["name"], ("•", r["name"]))
+            meta = None
+            if r["meta"]:
+                try:
+                    meta = json.loads(r["meta"])
+                except ValueError:
+                    meta = None
+            items.append({"at": r["at"], "kind": "event", "name": r["name"], "icon": icon, "label": label, "step": r["step"],
+                          "screen": screen_label(r["screen"]) if r["screen"] else None, "meta": meta})
+        for r in conn.execute(
+            "SELECT e.completed_at AS at, h.title AS title FROM habit_completion_events e LEFT JOIN habits h ON h.id=e.habit_id "
+            "WHERE e.user_id=? ORDER BY e.id DESC LIMIT ?", (user_id, limit)).fetchall():
+            items.append({"at": r["at"], "kind": "habit", "name": "habit_completed", "icon": "✅", "label": "Отметил привычку", "step": None, "screen": None,
+                          "meta": {"title": r["title"]} if r["title"] else None})
+        for r in conn.execute("SELECT created_at AS at, message FROM ai_messages WHERE user_id=? AND role='user' ORDER BY id DESC LIMIT ?", (user_id, limit)).fetchall():
+            items.append({"at": r["at"], "kind": "ai", "name": "ai_message", "icon": "💬", "label": "Написал Адаму", "step": None, "screen": None,
+                          "meta": {"text": _short(r["message"], 220)}})
+        for s in sessions(user_id, limit=min(limit, 30)):
+            exit_text = f"вышел после «{s['last_action']}»" if s["last_action"] else "вышел"
+            if s["last_screen"]:
+                exit_text += f" · экран {s['last_screen']}"
+            items.append({"at": s["started_at"], "kind": "session", "name": "session", "icon": "📱", "label": "Сессия", "step": None, "screen": s["last_screen"],
+                          "meta": {"active_seconds": s["active_seconds"], "actions": s["actions"], "exit": exit_text}})
+    finally:
+        conn.close()
+    items.sort(key=lambda x: x["at"] or "", reverse=True)
+    return items[:limit]
+
+
+# ---------------------------------------------------------------------------------------------------------------- чтение: все люди
+
+FUNNEL = (
+    ("registered", "Зарегистрировались"),
+    ("survey", "Закончили анкету"),
+    ("approved", "Получили доступ"),
+    ("opened", "Открыли приложение"),
+    ("habit", "Добавили привычку"),
+    ("habit_done", "Отметили привычку"),
+    ("main_goal", "Записали главную задачу"),
+    ("task", "Добавили второстепенную задачу"),
+    ("ai", "Написали Адаму"),
+    ("d1", "Вернулись на следующий день"),
+    ("d7", "Вернулись через неделю"),
+    ("friend", "Добавили друга"),
+    ("paid", "Оплатили"),
+)
+CORE_PATH = ("registered", "survey", "approved", "opened", "habit", "habit_done")
+
+
+def _cohort(days, source=None):
+    since = _fmt(_now() - timedelta(days=max(1, min(int(days), 365))))
+    admins = _admin_ids()
+    where = "created_at>=? AND COALESCE(banned,0)=0"
+    params = [since]
+    if admins:
+        where += f" AND telegram_id NOT IN ({','.join('?' for _ in admins)})"
+        params += admins
+    if source == "none":
+        where += " AND (source_code IS NULL OR source_code='')"
+    elif source:
+        where += " AND source_code=?"
+        params.append(source)
+    return where, params
+
+
+def _collect_marks(conn, where, params):
+    """Кто из когорты (users по условию where) дошёл до каких шагов воронки и когда: (users, ids, marks[ключ][user_id] → время|None)."""
+    users = {r["telegram_id"]: r for r in conn.execute(f"SELECT * FROM users WHERE {where}", params).fetchall()}
+    ids = list(users)
+    marks = {key: {} for key, _ in FUNNEL}
+    if not ids:
+        return users, ids, marks
+
+    def grouped(query):
+        return {r[0]: _parse(r[1]) for r in conn.execute(query.replace("{ids}", ",".join("?" for _ in ids)), ids).fetchall()}
+
+    def earlier(key, found):
+        for uid, moment in found.items():
+            if moment and (not marks[key].get(uid) or moment < marks[key][uid]):
+                marks[key][uid] = moment
+
+    for uid, row in users.items():
+        keys = row.keys()
+        marks["registered"][uid] = _parse(row["created_at"])
+        marks["survey"][uid] = _parse(row["survey_completed_at"]) if "survey_completed_at" in keys else None
+        if (row["access_status"] if "access_status" in keys else None) == "approved":
+            marks["approved"][uid] = marks["survey"][uid] or marks["registered"][uid]
+        marks["paid"][uid] = _parse(row["subscription_first_payment_at"]) if "subscription_first_payment_at" in keys else None
+        marks["habit_done"][uid] = _parse(row["first_habit_completed_at"]) if "first_habit_completed_at" in keys else None
+    earlier("approved", grouped("SELECT user_id, MIN(at) FROM user_events WHERE user_id IN ({ids}) AND name='access_approved' GROUP BY user_id"))
+    sessions_first = grouped("SELECT user_id, MIN(started_at) FROM app_sessions WHERE user_id IN ({ids}) GROUP BY user_id")
+    opens_first = grouped("SELECT user_id, MIN(at) FROM app_opens WHERE user_id IN ({ids}) GROUP BY user_id")
+    for uid in ids:
+        marks["opened"][uid] = min([m for m in (sessions_first.get(uid), opens_first.get(uid)) if m], default=None)
+    earlier("habit", grouped("SELECT user_id, MIN(created_at) FROM habits WHERE user_id IN ({ids}) GROUP BY user_id"))
+    earlier("habit", grouped("SELECT user_id, MIN(at) FROM user_events WHERE user_id IN ({ids}) AND name='habit_added' GROUP BY user_id"))
+    earlier("habit_done", grouped("SELECT user_id, MIN(completed_at) FROM habit_completion_events WHERE user_id IN ({ids}) GROUP BY user_id"))
+    earlier("main_goal", grouped("SELECT user_id, MIN(created_at) FROM daily_plans WHERE user_id IN ({ids}) AND COALESCE(main_goal,'')!='' GROUP BY user_id"))
+    earlier("main_goal", grouped("SELECT user_id, MIN(at) FROM user_events WHERE user_id IN ({ids}) AND name='main_goal_set' GROUP BY user_id"))
+    earlier("task", grouped("SELECT p.user_id, MIN(t.created_at) FROM daily_plan_tasks t JOIN daily_plans p ON p.id=t.plan_id WHERE p.user_id IN ({ids}) GROUP BY p.user_id"))
+    earlier("task", grouped("SELECT user_id, MIN(at) FROM user_events WHERE user_id IN ({ids}) AND name='task_added' GROUP BY user_id"))
+    earlier("ai", grouped("SELECT user_id, MIN(created_at) FROM ai_messages WHERE user_id IN ({ids}) AND role='user' GROUP BY user_id"))
+    earlier("friend", grouped("SELECT user_id, MIN(created_at) FROM friendships WHERE user_id IN ({ids}) GROUP BY user_id"))
+    earlier("paid", grouped("SELECT user_id, MIN(created_at) FROM stars_payments WHERE user_id IN ({ids}) GROUP BY user_id"))
+    for uid in ids:
+        created = marks["registered"][uid]
+        if not created:
+            continue
+        for key, delta in (("d1", 1), ("d7", 7)):
+            row = conn.execute("SELECT MIN(at) FROM app_opens WHERE user_id=? AND date(at)>=date(?, ?)", (uid, _fmt(created), f"+{delta} days")).fetchone()
+            marks[key][uid] = _parse(row[0]) if row and row[0] else None
+    return users, ids, marks
+
+
+def funnel(days=14, source=None):
+    """Воронка когорты (зарегистрировались за N дней, без админов): сколько дошло до каждого шага, медиана минут от регистрации и
+    на каком шаге застревают («не дошли до …»). source — код канала, 'none' — без канала."""
+    where, params = _cohort(days, source)
+    conn = connect()
+    try:
+        users, ids, marks = _collect_marks(conn, where, params)
+        if not ids:
+            return {"days": days, "source": source, "total": 0, "steps": [], "stuck": [], "skips": [], "exits": []}
+        marks_in = ",".join("?" for _ in ids)
+        skips = [{"name": r["name"], "step": r["step"], "events": r["c"], "users": r["u"]} for r in conn.execute(
+            f"SELECT name, step, COUNT(*) AS c, COUNT(DISTINCT user_id) AS u FROM user_events WHERE user_id IN ({marks_in}) "
+            "AND name IN ('tour_skip','hint_skip') GROUP BY name, step ORDER BY u DESC", ids).fetchall()]
+        exits = [{"label": ui_label(r["last_action"]), "screen": screen_label(r["last_screen"]) if r["last_screen"] else None, "count": r["n"]} for r in conn.execute(
+            f"SELECT last_action, last_screen, COUNT(*) AS n FROM app_sessions WHERE user_id IN ({marks_in}) AND last_action IS NOT NULL "
+            "GROUP BY last_action, last_screen ORDER BY n DESC LIMIT 10", ids).fetchall()]
+    finally:
+        conn.close()
+
+    total = len(ids)
+    steps, previous = [], total
+    for key, label in FUNNEL:
+        reached = [uid for uid in ids if marks[key].get(uid)]
+        minutes = sorted(m for m in (_minutes(marks["registered"][uid], marks[key][uid]) for uid in reached) if m is not None)
+        count = len(reached)
+        steps.append({
+            "key": key, "label": label, "count": count,
+            "pct_of_all": round(100 * count / total, 1) if total else 0.0,
+            # «от предыдущего шага» — только на основном пути: дальше шаги идут параллельно, и такое сравнение ничего не значит
+            "pct_of_prev": (min(100.0, round(100 * count / previous, 1)) if previous else 0.0) if key in CORE_PATH and key != "registered" else None,
+            "median_minutes": minutes[len(minutes) // 2] if minutes else None,
+        })
+        previous = count
+    stuck = {}
+    labels = dict(FUNNEL)
+    for uid in ids:
+        for key in CORE_PATH:
+            if not marks[key].get(uid):
+                stuck[key] = stuck.get(key, 0) + 1
+                break
+    return {
+        "days": days, "source": source, "total": total, "steps": steps, "skips": skips, "exits": exits,
+        "stuck": [{"key": key, "label": f"Не дошли до: {labels[key].lower()}", "count": stuck[key]} for key in CORE_PATH if key in stuck],
+    }

@@ -444,6 +444,11 @@
   // Вся логика вибро-отклика живёт в haptics.js (мягкие эффекты, защита от
   // «трели», выключатель в настройках). Здесь — тонкая обёртка со старым
   // именем: light/medium/heavy и новые select/success/reward/warning.
+  // Учёт пути человека (webapp/static/tracker.js → db/tracking.py): событие онбординга, «пропустить» и т.п. Не должно ничего ломать.
+  function trk(name, step, meta) {
+    try { window.AdamTrack?.track(name, step, meta); } catch (_) { /* учёт необязателен */ }
+  }
+
   function haptic(style) {
     if (window.AdamHaptics) { window.AdamHaptics.play(style); return; }
     // haptics.js не загрузился — хотя бы мягкий тап, без «тяжёлых» ударов.
@@ -1858,6 +1863,7 @@
     const fill = document.getElementById("startQuizProgressFill");
     const continueBtn = document.getElementById("startQuizContinue");
     if (title) title.textContent = step.title;
+    trk("quiz_step", step.key || step.type, { i: startQuizStep + 1, of: START_QUIZ_STEPS.length });
     if (back) back.hidden = startQuizStep === 0;
     if (fill) fill.style.width = `${((startQuizStep + 1) / START_QUIZ_STEPS.length) * 100}%`;
     if (continueBtn) continueBtn.textContent = startQuizStep === START_QUIZ_STEPS.length - 1 ? "Начать" : "Далее";
@@ -1881,6 +1887,7 @@
     startQuizArchetypeKey = null;
     startQuizArchetypeLabel = null;
     startQuizArchetypeComputed = false;
+    trk("quiz_start");
     renderStartQuizStep();
     overlay.hidden = false;
     requestAnimationFrame(() => overlay.classList.add("show"));
@@ -1934,6 +1941,7 @@
         // Не блокируем прохождение онбординга из-за сетевой ошибки —
         // ответы необязательны для остального сценария.
       } finally {
+        trk("quiz_done", null, { goal: startQuizAnswers.goal || null });
         if (state) state.show_start_quiz = false;
         closeStartQuiz();
         maybeShowAppTour();
@@ -1999,6 +2007,7 @@
     const overlay = document.getElementById("appTourOverlay");
     if (!overlay) return;
     appTourStep = 0;
+    trk("tour_start");
     renderAppTourStep(false);
     overlay.hidden = false;
     requestAnimationFrame(() => overlay.classList.add("show"));
@@ -2053,6 +2062,7 @@
     if (input) input.value = (state.user && state.user.handle) || "";
     const err = document.getElementById("handleIntroError");
     if (err) { err.hidden = true; err.textContent = ""; }
+    trk("handle_intro_shown");
     overlay.hidden = false;
     requestAnimationFrame(() => overlay.classList.add("show"));
     overlay.setAttribute("aria-hidden", "false");
@@ -2071,6 +2081,7 @@
     const continueBtn = document.getElementById("handleIntroContinue");
     if (!continueBtn) return;
     continueBtn.addEventListener("click", async () => {
+      trk("handle_intro_done");
       const input = document.getElementById("handleIntroInput");
       const err = document.getElementById("handleIntroError");
       const value = (input?.value || "").trim().replace(/^@/, "");
@@ -2588,6 +2599,7 @@
     clearProductOnboardingTarget();
     productHintTarget = target;
     activeHintStage = stage;
+    trk("hint_shown", String(stage));
     target.classList.add('product-onboarding-target');
     document.getElementById('productOnboardingHintTitle').textContent = step.title;
     const iconEl = document.getElementById('productOnboardingHintIcon');
@@ -3008,10 +3020,12 @@
   function initAppTour() {
     document.getElementById("appTourNext")?.addEventListener("click", () => {
       if (appTourStep >= APP_TOUR_STEPS.length - 1) {
+        trk("tour_done");
         closeAppTour();
         return;
       }
       appTourStep += 1;
+      trk("tour_step", String(appTourStep + 1));
       renderAppTourStep(true);
       haptic("light");
     });
@@ -3021,13 +3035,14 @@
       renderAppTourStep(true);
       haptic("light");
     });
-    document.getElementById("appTourSkip")?.addEventListener("click", () => { haptic("light"); closeAppTour(); });
+    document.getElementById("appTourSkip")?.addEventListener("click", () => { haptic("light"); trk("tour_skip", String(appTourStep + 1)); closeAppTour(); });
     // Просьба пользователя: крестик и "Пропустить" делали одно и то же
     // (закрывали подсказку) — оставляем только "Пропустить".
     document.getElementById('productOnboardingHintSkip')?.addEventListener('click', () => {
       haptic("light");
       // Напоминание от Адама — не часть тура: «Пропустить» просто закрывает его.
       if (adamNudgeActive) { hideProductHint(); return; }
+      trk("hint_skip", String(activeHintStage));
       skipProductOnboarding();
     });
 
@@ -3055,6 +3070,7 @@
     if (coach) coach.textContent = `🤖 Адам: ${data.message}`;
     overlay.hidden = false;
     overlay.classList.add("show");
+    trk("onb_streak_shown");
   }
 
   function closeStreakOnboarding() {
@@ -3062,6 +3078,7 @@
     if (!overlay) return;
     overlay.classList.remove("show");
     setTimeout(() => { overlay.hidden = true; }, 300);
+    trk("onb_streak_ok");
     api("/api/streak/onboarding/seen", {method: "POST"}).catch(() => {});
   }
 
@@ -5854,10 +5871,10 @@ function initPlanActions() {
         habit_add_locked: "Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00",
         access_expired: "Тестовый доступ закончился. Напиши администратору — он продлит.",
         trial_expired: "Пробный период закончился",
-        invalid_init_data: "Telegram не передал данные авторизации. Закройте Mini App и откройте его снова.",
-        request_failed: "Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.",
+        invalid_init_data: "Telegram не передал данные авторизации. Закрой Mini App и открой его снова.",
+        request_failed: "Не удалось связаться с сервером. Проверь соединение и попробуй ещё раз.",
         not_admin: "Доступно только администраторам",
-        bot_unavailable: "Бот временно недоступен, попробуйте позже",
+        bot_unavailable: "Бот временно недоступен, попробуй позже",
         rate_limited: "Слишком много запросов подряд — подожди пару секунд и попробуй ещё раз",
         already_reacted_today: "Сегодня ты уже поддержал этого игрока — можно снова завтра",
         invalid_reaction: "Не получилось отправить поддержку",

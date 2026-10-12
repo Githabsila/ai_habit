@@ -321,8 +321,9 @@ def test_toggles_and_sliders_get_selection_tick(run):
 # ---------- Подключение и места применения ----------
 
 def test_pages_load_the_module_before_their_scripts():
-    assert re.search(r'haptics\.js\?v=\w+"></script>\s*<script type="module" src="/static/app\.js', INDEX)
-    assert re.search(r'haptics\.js\?v=\w+"></script>\s*<script src="/static/ai_coach\.js', COACH_HTML)
+    tracker = r'(?:<script src="/static/tracker\.js\?v=\w+"></script>\s*)?'              # учёт пути человека стоит между ними
+    assert re.search(r'haptics\.js\?v=\w+"></script>\s*' + tracker + r'<script type="module" src="/static/app\.js', INDEX)
+    assert re.search(r'haptics\.js\?v=\w+"></script>\s*' + tracker + r'<script src="/static/ai_coach\.js', COACH_HTML)
 
 
 def test_main_app_delegates_to_the_module_and_stays_gentle():

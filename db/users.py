@@ -24,6 +24,7 @@ def add_user(telegram_id, username, first_name):
         INSERT OR IGNORE INTO users(telegram_id, username, first_name)
         VALUES (?, ?, ?)
     """, (telegram_id, username, first_name))
+    is_new_user = cursor.rowcount == 1
 
     # Уникальный @ник — назначается один раз для новой строки. Проверка "а
     # не пустой ли он" (а не просто "это INSERT или IGNORE?") заодно
@@ -45,6 +46,10 @@ def add_user(telegram_id, username, first_name):
 
     conn.commit()
     conn.close()
+
+    if is_new_user:
+        from .tracking import track_server
+        track_server(telegram_id, "registered", surface="server")
 
     # Сразу создаём задания на сегодня, чтобы новый пользователь
     # не видел "задания ещё не созданы" до полуночи.

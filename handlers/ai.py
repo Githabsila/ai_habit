@@ -55,6 +55,7 @@ from keyboards import (
 )
 
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
+from db import ai_usage
 from config import AI_TELEGRAM_MAX_INPUT_CHARS, AI_LONG_COST_CHARS, AI_VERY_LONG_COST_CHARS
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
 from handlers.helpers import send_long_message, edit_or_split_message
@@ -138,7 +139,8 @@ async def _update_memory(user_id: int):
                 pass
 
         recent_history = build_history_text(user_id, limit=MEMORY_UPDATE_EVERY + 2)
-        memory = await summarize_user_memory(existing_summary, recent_history)
+        with ai_usage.scope(user_id, "memory"):
+            memory = await summarize_user_memory(existing_summary, recent_history)
 
         if isinstance(memory, dict):
             summary = str(memory.get("summary") or existing_summary).strip()
@@ -294,6 +296,9 @@ async def ai_chat(message: Message, state: FSMContext):
         is_crisis = result["is_crisis"]
         suggested_habit = result["suggested_habit"]
         cached_answer = bool(result.get("cached"))
+    except ai_usage.AIRestricted as exc:
+        await thinking_msg.edit_text(ai_usage.restriction_message(exc.reason))
+        return
     except Exception as e:
         logger.exception(f"Ошибка AI-пайплайна для {user_id}")
         log_error("ai_pipeline", e, user_id)
@@ -430,11 +435,12 @@ async def ai_daily_tip(callback: CallbackQuery):
     style = get_ai_style(user_id)
     user_context = build_proactive_context(user_id)
     try:
-        tip = await generate_daily_tip(user_context, style)
+        with ai_usage.scope(callback.from_user.id, "tip"):
+            tip = await generate_daily_tip(user_context, style)
     except Exception as e:
         logger.exception(f"Не удалось сформировать совет дня для {user_id}")
         log_error("daily_tip", e, user_id)
-        tip = "❌ Не получилось сформировать совет, попробуйте позже."
+        tip = "❌ Не получилось сформировать совет, попробуй позже."
     await send_long_message(
         callback.message,
         tip,

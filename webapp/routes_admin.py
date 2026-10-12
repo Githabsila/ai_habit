@@ -44,6 +44,10 @@ from db.admin_support import find_users_for_admin, list_active_users_for_admin
 from db.pair_lab import build_scenario, lab_scenarios
 from db import adam_checkin as adam_ck
 from db.pair_quests import get_pair_rating
+from db import ai_usage as ai_usage_db
+from db import tracking as tracking_db
+from db import traffic as traffic_db
+from db import user_summary as summary_db
 from admin_digest_scheduler import build_stats_report
 
 logger = logging.getLogger("webapp.routes_admin")
@@ -159,6 +163,54 @@ async def admin_lab_pair_route(request):
     if payload is None:
         return web.json_response({"error": "not_found"}, status=404)
     return web.json_response({"pair_quest": payload})
+
+
+@routes.get("/api/admin/lab/adam-chat")
+async def admin_lab_adam_chat_presets_route(request):
+    """Типовые сообщения для проверки ответов Адама в чате."""
+    await _authenticate_admin(request)
+    from webapp.services.chat_brain import LAB_PRESETS
+    return web.json_response({"presets": [{"label": label, "message": message} for label, message in LAB_PRESETS]})
+
+
+@routes.post("/api/admin/lab/adam-chat")
+async def admin_lab_adam_chat_route(request):
+    """Ответ Адама на сообщение — тем же конвейером, что в чате (снимок ситуации, сценарий, настроение, модель), но ничего не пишется в
+    переписку и не списывается из лимита человека. body: {"message": "...", "user_id": необязательно — чьи привычки и день взять (по умолчанию твои)}."""
+    admin_id = await _authenticate_admin(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    message = " ".join(str(body.get("message") or "").split())[:400]
+    if not message:
+        return web.json_response({"error": "empty_message"}, status=400)
+    try:
+        user_id = int(body.get("user_id") or admin_id)
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_user"}, status=400)
+    if get_user(user_id) is None:
+        return web.json_response({"error": "user_not_found"}, status=404)
+
+    from db import get_ai_style
+    from multi_agent import solve_task_multiagent
+    from webapp.services import chat_brain
+    from webapp.services.ai_utils import build_user_context
+
+    context, brain = chat_brain.enrich(user_id, message, build_user_context(user_id))
+    try:
+        with ai_usage_db.scope(admin_id, "chat"):
+            result = await solve_task_multiagent(
+                task=message, history="", user_context=context, style=get_ai_style(user_id), first_message=False, humor_note="",
+                scenario_note=brain["scenario_note"], mood=brain["mood"],
+            )
+    except Exception as exc:
+        logger.warning("Лаборатория Адама: ответ не получен: %s", exc)
+        return web.json_response({"error": "model_failed", "message": str(exc)[:200]}, status=502)
+    return web.json_response({
+        "answer": result["answer"], "suggested_habit": result.get("suggested_habit"), "mood": brain["mood"], "scenarios": brain["keys"],
+        "scenario_note": brain["scenario_note"], "situation": brain["situation"], "user_id": user_id,
+    })
 
 
 @routes.get("/api/admin/lab/adam")
@@ -288,7 +340,196 @@ async def admin_user_card_route(request):
         return web.json_response({"error": "not_found"}, status=404)
     card["access"] = get_access(telegram_id)
     card["access_log"] = get_access_log(telegram_id, limit=8)
+    card["ai_usage"] = ai_usage_db.user_usage(telegram_id)
     return web.json_response(card)
+
+
+# ---------------------------------------------------------------------------------------------------------------- путь человека
+
+@routes.get("/api/admin/user/{telegram_id}/journey")
+async def admin_user_journey_route(request):
+    """Путь человека: когда что сделал (минуты от регистрации), онбординг и пропуски, время в приложении, после чего выходит,
+    лента действий (с текстом сообщений Адаму) и последние сессии."""
+    await _authenticate_admin(request)
+    telegram_id = int(request.match_info["telegram_id"])
+    journey = tracking_db.journey(telegram_id)
+    if journey is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    try:
+        limit = min(int(request.query.get("limit", 60)), 300)
+    except (TypeError, ValueError):
+        limit = 60
+    return web.json_response({
+        "journey": journey, "timeline": tracking_db.timeline(telegram_id, limit=limit), "sessions": tracking_db.sessions(telegram_id, limit=8),
+    })
+
+
+@routes.get("/api/admin/analytics/funnel")
+async def admin_funnel_route(request):
+    """Воронка когорты за N дней (без админов): шаги, медианы минут, где застревают, пропуски, после чего выходят. ?days=14&source=<код|none>"""
+    await _authenticate_admin(request)
+    try:
+        days = int(request.query.get("days", 14))
+    except (TypeError, ValueError):
+        days = 14
+    return web.json_response(tracking_db.funnel(days=days, source=(request.query.get("source") or None)))
+
+
+# ---------------------------------------------------------------------------------------------------------------- ИИ-сводки
+
+SUMMARY_ERRORS = {"user_not_found": 404, "invalid_kind": 400, "too_soon": 429, "model_failed": 502}
+
+
+@routes.get("/api/admin/user/{telegram_id}/summary")
+async def admin_user_summary_route(request):
+    """Последняя короткая и расширенная ИИ-сводки по человеку; stale — данные изменились после сводки."""
+    await _authenticate_admin(request)
+    telegram_id = int(request.match_info["telegram_id"])
+    if get_user(telegram_id) is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response({**summary_db.get_summaries(telegram_id), "history": summary_db.history(telegram_id)})
+
+
+@routes.post("/api/admin/user/{telegram_id}/summary")
+async def admin_user_summary_make_route(request):
+    """Заново составить ИИ-сводку по свежим данным. body: {"kind": "short"|"extended"}."""
+    await _authenticate_admin(request)
+    telegram_id = int(request.match_info["telegram_id"])
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        body = {}
+    result = await summary_db.generate(telegram_id, (body.get("kind") or "short"))
+    if "error" in result:
+        return web.json_response(result, status=SUMMARY_ERRORS.get(result["error"], 400))
+    return web.json_response(result)
+
+
+@routes.get("/api/admin/analytics/insights")
+async def admin_insights_get_route(request):
+    await _authenticate_admin(request)
+    return web.json_response({"insights": summary_db.latest(0, "insights")})
+
+
+@routes.post("/api/admin/analytics/insights")
+async def admin_insights_make_route(request):
+    """Общий ИИ-разбор за период: что работает, что мешает, повторяющиеся ошибки, каналы, что сделать. body: {"days": 14}."""
+    await _authenticate_admin(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        body = {}
+    try:
+        days = max(1, min(int(body.get("days", 14)), 90))
+    except (TypeError, ValueError):
+        days = 14
+    result = await summary_db.generate_insights(days)
+    if "error" in result:
+        return web.json_response(result, status=SUMMARY_ERRORS.get(result["error"], 502))
+    return web.json_response(result)
+
+
+# ---------------------------------------------------------------------------------------------------------------- каналы трафика
+
+_ADMIN_BOT_USERNAME = {"value": None}
+
+
+async def _bot_username(request):
+    """Имя бота для ссылок: из webapp_server (оно уже кэшируется на процесс) либо одним запросом get_me."""
+    if _ADMIN_BOT_USERNAME["value"]:
+        return _ADMIN_BOT_USERNAME["value"]
+    bot = request.app.get("bot")
+    if bot is None:
+        return None
+    try:
+        _ADMIN_BOT_USERNAME["value"] = (await bot.get_me()).username
+    except Exception:
+        return None
+    return _ADMIN_BOT_USERNAME["value"]
+
+
+@routes.get("/api/admin/traffic")
+async def admin_traffic_route(request):
+    """Каналы трафика со ссылками и качеством: пришло, дошли до привычки, D1/D7, «мёртвые», подозрения, друзья, оплаты. ?days=30"""
+    await _authenticate_admin(request)
+    try:
+        days = int(request.query.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+    username = await _bot_username(request)
+    channels = traffic_db.channel_stats(days)
+    for item in channels:
+        item["link"] = traffic_db.link(item["code"], username) if item["code"] not in traffic_db.LABELS else None
+    return web.json_response({"channels": channels, "bot_username": username, "kinds": traffic_db.KINDS, "days": days})
+
+
+@routes.post("/api/admin/traffic")
+async def admin_traffic_create_route(request):
+    """Новая ссылка канала. body: {"title": "Канал про бег", "kind": "channel|blogger|ads|friend|other", "note": "...", "code": "необязательно"}"""
+    await _authenticate_admin(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    result = traffic_db.create_source(body.get("title"), body.get("kind"), body.get("note"), (body.get("code") or None))
+    if "error" in result:
+        return web.json_response(result, status=409 if result["error"] == "code_taken" else 400)
+    result["link"] = traffic_db.link(result["code"], await _bot_username(request))
+    return web.json_response(result)
+
+
+@routes.post("/api/admin/traffic/{code}/archive")
+async def admin_traffic_archive_route(request):
+    await _authenticate_admin(request)
+    if not traffic_db.archive_source(request.match_info["code"]):
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response({"ok": True})
+
+
+# ---------------------------------------------------------------------------------------------------------------- расход ИИ
+
+@routes.get("/api/admin/ai-usage")
+async def admin_ai_usage_route(request):
+    """Расход токенов за период: всего, по функциям, по дням, кто больше всех тратит. ?days=7"""
+    await _authenticate_admin(request)
+    try:
+        days = int(request.query.get("days", 7))
+    except (TypeError, ValueError):
+        days = 7
+    return web.json_response(ai_usage_db.overview(days=days))
+
+
+@routes.get("/api/admin/user/{telegram_id}/ai-usage")
+async def admin_user_ai_usage_route(request):
+    await _authenticate_admin(request)
+    return web.json_response(ai_usage_db.user_usage(int(request.match_info["telegram_id"])))
+
+
+AI_LIMIT_ERRORS = {"user_not_found": 404, "invalid_hours": 400, "invalid_limit": 400}
+
+
+@routes.post("/api/admin/user/{telegram_id}/ai-limit")
+async def admin_ai_limit_route(request):
+    """Временно ограничить ИИ для человека (баг, перерасход). body: {"action": "block", "hours": 1|24|168} — отключить на срок;
+    {"action": "unblock"} — вернуть; {"action": "day_limit", "tokens": 20000|50000|100000|200000|null} — личный дневной лимит токенов."""
+    await _authenticate_admin(request)
+    telegram_id = int(request.match_info["telegram_id"])
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    action = (body.get("action") or "").strip()
+    if action == "block":
+        result = ai_usage_db.block_ai(telegram_id, body.get("hours"))
+    elif action == "unblock":
+        result = ai_usage_db.unblock_ai(telegram_id)
+    elif action == "day_limit":
+        result = ai_usage_db.set_day_limit(telegram_id, body.get("tokens"))
+    else:
+        return web.json_response({"error": "invalid_action"}, status=400)
+    if "error" in result:
+        return web.json_response(result, status=AI_LIMIT_ERRORS.get(result["error"], 400))
+    return web.json_response({"ok": True, "usage": ai_usage_db.user_usage(telegram_id)})
 
 
 # ---------------------------------------------------------------------------------------------------------------- доступ

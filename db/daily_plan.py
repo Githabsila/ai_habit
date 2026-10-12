@@ -91,6 +91,9 @@ def set_daily_main_goal(user_id, text):
     """, (text, plan["id"]))
     conn.commit()
     conn.close()
+    if text:
+        from .tracking import track_server
+        track_server(user_id, "main_goal_set", meta={"text": text[:60]})
 
 
 def delete_daily_main_goal(user_id):
@@ -136,6 +139,8 @@ def add_daily_task(user_id, text, max_tasks=MAX_DAILY_TASKS):
     task_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    from .tracking import track_server
+    track_server(user_id, "task_added", meta={"text": text[:60]})
     return task_id
 
 
@@ -193,6 +198,12 @@ def save_daily_plan(user_id, main_goal, tasks):
 
     conn.commit()
     conn.close()
+    from .tracking import track_server
+    if (main_goal or "").strip():
+        track_server(user_id, "main_goal_set", meta={"text": (main_goal or "").strip()[:60], "via": "plan"})
+    tasks_saved = [t for t in (tasks or [])[:5] if (t or "").strip()]
+    if tasks_saved:
+        track_server(user_id, "task_added", meta={"count": len(tasks_saved), "via": "plan"})
 
 
 def toggle_daily_task(task_id):

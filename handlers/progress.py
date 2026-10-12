@@ -16,6 +16,7 @@ from db import (
 
 from keyboards import progress_keyboard, back_menu_keyboard
 from multi_agent import generate_progress_analysis
+from db import ai_usage
 from handlers.ai import build_user_context
 from handlers.helpers import send_long_message, day_phrase
 
@@ -117,11 +118,12 @@ async def progress_ai_analysis(callback: CallbackQuery):
         style = get_ai_style(user_id)
 
         try:
-            text = await generate_progress_analysis(user_context, weekly_text, style)
+            with ai_usage.scope(user_id, "progress"):
+                text = await generate_progress_analysis(user_context, weekly_text, style)
         except Exception as e:
             logger.exception(f"Не удалось сформировать AI-анализ прогресса для {user_id}")
             log_error("progress_analysis", e, user_id)
-            text = "❌ Не получилось сформировать анализ, попробуйте позже."
+            text = "❌ Не получилось сформировать анализ, попробуй позже."
 
         if text and "[ошибка агента" not in text:
             cache_set(cache_key, text)

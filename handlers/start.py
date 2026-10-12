@@ -19,6 +19,7 @@ from db import (
 )
 
 from handlers.onboarding import begin_survey
+from db.traffic import attribute as attribute_source, parse_payload
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -77,6 +78,11 @@ async def start(message: Message, state: FSMContext):
 
     if len(args) > 1:
         payload = args[1]
+        # Ссылка канала/блогера t.me/<бот>?start=src_<код> (db/traffic.py): запоминаем, откуда пришёл человек.
+        payload_kind, payload_value = parse_payload(payload)
+        if payload_kind == "src":
+            attribute_source(message.from_user.id, payload_value, via="start")
+            payload = ""
         if payload.startswith(FRIEND_LINK_PREFIX):
             payload = payload[len(FRIEND_LINK_PREFIX):]
             via_friend_link = True
@@ -106,6 +112,7 @@ async def start(message: Message, state: FSMContext):
                     message.from_user.id,
                     referrer_id
                 )
+                attribute_source(message.from_user.id, "ref", via="friend_link" if via_friend_link else "invite")
 
                 # Засчитываем приглашение
                 add_referral(referrer_id)

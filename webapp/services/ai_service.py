@@ -21,6 +21,8 @@ from webapp.services.ai_utils import (
 
 from multi_agent import solve_task_multiagent, _renumber_numbered_lists
 from webapp.services import chat_brain
+from db import ai_usage
+from db import ai_usage
 
 
 async def chat(user_id: int, message: str, first_message: bool = False):
@@ -78,16 +80,17 @@ async def chat(user_id: int, message: str, first_message: bool = False):
             "cached": True,
         }
 
-    result = await solve_task_multiagent(
-        task=message,
-        history=history_text,
-        user_context=user_context,
-        style=style,
-        first_message=first_message,
-        humor_note=humor_note,
-        scenario_note=brain["scenario_note"],
-        mood=brain["mood"],
-    )
+    with ai_usage.scope(user_id, "chat"):                      # расход на этого человека (db/ai_usage.py)
+        result = await solve_task_multiagent(
+            task=message,
+            history=history_text,
+            user_context=user_context,
+            style=style,
+            first_message=first_message,
+            humor_note=humor_note,
+            scenario_note=brain["scenario_note"],
+            mood=brain["mood"],
+        )
 
     if (
         result.get("complexity") == "просто"

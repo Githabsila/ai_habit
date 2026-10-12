@@ -24,7 +24,9 @@ from db import (
 )
 
 from multi_agent import analyze_onboarding_survey, suggest_first_step
+from db import ai_usage
 from alerts import notify_admins
+from db.tracking import track_server
 
 router = Router()
 logger = logging.getLogger("handlers.onboarding")
@@ -189,6 +191,8 @@ async def begin_survey(message: Message, state: FSMContext, variant=None, demo=F
     if demo:
         await state.update_data(demo=True)
     variant = variant if variant in SURVEY_INTRO_VARIANTS else survey_variant(message.from_user.id)
+    if not demo:
+        track_server(message.from_user.id, "survey_started", meta={"variant": variant}, surface="bot")
     await message.answer(
         SURVEY_INTRO_VARIANTS[variant],
         parse_mode="HTML",
@@ -211,6 +215,15 @@ async def survey_preview(message: Message, state: FSMContext):
 # ШАГИ АНКЕТЫ
 # =====================================
 
+async def _track_step(user_id, state, step, how):
+    """Шаг анкеты для «пути человека» (демо-прохождение админа не считаем)."""
+    try:
+        if not (await state.get_data()).get("demo"):
+            track_server(user_id, "survey_step", step=step, meta={"how": how}, surface="bot")
+    except Exception:
+        pass
+
+
 async def _ask_focus(message, state, edit):
     await state.set_state(Onboarding.focus)
     await _say(message, SURVEY_FOCUS_TEXT, _chips_keyboard("focus", SURVEY_FOCUS), edit)
@@ -229,6 +242,7 @@ async def survey_role_tap(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
     await state.update_data(business=SURVEY_ROLES[index][1])
+    await _track_step(callback.from_user.id, state, "role", "button")
     await _ask_focus(callback.message, state, edit=True)
     await callback.answer()
 
@@ -240,6 +254,7 @@ async def survey_role_text(message: Message, state: FSMContext):
         await message.answer(SURVEY_TEXT_NUDGE)
         return
     await state.update_data(business=text)
+    await _track_step(message.from_user.id, state, "role", "text")
     await _ask_focus(message, state, edit=False)
 
 
@@ -250,6 +265,7 @@ async def survey_focus_tap(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
     await state.update_data(life_goal=SURVEY_FOCUS[index][1])
+    await _track_step(callback.from_user.id, state, "focus", "button")
     await _ask_goal(callback.message, state, index, edit=True)
     await callback.answer()
 
@@ -261,6 +277,7 @@ async def survey_focus_text(message: Message, state: FSMContext):
         await message.answer(SURVEY_TEXT_NUDGE)
         return
     await state.update_data(life_goal=text)
+    await _track_step(message.from_user.id, state, "focus", "text")
     await _ask_goal(message, state, None, edit=False)
 
 
@@ -273,6 +290,7 @@ async def survey_goal_tap(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
     await callback.answer()
+    await _track_step(callback.from_user.id, state, "goal", "button")
     await _finish(callback.bot, callback.from_user, state, ideas[index], callback.message, edit=True)
 
 
@@ -282,6 +300,7 @@ async def survey_goal_text(message: Message, state: FSMContext):
     if not text:
         await message.answer(SURVEY_TEXT_NUDGE)
         return
+    await _track_step(message.from_user.id, state, "goal", "text")
     await _finish(message.bot, message.from_user, state, text, message, edit=False)
 
 
@@ -299,7 +318,8 @@ async def _analyze_in_background(user_id, business, life_goal, bot_goal):
     """ИИ-разбор нужен модератору и недельной сверке цели, но не самому доступу: считаем его уже
     после того, как человек получил ответ (раньше анкета висела на «Обрабатываю…» несколько секунд)."""
     try:
-        analysis = await analyze_onboarding_survey(business, "", life_goal, bot_goal)
+        with ai_usage.scope(user_id, "survey"):
+            analysis = await analyze_onboarding_survey(business, "", life_goal, bot_goal)
         save_survey_analysis(user_id, analysis["summary"], analysis["tags"])
     except Exception as e:
         logger.exception(f"Не удалось проанализировать анкету для {user_id}")
@@ -358,6 +378,7 @@ async def _finish(bot, user, state, bot_goal, message, edit):
     user_id = user.id
 
     save_survey_answers(user_id, business, "", life_goal, bot_goal)
+    track_server(user_id, "survey_completed", surface="bot")
     await state.clear()
     _spawn(_analyze_in_background(user_id, business, life_goal, bot_goal))
 
@@ -399,7 +420,8 @@ async def grant_access(bot, user_id: int, bot_goal: str = None):
     extra_text = ""
     if bot_goal:
         try:
-            step = await suggest_first_step(bot_goal)
+            with ai_usage.scope(user_id, "survey"):
+                step = await suggest_first_step(bot_goal)
             add_habit(user_id, step["habit"])
             save_milestones(user_id, bot_goal, step["milestones"])
             milestones_lines = "\n".join(f"▫️ {html.escape(str(m))}" for m in step["milestones"])

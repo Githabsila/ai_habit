@@ -45,6 +45,7 @@ from db import (
     is_bot_blocked, mark_bot_blocked,
 )
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
+from db import ai_usage
 from adam_messages import (
     format_day_progress_message,
     format_habit_checkpoint_message,
@@ -811,7 +812,8 @@ async def run_weekly_habit_analysis(bot):
         style = get_ai_style(telegram_id) or "neutral"
 
         try:
-            ai_text = await generate_weekly_habit_feedback(breakdown_text, style)
+            with ai_usage.scope(telegram_id, "weekly"):
+                ai_text = await generate_weekly_habit_feedback(breakdown_text, style)
 
             if ai_text:
                 text = "📊 <b>AI-разбор недели по привычкам</b>\n\n" + ai_text
@@ -858,7 +860,8 @@ async def run_monthly_habit_analysis(bot):
         style = get_ai_style(telegram_id) or "neutral"
 
         try:
-            ai_text = await generate_monthly_habit_feedback(breakdown_text, style)
+            with ai_usage.scope(telegram_id, "monthly"):
+                ai_text = await generate_monthly_habit_feedback(breakdown_text, style)
 
             if ai_text:
                 text = "📊 <b>AI-разбор месяца по привычкам</b>\n\n" + ai_text

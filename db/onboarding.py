@@ -37,6 +37,7 @@ def get_access_status(user_id):
 def set_access_status(user_id, status):
     conn = connect()
     cursor = conn.cursor()
+    previous = cursor.execute("SELECT access_status FROM users WHERE telegram_id=?", (user_id,)).fetchone()
     if status == "pending":
         cursor.execute("""
             UPDATE users SET access_status=?, survey_completed_at=CURRENT_TIMESTAMP
@@ -49,6 +50,9 @@ def set_access_status(user_id, status):
         )
     conn.commit()
     conn.close()
+    if status == "approved" and previous is not None and previous["access_status"] != "approved":
+        from .tracking import track_server
+        track_server(user_id, "access_approved", meta={"from": previous["access_status"]})
 
 
 def get_pending_users(limit=15):
