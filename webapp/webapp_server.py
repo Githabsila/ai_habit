@@ -101,6 +101,7 @@ from datetime import date, datetime, timezone
 from multi_agent import generate_progress_analysis
 from db import ai_usage
 from db.tracking import ingest as ingest_track
+from db import usage as usage_db
 from db.traffic import attribute_from_init_data
 from webapp.services.ai_utils import build_user_context
 
@@ -177,6 +178,7 @@ async def _authenticate(request):
 
     telegram_id = tg_user["id"]
     is_admin = telegram_id in ADMIN_IDS
+    usage_db.request_user.set(telegram_id)        # для учёта вызовов API по людям (usage_middleware)
 
     if not _check_rate_limit(telegram_id):
         raise web.HTTPTooManyRequests(
@@ -338,6 +340,36 @@ async def error_middleware(request, handler):
     except Exception:
         logger.exception(f"Необработанная ошибка в {request.path}")
         return web.json_response({"error": "internal_error"}, status=500)
+
+
+# Вызовы API для аналитики (db/usage.py): маршрут по шаблону (без id), код ответа, время и человек. Новый эндпоинт попадает в учёт сам.
+# Админ-панель и служебные маршруты — не «использование продукта», их не считаем.
+_USAGE_SKIP_PREFIXES = ("/api/admin/", "/api/track")
+
+
+@web.middleware
+async def usage_middleware(request, handler):
+    path = request.path
+    if not path.startswith("/api/") or path.startswith(_USAGE_SKIP_PREFIXES):
+        return await handler(request)
+    usage_db.request_user.set(0)
+    started = time.monotonic()
+    status = 500
+    try:
+        response = await handler(request)
+        status = response.status
+        return response
+    except web.HTTPException as exc:
+        status = exc.status
+        raise
+    finally:
+        try:
+            resource = request.match_info.route.resource
+            # несуществующие пути (сканеры, опечатки) не должны плодить маршруты в учёте — все в одну строку
+            pattern = resource.canonical if resource is not None else "(нет такого маршрута)"
+            usage_db.record_api(f"{request.method} {pattern}", status, (time.monotonic() - started) * 1000, usage_db.request_user.get())
+        except Exception:
+            pass
 
 # ====================== МАРШРУТЫ ======================
 
@@ -631,7 +663,8 @@ async def track_route(request):
         return web.json_response({"ok": True, "accepted": 0})
     session = body.get("session") if isinstance(body.get("session"), dict) else None
     events = body.get("events") if isinstance(body.get("events"), list) else []
-    accepted = ingest_track(telegram_id, session, events, body.get("now"))
+    usage = body.get("usage") if isinstance(body.get("usage"), dict) else None
+    accepted = ingest_track(telegram_id, session, events, body.get("now"), usage=usage, version=body.get("v"))
     return web.json_response({"ok": True, "accepted": accepted})
 
 
@@ -2993,7 +3026,7 @@ async def health(request):
 # ====================== СОЗДАНИЕ ПРИЛОЖЕНИЯ ======================
 
 def create_app(bot=None):
-    app = web.Application(middlewares=[error_middleware])
+    app = web.Application(middlewares=[error_middleware, usage_middleware])
     app["bot"] = bot
     app.add_routes(routes)
     
@@ -3004,6 +3037,10 @@ def create_app(bot=None):
     # Маршруты админ-панели — каждый сам проверяет is_admin (см. файл)
     from webapp.routes_admin import routes as admin_routes
     app.add_routes(admin_routes)
+
+    # Раздел «Аналитика» — отдельная страница и API (только админам), чтобы не перегружать админ-панель
+    from webapp.routes_analytics import routes as analytics_routes
+    app.add_routes(analytics_routes)
 
     app.router.add_static("/static", BASE_DIR / "static")
     return app

@@ -196,6 +196,9 @@ def create_tables():
         cursor.execute("ALTER TABLE users ADD COLUMN trial_started_at TIMESTAMP")
 
     # Ограничения ИИ для человека под контролем админа (db/ai_usage.py): отключение до момента и личный дневной лимит токенов.
+    # Не учитывать человека в статистике (тестовый аккаунт владельца, проверка триала и т.п.): без этого цифры воронки и удержания врут.
+    if "stats_excluded" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN stats_excluded INTEGER DEFAULT 0")
     # Откуда пришёл человек: код канала из ссылки t.me/<бот>?start=src_<код> (db/traffic.py) — для статистики по каналам.
     if "source_code" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN source_code TEXT")
@@ -725,6 +728,94 @@ def create_tables():
     )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_source ON users(source_code)")
+
+    # ---------------- Аналитика: автоподхват новых кнопок, экранов и вызовов (db/usage.py, db/stats.py) ----------------
+    # Версия приложения в сессии — чтобы сравнивать поведение до и после выпуска.
+    cursor.execute("PRAGMA table_info(app_sessions)")
+    session_columns = {row[1] for row in cursor.fetchall()}
+    if "version" not in session_columns:
+        cursor.execute("ALTER TABLE app_sessions ADD COLUMN version TEXT")
+    # Дни активности человека (UTC) — вечная и компактная основа удержания и DAU/WAU/MAU: app_opens хранит лишь 45 дней и не годится
+    # для D30 и далее. Пишет touch_last_seen (и Mini App, и бот) один раз в день на человека.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS daily_active(
+        day TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        PRIMARY KEY(day, user_id)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_active_user ON daily_active(user_id, day)")
+    # Клики по подписям (кнопка/пункт меню/действие в боте) — по дням и людям, без кода на каждую новую кнопку.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ui_clicks(
+        day TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        label TEXT NOT NULL,
+        screen TEXT NOT NULL DEFAULT '',
+        clicks INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(day, user_id, label, screen)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ui_clicks_label ON ui_clicks(label, day)")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ui_screens(
+        day TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        screen TEXT NOT NULL,
+        views INTEGER NOT NULL DEFAULT 0,
+        seconds INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(day, user_id, screen)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ui_screens_screen ON ui_screens(screen, day)")
+    # Каталог всего, что люди реально нажимали и открывали: когда увидели впервые — так новые функции появляются в аналитике сами.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ui_catalog(
+        kind TEXT NOT NULL,
+        key TEXT NOT NULL,
+        first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        first_screen TEXT,
+        first_version TEXT,
+        PRIMARY KEY(kind, key)
+    )
+    """)
+    # Вызовы API по маршрутам и людям (мидлвара): работоспособность и использование серверных функций.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS api_usage(
+        day TEXT NOT NULL,
+        route TEXT NOT NULL,
+        user_id INTEGER NOT NULL DEFAULT 0,
+        calls INTEGER NOT NULL DEFAULT 0,
+        errors INTEGER NOT NULL DEFAULT 0,
+        client_errors INTEGER NOT NULL DEFAULT 0,
+        total_ms INTEGER NOT NULL DEFAULT 0,
+        max_ms INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(day, route, user_id)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_api_usage_route ON api_usage(route, day)")
+    # ИИ-аналитик: отчёты и «память» — наблюдения, которые он передаёт в следующий разбор.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS analyst_reports(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        days INTEGER,
+        trigger TEXT,
+        report TEXT,
+        text TEXT
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS analyst_notes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        report_id INTEGER,
+        kind TEXT,
+        text TEXT NOT NULL,
+        status TEXT DEFAULT 'open'
+    )
+    """)
 
     # ИИ-сводки для админа (db/user_summary.py): по человеку (kind short/extended) и общий разбор (user_id=0, kind insights).
     cursor.execute("""
@@ -1420,6 +1511,8 @@ def create_tables():
     )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_app_opens_user_at ON app_opens(user_id, at)")
+    # Подтягиваем уже накопленные заходы (до 45 дней) в вечные дни активности (daily_active, см. выше) — чтобы история не начиналась с нуля.
+    cursor.execute("INSERT OR IGNORE INTO daily_active(day, user_id) SELECT DISTINCT date(at), user_id FROM app_opens")
     # Флаг раскатки виден в админке («Feature flags») сразу; выключен — Адам пишет первым только админам.
     cursor.execute(
         "INSERT OR IGNORE INTO feature_flags(key, enabled, rollout_pct, description) VALUES (?,?,?,?)",

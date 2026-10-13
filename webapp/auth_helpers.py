@@ -45,6 +45,8 @@ async def authenticate(init_data):
 
     telegram_id = tg_user["id"]
     is_admin = telegram_id in ADMIN_IDS
+    from db.usage import request_user
+    request_user.set(telegram_id)               # для учёта вызовов API по людям (webapp_server.usage_middleware)
 
     if get_user(telegram_id) is None:
         add_user(

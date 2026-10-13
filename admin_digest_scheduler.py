@@ -190,6 +190,12 @@ async def run_admin_daily_digest(bot):
         stats_text = f"🩺 Не удалось построить ежедневную сводку статистики: {html.escape(str(e))}"
 
     try:
+        from analyst_scheduler import build_analytics_block
+        stats_text += build_analytics_block()
+    except Exception:
+        logger.exception("Не удалось добавить датчики аналитики в сводку")
+
+    try:
         errors_text = build_error_monitoring_report()
     except Exception as e:
         logger.exception("Не удалось построить отчёт по ошибкам")

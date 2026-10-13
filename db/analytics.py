@@ -31,6 +31,9 @@ def touch_last_seen(user_id):
                 previous = datetime.fromisoformat(str(row["last_seen"]))
             except ValueError:
                 previous = None
+        if previous is None or previous.date() != now.date():
+            # Первый заход человека за сутки (UTC) — день активности для удержания (db/stats.py). Раз в сутки, не на каждый запрос.
+            conn.execute("INSERT OR IGNORE INTO daily_active(day, user_id) VALUES (?, ?)", (now.strftime("%Y-%m-%d"), user_id))
         if previous is None or now - previous >= timedelta(minutes=SESSION_GAP_MINUTES):
             conn.execute("INSERT INTO app_opens(user_id, at) VALUES (?, ?)", (user_id, now.strftime("%Y-%m-%d %H:%M:%S")))
             conn.execute("DELETE FROM app_opens WHERE user_id=? AND at<?",

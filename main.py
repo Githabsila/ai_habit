@@ -35,6 +35,9 @@ from admin_digest_scheduler import run_admin_daily_digest, DIGEST_HOUR_UTC
 from error_alert_scheduler import run_error_spike_check
 from backups.backup import start_backup_scheduler, send_offsite_backup
 from middlewares.access_control import AccessControlMiddleware
+from middlewares.usage import UsageMiddleware
+from db import usage as usage_db
+from analyst_scheduler import run_weekly_analyst
 
 # ====================== ИМПОРТЫ ХЕНДЛЕРОВ ======================
 from handlers.admin import router as admin_router
@@ -95,7 +98,9 @@ async def main():
     # --- ДИСПЕТЧЕР ---
     dp = Dispatcher()
 
-    # Middleware (доступ)
+    # Middleware: учёт действий в боте для аналитики (первым, чтобы считались и заблокированные доступом), затем доступ
+    dp.message.outer_middleware(UsageMiddleware())
+    dp.callback_query.outer_middleware(UsageMiddleware())
     dp.message.outer_middleware(AccessControlMiddleware())
     dp.callback_query.outer_middleware(AccessControlMiddleware())
 
@@ -119,6 +124,9 @@ async def main():
     dp.include_router(community_router)
 
     # --- ПЛАНИРОВЩИК ---
+    # Счётчики использования (вызовы API и действия в боте) копятся в памяти — раз в минуту сбрасываем в базу (db/usage.py).
+    scheduler.add_job(usage_db.flush, "interval", minutes=1, max_instances=1, coalesce=True)
+    scheduler.add_job(usage_db.cleanup, "cron", hour=4, minute=10)        # раз в сутки убираем счётчики старше 180 дней
     scheduler.add_job(run_task_reminder_check, "interval", minutes=15, args=[bot])
     # Своё время напоминания у привычки (habits.planned_time) — опционально,
     # молчит для тех, у кого не задано. Каждую минуту, как и остальные
@@ -195,6 +203,9 @@ async def main():
     # AI-квоты против общего потолка, воронки, конверсия подписки) — не
     # ждём, пока кто-то сам зайдёт в /admin → "Статистика".
     scheduler.add_job(run_admin_daily_digest, "cron", hour=DIGEST_HOUR_UTC, minute=0, args=[bot])
+
+    # Еженедельный разбор ИИ-аналитика (db/analyst.py): понедельник 06:30 UTC (09:30 МСК) — читает цифры, помнит прошлые выводы, шлёт выжимку админам.
+    scheduler.add_job(run_weekly_analyst, "cron", day_of_week="mon", hour=6, minute=30, args=[bot])
 
     # Реалтайм-алерт при всплеске ошибок — не ждём до утренней сводки.
     scheduler.add_job(run_error_spike_check, "interval", minutes=10, args=[bot])

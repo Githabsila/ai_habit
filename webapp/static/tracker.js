@@ -1,11 +1,15 @@
-/* Путь человека в приложении (сервер — db/tracking.py, приём — POST /api/track).
+/* Путь человека в приложении (сервер — db/tracking.py и db/usage.py, приём — POST /api/track).
 
    Что собирает, без единой лишней нагрузки на отрисовку (только слушатели без перерисовок и один таймер раз в 5 с):
      • сессию: сколько человек реально был в приложении (экран открыт и были касания), сколько действий сделал;
      • последние 10 действий (подпись нажатой кнопки + экран) — по ним в админке видно, ПОСЛЕ ЧЕГО человек вышел;
      • события из кода приложения: AdamTrack.track("quiz_step", "age_range"), «пропустить» и т.д.;
-     • первое открытие каждого раздела за сессию (событие «screen»).
-   Текст, который человек вводит в поля, не собирается. В демо-режиме админки (?lab=) трекер выключен. */
+     • первое открытие каждого раздела за сессию (событие «screen»);
+     • v2 — счётчики для аналитики, которые подхватывают НОВЫЕ кнопки и экраны сами, без правок трекера:
+         – клики по стабильной подписи кнопки (data-track → id → класс[=значение data-action/…]) вместе с экраном;
+         – показы и секунды на каждом экране (окно «…Overlay» или вкладка);
+         – версия приложения (?v= у app.js) — чтобы сравнивать поведение до и после выпуска.
+   Текст, который человек вводит в поля, и тексты кнопок в счётчики не попадают. В демо-режиме админки (?lab=) трекер выключен. */
 (function () {
   "use strict";
   if (window.AdamTrack) return;
@@ -21,6 +25,10 @@
   var FLUSH_MS = 4000;
   var MAX_QUEUE = 60;
   var MAX_LAST = 10;
+  var MAX_USAGE_KEYS = 60;         // за один пакет: разных кнопок / экранов (остальное уйдёт со следующим)
+
+  // Атрибуты, значения которых — перечисления (а не id и не текст людей): ими различаем кнопки с одним классом.
+  var ENUM_ATTRS = ["data-action", "data-pair-act", "data-up", "data-main-action", "data-follow-kind", "data-gift-kind", "data-tab", "data-lab", "data-up-list"];
 
   var tg = null;
   try { tg = window.Telegram && window.Telegram.WebApp; } catch (e) { /* вне Telegram */ }
@@ -32,6 +40,10 @@
   var flushTimer = null;
   var lastScreen = "";
   var seenScreens = {};
+  var uClicks = {};                // "подпись\u0001экран" -> сколько раз
+  var uScreens = {};               // экран -> { v: показов, s: секунд }
+  var uDirty = false;
+  var cachedVersion = null;
 
   function initData() {
     try { return (tg && tg.initData) || ""; } catch (e) { return ""; }
@@ -49,6 +61,17 @@
     try { return -new Date().getTimezoneOffset(); } catch (e) { return 0; }
   }
 
+  // Версия приложения берётся из ?v= у app.js (он меняется с каждым выпуском), на странице чата — у самого трекера.
+  function version() {
+    if (cachedVersion !== null) return cachedVersion;
+    try {
+      var el = document.querySelector('script[src*="/static/app.js"]') || document.querySelector('script[src*="/static/tracker.js"]');
+      var m = el && /[?&]v=([\w.-]{1,24})/.exec(el.getAttribute("src") || "");
+      cachedVersion = m ? m[1] : "";
+    } catch (e) { cachedVersion = ""; }
+    return cachedVersion;
+  }
+
   // Где человек сейчас: верхнее открытое окно (id без «Overlay») или вкладка внизу, на странице чата — «coach».
   function currentScreen() {
     try {
@@ -64,12 +87,19 @@
     return session ? session.screen : "";
   }
 
+  function addView(screen) {
+    if (!screen) return;
+    var row = uScreens[screen] || (uScreens[screen] = { v: 0, s: 0 });
+    row.v += 1;
+    uDirty = true;
+  }
+
   function startSession() {
     session = { sid: rid(), started: Date.now(), active: 0, actions: 0, last: [], screen: "", dirty: true };
     seenScreens = {};
     session.screen = currentScreen();
     lastScreen = session.screen;
-    if (session.screen) seenScreens[session.screen] = 1;
+    if (session.screen) { seenScreens[session.screen] = 1; addView(session.screen); }
     scheduleFlush(1500);
   }
 
@@ -78,19 +108,40 @@
     flushTimer = setTimeout(function () { flushTimer = null; flush(false); }, delay || FLUSH_MS);
   }
 
+  // Забирает накопленные счётчики пакетом и обнуляет их (потеря пакета — это лишь несколько кликов, не страшно).
+  function takeUsage() {
+    var clicks = [];
+    var keys = Object.keys(uClicks);
+    for (var i = 0; i < keys.length && clicks.length < MAX_USAGE_KEYS; i++) {
+      var parts = keys[i].split("\u0001");
+      clicks.push([parts[0], parts[1] || "", uClicks[keys[i]]]);
+      delete uClicks[keys[i]];
+    }
+    var screens = {};
+    var names = Object.keys(uScreens);
+    for (var j = 0; j < names.length && j < MAX_USAGE_KEYS; j++) {
+      screens[names[j]] = uScreens[names[j]];
+      delete uScreens[names[j]];
+    }
+    uDirty = Object.keys(uClicks).length > 0 || Object.keys(uScreens).length > 0;
+    return { clicks: clicks, screens: screens };
+  }
+
   function flush(final) {
     if (!session) return;
     var init = initData();
     if (!init) return;
-    if (!queue.length && !session.dirty && !final) return;
+    if (!queue.length && !session.dirty && !uDirty && !final) return;
     var body = JSON.stringify({
       init_data: init,
       now: Date.now(),
+      v: version(),
       session: {
         sid: session.sid, started: session.started, active: session.active, actions: session.actions,
         last: session.last, screen: session.screen, hidden: !!final, platform: platform(), tz: tzOffset()
       },
-      events: queue.splice(0, queue.length)
+      events: queue.splice(0, queue.length),
+      usage: takeUsage()
     });
     session.dirty = false;
     try {
@@ -118,7 +169,7 @@
     scheduleFlush();
   }
 
-  // Подпись нажатого: data-track → aria-label → id → текст кнопки (до 28 знаков).
+  // Подпись нажатого для «последних действий» (читается человеком): data-track → aria-label → id → текст кнопки (до 28 знаков).
   function labelOf(target) {
     var el = target && target.closest ? target.closest("[data-track],button,a,[role='button'],.tab-bar__item,summary,label,select") : null;
     if (!el) return null;
@@ -131,13 +182,46 @@
     return label.slice(0, 40);
   }
 
-  function afterClick() {
+  // Стабильная подпись для счётчиков: без текста кнопки и без чужих id, чтобы разных подписей было конечное число.
+  // data-track (если разработчик задал имя) → id → первый «не состояние» класс + значение data-action/… → тег.
+  function stableLabel(target) {
+    var el = target && target.closest
+      ? target.closest("[data-track],button,a,[role='button'],.tab-bar__item,summary,label,select,[data-action],[data-pair-act],[data-up]")
+      : null;
+    if (!el) return null;
+    var named = el.getAttribute("data-track");
+    if (named) return named.slice(0, 40);
+    if (el.id) return el.id.slice(0, 40);
+    var cls = "";
+    var classes = typeof el.className === "string" ? el.className.split(/\s+/) : [];
+    for (var i = 0; i < classes.length; i++) {
+      if (classes[i] && !/^is-|^has-|--/.test(classes[i])) { cls = classes[i]; break; }
+    }
+    var kind = "";
+    for (var j = 0; j < ENUM_ATTRS.length; j++) {
+      var v = el.getAttribute(ENUM_ATTRS[j]);
+      if (v && /^[a-z0-9_-]{1,24}$/i.test(v)) { kind = v; break; }
+    }
+    var base = cls || el.tagName.toLowerCase();
+    return (kind ? base + "=" + kind : base).slice(0, 40);
+  }
+
+  function countClick(label, screen) {
+    var key = label + "\u0001" + (screen || "");
+    if (!(key in uClicks) && Object.keys(uClicks).length >= 400) return;   // защита от неограниченного роста в одной сессии
+    uClicks[key] = (uClicks[key] || 0) + 1;
+    uDirty = true;
+  }
+
+  // Экран мог смениться кодом приложения без клика (открылось окно, закрылось) — сверяем и по кликам, и по таймеру.
+  function syncScreen() {
     if (!session) return;
     var screen = currentScreen();
     if (!screen) return;
     session.screen = screen;
     if (screen !== lastScreen) {
       lastScreen = screen;
+      addView(screen);
       if (!seenScreens[screen]) { seenScreens[screen] = 1; track("screen", screen); }
     }
   }
@@ -153,7 +237,9 @@
     session.last.push({ l: label, s: currentScreen(), t: Date.now() - session.started });
     if (session.last.length > MAX_LAST) session.last.shift();
     session.dirty = true;
-    setTimeout(afterClick, 80);
+    var stable = stableLabel(e.target);
+    if (stable) countClick(stable, currentScreen());
+    setTimeout(syncScreen, 80);
   }, true);
 
   ["pointerdown", "keydown", "touchstart", "scroll"].forEach(function (name) {
@@ -165,6 +251,12 @@
     if (Date.now() - lastInput < ACTIVE_WINDOW_MS) {
       session.active += TICK_MS / 1000;
       session.dirty = true;
+      syncScreen();
+      if (lastScreen) {
+        var row = uScreens[lastScreen] || (uScreens[lastScreen] = { v: 0, s: 0 });
+        row.s += TICK_MS / 1000;
+        uDirty = true;
+      }
     }
   }, TICK_MS);
 

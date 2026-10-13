@@ -1,11 +1,11 @@
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
-from config import ADMIN_IDS
+from config import ADMIN_IDS, WEBAPP_URL
 from keyboards import admin_keyboard, pending_keyboard, back_menu_keyboard, broadcast_target_keyboard, tag_search_results_keyboard
 
 from db import (
@@ -443,6 +443,21 @@ async def add_changelog(message: Message):
 
     add_changelog_entry(title, body)
     await message.answer(f"✅ Добавлено в «Что нового»:\n\n<b>{title}</b>\n{body}", parse_mode="HTML")
+
+
+# =====================================
+# АНАЛИТИКА — отдельный раздел (webapp/static/analytics.html), только админам
+# =====================================
+
+@router.message(Command("analytics"))
+async def open_analytics(message: Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    if not WEBAPP_URL:
+        await message.answer("Адрес приложения (WEBAPP_URL) не задан — открыть аналитику нельзя.")
+        return
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📊 Открыть аналитику", web_app=WebAppInfo(url=f"{WEBAPP_URL}/analytics"))]])
+    await message.answer("Аналитика: обзор, удержание, функции, версии, здоровье и ИИ-аналитик.", reply_markup=keyboard)
 
 
 # =====================================

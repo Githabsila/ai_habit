@@ -161,9 +161,17 @@ def _clean_actions(raw):
     return out
 
 
-def ingest(user_id, session, events, client_now=None):
-    """Пакет от приложения: снимок сессии и события. Возвращает сколько событий принято. Ошибки не пробрасываем."""
+def _clean_version(value):
+    text = str(value or "")
+    return text if re.match(r"^[A-Za-z0-9._-]{1,24}$", text) else None
+
+
+def ingest(user_id, session, events, client_now=None, usage=None, version=None):
+    """Пакет от приложения: снимок сессии и события. Возвращает сколько событий принято. Ошибки не пробрасываем.
+    usage — приращения кликов и экранов за пакет ({"clicks": [[подпись, экран, раз]], "screens": {экран: {"v":.., "s":..}}}),
+    version — версия приложения: попадает в сессию и в каталог «что впервые увидели» (db/usage.py)."""
     accepted = 0
+    version = _clean_version(version)
     try:
         now = _now()
         conn = connect()
@@ -181,8 +189,8 @@ def ingest(user_id, session, events, client_now=None):
                 last = _clean_actions(session.get("last"))
                 last_action = last[-1]["l"] if last else None
                 inserted = conn.execute(
-                    "INSERT OR IGNORE INTO app_sessions(id, user_id, started_at, last_at, platform, tz_offset) VALUES (?,?,?,?,?,?)",
-                    (sid, user_id, _fmt(started), _fmt(now), _short(session.get("platform"), 20), _int_or_none(session.get("tz"))),
+                    "INSERT OR IGNORE INTO app_sessions(id, user_id, started_at, last_at, platform, tz_offset, version) VALUES (?,?,?,?,?,?,?)",
+                    (sid, user_id, _fmt(started), _fmt(now), _short(session.get("platform"), 20), _int_or_none(session.get("tz")), version),
                 ).rowcount
                 conn.execute(
                     "UPDATE app_sessions SET last_at=?, active_seconds=MAX(active_seconds,?), actions=MAX(actions,?), "
@@ -218,6 +226,14 @@ def ingest(user_id, session, events, client_now=None):
                     (user_id, _fmt(at), event["n"], _short(event.get("s"), 40), _short(event.get("sc"), 40), payload, sid, "app"),
                 )
                 accepted += 1
+            if isinstance(usage, dict) or version:
+                from .usage import record_ui
+                usage = usage if isinstance(usage, dict) else {}
+                try:
+                    record_ui(conn, user_id, clicks=usage.get("clicks") if isinstance(usage.get("clicks"), list) else None,
+                              screens=usage.get("screens") if isinstance(usage.get("screens"), dict) else None, version=version)
+                except Exception:
+                    pass        # кривой пакет счётчиков не должен отнимать у человека принятые события
             conn.commit()
         finally:
             conn.close()
@@ -426,8 +442,8 @@ FUNNEL = (
     ("main_goal", "Записали главную задачу"),
     ("task", "Добавили второстепенную задачу"),
     ("ai", "Написали Адаму"),
-    ("d1", "Вернулись на следующий день"),
-    ("d7", "Вернулись через неделю"),
+    ("d1", "Вернулись со следующего дня и позже"),
+    ("d7", "Вернулись через неделю и позже"),
     ("friend", "Добавили друга"),
     ("paid", "Оплатили"),
 )
@@ -437,7 +453,7 @@ CORE_PATH = ("registered", "survey", "approved", "opened", "habit", "habit_done"
 def _cohort(days, source=None):
     since = _fmt(_now() - timedelta(days=max(1, min(int(days), 365))))
     admins = _admin_ids()
-    where = "created_at>=? AND COALESCE(banned,0)=0"
+    where = "created_at>=? AND COALESCE(banned,0)=0 AND COALESCE(stats_excluded,0)=0"
     params = [since]
     if admins:
         where += f" AND telegram_id NOT IN ({','.join('?' for _ in admins)})"
@@ -494,8 +510,11 @@ def _collect_marks(conn, where, params):
         if not created:
             continue
         for key, delta in (("d1", 1), ("d7", 7)):
-            row = conn.execute("SELECT MIN(at) FROM app_opens WHERE user_id=? AND date(at)>=date(?, ?)", (uid, _fmt(created), f"+{delta} days")).fetchone()
-            marks[key][uid] = _parse(row[0]) if row and row[0] else None
+            # первый день активности не раньше дня N: вечные дни активности (daily_active) плюс заходы за последние 45 дней (app_opens)
+            row = conn.execute(
+                "SELECT MIN(d) FROM (SELECT day AS d FROM daily_active WHERE user_id=? UNION ALL SELECT date(at) FROM app_opens WHERE user_id=?) "
+                "WHERE d>=date(?, ?)", (uid, uid, _fmt(created), f"+{delta} days")).fetchone()
+            marks[key][uid] = _parse(f"{row[0]} 00:00:00") if row and row[0] else None
     return users, ids, marks
 
 

@@ -378,32 +378,9 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
-        '<div class="card-title"><span class="card-icon card-icon--teal">🧭</span>Путь людей и воронка</div>' +
-        '<div class="empty-note" style="padding:0 0 10px">Кто сколько дошёл до каждого шага, через сколько минут, где застревают, что пропускают и после чего выходят из приложения. Админы не считаются.</div>' +
-        '<div class="btn-row" style="margin-bottom:10px">' +
-          '<button class="btn" data-funnel-days="7">7 дней</button><button class="btn btn-accent" data-funnel-days="14">14 дней</button><button class="btn" data-funnel-days="30">30 дней</button>' +
-          '<select class="field" id="funnelSource" style="flex:1 1 100%"><option value="">Все каналы</option><option value="none">Без канала</option><option value="ref">Приглашения друзей</option></select>' +
-        '</div>' +
-        '<div id="funnelBox"><div class="empty-note">Загружаю…</div></div>' +
-      '</div>' +
-
-      '<div class="card">' +
-        '<div class="card-title"><span class="card-icon card-icon--violet">🧠</span>ИИ-разбор: что повторяется у людей</div>' +
-        '<div class="empty-note" style="padding:0 0 10px">ИИ читает сводные данные за период (воронку, пропуски, выходы, о чём пишут Адаму, оценки, ошибки на устройствах, каналы) и подсвечивает, на что люди опираются, что их отталкивает и какие ошибки повторяются. Можно запрашивать заново когда угодно.</div>' +
-        '<div class="btn-row"><button class="btn btn-accent" data-insights-days="7">За 7 дней</button><button class="btn btn-accent" data-insights-days="14">За 14 дней</button><button class="btn btn-accent" data-insights-days="30">За 30 дней</button></div>' +
-        '<div id="insightsBox"><div class="empty-note">Загружаю…</div></div>' +
-      '</div>' +
-
-      '<div class="card">' +
-        '<div class="card-title"><span class="card-icon card-icon--gold">📣</span>Каналы трафика</div>' +
-        '<div class="empty-note" style="padding:0 0 10px">У каждого канала или блогера — своя ссылка. Видно не только сколько пришло, но и качество: кто дошёл до привычки, вернулся, сколько «мёртвых» и нет ли подозрительного всплеска.</div>' +
-        '<div class="btn-row" style="margin-bottom:10px">' +
-          '<input class="field" id="trafficTitle" type="text" placeholder="Название: канал про бег, блогер Аня…" style="flex:1 1 100%">' +
-          '<select class="field" id="trafficKind" style="flex:1"><option value="channel">Телеграм-канал</option><option value="blogger">Блогер</option><option value="ads">Реклама</option><option value="friend">Партнёр</option><option value="other">Другое</option></select>' +
-          '<button class="btn btn-gold" id="trafficCreateBtn">＋ Создать ссылку</button>' +
-        '</div>' +
-        '<div class="btn-row" style="margin-bottom:8px"><button class="btn" data-traffic-days="7">7 дней</button><button class="btn btn-accent" data-traffic-days="30">30 дней</button><button class="btn" data-traffic-days="90">90 дней</button></div>' +
-        '<div id="trafficBox"><div class="empty-note">Загружаю…</div></div>' +
+        '<div class="card-title"><span class="card-icon card-icon--teal">📈</span>Аналитика</div>' +
+        '<div class="empty-note" style="padding:0 0 12px">Отдельный раздел: воронка и где застревают, удержание по неделям, использование каждой функции (новые функции появляются сами), версии приложения, здоровье сервера, каналы трафика и ссылки, ИИ-аналитик с памятью. Быстро открыть: команда /analytics в боте.</div>' +
+        '<div class="btn-row"><button class="btn btn-accent" id="openAnalyticsBtn" style="flex:1;justify-content:center">📊 Открыть аналитику</button></div>' +
       '</div>' +
 
       '<div class="card">' +
@@ -525,30 +502,7 @@ textarea.field{resize:vertical;min-height:88px}
     });
 
     loadPending();
-    loadFunnel(14);
-    document.querySelectorAll('[data-funnel-days]').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        document.querySelectorAll('[data-funnel-days]').forEach(function(b){ b.classList.remove('btn-accent'); });
-        btn.classList.add('btn-accent');
-        funnelDays = parseInt(btn.dataset.funnelDays, 10);
-        loadFunnel(funnelDays);
-      });
-    });
-    document.getElementById('funnelSource').addEventListener('change', function(){ loadFunnel(funnelDays); });
-    loadTraffic(30);
-    loadInsights();
-    document.querySelectorAll('[data-insights-days]').forEach(function(btn){
-      btn.addEventListener('click', function(){ makeInsights(parseInt(btn.dataset.insightsDays, 10), btn); });
-    });
-    document.querySelectorAll('[data-traffic-days]').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        document.querySelectorAll('[data-traffic-days]').forEach(function(b){ b.classList.remove('btn-accent'); });
-        btn.classList.add('btn-accent');
-        trafficDays = parseInt(btn.dataset.trafficDays, 10);
-        loadTraffic(trafficDays);
-      });
-    });
-    document.getElementById('trafficCreateBtn').addEventListener('click', createTraffic);
+    document.getElementById('openAnalyticsBtn').addEventListener('click', function(){ haptic('light'); window.location.href = '/analytics'; });
     loadAccessOverview();
     loadAiUsage(7);
     document.querySelectorAll('[data-ai-days]').forEach(function(btn){
@@ -1175,30 +1129,6 @@ textarea.field{resize:vertical;min-height:88px}
     }
   }
 
-  async function loadInsights(){
-    var box = document.getElementById('insightsBox');
-    if (!box) return;
-    try{
-      var d = await api('/api/admin/analytics/insights');
-      box.innerHTML = d.insights
-        ? '<div class="empty-note" style="padding:10px 0 4px">Составлено ' + fmtDate(d.insights.created_at) + ' (период ' + escapeHtml(d.insights.stamp || '') + ')</div><div style="white-space:pre-wrap;font-size:13px;line-height:1.5;color:#E8E4F5">' + escapeHtml(d.insights.text) + '</div>'
-        : '<div class="empty-note">Разбора ещё не было</div>';
-    }catch(e){ box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>'; }
-  }
-
-  async function makeInsights(days, btn){
-    var box = document.getElementById('insightsBox');
-    btn.disabled = true;
-    box.innerHTML = '<div class="empty-note">ИИ разбирает данные за ' + days + ' дн.…</div>';
-    try{
-      await api('/api/admin/analytics/insights', { method: 'POST', body: JSON.stringify({ days: days }) });
-      haptic('medium');
-      loadInsights();
-    }catch(e){
-      box.innerHTML = '<div class="empty-note">Модель не ответила — попробуй ещё раз</div>';
-    }finally{ btn.disabled = false; }
-  }
-
   // ---------- Ответы Адама в чате (лаборатория) ----------
   async function loadAdamChatLab(){
     var select = document.getElementById('adamChatPreset');
@@ -1236,90 +1166,6 @@ textarea.field{resize:vertical;min-height:88px}
     }catch(e){
       box.innerHTML = '<div class="empty-note">' + (e && e.data && e.data.error === 'model_failed' ? 'Модель не ответила: ' + escapeHtml(e.data.message || '') : 'Не получилось — проверь ID человека') + '</div>';
     }finally{ btn.disabled = false; }
-  }
-
-  // ---------- Каналы трафика (db/traffic.py) ----------
-  var funnelDays = 14;
-  var trafficDays = 30;
-
-  function copyText(text){
-    try{
-      if (navigator.clipboard && navigator.clipboard.writeText){ return navigator.clipboard.writeText(text).then(function(){ return true; }, function(){ return false; }); }
-    }catch(e){}
-    try{
-      var ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      var ok = document.execCommand('copy');
-      ta.remove();
-      return Promise.resolve(ok);
-    }catch(e){ return Promise.resolve(false); }
-  }
-
-  async function loadTraffic(days){
-    var box = document.getElementById('trafficBox');
-    if (!box) return;
-    try{
-      var d = await api('/api/admin/traffic?days=' + days);
-      var select = document.getElementById('funnelSource');
-      if (select){
-        var keep = select.value;
-        select.innerHTML = '<option value="">Все каналы</option><option value="none">Без канала</option><option value="ref">Приглашения друзей</option>' +
-          d.channels.filter(function(c){ return c.link; }).map(function(c){ return '<option value="' + escapeHtml(c.code) + '">' + escapeHtml(c.title) + '</option>'; }).join('');
-        select.value = keep;
-      }
-      var kinds = d.kinds || {};
-      box.innerHTML = d.channels.map(function(c){
-        var warn = c.suspicious ? '<span class="badge badge-bad">⚠️ подозрительно</span>' : '';
-        var kind = c.kind ? ' · ' + escapeHtml(kinds[c.kind] || c.kind) : '';
-        var stats = c.joined
-          ? '<span class="stat-chip">пришло <b>' + c.joined + '</b></span><span class="stat-chip">до привычки <b>' + c.habit_done + '%</b></span>' +
-            '<span class="stat-chip">вернулись завтра <b>' + c.d1 + '%</b></span><span class="stat-chip">через неделю <b>' + c.d7 + '%</b></span>' +
-            '<span class="stat-chip">мёртвых <b>' + c.dead_pct + '%</b>' + (c.judged ? ' из ' + c.judged : '') + '</span>' +
-            '<span class="stat-chip">в приложении ~<b>' + fmtSec(c.avg_active_seconds) + '</b></span><span class="stat-chip">друзей позвали <b>' + c.friends_invited + '</b></span>' +
-            '<span class="stat-chip">оплатили <b>' + c.paid + '</b>' + (c.revenue_stars ? ' · ' + c.revenue_stars + ' ⭐' : '') + '</span>' +
-            '<span class="stat-chip">качество <b>' + c.quality + '</b>/100</span>' + (c.burst_pct >= 60 && c.joined >= 15 ? '<span class="stat-chip" style="color:#FFB4A8">всплеск: ' + c.burst_pct + '% за 10 мин</span>' : '')
-          : '<span class="empty-note" style="padding:0">пока никто не пришёл</span>';
-        var link = c.link ? '<div class="btn-row" style="margin-top:6px"><input class="field" readonly value="' + escapeHtml(c.link) + '" style="flex:1;font-size:11px;padding:8px 10px"><button class="btn" data-copy="' + escapeHtml(c.link) + '">📋</button></div>' : '';
-        var actions = c.link ? '<div class="btn-row" style="margin-top:6px"><button class="btn" data-funnel-source="' + escapeHtml(c.code) + '">Воронка</button><button class="btn" data-archive="' + escapeHtml(c.code) + '">В архив</button></div>' : '';
-        return '<div class="user-card" style="margin-top:8px"><div class="user-card-head" style="margin-bottom:6px"><div class="user-card-name">' + escapeHtml(c.title) + '<small style="color:#938DA6;font-weight:500">' + kind + (c.archived ? ' · в архиве' : '') + '</small></div>' + warn + '</div>' +
-          '<div class="btn-row" style="gap:6px">' + stats + '</div>' + (c.note ? '<div class="empty-note" style="padding:4px 0 0">' + escapeHtml(c.note) + '</div>' : '') + link + actions + '</div>';
-      }).join('');
-      box.querySelectorAll('[data-copy]').forEach(function(btn){
-        btn.addEventListener('click', function(){ copyText(btn.dataset.copy).then(function(ok){ showToast(ok ? 'Ссылка скопирована' : 'Не получилось — выдели ссылку и скопируй вручную'); }); });
-      });
-      box.querySelectorAll('[data-funnel-source]').forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var el = document.getElementById('funnelSource'); el.value = btn.dataset.funnelSource;
-          loadFunnel(funnelDays);
-          var f = document.getElementById('funnelBox'); if (f && f.scrollIntoView) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-      });
-      box.querySelectorAll('[data-archive]').forEach(function(btn){
-        btn.addEventListener('click', async function(){
-          if (!window.confirm('Убрать канал в архив? Ссылка продолжит работать, но канал пропадёт из списка.')) return;
-          try{ await api('/api/admin/traffic/' + encodeURIComponent(btn.dataset.archive) + '/archive', { method: 'POST' }); loadTraffic(trafficDays); }catch(e){ showToast('Ошибка'); }
-        });
-      });
-    }catch(e){
-      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
-    }
-  }
-
-  async function createTraffic(){
-    var title = document.getElementById('trafficTitle');
-    var kind = document.getElementById('trafficKind');
-    if (!(title.value || '').trim()){ showToast('Назови канал'); return; }
-    try{
-      var res = await api('/api/admin/traffic', { method: 'POST', body: JSON.stringify({ title: title.value, kind: kind.value }) });
-      title.value = '';
-      haptic('medium');
-      var ok = await copyText(res.link || '');
-      showToast(ok ? 'Ссылка создана и скопирована' : 'Ссылка создана');
-      loadTraffic(trafficDays);
-    }catch(e){
-      showToast(e && e.data && e.data.error === 'invalid_title' ? 'Название слишком короткое' : 'Ошибка');
-    }
   }
 
   // ---------- Путь человека и воронка (db/tracking.py) ----------
@@ -1390,32 +1236,6 @@ textarea.field{resize:vertical;min-height:88px}
         '<div class="empty-note" style="padding:10px 0 2px">Лента действий</div>' + (timeline || '<div class="empty-note">Пока пусто</div>');
     }catch(e){
       box.innerHTML = '<div class="section-label" style="margin:16px 2px 8px">Путь человека</div><div class="empty-note">Не получилось загрузить</div>';
-    }
-  }
-
-  async function loadFunnel(days){
-    var box = document.getElementById('funnelBox');
-    if (!box) return;
-    try{
-      var sourceEl = document.getElementById('funnelSource');
-      var source = sourceEl && sourceEl.value ? '&source=' + encodeURIComponent(sourceEl.value) : '';
-      var f = await api('/api/admin/analytics/funnel?days=' + days + source);
-      if (!f.total){ box.innerHTML = '<div class="empty-note">За этот срок новых людей не было</div>'; return; }
-      var rows = f.steps.map(function(s){
-        var width = Math.max(2, Math.round(s.pct_of_all));
-        return '<div style="margin:7px 0"><div style="display:flex;justify-content:space-between;font-size:12px"><span>' + escapeHtml(s.label) + '</span>' +
-          '<span><b>' + s.count + '</b> · ' + s.pct_of_all + '%' + (s.pct_of_prev != null ? ' · от пред. ' + s.pct_of_prev + '%' : '') + (s.median_minutes != null ? ' · ' + fmtMin(s.median_minutes).replace('через ', '~') : '') + '</span></div>' +
-          '<div style="height:5px;border-radius:3px;background:rgba(255,255,255,.07)"><div style="height:5px;border-radius:3px;width:' + width + '%;background:linear-gradient(90deg,#8f72ff,#34D399)"></div></div></div>';
-      }).join('');
-      var stuck = (f.stuck || []).map(function(x){ return '<span class="stat-chip">' + escapeHtml(x.label) + ': <b>' + x.count + '</b></span>'; }).join('');
-      var skips = (f.skips || []).map(function(x){ return '<span class="stat-chip">' + (x.name === 'tour_skip' ? 'тур' : 'подсказки') + ', шаг ' + escapeHtml(x.step || '?') + ': <b>' + x.users + '</b> чел.</span>'; }).join('');
-      var exits = (f.exits || []).map(function(x){ return '<div class="stat-chip">«' + escapeHtml(x.label) + '»' + (x.screen ? ' · ' + escapeHtml(x.screen) : '') + ': <b>' + x.count + '</b></div>'; }).join('');
-      box.innerHTML = '<div class="empty-note" style="padding:0 0 4px">Пришло за ' + days + ' дн.: <b>' + f.total + '</b>. Минуты — медиана от регистрации.</div>' + rows +
-        '<div class="empty-note" style="padding:10px 0 4px">Где застревают</div><div class="btn-row" style="gap:6px">' + (stuck || '<span class="empty-note">—</span>') + '</div>' +
-        '<div class="empty-note" style="padding:10px 0 4px">Что пропускают</div><div class="btn-row" style="gap:6px">' + (skips || '<span class="empty-note">пока никто</span>') + '</div>' +
-        '<div class="empty-note" style="padding:10px 0 4px">После чего выходят из приложения</div>' + (exits || '<div class="empty-note">Данных о сессиях пока нет</div>');
-    }catch(e){
-      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }
   }
 
