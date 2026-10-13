@@ -73,7 +73,7 @@ SCREEN_LABELS = {
     "home": "Главная", "calendar": "Календарь", "rating": "Рейтинг", "profile": "Профиль", "coach": "Чат с Адамом", "ai": "Чат с Адамом",
     "startQuiz": "Стартовый квиз", "appTour": "Вводный тур", "handleIntro": "Экран @ника", "streakOnboarding": "Ударный режим",
     "shop": "Магазин", "settings": "Настройки", "stats": "Статистика", "dailyQuests": "Квесты дня", "pairGuide": "Парное задание: инструкция",
-    "userProfile": "Профиль игрока", "streakCelebration": "Праздник серии", "levelup": "Новый уровень", "evolution": "Эволюция",
+    "userProfile": "Профиль игрока", "statusLadder": "Статусы серии", "streakCelebration": "Праздник серии", "levelup": "Новый уровень", "evolution": "Эволюция",
     "doubleBonus": "Двойные очки", "archetypeQuiz": "Тест архетипа", "avatarEdit": "Аватар", "identity": "Имя и ник", "adminGift": "Подарок от админа",
 }
 

@@ -1411,7 +1411,7 @@
     }
     if (profileFrame) {
       if (reward) {
-        profileFrame.textContent = `🏆 ${reward.frame}`;
+        profileFrame.textContent = `Рамка «${reward.frame}»`;
         profileFrame.className = "streak-profile-frame frame-" + (streak.temp_frame || "none");
         profileFrame.hidden = false;
       } else {
@@ -1426,12 +1426,89 @@
     const profileDaysLabel = document.getElementById("profileStreakDaysLabel");
     const metricStreak = document.getElementById("profileMetricStreak");
     const metricFreeze = document.getElementById("profileMetricFreeze");
-    const metricReward = document.getElementById("profileMetricReward");
     if (profileDays) profileDays.textContent = streakDays;
     if (profileDaysLabel) profileDaysLabel.textContent = pluralRu(streakDays, "день подряд", "дня подряд", "дней подряд");
     if (metricStreak) metricStreak.textContent = streakDays;
     if (metricFreeze) metricFreeze.textContent = `${streak.freeze_balance || 0}/2`;
-    if (metricReward) metricReward.textContent = reward ? `${reward.milestone} дн.` : "—";
+    renderStreakStatus(streak.status, streakDays);
+  }
+
+  // ---- Статус серии: название ступени вместо дней вехи-награды (db/streak_status.py) ----
+  // Один значок на ступень (24×24, заливка цветом ступени). Ключи совпадают с db/streak_status.py::LADDER.
+  const STATUS_GLYPHS = {
+    start: '<circle cx="12" cy="12" r="6.2" fill="none" stroke="currentColor" stroke-width="2.4"/>',
+    tempering: '<path d="M13.2 2.5 5 13.5h5.6l-1.2 8 8.4-11.4h-5.8z" fill="currentColor"/>',
+    flint: '<path d="M12 2.5l2.4 6.9 6.9 2.6-6.9 2.6L12 21.5l-2.4-6.9L2.7 12l6.9-2.6z" fill="currentColor"/>',
+    damask: '<path d="M12 2.8l7 2.7v5.8c0 4.7-2.9 8-7 9.9-4.1-1.9-7-5.2-7-9.9V5.5z" fill="currentColor"/>',
+    monolith: '<path d="M12 2.6l7.8 4.5v9.8L12 21.4l-7.8-4.5V7.1z" fill="currentColor"/><path d="M12 2.6l7.8 4.5L12 11.6 4.2 7.1z" fill="#fff" fill-opacity=".34"/>',
+    titan: '<path d="M3.5 18.5 5 7.5l4.6 4.2L12 5l2.4 6.7L19 7.5l1.5 11z" fill="currentColor"/><rect x="4.5" y="19.7" width="15" height="2" rx="1" fill="currentColor"/>',
+    zenith: '<circle cx="12" cy="12" r="4.3" fill="currentColor"/><path d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.4 5.4l2.1 2.1M16.5 16.5l2.1 2.1M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    absolute: '<path d="M12 2.6l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.2 1.2-6.5L2.5 9.5l6.6-.9z" fill="currentColor"/>',
+  };
+
+  function statusGlyph(key) {
+    return `<svg viewBox="0 0 24 24" width="100%" height="100%" focusable="false" aria-hidden="true">${STATUS_GLYPHS[key] || STATUS_GLYPHS.start}</svg>`;
+  }
+
+  function hexToRgb(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+    if (!m) return "154,148,173";
+    const n = parseInt(m[1], 16);
+    return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  }
+
+  function renderStreakStatus(status) {
+    const tile = document.getElementById("profileMetricStatus");
+    if (!tile || !status) return;
+    tile.dataset.tier = String(status.tier || 0);
+    tile.style.setProperty("--st", status.accent);
+    tile.style.setProperty("--st-rgb", hexToRgb(status.accent));
+    document.getElementById("profileMetricBadge").innerHTML = statusGlyph(status.key);
+    document.getElementById("profileMetricReward").textContent = status.name;
+    const next = status.next;
+    const left = next ? `${next.left} ${pluralRu(next.left, "день", "дня", "дней")}` : "";
+    document.getElementById("profileMetricNext").textContent = next ? `→ ${next.name} · ${left}` : "высший статус";
+    tile.setAttribute("aria-label", `Статус серии: ${status.name}. ${next ? `До «${next.name}» ещё ${left}.` : "Это высший статус."} Нажми, чтобы увидеть все статусы`);
+    streakStatusInfo = status;
+  }
+
+  let statusLadderOpenedAt = 0;
+  let streakStatusInfo = null;
+
+  function openStatusLadder() {
+    const overlay = document.getElementById("statusLadderOverlay");
+    const status = streakStatusInfo;
+    if (!overlay || !overlay.hidden || !status) return;
+    const days = Number(state.streak?.days || 0);
+    const daysWord = (n) => `${n} ${pluralRu(n, "день", "дня", "дней")}`;
+    document.getElementById("statusLadderLead").innerHTML = status.next
+      ? `Сейчас у тебя <b>${daysWord(days)}</b> серии — статус «${escapeHtml(status.name)}». До «${escapeHtml(status.next.name)}» ещё <b>${daysWord(status.next.left)}</b>.`
+      : `Серия — <b>${daysWord(days)}</b>. Это высший статус.`;
+    document.getElementById("statusLadderList").innerHTML = status.ladder.map((row) => {
+      const current = row.tier === status.tier;
+      const note = current ? "сейчас" : row.reached ? "получен" : `ещё ${daysWord(row.left)}`;
+      const from = row.days ? `от ${row.days} дней подряд` : "начало пути";
+      return `<li class="status-ladder__row${current ? " is-current" : ""}${row.reached ? "" : " is-locked"}" style="--st:${row.accent};--st-rgb:${hexToRgb(row.accent)}" data-tier="${row.tier}">` +
+        `<span class="status-ladder__badge" aria-hidden="true">${statusGlyph(row.key)}</span>` +
+        `<span class="status-ladder__text"><b>${escapeHtml(row.name)}</b><small>${from} · ${escapeHtml(row.blurb)}</small></span>` +
+        `<em class="status-ladder__note">${note}</em></li>`;
+    }).join("");
+    overlay.hidden = false;
+    overlay.setAttribute("aria-hidden", "false");
+    statusLadderOpenedAt = performance.now();
+    requestAnimationFrame(() => {
+      overlay.classList.add("show");
+      overlay.querySelector(".status-ladder__row.is-current")?.scrollIntoView({ block: "center" });
+    });
+    haptic("light");
+  }
+
+  function closeStatusLadder() {
+    const overlay = document.getElementById("statusLadderOverlay");
+    if (!overlay || overlay.hidden) return;
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { overlay.hidden = true; }, 240);
   }
 
   function openStreakCelebration(event) {
@@ -1442,7 +1519,7 @@
     if (message) {
       const reward = (state.streak?.rewards || []).find(r => Number(r.milestone) === Number(event.streak));
       message.textContent = reward
-        ? `🏆 ${reward.status} — открыта рамка «${reward.frame}». ${event.message || ""}`
+        ? `🏆 Новый статус «${reward.status}» — открыта рамка «${reward.frame}». ${event.message || ""}`
         : (event.message || "День закрыт. Продолжай.");
     }
     if (seven) {
@@ -6472,7 +6549,7 @@ async function openFriendInvite() {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -9479,6 +9556,19 @@ document.getElementById("adamNudgeDemoBtn")?.addEventListener("click", () => {
     document.querySelector('.tab-bar__item[data-tab="home"]')?.click();
     setTimeout(() => showAdamNudge({ demo: true }), 450);
 });
+
+// Плитка «статус» в профиле → окно со всеми статусами серии.
+(() => {
+  const tile = document.getElementById("profileMetricStatus");
+  const overlay = document.getElementById("statusLadderOverlay");
+  tile?.addEventListener("click", openStatusLadder);
+  tile?.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openStatusLadder(); } });
+  overlay?.addEventListener("click", (e) => {
+    if (performance.now() - statusLadderOpenedAt < 300) return;        // двойной тап по плитке не должен тут же закрыть окно
+    if (e.target === overlay || e.target.closest("#statusLadderClose")) { haptic("light"); closeStatusLadder(); }
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeStatusLadder(); });
+})();
 
 document.getElementById("adminPanelBtn")?.addEventListener("click", () => {
     haptic("light");

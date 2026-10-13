@@ -122,9 +122,9 @@ FEATURES = (
         note="Открытие главной вкладки",
     ),
     Feature(
-        "streak", "Серия, заморозки и недельная награда", "growth", "2026-01-01",
-        screens=("streakCelebration", "streakWeekly"),
-        clicks=("freezeBuyBtn", "streakCelebrationContinue"),
+        "streak", "Серия, статусы и заморозки", "growth", "2026-01-01",
+        screens=("streakCelebration", "streakWeekly", "statusLadder"),
+        clicks=("freezeBuyBtn", "streakCelebrationContinue", "profileMetricStatus", "statusLadderClose"),
         api=("POST /api/streak/freeze/buy", "POST /api/streak/restore-free", "POST /api/streak/weekly-reward", "POST /api/streak/timezone"),
     ),
     Feature(

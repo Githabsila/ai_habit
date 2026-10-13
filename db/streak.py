@@ -6,15 +6,17 @@ from zoneinfo import ZoneInfo
 
 from .core import connect
 from .users import get_user, add_xp, get_gender, gender_forms
+from .streak_status import NAME_BY_MILESTONE, status_for_days
 
+# (название статуса, название рамки, код рамки). Названия статусов — из лестницы db/streak_status.py: у каждой вехи своё премиальное имя.
 MILESTONES = {
-    14: ("Две недели в огне", "Неоновый импульс", "streak_14"),
-    30: ("Месяц в ударе", "Золотой характер", "streak_30"),
-    60: ("Стальной стержень", "Серебряный уголь", "silver_coal"),
-    100: ("Сотня в огне", "Золотая искра", "gold_spark"),
-    200: ("Несгораемый", "Платиновый факел", "platinum_torch"),
-    300: ("Легенда", "Алмазный феникс", "diamond_phoenix"),
-    365: ("Год в огне", "Секретная рамка", "secret_phoenix"),
+    14: (NAME_BY_MILESTONE[14], "Неоновый импульс", "streak_14"),
+    30: (NAME_BY_MILESTONE[30], "Золотой характер", "streak_30"),
+    60: (NAME_BY_MILESTONE[60], "Серебряный уголь", "silver_coal"),
+    100: (NAME_BY_MILESTONE[100], "Золотая искра", "gold_spark"),
+    200: (NAME_BY_MILESTONE[200], "Платиновый факел", "platinum_torch"),
+    300: (NAME_BY_MILESTONE[300], "Алмазный феникс", "diamond_phoenix"),
+    365: (NAME_BY_MILESTONE[365], "Секретная рамка", "secret_phoenix"),
 }
 
 PRAISE_A = [
@@ -456,8 +458,12 @@ def get_streak_status(user_id):
     c.execute("SELECT * FROM streak_rewards WHERE user_id=? ORDER BY milestone DESC", (user_id,))
     rewards = [dict(r) for r in c.fetchall()]
     conn.close()
+    for reward in rewards:
+        # В базе у старых наград сохранены прежние названия («Месяц в ударе») — показываем новые, по вехе.
+        reward["status"] = NAME_BY_MILESTONE.get(int(reward["milestone"]), reward["status"])
     return {
         "days": int(user["streak"] or 0) if user else 0,
+        "status": status_for_days(current_days),
         "today": day_key(today),
         "last7": get_last7(user_id),
         "freeze_balance": int(meta["freeze_balance"] or 0) if meta else 0,

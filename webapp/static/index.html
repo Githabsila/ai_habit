@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261012_PAIRSUM_V54">
+<link rel="stylesheet" href="/static/style.css?v=20261013_STATUS_V55">
 </head>
 <body>
 
@@ -430,7 +430,12 @@ class="habit-add-form__submit">
 <div class="streak-profile-metrics">
   <div class="streak-metric"><span>🔥</span><b id="profileMetricStreak">0</b><small>серия</small></div>
   <div class="streak-metric"><span>❄️</span><b id="profileMetricFreeze">0/2</b><small>заморозки</small></div>
-  <div class="streak-metric"><span>🏆</span><b id="profileMetricReward">—</b><small>статус</small></div>
+  <div class="streak-metric streak-metric--status" id="profileMetricStatus" role="button" tabindex="0" data-tier="0" aria-label="Статус серии. Нажми, чтобы увидеть все статусы">
+    <span class="streak-metric__badge" id="profileMetricBadge" aria-hidden="true"></span>
+    <b id="profileMetricReward">Старт</b>
+    <small>статус</small>
+    <i class="streak-metric__next" id="profileMetricNext"></i>
+  </div>
 </div>
 
 <!-- Аватар-наставник ADAM вместо питомца-птенца (эмодзи 🥚→🐣→🐥→🦅).
@@ -1330,6 +1335,16 @@ class="habit-add-form__submit">
   </div>
 </div>
 
+<div class="pq-guide-overlay" id="statusLadderOverlay" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="statusLadderTitle">
+  <div class="pq-guide-card status-ladder-card">
+    <div class="pq-guide-eyebrow">УДАРНАЯ СЕРИЯ</div>
+    <h2 id="statusLadderTitle">Статусы серии</h2>
+    <p class="status-ladder-lead" id="statusLadderLead"></p>
+    <ul class="status-ladder" id="statusLadderList"></ul>
+    <button class="pq-guide-btn" id="statusLadderClose" type="button">Понятно</button>
+  </div>
+</div>
+
 <div class="archetype-quiz-overlay" id="archetypeQuizOverlay" hidden aria-hidden="true">
   <div class="archetype-quiz-card">
     <button type="button" class="archetype-quiz-close" id="archetypeQuizClose" aria-label="Закрыть"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -1482,7 +1497,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
 <script src="/static/tracker.js?v=20261013_TRACK_V2"></script>
-<script type="module" src="/static/app.js?v=20261012_TRACK_V63"></script>
+<script type="module" src="/static/app.js?v=20261013_STATUS_V64"></script>
 
 </body>
 </html>

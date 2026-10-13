@@ -14606,3 +14606,38 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 /* ===== Парное задание: вклад каждого под именем («6 привычек») ===== */
 .pq-person .pq-share{display:block;margin-top:-3px;font:700 11px 'Space Grotesk',sans-serif;color:rgba(255,255,255,.6);white-space:nowrap}
 .pq-person .pq-share i{font-style:normal;font-weight:800;color:#FFD97A}
+
+/* ===== Статус серии: плитка в профиле + окно «Статусы серии» (цвет ступени — --st / --st-rgb из app.js::renderStreakStatus) ===== */
+.streak-metric--status{--st:#9a94ad;--st-rgb:154,148,173;position:relative;cursor:pointer;-webkit-user-select:none;user-select:none;
+  background:linear-gradient(150deg,rgba(var(--st-rgb),.20),rgba(255,255,255,.02) 62%) !important;
+  border-color:rgba(var(--st-rgb),.5) !important;
+  box-shadow:0 12px 28px rgba(0,0,0,.2),0 0 22px rgba(var(--st-rgb),.16),inset 0 1px rgba(255,255,255,.07) !important}
+.streak-metric--status:active{transform:scale(.97)}
+.streak-metric--status .streak-metric__badge{display:grid !important;place-items:center;width:30px;height:30px;margin:0 auto 6px !important;padding:5px;border-radius:11px !important;
+  color:var(--st);background:rgba(var(--st-rgb),.2) !important;border:1px solid rgba(var(--st-rgb),.5) !important;box-shadow:0 0 14px rgba(var(--st-rgb),.28)}
+.streak-metric--status .streak-metric__badge svg{display:block;width:100%;height:100%}
+.streak-metric--status b{font-size:16px !important;letter-spacing:.01em;color:var(--st) !important;text-shadow:0 0 12px rgba(var(--st-rgb),.4);white-space:nowrap}
+.streak-metric--status small{color:#a39dba !important}
+.streak-metric--status .streak-metric__next{display:block;margin-top:3px;font:600 9px/1.25 'Inter',sans-serif;font-style:normal;color:rgba(255,255,255,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.streak-metric--status[data-tier="7"]{background:linear-gradient(150deg,rgba(255,211,107,.26),rgba(255,143,208,.12) 55%,rgba(154,215,255,.1)) !important;
+  border-color:rgba(255,211,107,.65) !important}
+.streak-metric--status[data-tier="7"] .streak-metric__badge{background:linear-gradient(135deg,rgba(255,226,154,.3),rgba(255,143,208,.24),rgba(154,215,255,.2)) !important}
+.performance-lite .streak-metric--status{box-shadow:0 8px 18px rgba(0,0,0,.2) !important}
+.performance-lite .streak-metric--status .streak-metric__badge{box-shadow:none}
+@media (max-width:380px){.streak-metric--status b{font-size:14.5px !important}.streak-metric--status .streak-metric__next{font-size:8.5px}}
+
+.status-ladder-card{max-width:420px;width:100%}
+.status-ladder-lead{margin:-4px 0 12px;font-size:13px;line-height:1.5;color:#C9C4DA}
+.status-ladder-lead b{color:#fff}
+.status-ladder{display:grid;gap:7px;margin:0 0 16px;padding:0;list-style:none;max-height:min(50vh,400px);overflow-y:auto;overscroll-behavior:contain;text-align:left}
+.status-ladder__row{--st:#9a94ad;--st-rgb:154,148,173;display:grid;grid-template-columns:38px 1fr auto;gap:11px;align-items:center;padding:10px 11px;border-radius:15px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.status-ladder__row.is-current{background:linear-gradient(150deg,rgba(var(--st-rgb),.22),rgba(255,255,255,.03));border-color:rgba(var(--st-rgb),.6);box-shadow:0 0 18px rgba(var(--st-rgb),.18)}
+.status-ladder__row.is-locked{opacity:.58}
+.status-ladder__badge{display:grid;place-items:center;width:38px;height:38px;padding:8px;border-radius:12px;color:var(--st);background:rgba(var(--st-rgb),.18);border:1px solid rgba(var(--st-rgb),.45)}
+.status-ladder__badge svg{display:block;width:100%;height:100%}
+.status-ladder__text{min-width:0}
+.status-ladder__text b{display:block;font:800 15px/1.2 'Space Grotesk',sans-serif;color:var(--st)}
+.status-ladder__text small{display:block;margin-top:2px;font-size:11px;line-height:1.35;color:#A8A2BC}
+.status-ladder__note{font-style:normal;font-size:10.5px;font-weight:700;color:#8F89A3;white-space:nowrap;text-align:right}
+.status-ladder__row.is-current .status-ladder__note{color:var(--st)}
