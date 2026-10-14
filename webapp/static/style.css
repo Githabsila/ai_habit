@@ -14666,3 +14666,12 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .rating-podium-card__stats svg.stat-icon{width:14px !important;height:14px !important;flex:none !important;vertical-align:baseline !important;transform:none !important;display:block !important}
 .rating-podium-card__stats i.stat-icon{width:14px !important;height:14px !important;flex:none !important;font-size:13px !important;line-height:14px !important;font-style:normal;
   display:grid !important;place-items:center;vertical-align:baseline !important;transform:rotate(-6deg) !important}
+
+/* ===== «Квесты дня»: без прокрутки и без полосы справа (14.10) ===== */
+/* Окно было ограничено высотой min(680px, 100vh − 170px): запас в 170px рассчитан на полноэкранный режим, а в обычном режиме
+   Telegram шапка стоит ВНЕ окна приложения — места оставалось на пару сантиметров меньше, чем нужно квестам, «Заданиям месяца» и
+   карточке парного задания, поэтому внутри появлялась прокрутка с полосой. Теперь окно растёт по содержимому (потолок — высота экрана
+   за вычетом шапки Telegram, если она накладывается на окно), а полоса прокрутки скрыта даже на совсем низком экране. */
+.daily-quests-overlay{padding-top:calc(var(--adam-chrome-top, 0px) + 12px);padding-bottom:18px}
+.daily-quests-modal{max-height:calc(100vh - var(--adam-chrome-top, 0px) - 30px) !important;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
+.daily-quests-modal::-webkit-scrollbar{display:none;width:0;height:0}

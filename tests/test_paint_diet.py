@@ -113,4 +113,4 @@ def test_frames_after_a_level_up_are_reported_separately_without_feeding_lite_mo
 
 def test_level_up_celebration_is_lighter_and_assets_are_versioned():
     assert "for (let i = 0; i < 6; i++) {" in APP_JS[APP_JS.index("function burstCoins()"):][:120]
-    assert "style.css?v=20261014_ALIGN_V58" in INDEX and "app.js?v=20261014_ONB_V65" in INDEX
+    assert "style.css?v=20261014_QUESTS_V59" in INDEX and "app.js?v=20261014_ONB_V65" in INDEX
