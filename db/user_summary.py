@@ -125,8 +125,8 @@ def build_dossier(user_id, max_chars=MAX_DOSSIER_CHARS):
             lines.append(f"✗ {m['label']}: нет")
     o = journey["onboarding"]
     skipped = ", ".join("%s(%s)" % (item["name"], item["step"]) for item in o["skips"]) or "нет"
-    lines.append(f"Онбординг: ударный режим {'нажал' if o['streak_ok'] else 'не нажал'}; квиз последний шаг {o['quiz_last_step'] or '—'}; "
-                 f"тур шаг {o['tour_last_step'] or '—'}; пропуски: {skipped}")
+    lines.append(f"Онбординг: ударный режим {'нажал' if o['streak_ok'] else 'не нажал'}; квиз последний шаг {o.get('quiz_last_label') or o['quiz_last_step'] or '—'}; "
+                 f"тур шаг {o.get('tour_last_label') or o['tour_last_step'] or '—'}; пропуски: {skipped}")
     s = journey["sessions"]
     lines.append(f"Сессий: {s['count']}; в приложении всего {s['active_seconds'] // 60} мин, в среднем {s['avg_active_seconds']} с; дней с заходами: {s['days_active']}; "
                  f"вернулся на след. день: {'да' if journey['returns'].get('d1') else 'нет'}, через неделю: {'да' if journey['returns'].get('d7') else 'нет'}")

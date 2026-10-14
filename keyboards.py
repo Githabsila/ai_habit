@@ -190,7 +190,9 @@ def welcome_menu(is_admin=False):
     menu = main_menu(is_admin=is_admin)
     if not WEBAPP_URL:
         return menu
-    open_row = [InlineKeyboardButton(text="🚀 Открыть ADAM", web_app=WebAppInfo(url=WEBAPP_URL))]
+    # ?from=bot_btn — чтобы в аналитике было видно, сколько людей заходят именно с этой кнопки, а не из меню Telegram.
+    url = WEBAPP_URL + ("&" if "?" in WEBAPP_URL else "?") + "from=bot_btn"
+    open_row = [InlineKeyboardButton(text="🚀 Открыть ADAM", web_app=WebAppInfo(url=url))]
     return InlineKeyboardMarkup(inline_keyboard=[open_row] + list(menu.inline_keyboard))
 
 

@@ -39,7 +39,7 @@ def web_url(monkeypatch):
 def test_welcome_menu_puts_the_open_app_button_first_and_keeps_the_rest(web_url):
     markup = keyboards.welcome_menu()
     first = markup.inline_keyboard[0][0]
-    assert first.web_app is not None and first.web_app.url == URL and "Открыть ADAM" in first.text
+    assert first.web_app is not None and first.web_app.url == URL + "?from=bot_btn" and "Открыть ADAM" in first.text
     assert "reminders_menu" in {b.callback_data for b in _buttons(markup)}
     assert "admin" not in {b.callback_data for b in _buttons(markup)}
     assert "admin" in {b.callback_data for b in _buttons(keyboards.welcome_menu(is_admin=True))}
@@ -56,7 +56,7 @@ async def test_the_access_granted_message_leads_into_the_app(uid, web_url):
     await ob.grant_access(bot, uid)
     kwargs = bot.send_message.call_args.kwargs
     assert "Доступ открыт" in kwargs["text"] and "кнопкой ниже" in kwargs["text"]
-    assert kwargs["reply_markup"].inline_keyboard[0][0].web_app.url == URL
+    assert kwargs["reply_markup"].inline_keyboard[0][0].web_app.url == URL + "?from=bot_btn"
 
 
 async def test_the_start_greeting_for_an_approved_person_has_the_open_app_button(uid, web_url):
@@ -69,7 +69,7 @@ async def test_the_start_greeting_for_an_approved_person_has_the_open_app_button
     state = FSMContext(storage=MemoryStorage(), key=StorageKey(bot_id=1, chat_id=uid, user_id=uid))
     await start_handler.start(message, state)
     kwargs = message.answer.call_args.kwargs
-    assert kwargs["reply_markup"].inline_keyboard[0][0].web_app.url == URL
+    assert kwargs["reply_markup"].inline_keyboard[0][0].web_app.url == URL + "?from=bot_btn"
     assert "кнопкой ниже" in message.answer.call_args.args[0]
 
 

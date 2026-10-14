@@ -84,6 +84,33 @@ def ui_label(label):
 
 def screen_label(screen):
     return SCREEN_LABELS.get(screen, screen)
+# Шаги онбординга по порядку — для карточки «Онбординг по шагам» (/analytics → Воронка) и карточки человека.
+# Ключи — то, что приложение шлёт в события: quiz_step (ключ шага квиза из app.js::START_QUIZ_STEPS_ALL) и hint_shown (номер подсказки).
+# Новый шаг в приложении попадёт в учёт сам и покажется под своим ключом с пометкой «без названия»; тест test_onboarding_tracking
+# требует дать ему подпись здесь — как карта функций требует поставить новую кнопку в функцию.
+QUIZ_STEP_LABELS = {
+    "welcome": "Приветствие", "age_range": "Возраст", "goal": "Зачем пришёл",
+    "archetype_q0": "Тест архетипа: вопрос 1", "archetype_q1": "Тест архетипа: вопрос 2", "archetype_q2": "Тест архетипа: вопрос 3",
+    "archetype_q3": "Тест архетипа: вопрос 4", "archetype_result": "Результат архетипа",
+    "testimonials": "Отзывы (шаг убран 14.10)", "firststeps": "Первые шаги", "referral": "Позови друзей", "paywall": "Окно цен (только триал)",
+}
+QUIZ_OPTIONAL_STEPS = ("testimonials", "paywall")          # без данных в списке не показываем
+TOUR_LABELS = {"1": "Это ADAM", "2": "Формируй привычки", "3": "Погнали"}
+HINT_LABELS = {
+    "1": "Добавить первую привычку", "2": "Список привычек", "3": "Главная задача дня", "4": "Второстепенные задачи", "5": "Календарь",
+    "6": "Рейтинг", "7": "Профиль", "8": "ADAM Store", "9": "Прогресс и достижения", "10": "Настройки", "11": "Чат с Адамом",
+}
+# Как человек открыл приложение (?from= в адресе кнопки из бота; у меню Telegram и ссылок параметра нет).
+ENTRY_LABELS = {"": "Меню Telegram или ссылка", "bot_btn": "Кнопка «Открыть ADAM» в сообщении бота"}
+
+
+def quiz_step_label(step):
+    return QUIZ_STEP_LABELS.get(step, step) if step else None
+
+
+def _clean_entry(value):
+    text = str(value or "")
+    return text if re.match(r"^[a-z0-9_]{1,20}$", text) else None
 NAME_RE = re.compile(r"^[a-z][a-z0-9_.-]{1,40}$")
 MAX_EVENTS_PER_REQUEST = 40
 MAX_EVENTS_PER_MINUTE = 200
@@ -188,6 +215,7 @@ def ingest(user_id, session, events, client_now=None, usage=None, version=None):
                 actions = max(0, min(int(session.get("actions") or 0), 100000))
                 last = _clean_actions(session.get("last"))
                 last_action = last[-1]["l"] if last else None
+                entry = _clean_entry(session.get("entry"))
                 inserted = conn.execute(
                     "INSERT OR IGNORE INTO app_sessions(id, user_id, started_at, last_at, platform, tz_offset, version) VALUES (?,?,?,?,?,?,?)",
                     (sid, user_id, _fmt(started), _fmt(now), _short(session.get("platform"), 20), _int_or_none(session.get("tz")), version),
@@ -205,7 +233,7 @@ def ingest(user_id, session, events, client_now=None, usage=None, version=None):
                     conn.execute(
                         "INSERT INTO user_events(user_id, at, name, session_id, surface, meta) VALUES (?,?,?,?,?,?)",
                         (user_id, _fmt(started), "session_start", sid, "app",
-                         json.dumps({"platform": _short(session.get("platform"), 20)}, ensure_ascii=False)),
+                         json.dumps({"platform": _short(session.get("platform"), 20), **({"entry": entry} if entry else {})}, ensure_ascii=False)),
                     )
             recent = conn.execute(
                 "SELECT COUNT(*) AS n FROM user_events WHERE user_id=? AND at>=?", (user_id, _fmt(now - timedelta(minutes=1)))
@@ -357,8 +385,10 @@ def journey(user_id):
             "streak_seen": bool(event_first("onb_streak_shown")), "streak_ok": bool(event_first("onb_streak_ok")),
             "quiz_seen": bool(user["start_quiz_seen"]) if "start_quiz_seen" in keys else False,
             "quiz_last_step": quiz_steps[-1] if quiz_steps else None, "quiz_steps": len(set(quiz_steps)),
+            "quiz_last_label": quiz_step_label(quiz_steps[-1]) if quiz_steps else None,
             "tour_seen": bool(user["app_tour_seen"]) if "app_tour_seen" in keys else False,
             "tour_last_step": tour_steps[-1] if tour_steps else None,
+            "tour_last_label": TOUR_LABELS.get(tour_steps[-1]) if tour_steps else None,
             "skips": skips,
         }
 
@@ -518,6 +548,82 @@ def _collect_marks(conn, where, params):
     return users, ids, marks
 
 
+
+def onboarding_steps(conn, base_ids):
+    """Онбординг по шагам для людей base_ids (открывали приложение): сколько человек дошло до каждого шага и сколько ушло именно здесь.
+    Порядок — как в приложении: квиз → тур → экран @ника → окно про ударный режим → подсказки. «Ушли после шага» считается только там,
+    где шаги идут строго друг за другом (квиз, тур, ник, ударный режим); подсказки идут параллельно — у них только охват."""
+    if not base_ids:
+        return []
+    marks = ",".join("?" for _ in base_ids)
+    seen = {}
+    for r in conn.execute(
+        f"SELECT name, COALESCE(step,'') AS step, COUNT(DISTINCT user_id) AS u FROM user_events WHERE user_id IN ({marks}) "
+        "AND name IN ('quiz_start','quiz_step','quiz_done','tour_start','tour_step','tour_done','handle_intro_shown','handle_intro_done',"
+        "'onb_streak_shown','onb_streak_ok','hint_shown') GROUP BY name, step", base_ids,
+    ).fetchall():
+        seen[(r["name"], r["step"])] = r["u"]
+    total = len(base_ids)
+
+    def users_of(name, step=""):
+        return seen.get((name, step), 0)
+
+    def extras(name, known):
+        return sorted({step for (n, step) in seen if n == name and step and step not in known})
+
+    def row(key, label, users, unnamed=False):
+        return {"key": key, "label": label, "users": users, "pct": round(100 * users / total, 1), "left": None, "unnamed": unnamed}
+
+    def sequential(rows):
+        for index, item in enumerate(rows[:-1]):
+            item["left"] = max(0, item["users"] - rows[index + 1]["users"])
+        return rows
+
+    quiz = []
+    for step, label in QUIZ_STEP_LABELS.items():
+        if step in QUIZ_OPTIONAL_STEPS and not users_of("quiz_step", step):
+            continue
+        quiz.append(row(step, label, users_of("quiz_step", step)))
+    quiz += [row(step, step, users_of("quiz_step", step), unnamed=True) for step in extras("quiz_step", QUIZ_STEP_LABELS)]
+    quiz.append(row("quiz_done", "Закончили квиз", users_of("quiz_done")))
+
+    tour = [row("tour:" + step, label, users_of("tour_start") if step == "1" else users_of("tour_step", step)) for step, label in TOUR_LABELS.items()]
+    tour.append(row("tour_done", "Закончили тур", users_of("tour_done")))
+
+    hints = [row("hint:" + step, label, users_of("hint_shown", step)) for step, label in HINT_LABELS.items()]
+    hints += [row("hint:" + step, "Подсказка " + step, users_of("hint_shown", step), unnamed=True) for step in extras("hint_shown", HINT_LABELS)]
+
+    return [
+        {"id": "quiz", "title": "Стартовый квиз", "rows": sequential(quiz)},
+        {"id": "tour", "title": "Вводный тур", "rows": sequential(tour)},
+        {"id": "nick", "title": "Экран @ника", "rows": sequential([
+            row("handle_intro_shown", "Увидели экран с @ником", users_of("handle_intro_shown")),
+            row("handle_intro_done", "Нажали «Продолжить»", users_of("handle_intro_done"))])},
+        {"id": "streak", "title": "Окно «Не дай серии погаснуть»", "rows": sequential([
+            row("onb_streak_shown", "Увидели окно", users_of("onb_streak_shown")),
+            row("onb_streak_ok", "Нажали «Я в игре»", users_of("onb_streak_ok"))])},
+        {"id": "hints", "title": "Подсказки в приложении", "rows": hints},
+    ]
+
+
+def entry_sources(conn, ids):
+    """Как люди открывают приложение: по полю entry у события session_start (кнопка из бота — «bot_btn», остальное — меню Telegram или ссылка)."""
+    if not ids:
+        return []
+    marks = ",".join("?" for _ in ids)
+    found = {}
+    for r in conn.execute(f"SELECT user_id, meta FROM user_events WHERE user_id IN ({marks}) AND name='session_start'", ids).fetchall():
+        try:
+            entry = str((json.loads(r["meta"]) if r["meta"] else {}).get("entry") or "")
+        except (TypeError, ValueError, AttributeError):
+            entry = ""
+        slot = found.setdefault(entry, {"sessions": 0, "users": set()})
+        slot["sessions"] += 1
+        slot["users"].add(r["user_id"])
+    return [{"entry": entry, "label": ENTRY_LABELS.get(entry, entry or ENTRY_LABELS[""]), "sessions": slot["sessions"], "users": len(slot["users"])}
+            for entry, slot in sorted(found.items(), key=lambda kv: -kv[1]["sessions"])]
+
+
 def funnel(days=14, source=None):
     """Воронка когорты (зарегистрировались за N дней, без админов): сколько дошло до каждого шага, медиана минут от регистрации и
     на каком шаге застревают («не дошли до …»). source — код канала, 'none' — без канала."""
@@ -526,7 +632,7 @@ def funnel(days=14, source=None):
     try:
         users, ids, marks = _collect_marks(conn, where, params)
         if not ids:
-            return {"days": days, "source": source, "total": 0, "steps": [], "stuck": [], "skips": [], "exits": []}
+            return {"days": days, "source": source, "total": 0, "steps": [], "stuck": [], "skips": [], "exits": [], "onboarding": [], "entries": []}
         marks_in = ",".join("?" for _ in ids)
         skips = [{"name": r["name"], "step": r["step"], "events": r["c"], "users": r["u"]} for r in conn.execute(
             f"SELECT name, step, COUNT(*) AS c, COUNT(DISTINCT user_id) AS u FROM user_events WHERE user_id IN ({marks_in}) "
@@ -534,6 +640,9 @@ def funnel(days=14, source=None):
         exits = [{"label": ui_label(r["last_action"]), "screen": screen_label(r["last_screen"]) if r["last_screen"] else None, "count": r["n"]} for r in conn.execute(
             f"SELECT last_action, last_screen, COUNT(*) AS n FROM app_sessions WHERE user_id IN ({marks_in}) AND last_action IS NOT NULL "
             "GROUP BY last_action, last_screen ORDER BY n DESC LIMIT 10", ids).fetchall()]
+        opened_ids = [uid for uid in ids if marks["opened"].get(uid)]
+        onboarding = onboarding_steps(conn, opened_ids)
+        entries = entry_sources(conn, opened_ids)
     finally:
         conn.close()
 
@@ -560,5 +669,6 @@ def funnel(days=14, source=None):
                 break
     return {
         "days": days, "source": source, "total": total, "steps": steps, "skips": skips, "exits": exits,
+        "onboarding": onboarding, "entries": entries, "onboarding_base": len(opened_ids),
         "stuck": [{"key": key, "label": f"Не дошли до: {labels[key].lower()}", "count": stuck[key]} for key in CORE_PATH if key in stuck],
     }

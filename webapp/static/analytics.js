@@ -416,6 +416,29 @@
 
   // ---------------------------------------------------------------------------------------------------------------- воронка
   const SKIP_NAMES = { tour_skip: "Пропустили вводный тур", hint_skip: "Пропустили подсказки" };
+  // Онбординг по шагам: сколько людей дошло до каждого шага и сколько ушло именно на нём. Шаги и подписи приходят с сервера
+  // (db/tracking.py::onboarding_steps): новый шаг в приложении появляется здесь сам, пока ему не дали название — под своим ключом.
+  function onboardingCards(f) {
+    if (!f.onboarding || !f.onboarding.length) return "";
+    const base = f.onboarding_base || 0;
+    const rowsHtml = (g) => g.rows.map((s) => {
+      const w = Math.max(s.users ? 2 : 0, s.pct);
+      const meta = [s.left ? "ушли здесь: " + num(s.left) : null, s.unnamed ? "без названия — добавьте подпись" : null].filter(Boolean).join(" · ");
+      return `<div class="hrow" data-tip="${esc(s.label + "\n" + num(s.users) + " из " + num(base) + " (" + pct(s.pct) + ")" + (meta ? "\n" + meta : ""))}">` +
+        `<div class="lbl">${esc(s.label)}${meta ? `<div class="muted" style="font-weight:500;font-size:10.5px">${esc(meta)}</div>` : ""}</div>` +
+        `<div class="bar"><i style="width:${w}%;background:${ramp(0.8)}"></i></div><div class="val"><b style="color:#fff">${num(s.users)}</b> · ${pct(s.pct, 0)}</div></div>`;
+    }).join("");
+    const chart = f.onboarding.map((g) => `<div class="card-title" style="margin:14px 0 4px;font-size:12px;color:var(--text-2)">${esc(g.title)}</div>${rowsHtml(g)}`).join("");
+    const table = simpleTable(["Блок", "Шаг", "Человек", "Доля", "Ушли здесь"],
+      f.onboarding.flatMap((g) => g.rows.map((s) => [g.title, s.label, s.users, pct(s.pct), s.left == null ? "—" : s.left])));
+    const entries = f.entries && f.entries.length
+      ? f.entries.map((x) => `<div class="hrow" style="grid-template-columns:1fr auto"><div class="lbl">${esc(x.label)}</div><div class="val">${num(x.users)} чел. · ${num(x.sessions)} входов</div></div>`).join("")
+      : '<div class="empty">Пока нет данных о входах.</div>';
+    return vizCard("Онбординг по шагам", `Среди ${num(base)} человек, открывших приложение. «Ушли здесь» — были на шаге и не дошли до следующего`, chart, table) +
+      `<div class="card"><div class="card-head"><div class="grow"><div class="card-title">Как открывают приложение</div>` +
+      `<div class="card-sub">Кнопка в сообщении бота против меню Telegram. Считается с 14.10 — раньше источник входа не записывался</div></div></div>${entries}</div>`;
+  }
+
   async function renderFunnel() {
     const f = await get("/api/analytics/funnel?" + query());
     if (!f.total) return '<div class="card"><div class="empty">За этот период новых людей нет.</div></div>';
@@ -431,7 +454,9 @@
     const stuck = f.stuck.length ? f.stuck.map((x) => `<div class="hrow" style="grid-template-columns:1fr auto"><div class="lbl">${esc(x.label)}</div><div class="val"><b style="color:#fff">${num(x.count)}</b> чел.</div></div>`).join("") : '<div class="empty">Все дошли до конца основного пути.</div>';
     const skips = f.skips.length ? f.skips.map((x) => `<div class="hrow" style="grid-template-columns:1fr auto"><div class="lbl">${esc(SKIP_NAMES[x.name] || x.name)}${x.step ? ` <span class="muted">· шаг ${esc(x.step)}</span>` : ""}</div><div class="val">${num(x.users)} чел.</div></div>`).join("") : '<div class="empty">Пропусков нет.</div>';
     const exits = f.exits.length ? f.exits.map((x) => `<div class="hrow" style="grid-template-columns:1fr auto"><div class="lbl">${esc(x.label)}${x.screen ? ` <span class="muted">· ${esc(x.screen)}</span>` : ""}</div><div class="val">×${num(x.count)}</div></div>`).join("") : '<div class="empty">Пока нет данных о выходах.</div>';
+    const onboarding = onboardingCards(f);
     return `<div class="card"><div class="card-head"><div class="grow"><div class="card-title">Воронка новых людей</div><div class="card-sub">${num(f.total)} человек пришли за ${f.days} дн. Шаги после «Отметили привычку» идут параллельно, а не друг за другом</div></div></div>${rows}</div>` +
+      onboarding +
       `<div class="card"><div class="card-head"><div class="grow"><div class="card-title">Где застревают</div><div class="card-sub">Первый шаг основного пути, до которого человек не дошёл</div></div></div>${stuck}</div>` +
       `<div class="grid g2"><div class="card"><div class="card-title" style="margin-bottom:10px">Что пропускают</div>${skips}</div><div class="card"><div class="card-title" style="margin-bottom:10px">После чего выходят</div>${exits}</div></div>`;
   }

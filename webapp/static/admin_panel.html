@@ -1209,8 +1209,8 @@ textarea.field{resize:vertical;min-height:88px}
       }).join('');
       var onb = [];
       onb.push('Анкета/онбординг: ударный режим ' + (o.streak_ok ? '✓' : (o.streak_seen ? 'увидел, не нажал' : '—')));
-      onb.push('квиз ' + (o.quiz_seen ? '✓' : (o.quiz_last_step ? 'остановился на «' + escapeHtml(o.quiz_last_step) + '»' : '—')) + (o.quiz_steps ? ' (шагов: ' + o.quiz_steps + ')' : ''));
-      onb.push('тур ' + (o.tour_seen ? '✓' : (o.tour_last_step ? 'шаг ' + escapeHtml(o.tour_last_step) : '—')));
+      onb.push('квиз ' + (o.quiz_seen ? '✓' : (o.quiz_last_step ? 'остановился на «' + escapeHtml(o.quiz_last_label || o.quiz_last_step) + '»' : '—')) + (o.quiz_steps ? ' (шагов: ' + o.quiz_steps + ')' : ''));
+      onb.push('тур ' + (o.tour_seen ? '✓' : (o.tour_last_step ? 'экран «' + escapeHtml(o.tour_last_label || o.tour_last_step) + '»' : '—')));
       onb.push('подсказки: этап ' + (o.stage || 0));
       var skips = (o.skips || []).map(function(x){ return (x.name === 'tour_skip' ? 'пропустил тур' : 'пропустил подсказки') + ' (шаг ' + escapeHtml(x.step || '?') + ', ' + fmtDate(x.at) + ')'; });
       var last = s.last;

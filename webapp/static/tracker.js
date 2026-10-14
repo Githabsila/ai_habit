@@ -57,6 +57,14 @@
     try { return String((tg && tg.platform) || "web").slice(0, 20); } catch (e) { return "web"; }
   }
 
+  // Как открыли приложение: у кнопки «Открыть ADAM» из сообщения бота в адресе стоит ?from=bot_btn (у меню Telegram параметра нет).
+  function entry() {
+    try {
+      var m = /[?&]from=([a-z0-9_]{1,20})(?:&|$)/.exec(location.search || "");
+      return m ? m[1] : "";
+    } catch (e) { return ""; }
+  }
+
   function tzOffset() {
     try { return -new Date().getTimezoneOffset(); } catch (e) { return 0; }
   }
@@ -138,7 +146,7 @@
       v: version(),
       session: {
         sid: session.sid, started: session.started, active: session.active, actions: session.actions,
-        last: session.last, screen: session.screen, hidden: !!final, platform: platform(), tz: tzOffset()
+        last: session.last, screen: session.screen, hidden: !!final, platform: platform(), tz: tzOffset(), entry: entry()
       },
       events: queue.splice(0, queue.length),
       usage: takeUsage()
