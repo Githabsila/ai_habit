@@ -14656,3 +14656,13 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 
 /* ===== Онбординг: приветствие в начале квиза ===== */
 .start-quiz-welcome__lead{margin:0 0 18px;color:#B8B4C8;font-size:14.5px;line-height:1.55}
+
+/* ===== Подиум рейтинга: огонь серии и монета на одной линии (14.10) ===== */
+/* Раньше обе иконки были 18×18 из общего мобильного правила, но эмодзи 🔥 (12px) стоял в верхней части своей коробки, а монета — по центру:
+   огонь и цифра серии торчали выше монеты и её цифры. Монета к тому же наследовала наклон -6° (он нужен только «завалившемуся» эмодзи) —
+   буква A «падала» влево. Теперь обе иконки — коробки 14×14, у каждой пары иконка+число свой центр, пары стоят на одной линии. */
+.rating-podium-card__stats{align-items:center !important;gap:12px !important}
+.rating-podium-card__stats > span{display:inline-flex !important;align-items:center !important;gap:4px !important;line-height:1 !important}
+.rating-podium-card__stats svg.stat-icon{width:14px !important;height:14px !important;flex:none !important;vertical-align:baseline !important;transform:none !important;display:block !important}
+.rating-podium-card__stats i.stat-icon{width:14px !important;height:14px !important;flex:none !important;font-size:13px !important;line-height:14px !important;font-style:normal;
+  display:grid !important;place-items:center;vertical-align:baseline !important;transform:rotate(-6deg) !important}
