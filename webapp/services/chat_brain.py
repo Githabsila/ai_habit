@@ -222,7 +222,9 @@ def situation_lines(state, pair_lines=(), back_days=0):
         lines.append("Время уже прошло, а привычка не выполнена: " + ", ".join(f"«{t}» ({_hhmm(m)})" for m, t in sorted(overdue)[:3]))
     if upcoming:
         minute, title = min(upcoming)
-        lines.append(f"Ближайшая по времени привычка: «{title}» в {_hhmm(minute)}")
+        others = [name for name in state["pending_habits"] if name != title]
+        tail = " (это не единственная привычка на сегодня: остальные из списка тоже актуальны)" if others else ""
+        lines.append(f"Ближайшая по времени привычка: «{title}» в {_hhmm(minute)}{tail}")
     if state.get("main_goal") and state.get("main_open"):
         age = state.get("main_age_min") or 0
         lines.append(f"Главная задача дня «{state['main_goal']}» ещё не выполнена" + (f" (план составлен около {int(age // 60)} ч назад)" if age >= 120 else ""))

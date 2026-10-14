@@ -10,6 +10,7 @@ from webapp.services.ai_utils import (
     build_history_text,
     build_user_context,
     _cache_key,
+    context_fingerprint,
 )
 
 # ❌ УДАЛИТЕ эти строки — они создают циклическую зависимость
@@ -62,9 +63,7 @@ async def chat(user_id: int, message: str, first_message: bool = False):
     # прийти позже, когда серия уже изменилась. Поэтому включаем отпечаток
     # актуального контекста в ключ кэша. Это также сохраняет изоляцию разных
     # пользователей.
-    import hashlib
-    context_fingerprint = hashlib.sha256(base_context.encode("utf-8")).hexdigest()[:16]
-    cache_key = f"{user_id}:{_cache_key(message, style)}:{context_fingerprint}"
+    cache_key = f"{user_id}:{_cache_key(message, style)}:{context_fingerprint(base_context)}"
     cached = cache_get(cache_key)
 
     if cached is not None:

@@ -57,6 +57,7 @@ from webapp.services.ai_utils import (
     build_user_context,
     build_proactive_context,
     _cache_key,
+    context_fingerprint,
 )
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
 from db.ai_nudge import begin_ai_greeting, finish_ai_greeting, pick_greeting
@@ -323,6 +324,7 @@ async def _answer_chat_inner(user_id: int, pro: bool, message_text: str):
     # Собирем контекст
     history_text = build_history_text(user_id, limit=6, max_chars_per_msg=180, last_assistant_chars=1200)
     user_context = build_user_context(user_id)
+    base_context = user_context           # отпечаток для кэша — до «снимка ситуации» (в нём время с минутами)
     style = get_ai_style(user_id)
 
     # Ситуация человека и тип сообщения (webapp/services/chat_brain.py): история дней, время суток, парное задание, «устал»,
@@ -342,7 +344,9 @@ async def _answer_chat_inner(user_id: int, pro: bool, message_text: str):
     # Проверяем кэш (ключ включает user_id — иначе разные пользователи с
     # одинаковым текстом вопроса получали бы чужой закэшированный ответ,
     # посчитанный по чужим привычкам/плану дня)
-    cache_key = f"{user_id}:{_cache_key(message_text, style)}"
+    # + отпечаток данных человека (привычки, план, серия): кэш на 12 часов без него отдавал ответ, данный до того, как человек
+    # добавил привычку или поменял план (так Адам «не видел» новую привычку) — в боте это уже было сделано (ai_service.chat).
+    cache_key = f"{user_id}:{_cache_key(message_text, style)}:{context_fingerprint(base_context)}"
     cached_answer = cache_get(cache_key)
 
     if cached_answer is not None:

@@ -1,4 +1,5 @@
 import hashlib
+import re
 
 from db import (
     get_ai_history,
@@ -90,6 +91,11 @@ def build_user_context(user_id: int, max_chars: int = 2800) -> str:
             planned = habit["planned_time"] if "planned_time" in habit.keys() else None
             timing = f" — время: {planned}" if planned else ""
             lines.append(f"• {habit['title']} — {status}{timing}")
+        # Явный счёт: модель не должна принять «привычки со временем» за все привычки (так ответ «у тебя одна привычка» получался,
+        # когда вторая была без времени).
+        done_count = sum(1 for habit in habits if habit["completed"])
+        lines.append(f"Всего привычек: {len(habits)} (выполнено {done_count}, не выполнено {len(habits) - done_count}). "
+                     "Называя привычки или их число, учитывай ВСЕ из этого списка, в том числе без времени")
     else:
         lines.append("")
         lines.append("Привычек пока не добавлено.")
@@ -159,6 +165,20 @@ def build_user_context(user_id: int, max_chars: int = 2800) -> str:
         lines.append(proactive)
 
     return "\n".join(lines)
+
+
+def context_fingerprint(base_context: str) -> str:
+    """Отпечаток данных человека (привычки, план, серия, цели…) для ключа кэша ответов Адама.
+
+    Кэш живёт 12 часов: без отпечатка ответ, данный когда привычка была одна, возвращался бы на тот же вопрос и после того, как
+    человек добавил вторую («сколько у меня привычек?» → «одна»). Минуты в «Текущее локальное время» не берём — только час: иначе
+    отпечаток менялся бы каждую минуту, а ответ про «что делать сейчас» вечером не должен приходить из утреннего кэша."""
+    lines = []
+    for line in str(base_context or "").splitlines():
+        if line.startswith("Текущее локальное время"):
+            line = re.sub(r"(\d{1,2}):\d{2}", r"\1", line)
+        lines.append(line)
+    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:16]
 
 
 def _cache_key(text: str, style: str) -> str:
