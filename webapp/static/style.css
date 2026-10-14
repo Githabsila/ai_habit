@@ -14653,3 +14653,6 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .player-card__admin-btn svg{width:15px !important;height:15px !important}
 .player-card.has-admin-btn .player-card__name{padding-right:0 !important}
 .player-card.has-admin-btn .xp-bar,.player-card.has-admin-btn .xp-bar__label{margin-right:40px}
+
+/* ===== Онбординг: приветствие в начале квиза ===== */
+.start-quiz-welcome__lead{margin:0 0 18px;color:#B8B4C8;font-size:14.5px;line-height:1.55}

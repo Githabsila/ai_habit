@@ -1,4 +1,6 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+
+from config import WEBAPP_URL
 
 
 # =====================================
@@ -176,6 +178,20 @@ def main_menu(is_admin=False):
         ])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def welcome_menu(is_admin=False):
+    """Главное меню + первой строкой кнопка «Открыть ADAM» (Mini App).
+
+    Для сообщений, после которых человеку надо попасть в приложение: «доступ открыт» и приветствие /start.
+    Раньше под ними была только кнопка «Умные напоминания», а вход в приложение — маленькая кнопка меню Telegram
+    слева от поля ввода, которую новичок не замечает. Без WEBAPP_URL (локальный запуск) — обычное меню."""
+
+    menu = main_menu(is_admin=is_admin)
+    if not WEBAPP_URL:
+        return menu
+    open_row = [InlineKeyboardButton(text="🚀 Открыть ADAM", web_app=WebAppInfo(url=WEBAPP_URL))]
+    return InlineKeyboardMarkup(inline_keyboard=[open_row] + list(menu.inline_keyboard))
 
 
 # =====================================

@@ -6,7 +6,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from config import ADMIN_IDS
-from keyboards import main_menu
+from keyboards import welcome_menu
 
 from db import (
     add_user,
@@ -177,7 +177,7 @@ async def start(message: Message, state: FSMContext):
 - 📈 Отслеживать прогресс
 - 👥 Искать единомышленников
 
-Выберите раздел 👇
+Всё это — в приложении. Откройте его кнопкой ниже 👇
         """,
-        reply_markup=main_menu(is_admin=message.from_user.id in ADMIN_IDS)
+        reply_markup=welcome_menu(is_admin=message.from_user.id in ADMIN_IDS)
     )

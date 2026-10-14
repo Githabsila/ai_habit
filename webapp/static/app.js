@@ -1690,6 +1690,8 @@
   // выключен, просьба пользователя — сначала UI, включать биллинг будем
   // отдельно и осознанно).
   const START_QUIZ_STEPS_ALL = [
+    // Первый экран квиза раньше был вопросом «Сколько тебе лет?» — без единого слова о том, что это за приложение и зачем вопросы.
+    { type: "welcome", title: "Привет!" },
     {
       type: "choice",
       key: "age_range",
@@ -1721,7 +1723,7 @@
       options: q.options,
     })),
     { type: "archetype_result", title: "Твой архетип" },
-    { type: "testimonials", title: "С ADAM уже не одни" },
+    { type: "firststeps", title: "Первые шаги" },
     { type: "referral", title: "Позови друзей — бонус обоим" },
     { type: "paywall", title: "ADAM после пробного периода" },
   ];
@@ -1761,24 +1763,47 @@
     if (continueBtn) continueBtn.disabled = !selected;
   }
 
-  // Иллюстративные примеры — намеренно без фото/фамилий реальных людей и
-  // без выдуманной привязки к внешним магазинам приложений (у Mini App его
-  // просто нет) — это была бы дезинформация.
-  function renderStartQuizTestimonialsStep(options) {
-    const items = [
-      ["🔥", "Настя", "Первый раз в жизни держу серию больше двух недель подряд."],
-      ["💪", "Игорь", "ИИ-наставник реально спрашивает, как дела — не просто галочки в чек-листе."],
-      ["🌱", "Марина", "Начала с одной привычки. Через месяц — уже три, и не бросила."],
-    ];
-    if (!options) return;
-    options.innerHTML = `<div class="start-quiz-testimonials">${items.map(([emoji, name, text]) => `
+  // Карточки шагов (аватар-значок + заголовок + текст) — одна разметка на приветствие и «первые шаги».
+  function startQuizCardsHtml(items) {
+    return `<div class="start-quiz-testimonials">${items.map(([icon, name, body]) => `
       <div class="start-quiz-testimonial">
-        <div class="start-quiz-testimonial__avatar">${emoji}</div>
+        <div class="start-quiz-testimonial__avatar">${icon}</div>
         <div class="start-quiz-testimonial__body">
           <div class="start-quiz-testimonial__name">${escapeHtml(name)}</div>
-          <div class="start-quiz-testimonial__text">${escapeHtml(text)}</div>
+          <div class="start-quiz-testimonial__text">${escapeHtml(body)}</div>
         </div>
       </div>`).join("")}</div>`;
+  }
+
+  function startQuizWelcomeTitle() {
+    const name = String(state?.user?.first_name || "").trim();
+    return name ? `Привет, ${name}!` : "Привет!";
+  }
+
+  // Приветствие: что это за приложение и зачем дальше вопросы. Только то, что в ADAM есть на самом деле.
+  function renderStartQuizWelcomeStep(options) {
+    if (!options) return;
+    options.innerHTML = `
+      <p class="start-quiz-welcome__lead">Это ADAM — приложение, где привычки и задачи на день собраны в одном месте. Несколько коротких вопросов — и я подстрою его под тебя.</p>
+      ${startQuizCardsHtml([
+        ["✅", "Привычки и задачи дня", "Отмечаются одним нажатием — всё главное на одном экране."],
+        ["🔥", "Серия и статусы", "Чем дольше серия, тем выше статус и ярче рамка."],
+        [UI_SPARK, "Адам в чате", "ИИ-наставник подскажет, как спланировать день и не сорваться."],
+      ])}`;
+  }
+
+  // Шаг вместо прежних «отзывов» Насти, Игоря и Марины: это были придуманные люди, а продукт ещё никому не показывали.
+  // Теперь — что человек сделает дальше: ровно та последовательность, которую потом ведут подсказки в приложении.
+  function renderStartQuizFirstStepsStep(options) {
+    if (!options) return;
+    const hasHabit = (state?.habits || []).length > 0;
+    options.innerHTML = startQuizCardsHtml([
+      hasHabit
+        ? ["🎯", "Первая привычка уже в списке", "Её можно оставить или заменить своей — как удобнее."]
+        : ["🎯", "Добавь первую привычку", "Одну, самую простую: выбери готовую или напиши свою."],
+      ["✅", "Отметь её сегодня", "Первая отметка запускает серию и приносит первые монеты."],
+      [UI_SPARK, "Загляни к Адаму", "Расскажи, чего хочешь добиться, — он подскажет план."],
+    ]);
   }
 
   // Ссылка и механика — те же, что уже реально начисляют XP в
@@ -1939,16 +1964,19 @@
     const back = document.getElementById("startQuizBack");
     const fill = document.getElementById("startQuizProgressFill");
     const continueBtn = document.getElementById("startQuizContinue");
-    if (title) title.textContent = step.title;
+    if (title) title.textContent = step.type === "welcome" ? startQuizWelcomeTitle() : step.title;
     trk("quiz_step", step.key || step.type, { i: startQuizStep + 1, of: START_QUIZ_STEPS.length });
     if (back) back.hidden = startQuizStep === 0;
     if (fill) fill.style.width = `${((startQuizStep + 1) / START_QUIZ_STEPS.length) * 100}%`;
-    if (continueBtn) continueBtn.textContent = startQuizStep === START_QUIZ_STEPS.length - 1 ? "Начать" : "Далее";
+    if (continueBtn) {
+      continueBtn.textContent = step.type === "welcome" ? "Поехали" : (startQuizStep === START_QUIZ_STEPS.length - 1 ? "Начать" : "Далее");
+    }
     if (step.type === "choice") {
       renderStartQuizChoiceStep(step, options, continueBtn);
     } else {
       if (step.type === "archetype_result") renderStartQuizArchetypeResultStep(options);
-      else if (step.type === "testimonials") renderStartQuizTestimonialsStep(options);
+      else if (step.type === "welcome") renderStartQuizWelcomeStep(options);
+      else if (step.type === "firststeps") renderStartQuizFirstStepsStep(options);
       else if (step.type === "referral") renderStartQuizReferralStep(options);
       else if (step.type === "paywall") renderStartQuizPaywallStep(options);
       if (continueBtn) continueBtn.disabled = false;
@@ -2227,7 +2255,7 @@
   // находится кнопка).
   const PRODUCT_ONBOARDING_STEPS = {
     1: { target: '#addHabitTrigger', title: 'Начни с одной привычки', text: 'Нажми сюда, чтобы добавить первую.', icon: '🎯' },
-    2: { target: '.habits-panel', title: 'Твои привычки', text: 'Список появится здесь — нажимай на привычку, чтобы отметить её выполненной сегодня.', icon: '✅' },
+    2: { target: '.habits-panel', title: 'Твои привычки', text: 'Нажимай на привычку, чтобы отметить её выполненной сегодня — так запускается серия.', icon: '✅' },
     // target — один селектор или список запасных: берётся первый видимый. Главное
     // дело могло быть уже заполнено (редактор скрыт, виден #mainGoalView), а кнопка
     // «Добавить задачу» — заменена раскрытой формой; без запасных целей шаг молча
@@ -2802,22 +2830,33 @@
   // (см. onOnboardingHabitCreated/onOnboardingMainGoalSaved ниже), не то,
   // ради чего стоит прерывать человека при каждой перезагрузке страницы.
   function scheduleProductOnboarding() {
-    if (!state?.show_app_tour) return;
+    if (!state?.show_app_tour) { maybeShowStreakOnboarding(); return; }
     api('/api/onboarding/start', { method: 'POST' }).catch(() => {});
     productOnboardingTimers.forEach(clearTimeout);
     productOnboardingTimers = [];
-    if (onboardingReplayPending) {
-      onboardingReplayPending = false;
-      productOnboardingTimers.push(setTimeout(() => showProductHint(1), 700));
-      return;
-    }
-    const hasHabits = (state?.habits || []).length > 0;
-    const hasMainGoal = !!state?.daily_plan?.main_goal;
-    if (!hasHabits) {
-      productOnboardingTimers.push(setTimeout(() => showProductHint(1), 700));
-    } else if (!hasMainGoal) {
-      productOnboardingTimers.push(setTimeout(() => showProductHint(3), 700));
-    }
+    const startHints = () => {
+      if (!state?.show_app_tour) return;
+      if (onboardingReplayPending) {
+        onboardingReplayPending = false;
+        productOnboardingTimers.push(setTimeout(() => showProductHint(1), 700));
+        return;
+      }
+      const hasHabits = (state?.habits || []).length > 0;
+      const hasMainGoal = !!state?.daily_plan?.main_goal;
+      const reachedStage = state?.product_onboarding?.onboarding_stage || 0;
+      if (!hasHabits) {
+        productOnboardingTimers.push(setTimeout(() => showProductHint(1), 700));
+      } else if (reachedStage < 2) {
+        // Первая привычка уже в списке (её подобрал бот при выдаче доступа): сначала показываем, как её отметить, — это главное
+        // действие первого дня. Раньше человек сразу попадал на «Шаг 3 из 11» про главное дело, не увидев шагов 1 и 2.
+        productOnboardingTimers.push(setTimeout(() => showProductHint(2), 700));
+      } else if (!hasMainGoal) {
+        productOnboardingTimers.push(setTimeout(() => showProductHint(3), 700));
+      }
+    };
+    // Вводная часть закончилась — сначала окно про ударный режим (если оно ещё не показано), потом подсказки.
+    if (maybeShowStreakOnboarding({ chain: true, then: startHints })) return;
+    startHints();
   }
 
   // Вызывается из обработчика создания привычки (app.js::addHabitForm) —
@@ -3138,16 +3177,37 @@
     });
   }
 
-  function maybeShowStreakOnboarding() {
+  // «Не дай серии погаснуть» — часть вводной цепочки: квиз → тур → ник → это окно → подсказки в приложении.
+  // Раньше оно открывалось сразу при загрузке и ложилось поверх квиза (человек с первой привычкой от бота видел два окна разом),
+  // а после создания первой привычки одновременно с ним открывалась подсказка «Твои привычки».
+  let afterStreakOnboarding = null;
+
+  function streakOnboardingDue() {
     const data = state?.streak_onboarding;
-    if (!data?.show || !data.message) return;
+    return !!(data?.show && data.message);
+  }
+
+  // Квиз, тур и экран ника ещё на экране или впереди — окно встаёт в конце цепочки (scheduleProductOnboarding), а не поверх.
+  function introChainPending() {
+    return !!(state?.show_start_quiz || state?.show_app_tour || state?.show_handle_intro);
+  }
+
+  // chain: вызов из самой цепочки (она сама решает, когда пора). then — что сделать после закрытия окна (например, показать подсказки).
+  // Возвращает true, если окно открыто (или уже было открыто): тогда продолжение выполнит его закрытие.
+  function maybeShowStreakOnboarding({ chain = false, then = null } = {}) {
+    if (!streakOnboardingDue()) return false;
+    if (!chain && introChainPending()) return false;
     const overlay = document.getElementById("streakOnboardingOverlay");
     const coach = document.getElementById("streakOnboardingCoach");
-    if (!overlay) return;
-    if (coach) coach.textContent = `🤖 Адам: ${data.message}`;
+    if (!overlay) return false;
+    if (then) afterStreakOnboarding = then;
+    if (!overlay.hidden && overlay.classList.contains("show")) return true;
+    hideProductHint();   // подсказка шага 1 осталась бы под окном, пока человек его читает
+    if (coach) coach.textContent = `🤖 Адам: ${state.streak_onboarding.message}`;
     overlay.hidden = false;
     overlay.classList.add("show");
     trk("onb_streak_shown");
+    return true;
   }
 
   function closeStreakOnboarding() {
@@ -3155,8 +3215,13 @@
     if (!overlay) return;
     overlay.classList.remove("show");
     setTimeout(() => { overlay.hidden = true; }, 300);
+    // Иначе любая перерисовка до ответа сервера открыла бы окно снова.
+    if (state?.streak_onboarding) state.streak_onboarding.show = false;
     trk("onb_streak_ok");
     api("/api/streak/onboarding/seen", {method: "POST"}).catch(() => {});
+    const next = afterStreakOnboarding;
+    afterStreakOnboarding = null;
+    if (next) setTimeout(next, 380);
   }
 
   async function maybeShowWeeklyBonus() {
@@ -5364,8 +5429,7 @@ function initHabitActions() {
       }
 
       if (result.first_habit) {
-        maybeShowStreakOnboarding();
-        onOnboardingHabitCreated();
+        if (!maybeShowStreakOnboarding({ chain: true, then: onOnboardingHabitCreated })) onOnboardingHabitCreated();
       }
     } catch (err) {
       showToast(friendlyError(err), "error");
