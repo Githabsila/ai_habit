@@ -1790,7 +1790,7 @@ async def send_reaction_route(request):
     bot = request.app.get("bot")
     if bot is not None:
         sender = get_user(telegram_id)
-        sender_name = (sender["first_name"] if sender else None) or "Кто-то"
+        sender_name = _name_with_handle(sender, "Кто-то")
         try:
             await _push(request.app, target_id, f"{emoji} {sender_name} поддержал(а) тебя!")
         except Exception:
@@ -1909,6 +1909,17 @@ def _display_name(user_row, fallback="Игрок"):
     if user_row is None:
         return fallback
     return user_row["first_name"] or user_row["username"] or fallback
+
+
+def _name_with_handle(user_row, fallback="Игрок"):
+    """«Александр (@aleksandr13)» для уведомлений в чат с ботом (parse_mode=HTML, поэтому всё экранировано): одинаковые имена у разных
+    людей различаются ником ADAM. Невидимый символ после «@» — чтобы Telegram не превратил ник в ссылку на настоящий @username: ник
+    в ADAM свой, он не обязан совпадать с чужим аккаунтом в Telegram, и нажатие вело бы к постороннему человеку."""
+    name = html.escape(_display_name(user_row, fallback))
+    handle = ""
+    if user_row is not None and "handle" in user_row.keys():
+        handle = str(user_row["handle"] or "").strip()
+    return f"{name} (@\u200b{html.escape(handle)})" if handle else name
 
 
 async def _send_social_push(app, target_id, text):
