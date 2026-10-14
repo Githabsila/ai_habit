@@ -46,9 +46,11 @@ from db import (
 )
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from db import ai_usage
+from db.checkpoint_style import recent_checkpoint_picks, save_checkpoint_picks, checkpoints_sent_today
 from adam_messages import (
     format_day_progress_message,
     format_habit_checkpoint_message,
+    compose_checkpoint_message,
     format_simple_habit_checkpoint_message,
     format_plan_task_reminder_message,
     format_goal_reminder_message,
@@ -416,6 +418,7 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
             # в своё время) — просто прямое упоминание того, что осталось
             # без таймера, без статистики.
             style = get_habit_checkpoint_style(telegram_id)
+            picks = None
             if style == "simple":
                 message_text = format_simple_habit_checkpoint_message(free_habits)
             else:
@@ -424,9 +427,12 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
                 progress = get_progress(telegram_id)
                 completed_count = int(progress.get("completed") or 0)
                 total_count = int(progress.get("total") or (completed_count + len(incomplete)))
-                message_text = format_habit_checkpoint_message(
+                # Текст собирается из частей и не повторяет то, что человек уже получал в последних точках дня; у человека
+                # с одной привычкой нет счёта «0 из 1» (adam_messages.compose_checkpoint_message).
+                message_text, picks = compose_checkpoint_message(
                     free_habits, target_hour, completed=completed_count, total=total_count,
-                    timed_habits=timed_habits,
+                    timed_habits=timed_habits, recent_picks=recent_checkpoint_picks(telegram_id),
+                    earlier_today=checkpoints_sent_today(telegram_id, now.date().isoformat()),
                 )
 
             day = now.date().isoformat()
@@ -445,6 +451,8 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
                 release_notification(telegram_id, day, kind, scope)
                 raise
 
+            if picks:
+                save_checkpoint_picks(telegram_id, picks)
             sent += 1
             logger.info("%s: отправлено %s", label, telegram_id)
         except TelegramForbiddenError as e:

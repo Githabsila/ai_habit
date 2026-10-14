@@ -7,6 +7,7 @@
 - один осмысленный эмодзи в конце вместо случайных медалек;
 - формулировки меняются, но остаются короткими и естественными.
 """
+import html
 import random
 import re
 
@@ -128,6 +129,125 @@ def format_habit_checkpoint_message(incomplete_habits, hour: int, completed: int
     return pick(templates, pool=SOFT_EMOJIS, time=hour,
                 completed=completed, total=total, total_gen=habit_genitive(total), left=left, habits=habits,
                 left_phrase=left_phrase, timed_note=timed_note)
+
+
+# =====================================
+# ТОЧКА ДНЯ (10/12/17/22): сообщение собирается из частей и не повторяет недавние
+# =====================================
+# Раньше на каждый час выбирался один из 3–5 готовых текстов наугад: в 12:00, 17:00 и 22:00 приходило почти одно и то же
+# («сверка курса. Пока 0 из 1 …»), а у человека с ОДНОЙ привычкой — ещё и «0 из 1». Теперь текст = начало (под время дня) +
+# счёт (его нет, если привычка одна) + что в фокусе + «не забудь» по таймерным + призыв. Каждая часть берётся из своего набора,
+# и та, что была в трёх последних точках этого человека, не повторяется (compose_checkpoint_message(recent_picks=…)).
+# Сообщение без родовых форм («закрыл/закрыла»): пол человека неизвестен.
+
+CHECKPOINT_OPENERS = {
+    10: (
+        "☀️ Утро — удобное время начать.", "⏱️ Контрольная точка утра.", "📍 Точка дня, утро.", "🌤️ Самое начало дня.",
+        "🎯 {time}:00 — первая сверка.",
+    ),
+    12: (
+        "🎯 {time}:00 — сверка курса.", "☀️ Полдень — день разворачивается.", "📍 Точка дня.", "⏱️ Середина дня — самое время свериться.",
+        "🧭 Короткая сверка в полдень.",
+    ),
+    17: (
+        "🌇 Вечер уже близко.", "🎯 {time}:00 — вечерняя сверка.", "📍 Точка дня: вечер на подходе.", "⏱️ До конца дня ещё есть время.",
+        "🧭 Сверка перед вечером.",
+    ),
+    22: (
+        "🌙 День почти закончился.", "🎯 {time}:00 — последняя сверка дня.", "⏳ Остались последние часы дня.", "📍 Точка дня: поздний вечер.",
+        "🕙 Вечер на исходе.",
+    ),
+}
+CHECKPOINT_OPENERS_DEFAULT = ("📍 Точка дня.", "🎯 {time}:00 — сверка курса.", "⏱️ Короткая сверка.", "🧭 Свериться самое время.")
+# Уже напоминали сегодня, а отметок так и нет: не повторяем то же самое, а говорим, что картина прежняя.
+CHECKPOINT_OPENERS_AGAIN = (
+    "🔁 С прошлой сверки ничего не изменилось.", "📍 Новая точка дня — картина прежняя.", "⏱️ Напомню ещё раз, коротко.",
+    "🎯 {time}:00 — возвращаюсь к плану дня.", "🧭 Всё ещё без отметок.",
+)
+
+CHECKPOINT_STATUS_ZERO = (
+    "Пока 0 из {total}.", "Из {total} пока ни одной отметки.", "Отметок за сегодня пока нет.", "Ни одна из {total} пока не закрыта.", "",
+)
+CHECKPOINT_STATUS_PROGRESS = (
+    "Уже закрыто {completed} из {total}.", "Выполнено {completed} из {total}.", "Есть прогресс: {completed} из {total}.",
+    "{completed} из {total} уже позади.", "",
+)
+
+CHECKPOINT_FOCUS = (
+    "В плане {left_phrase}: {habits}.", "В фокусе {left_phrase}: {habits}.", "На очереди {left_phrase}: {habits}.", "Осталось: {habits}.",
+    "Список на сейчас: {habits}.",
+)
+# Одна привычка на весь день: без «из 1», просто что в плане.
+CHECKPOINT_FOCUS_SINGLE = (
+    "В плане одна привычка: {habits}.", "Сегодня в плане одна привычка — {habits}.", "Одна привычка на сегодня: {habits}.",
+    "На очереди одна привычка: {habits}.", "Всё внимание — на одной привычке: {habits}.",
+)
+
+CHECKPOINT_CTA_ZERO = (
+    "Начни с ближайшего пункта", "Закрой первый пункт — и наберёшь темп", "Один небольшой шаг — и день сдвинется с места",
+    "Самое простое — начать прямо сейчас", "Пара минут — и счёт будет открыт",
+)
+CHECKPOINT_CTA_SINGLE = (
+    "Начать можно с пары минут", "Одного шага достаточно, чтобы сдвинуть день", "Сделай её прямо сейчас — и день пойдёт",
+    "Это займёт всего несколько минут", "Займись ею — и первая отметка за сегодня готова",
+)
+CHECKPOINT_CTA_PROGRESS = (
+    "Закрой следующий пункт и держи темп", "Продолжай с ближайшего пункта", "Один шаг — и ближе к полному дню",
+    "Не сбавляй темп: следующий пункт рядом", "Ещё чуть-чуть — и день в копилке",
+)
+CHECKPOINT_CTA_BY_HOUR = {
+    10: ("Утро — лучшее время, чтобы начать",),
+    12: ("Впереди ещё весь день",),
+    17: ("До вечера хватит времени",),
+    22: ("Успеешь закрыть до сна", "Пока день не закончился, ещё можно успеть"),
+}
+CHECKPOINT_RECENT = 3                # сколько последних точек человека учитываем, чтобы не повторять части
+
+
+def _fresh_part(pool, used, rng):
+    """Элемент набора, которого не было в последних сообщениях (если свежих нет — любой)."""
+    fresh = [item for item in pool if item not in used]
+    return rng.choice(fresh or list(pool))
+
+
+def compose_checkpoint_message(incomplete_habits, hour: int, completed: int | None = None, total: int | None = None,
+                               timed_habits=None, recent_picks=(), earlier_today: int = 0, rng=None):
+    """(текст, выбранные части). recent_picks — выбранные части трёх последних точек этого человека (новые первыми),
+    earlier_today — сколько точек дня человеку уже приходило сегодня. Выбранные части сохраняет вызывающий (после успешной отправки)."""
+    rng = rng or random
+    titles = [html.escape(str(h["title"])) for h in incomplete_habits]       # сообщение уходит с parse_mode=HTML
+    timed_habits = [(h, m, html.escape(str(title))) for h, m, title in (timed_habits or [])]
+    left = len(titles)
+    if total is None:
+        total = left + max(0, int(completed or 0))
+    if completed is None:
+        completed = max(0, int(total) - left)
+    completed = max(0, int(completed))
+    total = max(left, int(total))
+    habits = ", ".join(f"«{t}»" for t in titles)
+    left_word = plural_ru(left, "привычка", "привычки", "привычек")
+    left_phrase = f"одна {left_word}" if left == 1 else f"{left} {left_word}"
+
+    single = total <= 1
+    case = "single" if single else ("zero" if completed == 0 else "progress")
+    openers = list(CHECKPOINT_OPENERS.get(hour, CHECKPOINT_OPENERS_DEFAULT))
+    if earlier_today and completed == 0:
+        openers += list(CHECKPOINT_OPENERS_AGAIN)
+    statuses = ("",) if single else (CHECKPOINT_STATUS_ZERO if completed == 0 else CHECKPOINT_STATUS_PROGRESS)
+    focus = CHECKPOINT_FOCUS_SINGLE if single else CHECKPOINT_FOCUS
+    ctas = {"single": CHECKPOINT_CTA_SINGLE, "zero": CHECKPOINT_CTA_ZERO, "progress": CHECKPOINT_CTA_PROGRESS}[case] + CHECKPOINT_CTA_BY_HOUR.get(hour, ())
+
+    used = {part: {p.get(part) for p in list(recent_picks)[:CHECKPOINT_RECENT]} for part in ("o", "s", "f", "c")}
+    picks = {
+        "o": _fresh_part(openers, used["o"], rng), "s": _fresh_part(statuses, used["s"], rng),
+        "f": _fresh_part(focus, used["f"], rng), "c": _fresh_part(ctas, used["c"], rng),
+    }
+    kwargs = dict(time=hour, completed=completed, total=total, habits=habits, left_phrase=left_phrase)
+    text = " ".join(part for part in (
+        picks["o"].format(**kwargs), picks["s"].format(**kwargs), picks["f"].format(**kwargs) + _format_timed_note(timed_habits),
+        picks["c"].format(**kwargs) + " " + random_emoji(SOFT_EMOJIS),
+    ) if part)
+    return re.sub(r"[ \t]{2,}", " ", text).strip(), picks
 
 
 # =====================================

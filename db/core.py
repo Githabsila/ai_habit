@@ -1604,6 +1604,17 @@ def create_tables():
         "CREATE INDEX IF NOT EXISTS idx_notification_log_user_sent ON notification_log(user_id, sent_at)"
     )
 
+    # ---------------- Точки дня: какие части сообщений человеку уже приходили (чтобы не повторяться) ----------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS checkpoint_picks(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        picks TEXT NOT NULL,
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_checkpoint_picks_user ON checkpoint_picks(user_id, id)")
+
     # ---------------- Roadmap #46: язык интерфейса ----------------
     if "language" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'ru'")
