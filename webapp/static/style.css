@@ -14641,3 +14641,15 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .status-ladder__text small{display:block;margin-top:2px;font-size:11px;line-height:1.35;color:#A8A2BC}
 .status-ladder__note{font-style:normal;font-size:10.5px;font-weight:700;color:#8F89A3;white-space:nowrap;text-align:right}
 .status-ladder__row.is-current .status-ladder__note{color:var(--st)}
+
+/* ===== Мелкие недоработки (14.10) ===== */
+/* Точка в углу карточки привычки: от верхней полоски (::before высотой 2px) после переопределения ширины до 3px осталась точка 3×2 px
+   за скруглённым углом. Полоска больше не нужна — убрана целиком. */
+.habit-item::before{content:none !important;display:none !important}
+
+/* У админов кнопка админки занимала тот же правый верхний угол, что и карандаш «имя и ник» (тап по имени): они налезали друг на друга.
+   Кнопка переехала в правый нижний угол карточки (у обычных пользователей её нет — у них ничего не меняется). */
+.player-card__admin-btn{top:auto !important;right:14px !important;bottom:10px;width:30px !important;height:30px !important;border-radius:10px !important}
+.player-card__admin-btn svg{width:15px !important;height:15px !important}
+.player-card.has-admin-btn .player-card__name{padding-right:0 !important}
+.player-card.has-admin-btn .xp-bar,.player-card.has-admin-btn .xp-bar__label{margin-right:40px}
