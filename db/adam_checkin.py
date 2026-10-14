@@ -22,6 +22,7 @@
 Раскатка — флаг adam_checkin в «Feature flags» админки; у админов включено всегда.
 """
 import random
+import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -50,9 +51,21 @@ TASK_MIN_AGE_MIN = 120               # главная задача «стоит�
 DAY_END_HOUR = 22
 TEXT_MAX_CHARS = 320
 
+# Ритм заходов САМОГО человека (visit_rhythm): когда он обычно открывает приложение и когда пришёл сегодня.
+RHYTHM_DAYS = 21                     # окно наблюдения
+RHYTHM_MIN_DAYS = 3                  # меньше дней истории — «обычно» говорить рано
+ARRIVED_NOW_MIN = 45                 # «пришёл только что»: первая активность сегодня не раньше, чем столько минут назад
+LATE_VISIT_MIN = 240                 # пришёл позже своего обычного времени на столько минут (и не раньше 14:00)
+LATE_VISIT_FROM_HOUR = 14
+EVENING_REGULAR_FROM_HOUR = 18
+EVENING_REGULAR_WINDOW_MIN = 150     # вечерний человек пришёл не дальше этого от своего обычного времени
+PAUSE_DAYS = 3                       # столько дней без заходов — «давно не виделись»
+SIMILARITY_LOOKBACK = 8              # с какими прежними сообщениями Адама сравниваем новое, чтобы не повторяться
+SIMILARITY_LIMIT = 0.5               # доля общих слов, начиная с которой тексты считаем «слишком похожими»
+
 SCENARIOS = (
     "zero_done", "zero_done_evening", "behind", "one_left", "evening_left", "all_done", "free_chat", "morning", "struggling",
-    "missed_habit", "task_progress", "task_remaining", "positive", "check_in",
+    "missed_habit", "task_progress", "task_remaining", "positive", "check_in", "late_visit", "evening_regular", "back_after_pause",
 )
 
 # Повод (intent) из ТЗ для каждого сценария — так он называется в журнале, админке и в контексте разговора.
@@ -61,6 +74,7 @@ INTENT_LABELS = {
     "evening_left": "PROGRESS", "all_done": "REFLECTION", "free_chat": "CONVERSATION", "morning": "PLAN",
     "struggling": "MISSED_HABIT", "missed_habit": "MISSED_HABIT", "task_progress": "TASK_PROGRESS",
     "task_remaining": "TASK_REMAINING", "positive": "POSITIVE", "check_in": "CHECK_IN",
+    "late_visit": "LATE_VISIT", "evening_regular": "USUAL_TIME", "back_after_pause": "WELCOME_BACK",
 }
 
 # Шаблонные фразы, которых Адам писать не должен (проверка по тексту без ё и в нижнем регистре).
@@ -72,6 +86,9 @@ BANNED_PHRASES = (
 TOXIC_PHRASES = ("опять ничего не сделал", "потерял полдня", "потеряла полдня", "почему ты лениш", "ленишься", "лентяй", "бездельнич", "ты ничего не делаешь")
 # Редкий «просто контакт» (CHECK_IN) — единственное место, где допустимо «как проходит день».
 CHECK_IN_ALLOWED = ("как проходит день",)
+# Вопрос про настроение допустим, только когда он про дело («Как настроение — возьмёмся за наши планы?») у человека, который пришёл
+# в своё привычное вечернее время: это пример владельца проекта, а не голое «Как настроение?».
+ALLOWED_BY_SCENARIO = {"check_in": CHECK_IN_ALLOWED, "evening_regular": ("как настроение",)}
 
 # Главная задача про отдых/личное — полноценный план: Адам не воспринимает её как «низкую продуктивность» и не торопит.
 REST_WORDS = (
@@ -340,6 +357,98 @@ def activity_profile(user_id, now_local):
     }
 
 
+EMPTY_RHYTHM = {"days": 0, "usual_first": None, "usual_part": None, "first_mark": None, "first_today": None, "arrived_now": False, "gap_days": None}
+
+
+def _rhythm_part(minute):
+    if minute is None:
+        return None
+    return "утро" if minute < 12 * 60 else "день" if minute < 18 * 60 else "вечер"
+
+
+def visit_rhythm(user_id, now_local):
+    """Ритм заходов САМОГО человека за последние 3 недели (только его собственные данные: заходы, отметки, сообщения Адаму).
+    days — дней с активностью (без сегодняшнего); usual_first — минута, когда он обычно впервые за день появляется (медиана; ночные
+    часы считаются хвостом вечера); usual_part — утро/день/вечер; first_mark — когда обычно отмечает первую привычку; first_today —
+    когда была первая активность сегодня (None — ни заходов, ни отметок); arrived_now — пришёл только что (до этого сегодня не было);
+    gap_days — сколько дней назад был до сегодня. «Обычно» — только от RHYTHM_MIN_DAYS дней."""
+    tz = now_local.tzinfo
+    today = now_local.date()
+    now_minute = now_local.hour * 60 + now_local.minute
+    since = (datetime.now(timezone.utc) - timedelta(days=RHYTHM_DAYS + 1)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = connect()
+    try:
+        opens = [r["at"] for r in conn.execute("SELECT at FROM app_opens WHERE user_id=? AND at>=?", (user_id, since)).fetchall()]
+        chats = [r["created_at"] for r in conn.execute(
+            "SELECT created_at FROM ai_messages WHERE user_id=? AND role='user' AND created_at>=?", (user_id, since)).fetchall()]
+        marks = [r["completed_at"] for r in conn.execute(
+            "SELECT completed_at FROM habit_completion_events WHERE user_id=? AND completed_at>=?", (user_id, since)).fetchall()]
+    finally:
+        conn.close()
+
+    first_by_day, mark_by_day, today_first = {}, {}, None
+    for kind, values in (("open", opens), ("chat", chats), ("mark", marks)):
+        for value in values:
+            moment = _parse_utc(value)
+            if moment is None:
+                continue
+            local = moment.astimezone(tz)
+            if local.date() > today:
+                continue
+            minute = local.hour * 60 + local.minute
+            if local.date() == today:
+                today_first = minute if today_first is None else min(today_first, minute)
+                continue
+            shifted = minute + 24 * 60 if minute < 4 * 60 else minute
+            first_by_day[local.date()] = min(shifted, first_by_day.get(local.date(), 10 ** 6))
+            if kind == "mark":
+                mark_by_day[local.date()] = min(shifted, mark_by_day.get(local.date(), 10 ** 6))
+    days = len(first_by_day)
+    usual = int(_median(list(first_by_day.values()))) if days >= RHYTHM_MIN_DAYS else None
+    return {
+        "days": days, "usual_first": usual, "usual_part": _rhythm_part(usual),
+        "first_mark": int(_median(list(mark_by_day.values()))) if len(mark_by_day) >= RHYTHM_MIN_DAYS else None,
+        "first_today": today_first, "arrived_now": today_first is None or now_minute - today_first <= ARRIVED_NOW_MIN,
+        "gap_days": (today - max(first_by_day)).days if first_by_day else None,
+    }
+
+
+def rhythm_notable(state):
+    """Есть ли в ритме что-то, о чём стоит сказать в разговоре: пауза в заходах или человек, который обычно приходит рано, а сегодня — поздно."""
+    rhythm = state.get("rhythm") or {}
+    if rhythm.get("days", 0) < RHYTHM_MIN_DAYS:
+        return False
+    if (rhythm.get("gap_days") or 0) >= 2:
+        return True
+    usual = rhythm.get("usual_first")
+    now_minute = state["hour"] * 60 + state.get("minute", 0)
+    return bool(usual is not None and rhythm.get("arrived_now") and rhythm.get("usual_part") in ("утро", "день")
+                and state["hour"] >= LATE_VISIT_FROM_HOUR and now_minute - usual >= LATE_VISIT_MIN)
+
+
+def rhythm_lines(state):
+    """Строки для модели про ритм человека: когда он обычно приходит, когда пришёл сегодня, сколько его не было. [] — рассказать нечего."""
+    rhythm = state.get("rhythm") or {}
+    out = []
+    usual = rhythm.get("usual_first")
+    if usual is not None and rhythm.get("usual_part"):
+        when = {"утро": "утром", "день": "днём", "вечер": "вечером"}[rhythm["usual_part"]]
+        out.append(f"Ритм человека: обычно заходит в приложение {when} (около {_hhmm(usual)}; по {rhythm['days']} дням за последние 3 недели)")
+    if rhythm.get("first_mark") is not None:
+        out.append(f"Первую привычку за день обычно отмечает около {_hhmm(rhythm['first_mark'])}")
+    if rhythm.get("arrived_now") and rhythm.get("days", 0) >= RHYTHM_MIN_DAYS:
+        out.append("Сегодня человек пришёл только сейчас: до этого сегодня не было ни заходов, ни отметок")
+    elif rhythm.get("first_today") is not None and rhythm.get("days", 0) >= RHYTHM_MIN_DAYS:
+        out.append(f"Сегодня человек впервые был в приложении около {_hhmm(rhythm['first_today'])}")
+    gap = rhythm.get("gap_days")
+    if gap is not None and gap >= 2 and rhythm.get("days", 0) >= RHYTHM_MIN_DAYS:
+        out.append(f"Перед этим человека не было в приложении {gap} дн.")
+    if out:
+        out.append("Покажи, что замечаешь привычное время захода, — живыми словами («обычно ты здесь с утра», «сегодня тебя долго не было»), "
+                   "без точной минуты, без слов «слежу», «по моим данным», «статистика показывает», и не больше одного такого наблюдения")
+    return out
+
+
 _PREFERRED_CACHE = {}
 
 
@@ -484,6 +593,7 @@ def build_checkin_state(user_id, now_local=None, with_pace=True):
         "last_check_in_days": days_since_scenario(user_id, "check_in", now_local.date()),
         "language": get_language(user_id),
         "style": get_ai_style(user_id),
+        "rhythm": visit_rhythm(user_id, now_local),
         "pace": pace_history(user_id, now_local) if with_pace else {"days": 0, "avg_by_now": 0.0, "avg_total": 0.0, "yesterday": 0, "active_7": 0},
     }
     return fill_counts(state)
@@ -600,15 +710,26 @@ def pick_scenario(state, slot, chat_day=False):
         if candidates:
             return candidates[0]["scenario"], candidates[0]["reason"]
         return None, _silence_reason(state, slot, chat_day)
-    # 'app': человек сам зашёл в чат — отвечаем на то, что происходит сейчас
+    # 'app': человек сам зашёл в чат — отвечаем на то, что происходит сейчас и на его привычный ритм
     total, done, left = state["total"], state["done"], state["left"]
     if state["hour"] < 12:
         return "morning", "утро: без вопросов"
+    rhythm = state.get("rhythm") or {}
+    known = rhythm.get("days", 0) >= RHYTHM_MIN_DAYS
+    now_minute = state["hour"] * 60 + state.get("minute", 0)
+    if known and (rhythm.get("gap_days") or 0) >= PAUSE_DAYS:
+        return "back_after_pause", f"не было в приложении {rhythm['gap_days']} дн."
     if total == 0:
         return "free_chat", "нет дел"
     if left == 0:
         return "all_done", "всё выполнено"
     if done == 0:
+        usual = rhythm.get("usual_first")
+        if known and usual is not None and rhythm.get("arrived_now"):
+            if rhythm.get("usual_part") in ("утро", "день") and state["hour"] >= LATE_VISIT_FROM_HOUR and now_minute - usual >= LATE_VISIT_MIN:
+                return "late_visit", "обычно приходит раньше, сегодня — только сейчас, ничего не отмечено"
+            if rhythm.get("usual_part") == "вечер" and state["hour"] >= EVENING_REGULAR_FROM_HOUR and abs(now_minute - usual) <= EVENING_REGULAR_WINDOW_MIN:
+                return "evening_regular", "пришёл в своё привычное вечернее время, ничего не отмечено"
         return ("zero_done_evening" if state["hour"] >= 18 else "zero_done"), "ничего не выполнено"
     if left == 1:
         return "one_left", "остался один пункт"
@@ -646,6 +767,9 @@ SCENARIO_GUIDE = {
     "task_remaining": "Вечер: привычки закрыты, а главная задача ещё открыта. Назови её и спроси, получится ли вернуться к ней сегодня или сколько времени на неё реально. Ничего не требуй, это не экзамен.",
     "positive": "Сегодня лучше обычного: человек впереди своего темпа или сделал привычку, которая чаще всего ускользает (это в контексте). Отметь это конкретно и спроси, что сработало, — чтобы он сам это заметил. Не хвали общими словами.",
     "check_in": "Обычный человеческий контакт без анализа и без повода. Коротко и тепло, один вопрос про сегодняшний день («что сегодня уже получилось?», «как сегодня идёт день?»); без цифр, списков и без «как дела».",
+    "late_visit": "Человек обычно заходит раньше (его привычное время — в контексте), а сегодня появился только сейчас, поздно, и ничего не отмечено. Дай понять, что ты заметил, что сегодня его долго не было, и спроси ОДИН вопрос без упрёка: что случилось, день пошёл не по плану? Не стыди, не требуй и не перечисляй дела; в конце можно предложить одно самое маленькое дело на остаток дня. Приветствие необязательно.",
+    "evening_regular": "Вечер — привычное время этого человека (оно в контексте), он пришёл как обычно, но пока ничего не отмечено. Скажи тепло, что ждал его, и спроси ОДИН вопрос про готовность или настроение взяться за планы на сегодня (вопрос про настроение здесь допустим, если он про дело, например «как настроение — возьмёмся за наши планы?»). Без упрёка, без перечисления дел; можно назвать одно самое простое.",
+    "back_after_pause": "Человека не было в приложении несколько дней (сколько — в контексте). Скажи тепло и без упрёка, что заметил паузу и рад его видеть, и задай ОДИН вопрос: что изменилось или с чего удобнее вернуться. Не упоминай серию и потерянные очки, не перечисляй дела.",
 }
 
 # Эталонные сообщения. Первые три — от владельца проекта (как должно звучать); остальные в том же тоне. В промпт идут как
@@ -665,6 +789,9 @@ REFERENCE_EXAMPLES = {
     "task_remaining": "Привычки закрыты, а «Закончить отчёт» ещё ждёт. Получится вернуться к ней до вечера?",
     "positive": "Сегодня ты уже впереди своего обычного темпа. Что сработало?",
     "check_in": "Как сегодня идёт день?",
+    "late_visit": "Что случилось — сегодня тебя не было весь день, а обычно ты здесь с утра. День пошёл не по плану?",
+    "evening_regular": "Привет, я ждал тебя. Как настроение — возьмёмся сегодня за наши планы?",
+    "back_after_pause": "Тебя не было несколько дней — я заметил. Что изменилось и с чего удобнее вернуться?",
 }
 
 
@@ -675,6 +802,13 @@ def opener_style(user_id, day_iso, scenario):
     """Как начать: у каждого человека и дня своё; стабильно в течение дня. ТЗ §23–24: чаще без приветствия, имя — акцент (только в
     сообщениях, где оно уместно: заметное отклонение, успех), «Привет, Имя» каждый день — нет."""
     seed = random.Random(f"adam-opener:{user_id}:{day_iso}:{scenario}").random()
+    # Первое сообщение про ритм: опоздавшего чаще спрашиваем сразу («Что случилось…»), вечернего человека встречаем «Привет, я ждал тебя».
+    if scenario == "late_visit":
+        return "no_greeting" if seed < 0.7 else "by_name"
+    if scenario == "evening_regular":
+        return "short_greeting" if seed < 0.6 else "no_greeting"
+    if scenario == "back_after_pause":
+        return "short_greeting" if seed < 0.5 else "by_name"
     if seed < 0.5:
         return "no_greeting"
     if scenario in EMPHASIS_SCENARIOS and seed < 0.85:
@@ -689,6 +823,42 @@ OPENER_GUIDE = {
 }
 
 
+# Подход к тексту: у каждого сообщения свой («вопрос о причине», «поддержка + шаг» …), чтобы Адам не писал по одной схеме.
+ANGLES = (
+    "Начни с наблюдения и закончи коротким вопросом о причине.",
+    "Скажи одной фразой, что заметил, и спроси про самочувствие или энергию — без «как дела».",
+    "Задай вопрос прямо, без вступления: одна короткая реплика.",
+    "Сначала поддержи (день ещё можно спасти), потом предложи один маленький шаг.",
+    "Лёгкий тон с едва заметной иронией — без колкостей и упрёков.",
+    "Спроси, что помешало, и предложи на выбор самое простое действие.",
+)
+
+
+def pick_angle(user_id, day_iso, scenario, last_message=""):
+    """Подход на этот раз: зависит от человека, дня, повода и от последнего сообщения Адама — подряд два сообщения не повторят схему."""
+    return random.Random(f"adam-angle:{user_id}:{day_iso}:{scenario}:{last_message}").choice(ANGLES)
+
+
+def _words(text):
+    low = str(text or "").lower().replace("ё", "е")
+    return [w for w in re.findall(r"[a-zа-я0-9]+", low) if len(w) > 2]
+
+
+def similarity(a, b):
+    """Доля общих слов двух текстов (0…1): слова короче трёх букв не считаем."""
+    sa, sb = set(_words(a)), set(_words(b))
+    return len(sa & sb) / len(sa | sb) if sa and sb else 0.0
+
+
+def too_similar(text, recent):
+    """Новое сообщение слишком похоже на одно из недавних: много общих слов или то же начало из трёх слов."""
+    head = _words(text)[:3]
+    for old in recent or ():
+        if similarity(text, old) >= SIMILARITY_LIMIT or (len(head) == 3 and _words(old)[:3] == head):
+            return True
+    return False
+
+
 def _count_phrase(n):
     n = abs(int(n))
     if 11 <= n % 100 <= 14:
@@ -698,10 +868,11 @@ def _count_phrase(n):
 
 
 def _hhmm(minute):
-    return f"{int(minute) // 60:02d}:{int(minute) % 60:02d}"
+    minute = int(minute) % (24 * 60)            # ночные минуты в ритме хранятся со сдвигом +24 ч
+    return f"{minute // 60:02d}:{minute % 60:02d}"
 
 
-def build_checkin_prompt(state, scenario, opener, recent_messages=(), recent_scenarios=()):
+def build_checkin_prompt(state, scenario, opener, recent_messages=(), recent_scenarios=(), angle=None):
     """Данные для модели. Привычки и задачи — вместе, но с разбивкой, чтобы текст мог назвать нужное по имени. Задач нет — об этом
     сказано прямо (ТЗ §4: не придумывать и не спрашивать про задачи)."""
     lines = ["Контекст:"]
@@ -761,6 +932,7 @@ def build_checkin_prompt(state, scenario, opener, recent_messages=(), recent_sce
         lines.append("Сегодня человек впереди своего обычного темпа")
     if state.get("above_usual") and state["left"] == 0:
         lines.append("Результат сегодня выше обычного для этого человека")
+    lines.extend(rhythm_lines(state))
     if state.get("mood_hint"):
         lines.append(f"Недавняя тема из разговора (мягко учти, не цитируй): {state['mood_hint']}")
     pair = state.get("pair_lines") or []
@@ -775,6 +947,8 @@ def build_checkin_prompt(state, scenario, opener, recent_messages=(), recent_sce
     lines.append("")
     lines.append("Сценарий: " + SCENARIO_GUIDE[scenario])
     lines.append("Подача: " + OPENER_GUIDE[opener])
+    if angle:
+        lines.append("Подход на этот раз: " + angle)
     example = REFERENCE_EXAMPLES.get(scenario)
     if example:
         lines.append("Ориентир по тону, длине и структуре (это ПРИМЕР: не копируй из него слова, имя и названия дел): «" + example.format(name="<имя>") + "»")
@@ -877,11 +1051,39 @@ FALLBACKS = {
         "как сегодня идёт день?",
         "есть минутка? Расскажи, что у тебя сегодня главное.",
     ),
+    # Без «зашёл/пришёл»: пол неизвестен — только настоящее время и безличные обороты.
+    "late_visit": (
+        "что случилось — сегодня тебя не было весь день, а обычно ты здесь раньше. День пошёл не по плану?",
+        "тебя сегодня не было до самого вечера, хотя обычно ты заглядываешь раньше. Что-то пошло иначе?",
+        "день почти закончился, а ты появляешься только сейчас. Что-то сбило планы? Хватит одного маленького шага — «{p1}».",
+        "странно видеть тебя так поздно — обычно ты приходишь раньше. День выдался непростым?",
+        "вот и ты — обычно раньше. Что-то поменяло планы на сегодня?",
+    ),
+    "evening_regular": (
+        "я ждал тебя. Как настроение — возьмёмся за наши планы?",
+        "вот и ты — самое время для наших дел. С чего начнём: «{p1}»?",
+        "вечер — наше время. Для начала — «{p1}»: берём?",
+        "ты вовремя: до конца дня ещё есть запас. С чего начнём — «{p1}»?",
+    ),
+    "back_after_pause": (
+        "тебя не было {gap_phrase} — я заметил. С чего удобнее вернуться?",
+        "давно не виделись: {gap_phrase}. Что изменилось за это время?",
+        "рад видеть тебя снова — прошло {gap_phrase}. Что помогло бы вернуться в ритм?",
+    ),
 }
 
 
-def fallback_text(state, scenario, user_id=None, day_iso=None):
-    """Текст без модели. Вариант и подача (имя / без имени) — стабильно на (человек, день), на следующий день другие."""
+def _days_phrase(n):
+    n = abs(int(n or 0))
+    if n <= 0:
+        return "несколько дней"
+    unit = "день" if n % 10 == 1 and n % 100 != 11 else "дня" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else "дней"
+    return f"уже {n} {unit}"
+
+
+def fallback_text(state, scenario, user_id=None, day_iso=None, avoid=()):
+    """Текст без модели. Вариант и подача (имя / без имени) — стабильно на (человек, день), на следующий день другие.
+    avoid — недавние сообщения Адама: вариант, слишком похожий на них, заменяется другим из набора."""
     user_id = user_id if user_id is not None else state.get("user_id", 0)
     day_iso = day_iso or datetime.now().date().isoformat()
     key = scenario
@@ -901,7 +1103,7 @@ def fallback_text(state, scenario, user_id=None, day_iso=None):
     pending = state.get("pending") or [""]
     # «Начни с самого лёгкого» — это привычка (задача, особенно главная, обычно тяжелее); для остальных сценариев — первое по списку.
     easy = (state.get("pending_habits") or state.get("pending_tasks") or [""])[0]
-    p1 = easy if scenario in ("zero_done", "zero_done_evening", "behind", "evening_left") else pending[0]
+    p1 = easy if scenario in ("zero_done", "zero_done_evening", "behind", "evening_left", "late_visit", "evening_regular") else pending[0]
     if scenario == "struggling" and state.get("struggling"):
         p1 = state["struggling"]["title"]
     elif scenario in ("task_progress", "task_remaining"):
@@ -910,12 +1112,25 @@ def fallback_text(state, scenario, user_id=None, day_iso=None):
         p1 = state["missed"]["title"]
     elif key == "positive_habit":
         p1 = state["struggling_done"]
-    body = rng.choice(pool).format(
-        p1=p1, done=state["done"], total=state["total"], left=state["left"],
-        missed=(state.get("struggling") or {}).get("missed", 4),
-        count_phrase=_count_phrase(state["total"]), left_phrase=_count_phrase(state["left"]),
-        streak_line=f"Серия {streak} {streak_unit} держится, и её сохранит даже одна отметка. " if streak > 0 else "",
-    ).replace("  ", " ").strip()
+    gap_phrase = _days_phrase((state.get("rhythm") or {}).get("gap_days"))
+
+    def render(template):
+        return template.format(
+            p1=p1, done=state["done"], total=state["total"], left=state["left"],
+            missed=(state.get("struggling") or {}).get("missed", 4),
+            count_phrase=_count_phrase(state["total"]), left_phrase=_count_phrase(state["left"]),
+            streak_line=f"Серия {streak} {streak_unit} держится, и её сохранит даже одна отметка. " if streak > 0 else "",
+            gap_phrase=gap_phrase,
+        ).replace("  ", " ").strip()
+
+    chosen = rng.choice(pool)
+    body = render(chosen)
+    if avoid and too_similar(body, avoid):
+        for variant in pool:
+            candidate = render(variant)
+            if not too_similar(candidate, avoid):
+                body = candidate
+                break
     name = state.get("first_name") or ""
     if name and opener_style(user_id, day_iso, scenario) == "by_name":
         return f"{name}, {body}"
@@ -942,7 +1157,7 @@ def is_acceptable(text, scenario):
     if not text or len(text) > TEXT_MAX_CHARS:
         return False
     low = text.lower().replace("ё", "е")
-    banned = [p for p in BANNED_PHRASES if not (scenario == "check_in" and p in CHECK_IN_ALLOWED)]
+    banned = [p for p in BANNED_PHRASES if p not in ALLOWED_BY_SCENARIO.get(scenario, ())]
     if any(phrase in low for phrase in banned) or any(phrase in low for phrase in TOXIC_PHRASES):
         return False
     if text.count("?") > 1 or (scenario == "morning" and "?" in text):
@@ -1196,7 +1411,7 @@ def checkin_stats(days=7):
 # ------------------------------------------------------------------ демо для «Лаборатории» админки
 
 def _lab_state(first_name, hour, minute, habits, tasks, streak=5, pace=None, gender="m", mood_hint="", style="neutral",
-               struggling=None, missed=None, struggling_done=None, main_age_min=None, task_hist=None, last_check_in_days=None):
+               struggling=None, missed=None, struggling_done=None, main_age_min=None, task_hist=None, last_check_in_days=None, rhythm=None):
     state = {
         "user_id": 0, "first_name": first_name, "gender": gender, "hour": hour, "minute": minute,
         "time": f"{hour:02d}:{minute:02d}", "part": part_of_day(hour), "weekday": 2,
@@ -1208,7 +1423,7 @@ def _lab_state(first_name, hour, minute, habits, tasks, streak=5, pace=None, gen
         "usual": {"day": None, "evening": None}, "first_habit_minute": None,
         "main_age_min": main_age_min, "task_hist": task_hist or {"days_with_main": 0, "main_done_days": 0, "tasks_set": 0, "tasks_done": 0},
         "minutes_since_chat": None, "seen_minutes_ago": None, "recent_scenarios": [], "last_check_in_days": last_check_in_days,
-        "language": "ru", "style": style,
+        "language": "ru", "style": style, "rhythm": dict(rhythm or EMPTY_RHYTHM),
         "pace": pace or {"days": 9, "avg_by_now": 2.4, "avg_total": 4.2, "yesterday": 4, "active_7": 6},
     }
     return fill_counts(state)
@@ -1270,6 +1485,19 @@ def lab_scenarios():
         "on_pace": ("Всё идёт как обычно: повода нет, Адам молчит (15:30)", "day",
                     _lab_state("Александр", 15, 30, [("Зарядка", True), ("Чтение 20 минут", True), ("Английский", False), ("Вода", False)], [],
                                pace={"days": 9, "avg_by_now": 2.0, "avg_total": 3.5, "yesterday": 3, "active_7": 7}, last_check_in_days=3)),
+        # первое сообщение в чате с учётом ритма заходов человека
+        "late_visit": ("Обычно заходит утром, а пришёл только вечером, ничего не отмечено (19:40)", "app",
+                       _lab_state("Александр", 19, 40, _LAB_HABITS, _LAB_TASKS, streak=9, rhythm={
+                           "days": 12, "usual_first": 8 * 60 + 40, "usual_part": "утро", "first_mark": 9 * 60,
+                           "first_today": 19 * 60 + 36, "arrived_now": True, "gap_days": 1})),
+        "evening_regular": ("Вечерний человек пришёл в своё время, ничего не отмечено (20:10)", "app",
+                            _lab_state("Мария", 20, 10, _LAB_HABITS, _LAB_TASKS, streak=6, gender="f", rhythm={
+                                "days": 10, "usual_first": 20 * 60 + 5, "usual_part": "вечер", "first_mark": 20 * 60 + 30,
+                                "first_today": 20 * 60 + 8, "arrived_now": True, "gap_days": 1})),
+        "back_after_pause": ("Не заходил 4 дня, вернулся днём (13:20)", "app",
+                             _lab_state("Дмитрий", 13, 20, _LAB_HABITS, _LAB_TASKS, streak=0, rhythm={
+                                 "days": 9, "usual_first": 9 * 60 + 10, "usual_part": "утро", "first_mark": None,
+                                 "first_today": 13 * 60 + 15, "arrived_now": True, "gap_days": 4})),
         # три примера владельца проекта: время и счёт — как в его описании
         "owner_a": ("Пример А: дневной провал (14:45, 0/3)", "day",
                     _lab_state("Александр", 14, 45, _OWNER_HABITS, [])),

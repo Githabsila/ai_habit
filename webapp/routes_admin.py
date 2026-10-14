@@ -263,7 +263,7 @@ async def _adam_preview(admin_id, body):
     baseline = {
         "usual_day": state.get("usual", {}).get("day"), "usual_evening": state.get("usual", {}).get("evening"),
         "first_habit_minute": state.get("first_habit_minute"), "task_hist": state.get("task_hist"),
-        "seen_minutes_ago": state.get("seen_minutes_ago"), "recent_scenarios": state.get("recent_scenarios"),
+        "seen_minutes_ago": state.get("seen_minutes_ago"), "recent_scenarios": state.get("recent_scenarios"), "rhythm": state.get("rhythm"),
     } if key == "mine" else None
     if scenario is None:
         return {"title": title, "scenario": None, "intent": None, "reason": reason, "decisions": decisions, "candidates": candidates,

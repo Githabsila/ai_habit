@@ -160,11 +160,16 @@ async def test_shown_route_marks_the_hint_and_requires_auth(client, uid):
     assert get_ai_nudge_state(uid)["hint_shown_today"] is True
 
 
-async def test_greet_route_returns_the_greeting_once(client, uid):
+async def test_greet_route_returns_the_greeting_once(client, uid, monkeypatch):
+    import adam_proactive
+
+    async def no_model(prompt, style):
+        return ""
+    monkeypatch.setattr(adam_proactive, "_generate", no_model)          # модели нет — первое сообщение строится по дню человека без неё
     _user(uid, chatted_before=True)
     body = {"init_data": sign_init_data(uid)}
     first = await (await client.post("/api/ai/greet", json=body)).json()
-    assert first["greeting"]["message"].startswith("Привет, ")
+    assert first["greeting"]["message"] and "дела" not in first["greeting"]["message"].lower()
     second = await (await client.post("/api/ai/greet", json=body)).json()
     assert second["greeting"] is None
     demo = await (await client.post("/api/ai/greet", json={**body, "demo": True})).json()

@@ -497,17 +497,18 @@ async def ai_greet_miniapp(request):
     if slot is None:
         return web.json_response({"greeting": None})
 
-    # Адам пишет первым (adam_proactive.py): когда включён флаг adam_checkin (админам — всегда), первое сообщение строится по
-    # привычкам и задачам человека прямо сейчас, а не из статичных фраз. Нет модели — запасной текст по тем же данным.
+    # Первое сообщение строится по привычкам, задачам и ритму заходов человека прямо сейчас (adam_proactive.compose_app_greeting) —
+    # у ВСЕХ, а не только при флаге adam_checkin: человек открыл чат сам, это не пуш, и статичное «Как дела, что выполнил сегодня?»
+    # человеку, который сегодня ничего не отмечал, выглядело глупо. Флаг по-прежнему управляет только пушами. Нет модели — запасной
+    # текст по тем же данным; статичная фраза — лишь на случай сбоя.
     text, scenario, source = None, None, "static"
-    if adam_ck.is_enabled_for(user_id):
-        try:
-            from adam_proactive import compose_app_greeting
-            composed = await compose_app_greeting(user_id)
-            if composed:
-                text, scenario, source = composed
-        except Exception as exc:
-            logger.warning("контекстное первое сообщение Адама не получилось (%s) — статичное", exc)
+    try:
+        from adam_proactive import compose_app_greeting
+        composed = await compose_app_greeting(user_id)
+        if composed:
+            text, scenario, source = composed
+    except Exception as exc:
+        logger.warning("контекстное первое сообщение Адама не получилось (%s) — статичное", exc)
     if not text:
         text, source = pick_greeting(user_id, slot["name"], slot["hour"], slot["today"]), "static"
     greeting = finish_ai_greeting(user_id, text)

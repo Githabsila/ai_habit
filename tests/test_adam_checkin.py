@@ -527,15 +527,23 @@ async def test_chat_greeting_is_contextual_when_enabled_and_static_otherwise(cli
     assert (await again.json())["greeting"] is None, "в день одно первое сообщение"
 
 
-async def test_chat_greeting_without_the_flag_stays_the_old_static_text(client, uid, monkeypatch):
+async def test_chat_greeting_is_contextual_for_everyone_whether_the_push_flag_is_on_or_not(client, uid, monkeypatch):
+    """14.10: статичное «Как дела, что выполнил сегодня?» получали все, у кого выключен флаг, — даже когда за день не отмечено ничего.
+    Человек открыл чат сам (это не пуш), поэтому первое сообщение строится по его дню у всех; флаг управляет только пушами."""
     from db.ai_nudge import GREETINGS_DAY, GREETINGS_MORNING
     from tests.test_ai_nudge import _user as nudge_user
     nudge_user(uid, chatted_before=True)
-    called = []
-    _generate_returns(monkeypatch, "не должно вызваться", called)
+    _habits(uid, ["Зарядка", "Чтение"], done=0)
+    prompts = []
+    _generate_returns(monkeypatch, "Список пока пустой — возьмём «Зарядку»?", prompts)
+    real_pick = ac.pick_scenario
+    monkeypatch.setattr(ac, "pick_scenario", lambda state, slot, chat_day=False: real_pick({**state, "hour": 15}, slot, chat_day))
+    assert not ac.is_enabled_for(uid), "флага у человека нет"
     reply = await client.post("/api/ai/greet", json={"init_data": sign_init_data(uid)})
     text = (await reply.json())["greeting"]["message"]
-    assert called == [] and any(text == t.format(name="Аня") for t in GREETINGS_DAY + GREETINGS_MORNING)
+    assert text == "Список пока пустой — возьмём «Зарядку»?" and len(prompts) == 1 and "Зарядка" in prompts[0]
+    assert not any(text == t.format(name="Аня") for t in GREETINGS_DAY + GREETINGS_MORNING)
+    assert [(r["slot"], r["status"], r["source"]) for r in _log(uid)] == [("app", "sent", "llm")]
 
 
 async def test_chat_greeting_falls_back_to_a_contextual_text_when_the_model_is_down(client, uid, flag_on, monkeypatch):

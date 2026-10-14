@@ -13,6 +13,7 @@
 """
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -39,26 +40,50 @@ async def _generate(prompt, style):
     return await generate_adam_checkin(prompt, style)
 
 
+RETRY_MIN_SECONDS = 3.0        # на вторую попытку модели должно остаться хотя бы столько
+
+
 async def compose_message(state, scenario, user_id, day_iso, timeout=PUSH_LLM_TIMEOUT):
-    """(текст, источник): 'llm' | 'fallback' | 'none' (английский интерфейс без модели — русский запасной текст не шлём)."""
+    """(текст, источник): 'llm' | 'fallback' | 'none' (английский интерфейс без модели — русский запасной текст не шлём).
+
+    Адам не повторяется: текст сравнивается с его последними сообщениями (ac.too_similar); слишком похожий или не прошедший проверку
+    переписывается один раз (если хватает времени), потом — запасной вариант, непохожий на недавние. Подход к тексту (ac.ANGLES) у
+    каждого сообщения свой."""
     opener = ac.opener_style(user_id, day_iso, scenario)
-    prompt = ac.build_checkin_prompt(state, scenario, opener, ac.recent_adam_messages(user_id), state.get("recent_scenarios") or ())
-    text = ""
-    try:
-        with ai_usage.scope(user_id, "checkin"):
-            text = ac.clean_text(await asyncio.wait_for(_generate(prompt, state.get("style") or "neutral"), timeout))
-    except Exception as exc:
-        logger.warning("Адам пишет первым: модель недоступна (%s)", exc)
-    if text and ac.is_acceptable(text, scenario):
-        return text, "llm"
+    recent = ac.recent_adam_messages(user_id, ac.SIMILARITY_LOOKBACK)
+    angle = ac.pick_angle(user_id, day_iso, scenario, recent[-1] if recent else "")
+    prompt = ac.build_checkin_prompt(state, scenario, opener, recent[-3:], state.get("recent_scenarios") or (), angle=angle)
+    started = time.monotonic()
+    extra = ""
+    if ai_usage.check_allowed(user_id)["ok"]:
+        for attempt in range(2):
+            left = timeout - (time.monotonic() - started)
+            if attempt and left < RETRY_MIN_SECONDS:
+                break
+            try:
+                with ai_usage.scope(user_id, "checkin"):
+                    text = ac.clean_text(await asyncio.wait_for(_generate(prompt + extra, state.get("style") or "neutral"), max(left, 1.0)))
+            except Exception as exc:
+                logger.warning("Адам пишет первым: модель недоступна (%s)", exc)
+                break
+            if not text:
+                break
+            if ac.is_acceptable(text, scenario):
+                if not ac.too_similar(text, recent):
+                    return text, "llm"
+                extra = ("\n\nВНИМАНИЕ: прошлый вариант слишком похож на твои недавние сообщения. Перепиши иначе: другая структура, "
+                         "другие слова, другой первый оборот.")
+            else:
+                extra = ("\n\nВНИМАНИЕ: прошлый вариант не прошёл проверку (шаблонная фраза вроде «как дела», слишком длинно или больше одного вопроса). "
+                         "Напиши заново: коротко, один вопрос, без шаблонов.")
     if state.get("language") == "en":
         return "", "none"
-    return ac.fallback_text(state, scenario, user_id, day_iso), "fallback"
+    return ac.fallback_text(state, scenario, user_id, day_iso, avoid=recent), "fallback"
 
 
 async def compose_app_greeting(user_id, timeout=APP_LLM_TIMEOUT):
     """Первое сообщение Адама при заходе в чат: (текст, сценарий, источник) или None."""
-    state = ac.build_checkin_state(user_id, with_pace=False)
+    state = ac.build_checkin_state(user_id)
     scenario, _reason = ac.pick_scenario(state, "app")
     day_iso = datetime.now(ZoneInfo(get_timezone(user_id))).date().isoformat()
     text, source = await compose_message(state, scenario, user_id, day_iso, timeout=timeout)
