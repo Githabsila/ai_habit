@@ -6581,7 +6581,7 @@ function telegramShareUrl(text, link) {
   return `https://t.me/share/url?url=${encodeURIComponent(text)}&text=${encodeURIComponent(link)}`;
 }
 
-async function openFriendInvite() {
+async function openFriendInvite(shareText) {
   haptic("light");
   let link = friendsData?.invite_url || "";
   if (!link && state?.bot_username && state?.user?.telegram_id) {
@@ -6598,7 +6598,7 @@ async function openFriendInvite() {
     showToast("Не получилось собрать ссылку — попробуй чуть позже", "error");
     return;
   }
-  const text = "Давай держать привычки вместе в ADAM — добавляйся в друзья:";
+  const text = shareText || "Давай держать привычки вместе в ADAM — добавляйся в друзья:";
   const shareUrl = telegramShareUrl(text, link);
   if (tg && typeof tg.openTelegramLink === "function") {
     tg.openTelegramLink(shareUrl);
@@ -6731,6 +6731,8 @@ function initFriendsActions() {
 let pairCandidates = null;
 let pairSelectedId = null;
 let pairBusy = false;
+let pairSheetView = "pick";   // pick — выбор союзника; add — «Добавить друзей» (два способа); people — активные игроки ADAM
+let pairPeople = null;        // ответ /api/people/active (null — ещё грузится)
 
 function ruPlural(n, forms) {
   const k = Math.abs(Number(n)) % 100;
@@ -7101,13 +7103,86 @@ async function loadPairQuest() {
 }
 
 // ---- выбор союзника ----
+const PAIR_ICON_NEXT = '<svg class="ui-icon pair-option__chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const PAIR_PEOPLE_MIN_STREAK = 4;
+
+function pairShareText() {
+  return `Давай возьмём парное задание в ADAM — ${pairCandidates?.goal || 20} привычек на двоих за неделю. Добавляйся в друзья:`;
+}
+
+// «Добавить друзей»: ссылка в Telegram (так бота рекомендуют знакомым) или подписка на активных игроков ADAM.
+function pairAddViewHtml() {
+  const minStreak = pairPeople?.min_streak || PAIR_PEOPLE_MIN_STREAK;
+  return `
+    <li class="pair-option" data-pair-act="invite-link" role="button" tabindex="0">
+      <span class="pair-option__icon" aria-hidden="true">✈️</span>
+      <span class="pair-option__text"><b>Отправить ссылку в Telegram</b><small>Друг откроет бота и сразу станет твоим другом</small></span>
+      ${PAIR_ICON_NEXT}
+    </li>
+    <li class="pair-option" data-pair-act="pick-people" role="button" tabindex="0">
+      <span class="pair-option__icon" aria-hidden="true">🔥</span>
+      <span class="pair-option__text"><b>Выбрать из активных игроков</b><small>Серия от ${minStreak} дней. Подпишись — если подпишутся в ответ, вы друзья</small></span>
+      ${PAIR_ICON_NEXT}
+    </li>`;
+}
+
+function pairPersonRowHtml(u) {
+  const id = Number(u.telegram_id);
+  const meta = [u.handle ? `@${escapeHtml(u.handle)}` : "", `🔥 ${Number(u.streak)}`].filter(Boolean).join(" · ");
+  let action;
+  if (u.friends) action = `<span class="friend-row__tag friend-row__tag--sent">Друзья ✓</span>`;
+  else if (u.following) action = `<span class="friend-row__tag">Подписка ✓</span>`;
+  else action = `<button type="button" class="pair-btn pair-btn--primary pair-btn--small" data-pair-act="follow-person" data-id="${id}">Подписаться</button>`;
+  const note = u.followed_by && !u.following
+    ? `<span class="friend-row__meta pair-person__note">Подписан(а) на тебя — сразу друзья</span>` : "";
+  return `
+    <li class="friend-row" data-pair-person="${id}">
+      <span class="friend-row__avatar ${avatarFrameClass(u)}">${avatarInner(u)}</span>
+      <span class="friend-row__info">
+        ${friendNameHtml(u, "Игрок")}
+        <span class="friend-row__meta">${meta}</span>
+        ${note}
+      </span>
+      ${action}
+    </li>`;
+}
+
 function renderPairSheet() {
   const list = document.getElementById("pairSheetList");
   const confirmBtn = document.getElementById("pairSheetConfirm");
   const ally = document.getElementById("pairSheetAlly");
   const meBox = document.getElementById("pairSheetMe");
   const sub = document.getElementById("pairSheetSub");
+  const sheet = document.getElementById("pairSheet");
+  const title = document.getElementById("pairSheetTitle");
+  const addBtn = document.getElementById("pairSheetAdd");
+  const later = document.getElementById("pairSheetLater");
   if (!list || !pairCandidates) return;
+  const view = pairSheetView;
+  sheet?.classList.toggle("pair-sheet--add", view !== "pick");
+  if (title) title.textContent = view === "add" ? "Добавить друзей" : view === "people" ? "Активные игроки" : "Выбери союзника!";
+  if (later) later.textContent = view === "pick" ? "Выбрать позже" : "Назад";
+  if (confirmBtn) confirmBtn.hidden = view !== "pick";
+  list.setAttribute("role", view === "pick" ? "radiogroup" : "list");
+  if (view !== "pick") {
+    if (addBtn) addBtn.hidden = true;
+    const minStreak = pairPeople?.min_streak || PAIR_PEOPLE_MIN_STREAK;
+    if (sub) {
+      sub.textContent = view === "add"
+        ? "Парное задание берут с другом — это взаимная подписка. Выбери, как его найти."
+        : `Серия от ${minStreak} дней. Подпишись — если подпишутся в ответ, вы друзья и сможете взять задание вместе.`;
+    }
+    if (view === "add") list.innerHTML = pairAddViewHtml();
+    else if (!pairPeople) list.innerHTML = `<li class="pair-sheet__empty">Ищу игроков…</li>`;
+    else if (!pairPeople.users.length) {
+      list.innerHTML = `
+        <li class="pair-sheet__empty">
+          Пока мало активных игроков с такой серией. Отправь ссылку другу — так быстрее.
+          <button type="button" class="pair-btn pair-btn--ghost" data-pair-act="invite-link">✈️ Отправить ссылку в Telegram</button>
+        </li>`;
+    } else list.innerHTML = pairPeople.users.map(pairPersonRowHtml).join("");
+    return;
+  }
   const me = state?.user || {};
   if (meBox) {
     meBox.className = `pair-avatar ${avatarFrameClass(me)}`;
@@ -7124,12 +7199,10 @@ function renderPairSheet() {
     sub.textContent = `🎯 ${pairCandidates.goal} привычек на двоих за ${pairCandidates.window_days} дней · до ${pairCandidates.day_cap || 3} в день с каждого · старт завтра.${hasRecommended ? " ⭐ — самые активные друзья." : ""}`;
   }
   if (confirmBtn) confirmBtn.disabled = pairBusy || !picked;
+  // Все друзья заняты (или давно не заходили, или друзей ещё нет) — предлагаем найти новых.
+  if (addBtn) addBtn.hidden = friends.some((f) => f.available);
   if (!friends.length) {
-    list.innerHTML = `
-      <li class="pair-sheet__empty">
-        Пока нет друзей, с которыми можно взять задание. Позови друга по ссылке — когда он добавится, он появится здесь.
-        <button type="button" class="pair-btn pair-btn--ghost" data-pair-act="invite-friend">＋ Позвать друга</button>
-      </li>`;
+    list.innerHTML = `<li class="pair-sheet__empty">Пока нет друзей, с которыми можно взять задание.</li>`;
     return;
   }
   const row = (f) => {
@@ -7159,6 +7232,51 @@ function renderPairSheet() {
       : "") + rest.map(row).join("");
 }
 
+// Действия внутри окна выбора союзника: «Добавить друзей» → ссылка в Telegram / активные игроки / подписка на игрока.
+async function openPairPeople() {
+  pairSheetView = "people";
+  pairPeople = null;
+  renderPairSheet();
+  try {
+    pairPeople = await api("/api/people/active", { timeoutMs: 8000 });
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+    pairSheetView = "add";
+  }
+  renderPairSheet();
+}
+
+async function pairFollowPerson(button) {
+  const id = Number(button.dataset.id);
+  if (!id || button.disabled) return;
+  button.disabled = true;
+  try {
+    const result = await api(`/api/users/${id}/follow`, { method: "POST" });
+    const person = (pairPeople?.users || []).find((u) => Number(u.telegram_id) === id);
+    const friends = !!result?.relation?.friends;
+    if (person) { person.following = true; person.friends = friends; }
+    haptic("medium");
+    showToast(friends ? "🤝 Теперь вы друзья — можно звать в задание" : "Подписка отправлена — если подпишутся в ответ, вы друзья", "success", 3200);
+    loadFriendsCard();      // счётчики подписок в Рейтинге
+    if (friends) {
+      try { pairCandidates = await api("/api/pair-quest/candidates", { timeoutMs: 8000 }); } catch (_) { /* список обновится при следующем открытии */ }
+    }
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+    button.disabled = false;
+    return;
+  }
+  renderPairSheet();
+}
+
+async function pairSheetAction(el) {
+  const act = el.dataset.pairAct;
+  if (act === "add-friends") { haptic("light"); pairSheetView = "add"; renderPairSheet(); return; }
+  if (act === "invite-link") { closePairSheet(); await openFriendInvite(pairShareText()); return; }
+  if (act === "pick-people") { haptic("light"); await openPairPeople(); return; }
+  if (act === "follow-person") await pairFollowPerson(el);
+}
+
 async function openPairSheet() {
   const sheet = document.getElementById("pairSheet");
   if (!sheet || pairBusy) return;
@@ -7171,6 +7289,8 @@ async function openPairSheet() {
   if (pairCandidates.needs_habit) { showToast(friendlyError({ data: { error: "needs_habit" } }), "error"); return; }
   if (!pairCandidates.can_choose) { await loadPairQuest(); return; }
   pairSelectedId = null;
+  pairSheetView = "pick";
+  pairPeople = null;
   renderPairSheet();
   haptic("light");
   sheet.hidden = false;
@@ -7370,7 +7490,8 @@ function initPairQuest() {
   mini?.addEventListener("click", openFromMini);
   mini?.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openFromMini(); } });
   document.getElementById("pairSheetList")?.addEventListener("click", async (e) => {
-    if (e.target.closest("[data-pair-act='invite-friend']")) { closePairSheet(); await openFriendInvite(); return; }
+    const action = e.target.closest("[data-pair-act]");
+    if (action) { await pairSheetAction(action); return; }
     const row = e.target.closest("[data-pair-friend]");
     if (!row || row.classList.contains("is-disabled") || pairBusy) return;
     pairSelectedId = Number(row.dataset.pairFriend);
@@ -7378,7 +7499,16 @@ function initPairQuest() {
     renderPairSheet();
   });
   document.getElementById("pairSheetConfirm")?.addEventListener("click", confirmPairInvite);
-  document.getElementById("pairSheetLater")?.addEventListener("click", () => { haptic("light"); closePairSheet(); });
+  document.getElementById("pairSheetList")?.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches(".pair-option")) { e.preventDefault(); e.target.click(); }
+  });
+  document.getElementById("pairSheetAdd")?.addEventListener("click", (e) => pairSheetAction(e.currentTarget));
+  document.getElementById("pairSheetLater")?.addEventListener("click", () => {
+    haptic("light");
+    if (pairSheetView === "people") { pairSheetView = "add"; renderPairSheet(); return; }
+    if (pairSheetView === "add") { pairSheetView = "pick"; renderPairSheet(); return; }
+    closePairSheet();
+  });
   document.getElementById("pairBackdrop")?.addEventListener("click", closePairSheet);
 
   const guide = document.getElementById("pairGuideOverlay");

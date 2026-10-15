@@ -137,7 +137,7 @@ FEATURES = (
     Feature(
         "pair_quest", "Парное задание", "social", "2026-10-02",
         screens=("pairGuide",),
-        clicks=("pair-*", "pq-info-btn*", "pairGuideClose"),
+        clicks=("pair-*", "pairSheet*", "pq-info-btn*", "pairGuideClose"),
         events=("pair_invite",),
         api=("POST /api/pair-quest/invite", "POST /api/pair-quest/{quest_id}/accept", "POST /api/pair-quest/{quest_id}/decline",
              "POST /api/pair-quest/{quest_id}/cancel", "POST /api/pair-quest/{quest_id}/claim"),
@@ -175,7 +175,7 @@ FEATURES = (
         api=("POST /api/friends/{telegram_id}/nudge", "POST /api/friends/{telegram_id}/remove", "POST /api/users/{telegram_id}/follow",
              "POST /api/users/{telegram_id}/unfollow", "POST /api/users/{telegram_id}/block", "POST /api/users/{telegram_id}/unblock",
              "POST /api/users/{telegram_id}/report", "GET /api/users/search", "GET /api/users/{telegram_id}/profile",
-             "POST /api/settings/friend-nudges"),
+             "POST /api/settings/friend-nudges", "GET /api/people/active"),
         bot=("cb:community", "cb:community_chat", "cb:find_match", "cb:start_challenge", "cb:challenge_with:*"),
     ),
     Feature(
@@ -267,6 +267,9 @@ BUTTON_LABELS = {
     "tab-bar__item=profile": "Вкладка «Профиль»", "habit-item__check=complete": "Отметить привычку", "habit-item__check=progress": "Прогресс счётчика",
     "habit-item__del=delete": "Удалить привычку", "habit-item__note=note": "Заметка к привычке", "habit-item__more=toggle-actions": "Меню привычки",
     "plan-icon-btn=edit": "Править задачу", "plan-icon-btn=delete": "Удалить задачу",
+    "pairSheetAdd": "Союзник: «Добавить друзей»", "pair-option=invite-link": "Союзник: ссылка в Telegram",
+    "pair-option=pick-people": "Союзник: активные игроки", "pair-btn=follow-person": "Союзник: подписка на игрока",
+    "pair-btn=invite-link": "Союзник: ссылка в Telegram",
 }
 SCREEN_LABELS_EXTRA = {
     "achievementShare": "Поделиться достижением", "selfRewardModal": "Награда себе", "selfRewardHistory": "История наград себе",

@@ -86,7 +86,7 @@ from db import (
     get_friend_activity_feed,
     get_friends_overview, send_nudge, cancel_nudge, claim_remind_prompt,
     friend_nudges_enabled, set_friend_nudges, mark_bot_blocked, is_bot_forbidden_error,
-    follow, unfollow, get_relation, get_counts, list_follows, find_user_by_handle,
+    follow, unfollow, get_relation, get_counts, list_follows, find_user_by_handle, list_active_people, ACTIVE_PEOPLE_MIN_STREAK,
     block_user, unblock_user, report_user, REPORT_REASONS, get_player_profile,
     get_stats_visibility, set_stats_visibility, is_bot_blocked, is_blocked_between,
     share_habits_enabled, set_share_habits,
@@ -1988,7 +1988,8 @@ async def user_follow_route(request):
         status = 404 if result["error"] == "not_found" else 400
         return web.json_response({"error": result["error"]}, status=status)
     if result["notify"]:
-        name = html.escape(_display_name(get_user(telegram_id)))
+        # Имя + ник ADAM: подписываться могут и незнакомые люди (окно «Добавить друзей» в парном задании), одинаковые имена нужно различать.
+        name = _name_with_handle(get_user(telegram_id))
         if result["notify"] == "friends":
             text = (f"🤝 <b>{name}</b> подписался(ась) на тебя в ответ — теперь вы друзья в ADAM! "
                     "Смотрите, кто сегодня отметился, и подталкивайте друг друга.")
@@ -1996,6 +1997,14 @@ async def user_follow_route(request):
             text = f"👤 <b>{name}</b> подписался(ась) на тебя в ADAM."
         _spawn_background(_send_social_push(request.app, target_id, text))
     return web.json_response(_follow_response(telegram_id, target_id))
+
+
+@routes.get("/api/people/active")
+async def active_people_route(request):
+    """Окно «Выбери союзника → Добавить друзей → Выбрать из активных»: игроки с серией от 4 дней, на которых можно подписаться
+    (подпишутся в ответ — станут друзьями и смогут взять парное задание). Подписка — обычная, через /api/users/{id}/follow."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({"users": list_active_people(telegram_id), "min_streak": ACTIVE_PEOPLE_MIN_STREAK})
 
 
 @routes.post("/api/users/{telegram_id}/unfollow")

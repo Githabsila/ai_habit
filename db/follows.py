@@ -233,6 +233,60 @@ def list_follows(user_id, kind, limit=200):
     return result
 
 
+ACTIVE_PEOPLE_MIN_STREAK = 4      # «активный игрок» для подбора союзника: серия от 4 дней
+ACTIVE_PEOPLE_LIMIT = 10
+
+
+def list_active_people(user_id, min_streak=ACTIVE_PEOPLE_MIN_STREAK, limit=ACTIVE_PEOPLE_LIMIT):
+    """Кого можно предложить подписаться, когда среди друзей никого свободного нет (окно «Выбери союзника → Добавить друзей»):
+    игроки с серией от min_streak дней, которые отмечались в последние дни и на которых я ещё не подписан. Заблокированных (в любую
+    сторону), забаненных и не прошедших анкету (кроме админов) не показываем — условие то же, что у рассылок бота
+    (db/push_access.py). Сверху — те, кто уже подписан на меня (подписка сразу сделает вас друзьями), дальше — ближе всех к моей
+    серии: с ровней соревноваться интереснее, и подписки не уходят все к одному лидеру."""
+    from .evolution import public_level
+    from .push_access import push_allowed_sql
+
+    min_streak = int(min_streak)
+    conn = connect()
+    try:
+        mine = conn.execute("SELECT streak FROM users WHERE telegram_id=?", (user_id,)).fetchone()
+        rows = conn.execute(
+            f"""
+            SELECT u.telegram_id, u.first_name, u.username, u.handle, u.avatar_id, u.frame_id, u.streak, u.best_streak,
+                   EXISTS(SELECT 1 FROM follows b WHERE b.follower_id=u.telegram_id AND b.followee_id=:me) AS followed_by
+            FROM users u
+            WHERE u.telegram_id != :me
+              AND {push_allowed_sql('u')}
+              AND u.streak >= :min
+              AND NOT EXISTS (SELECT 1 FROM follows a WHERE a.follower_id=:me AND a.followee_id=u.telegram_id)
+              AND NOT EXISTS (SELECT 1 FROM user_blocks k WHERE (k.blocker_id=:me AND k.blocked_id=u.telegram_id)
+                                                              OR (k.blocker_id=u.telegram_id AND k.blocked_id=:me))
+              AND EXISTS (SELECT 1 FROM streak_days d WHERE d.user_id=u.telegram_id AND d.status='completed'
+                                                         AND d.day >= date('now', '-2 days'))
+            ORDER BY followed_by DESC, ABS(u.streak - :mine), u.streak DESC, u.telegram_id
+            LIMIT :limit
+            """,
+            {"me": user_id, "min": min_streak, "mine": int(mine["streak"] or 0) if mine else 0, "limit": int(limit)},
+        ).fetchall()
+    finally:
+        conn.close()
+    return [
+        {
+            "telegram_id": r["telegram_id"],
+            "first_name": r["first_name"] or r["username"] or "Игрок",
+            "handle": r["handle"],
+            "avatar_id": r["avatar_id"] or "default",
+            "frame_id": r["frame_id"] or "default",
+            "streak": int(r["streak"] or 0),
+            "evo": public_level(r["best_streak"], r["streak"]),
+            "following": False,
+            "followed_by": bool(r["followed_by"]),
+            "friends": False,
+        }
+        for r in rows
+    ]
+
+
 def find_user_by_handle(raw_handle):
     """Точное совпадение @ника (без регистра) — не поиск по подстроке:
     перебором префиксов список игроков не вытащить."""

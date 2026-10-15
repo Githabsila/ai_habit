@@ -14675,3 +14675,20 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .daily-quests-overlay{padding-top:calc(var(--adam-chrome-top, 0px) + 12px);padding-bottom:18px}
 .daily-quests-modal{max-height:calc(100vh - var(--adam-chrome-top, 0px) - 30px) !important;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
 .daily-quests-modal::-webkit-scrollbar{display:none;width:0;height:0}
+
+/* Парное задание → «Добавить друзей»: два способа (ссылка в Telegram / активные игроки ADAM). Без filter — диета для отрисовки. */
+.pair-sheet__add{margin-bottom:6px}
+.pair-sheet--add .pair-sheet__hero{display:none}
+.pair-sheet--add .pair-sheet__list{max-height:min(54vh,440px)}
+.pair-option{
+  display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;cursor:pointer;list-style:none;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);-webkit-tap-highlight-color:transparent;
+}
+.pair-option+.pair-option{margin-top:8px}
+.pair-option:active{background:rgba(255,255,255,.11)}
+.pair-option__icon{flex:0 0 auto;width:40px;height:40px;display:grid;place-items:center;border-radius:12px;font-size:20px;line-height:1;background:rgba(142,112,255,.2)}
+.pair-option__text{flex:1 1 auto;min-width:0;text-align:left}
+.pair-option__text b{display:block;font:800 14px 'Space Grotesk',sans-serif;color:#fff}
+.pair-option__text small{display:block;margin-top:3px;font-size:11.5px;line-height:1.35;color:#B9B3D6}
+.pair-option__chev{flex:0 0 auto;width:18px;height:18px;color:#9a94bd}
+.pair-person__note{white-space:normal;color:#7be3a4}

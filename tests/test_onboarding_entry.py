@@ -130,7 +130,7 @@ const out = {};
 %s
 console.log(JSON.stringify(out));
 """ % (json.dumps(APP[start:end]), json.dumps(json.dumps(scenario["state"])), scenario["js"]), encoding="utf-8")
-    result = subprocess.run([NODE, str(script)], capture_output=True, text=True, timeout=30)
+    result = subprocess.run([NODE, str(script)], capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 

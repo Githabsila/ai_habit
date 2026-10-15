@@ -104,7 +104,7 @@ from .friends import (
 from .follows import (
     follow, unfollow, make_friends, remove_mutual, get_relation, get_counts,
     list_follows, find_user_by_handle, block_user, unblock_user, is_blocked_between,
-    report_user, MAX_FOLLOWING, REPORT_REASONS,
+    report_user, MAX_FOLLOWING, REPORT_REASONS, list_active_people, ACTIVE_PEOPLE_MIN_STREAK,
 )
 
 from .profiles import get_player_profile, VISIBLE_SECTIONS
@@ -377,7 +377,7 @@ __all__ = [
     "MAX_NUDGES_PER_DAY",
     "follow", "unfollow", "make_friends", "remove_mutual", "get_relation", "get_counts",
     "list_follows", "find_user_by_handle", "block_user", "unblock_user", "is_blocked_between",
-    "report_user", "MAX_FOLLOWING", "REPORT_REASONS",
+    "report_user", "MAX_FOLLOWING", "REPORT_REASONS", "list_active_people", "ACTIVE_PEOPLE_MIN_STREAK",
     "get_player_profile", "VISIBLE_SECTIONS",
     "get_gift_options", "send_gift", "gifts_left_today",
     "get_received_gifts", "count_unseen_gifts", "mark_gifts_seen",
