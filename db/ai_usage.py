@@ -21,12 +21,19 @@ FEATURES = {
     "chat": "Чат с Адамом", "intent": "Команды в чате", "checkin": "Адам пишет первым", "morning": "Утреннее сообщение",
     "tip": "Совет дня", "progress": "Разбор прогресса", "weekly": "Недельный разбор", "monthly": "Месячный разбор",
     "survey": "Анкета и первый шаг", "memory": "Память о человеке", "goal": "Прогресс по цели", "summary": "ИИ-сводка для админа", "analyst": "ИИ-аналитик продукта",
-    "voice": "Голос", "other": "Прочее",
+    "voice": "Голос",
+    # «Прочее» делилось на два разных случая, которые нельзя было отличить: записи ДО учёта по функциям и людям (колонки feature и user_id
+    # появились 12.10, у старых строк они пустые) и вызовы, которые код забыл обернуть в scope.
+    "legacy": "Старые записи (до учёта по функциям)", "other": "Без метки (вызов не привязан к функции)",
 }
+LEGACY = "legacy"
 BLOCK_HOURS = (1, 24, 168)
 DAY_LIMITS = (20_000, 50_000, 100_000, 200_000)
 
 _current = contextvars.ContextVar("ai_usage_scope", default=None)
+
+# Ключ функции в сводках: у старых записей (до 12.10) feature пустой — это «legacy», а не «other» (вызов без метки после появления учёта).
+_FEATURE_KEY = "CASE WHEN feature IS NULL THEN 'legacy' ELSE feature END"
 
 
 class AIRestricted(RuntimeError):
@@ -103,8 +110,8 @@ def user_usage(user_id):
         day = conn.execute("SELECT COALESCE(SUM(tokens),0) AS n, COUNT(*) AS c FROM ai_token_log WHERE user_id=? AND day=?", (user_id, str(today))).fetchone()
         week = conn.execute("SELECT COALESCE(SUM(tokens),0) AS n, COUNT(*) AS c FROM ai_token_log WHERE user_id=? AND day>=?", (user_id, since7)).fetchone()
         by_feature = conn.execute(
-            "SELECT COALESCE(feature,'other') AS feature, SUM(tokens) AS n, COUNT(*) AS c FROM ai_token_log "
-            "WHERE user_id=? AND day>=? GROUP BY feature ORDER BY n DESC", (user_id, since7)).fetchall()
+            f"SELECT {_FEATURE_KEY} AS fkey, SUM(tokens) AS n, COUNT(*) AS c FROM ai_token_log "
+            "WHERE user_id=? AND day>=? GROUP BY fkey ORDER BY n DESC", (user_id, since7)).fetchall()
         series = conn.execute(
             "SELECT day, SUM(tokens) AS n FROM ai_token_log WHERE user_id=? AND day>=? GROUP BY day ORDER BY day", (user_id, since14)).fetchall()
         user = conn.execute("SELECT ai_blocked_until, ai_tokens_day_limit FROM users WHERE telegram_id=?", (user_id,)).fetchone()
@@ -115,7 +122,7 @@ def user_usage(user_id):
         "today": int(day["n"]), "today_calls": int(day["c"]), "week": int(week["n"]), "week_calls": int(week["c"]),
         "total": int(total["n"]), "total_calls": int(total["c"]),
         "avg_per_call": int(week["n"] / week["c"]) if week["c"] else 0,
-        "by_feature": [{"feature": r["feature"], "label": FEATURES.get(r["feature"], r["feature"]), "tokens": int(r["n"]), "calls": int(r["c"])} for r in by_feature],
+        "by_feature": [{"feature": r["fkey"], "label": FEATURES.get(r["fkey"], r["fkey"]), "tokens": int(r["n"]), "calls": int(r["c"])} for r in by_feature],
         "series": [{"day": r["day"], "tokens": int(r["n"])} for r in series],
         "blocked_until": blocked_until.isoformat() if blocked_until and blocked_until > _now() else None,
         "day_limit": user["ai_tokens_day_limit"] if user else None,
@@ -132,8 +139,11 @@ def overview(days=7, limit=15):
         unowned = conn.execute("SELECT COALESCE(SUM(tokens),0) AS n FROM ai_token_log WHERE day>=? AND user_id IS NULL", (since,)).fetchone()
         today = conn.execute("SELECT COALESCE(SUM(tokens),0) AS n FROM ai_token_log WHERE day=?", (str(date.today()),)).fetchone()
         by_feature = conn.execute(
-            "SELECT COALESCE(feature,'other') AS feature, SUM(tokens) AS n, COUNT(*) AS c FROM ai_token_log WHERE day>=? GROUP BY feature ORDER BY n DESC",
+            f"SELECT {_FEATURE_KEY} AS fkey, SUM(tokens) AS n, COUNT(*) AS c FROM ai_token_log WHERE day>=? GROUP BY fkey ORDER BY n DESC",
             (since,)).fetchall()
+        legacy = conn.execute("SELECT COALESCE(SUM(tokens),0) AS n, COUNT(*) AS c, MAX(day) AS until FROM ai_token_log WHERE day>=? AND feature IS NULL", (since,)).fetchone()
+        unlabeled = conn.execute(
+            "SELECT COALESCE(SUM(tokens),0) AS n, COUNT(*) AS c, MIN(day) AS since, MAX(day) AS until FROM ai_token_log WHERE day>=? AND feature='other'", (since,)).fetchone()
         series = conn.execute("SELECT day, SUM(tokens) AS n FROM ai_token_log WHERE day>=? GROUP BY day ORDER BY day", (since,)).fetchall()
         top = conn.execute(
             "SELECT l.user_id AS user_id, SUM(l.tokens) AS n, COUNT(*) AS c, u.username AS username, u.first_name AS first_name, "
@@ -148,8 +158,11 @@ def overview(days=7, limit=15):
     return {
         "days": days, "tokens": grand, "calls": int(total["c"]), "today": int(today["n"]),
         "unowned": int(unowned["n"]), "users": int(users_active["n"]),
+        # Что именно стоит за двумя «служебными» строками списка функций (сколько вызовов, до какого дня идут старые записи).
+        "legacy": {"tokens": int(legacy["n"]), "calls": int(legacy["c"]), "until": legacy["until"]},
+        "unlabeled": {"tokens": int(unlabeled["n"]), "calls": int(unlabeled["c"]), "since": unlabeled["since"], "until": unlabeled["until"]},
         "avg_per_user": int(grand / users_active["n"]) if users_active["n"] else 0,
-        "by_feature": [{"feature": r["feature"], "label": FEATURES.get(r["feature"], r["feature"]), "tokens": int(r["n"]), "calls": int(r["c"]),
+        "by_feature": [{"feature": r["fkey"], "label": FEATURES.get(r["fkey"], r["fkey"]), "tokens": int(r["n"]), "calls": int(r["c"]),
                         "share": round(100 * r["n"] / grand, 1) if grand else 0.0} for r in by_feature],
         "series": [{"day": r["day"], "tokens": int(r["n"])} for r in series],
         "top": [{

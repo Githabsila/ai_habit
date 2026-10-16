@@ -1362,6 +1362,11 @@ textarea.field{resize:vertical;min-height:88px}
     return String(n);
   }
 
+  function shortDay(iso){
+    var m = /^\d{4}-(\d{2})-(\d{2})/.exec(iso || '');
+    return m ? m[2] + '.' + m[1] : '';
+  }
+
   function barsHtml(series){
     var max = Math.max.apply(null, (series || []).map(function(s){ return s.tokens; }).concat([1]));
     return '<div style="display:flex;align-items:flex-end;gap:3px;height:38px;margin:6px 0">' + (series || []).map(function(s){
@@ -1398,7 +1403,12 @@ textarea.field{resize:vertical;min-height:88px}
           '<span class="stat-chip">в среднем на человека: <b>' + fmtTok(d.avg_per_user) + '</b></span></div>' +
         barsHtml(d.series) +
         '<div class="empty-note" style="padding:8px 0 2px">По функциям</div>' + featureRows(d.by_feature, d.tokens) +
-        (d.unowned ? '<div class="empty-note" style="padding:6px 0">Без владельца (не привязано к человеку): ' + fmtTok(d.unowned) + '</div>' : '') +
+        (d.legacy && d.legacy.calls ? '<div class="empty-note" style="padding:6px 0;line-height:1.5">«Старые записи» — ' + d.legacy.calls + ' вызовов (' + fmtTok(d.legacy.tokens) + ') до ' + shortDay(d.legacy.until) +
+          ': тогда расход ещё не делился по функциям и людям, поэтому отнести их к человеку нельзя. Новые вызовы сюда не попадают.</div>' : '') +
+        (d.unlabeled && d.unlabeled.calls ? '<div class="empty-note" style="padding:6px 0;color:#FFB4A8;line-height:1.5">⚠️ «Без метки» — ' + d.unlabeled.calls + ' вызовов (' + fmtTok(d.unlabeled.tokens) + ') с ' + shortDay(d.unlabeled.since) +
+          ': где-то модель вызывается без привязки к функции. Это ошибка учёта, её нужно поправить в коде.</div>' : '') +
+        (d.unowned ? '<div class="empty-note" style="padding:6px 0">Без владельца (не привязано к человеку): ' + fmtTok(d.unowned) +
+          (d.legacy && d.legacy.tokens ? ' · из них старые записи: ' + fmtTok(d.legacy.tokens) : '') + '</div>' : '') +
         '<div class="empty-note" style="padding:10px 0 2px">Кто больше всех тратит</div>' + (top || '<div class="empty-note">Пока нет данных — учёт по людям начался с этого обновления</div>');
       bindUserRows(box);
     }catch(e){
