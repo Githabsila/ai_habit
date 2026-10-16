@@ -224,6 +224,9 @@ def create_tables():
     # mark_bot_blocked, используется в coach.py/morning_ping.py).
     if "bot_blocked_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN bot_blocked_at TIMESTAMP")
+    # Когда человек последний раз открывал список «Подписчики» (db/follows.py::new_followers_count): всё новее — «новые подписчики».
+    if "followers_seen_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN followers_seen_at TEXT")
 
     # Roadmap #39 — архетип личности, определяется один раз коротким тестом
     # при онбординге/из профиля (см. db/personality.py).

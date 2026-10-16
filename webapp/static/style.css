@@ -14692,3 +14692,27 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .pair-option__text small{display:block;margin-top:3px;font-size:11.5px;line-height:1.35;color:#B9B3D6}
 .pair-option__chev{flex:0 0 auto;width:18px;height:18px;color:#9a94bd}
 .pair-person__note{white-space:normal;color:#7be3a4}
+
+/* Подписки и подписчики в шапке (п.12): всегда на виду, по тапу — списки. Только плоские цвета, без размытия и анимаций: шапка одна на всех вкладках. */
+.player-follow{display:flex;gap:7px;margin-top:9px}
+.player-follow__btn{
+  flex:1 1 0;min-width:0;height:30px;padding:0 6px;display:flex;align-items:center;justify-content:center;gap:4px;position:relative;
+  border-radius:999px;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.06);color:rgba(255,255,255,.68);
+  font:600 11px 'Space Grotesk',sans-serif;white-space:nowrap;cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.player-follow__btn b{color:#fff;font-weight:700;font-size:13px;flex:0 0 auto}
+.player-follow__btn span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.player-follow__btn em{flex:0 0 auto}
+.player-follow__btn:active{background:rgba(255,255,255,.13)}
+.player-follow__new{
+  font:700 9.5px/1 'Space Grotesk',sans-serif;font-style:normal;padding:3px 5px;border-radius:999px;background:#FFC93C;color:#3a2600;
+}
+.player-follow__new[hidden]{display:none}
+
+/* Списки подписок: «новый подписчик» и подборка активных игроков (знакомиться с незнакомыми — как в Duolingo). */
+.follow-new-tag{color:#FFC93C}
+.follow-recs__head{list-style:none;padding:14px 2px 6px}
+.follow-recs__head b{display:block;font:800 13px 'Space Grotesk',sans-serif;color:var(--text,#EAE5FA)}
+.follow-recs__head small{display:block;margin-top:3px;font-size:11.5px;line-height:1.4;color:var(--text-muted,#9D9DB3)}
+.follow-empty{list-style:none;text-align:center;color:var(--text-muted,#9D9DB3);font-size:13px;line-height:1.5;padding:22px 10px 10px}
+.follow-empty .friend-row__btn{margin-top:12px}

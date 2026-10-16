@@ -3594,6 +3594,7 @@
     if (handleEl) handleEl.textContent = u.handle ? `@${u.handle}` : "";
     document.getElementById("streakValue").textContent = u.streak || 0;
     document.getElementById("coinValue").textContent = u.xp || 0;
+    renderFollowCounters();
 
     const badgeEl = document.getElementById("playerBadge");
     if (badgeEl) badgeEl.style.display = u.badge ? "inline" : "none";
@@ -6558,9 +6559,46 @@ function renderFriendsCard() {
   if (typedSearch) document.getElementById("friendsSearchInput").value = typedSearch;
 }
 
+// Счётчики подписок в шапке (index.html #playerFollow): пока не пришли с сервера — прячем 0, чтобы не мигали ложные «0».
+function renderFollowCounters() {
+  const counts = state?.user?.follow_counts;
+  if (!counts) return;
+  // Большие числа сокращаем (1.2K), чтобы пилюля не растягивала шапку.
+  const short = (value) => {
+    const n = Number(value) || 0;
+    return n >= 1000 ? `${(Math.floor(n / 100) / 10).toString().replace(/\.0$/, "")}K` : String(n);
+  };
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    const text = short(value);
+    if (el && el.textContent !== text) el.textContent = text;
+  };
+  setText("playerFollowingCount", counts.following);
+  setText("playerFollowersCount", counts.followers);
+  const badge = document.getElementById("playerFollowersNew");
+  if (badge) {
+    const fresh = Number(counts.new) || 0;
+    badge.hidden = fresh <= 0;
+    if (fresh > 0) badge.textContent = fresh > 99 ? "+99" : `+${fresh}`;
+  }
+}
+
+// Любой ответ сервера со счётчиками (карточка «Друзья», список подписок) держит шапку в актуальном состоянии.
+function syncFollowCounts(counts, newFollowers) {
+  if (!state?.user || !counts) return;
+  const previous = state.user.follow_counts || {};
+  state.user.follow_counts = {
+    following: Number(counts.following) || 0,
+    followers: Number(counts.followers) || 0,
+    new: newFollowers === undefined ? Number(previous.new) || 0 : Number(newFollowers) || 0,
+  };
+  renderFollowCounters();
+}
+
 async function loadFriendsCard() {
   try {
     friendsData = await api("/api/friends", { timeoutMs: 8000 });
+    syncFollowCounts(friendsData.counts, friendsData.new_followers);
     renderFriendsCard();
   } catch (err) {
     console.error("loadFriends failed:", err);
@@ -8253,12 +8291,14 @@ function followRowHtml(u) {
   const id = Number(u.telegram_id);
   const a = relationAction(u);
   const meta = [u.handle ? `@${escapeHtml(u.handle)}` : "", Number(u.streak) > 0 ? `🔥 ${Number(u.streak)}` : ""].filter(Boolean).join(" · ");
+  const fresh = u.is_new ? `<span class="friend-row__meta follow-new-tag">✨ новый</span>` : "";
   return `
     <li class="friend-row" data-profile-id="${id}">
       <span class="friend-row__avatar ${avatarFrameClass(u)}">${avatarInner(u)}</span>
       <span class="friend-row__info">
         ${friendNameHtml(u, "Игрок")}
         ${meta ? `<span class="friend-row__meta">${meta}</span>` : ""}
+        ${fresh}
       </span>
       <button type="button" class="friend-row__btn friend-row__btn--${a.cls}" data-follow-act="${a.act}" data-follow-id="${id}" data-follow-name="${escapeHtml(u.first_name || "игрока")}">${a.label}</button>
     </li>`;
@@ -8275,11 +8315,21 @@ function renderFollowList() {
     tab.classList.toggle("is-active", tab.dataset.followKind === followListKind);
   });
   const users = followListData.users || [];
-  list.innerHTML = users.length
-    ? users.map(followRowHtml).join("")
-    : `<li class="empty-hint">${followListKind === "followers"
-        ? "Пока никто не подписан на тебя. Поделись ссылкой из карточки «Друзья»."
-        : "Ты ни на кого не подписан. Загляни в рейтинг — подпишись на тех, за кем хочется следить."}</li>`;
+  const reward = friendsData?.invite_reward;
+  const rewardNote = reward && Number(reward.left) > 0 ? ` За каждого из первых двух приглашённых — ${Number(reward.coins)} Адам коинов.` : "";
+  const empty = followListKind === "followers"
+    ? `<li class="follow-empty">Пока никто не подписан на тебя. Позови друга — и подписывайся на активных игроков ниже: часть подпишется в ответ.${rewardNote}
+         <br><button type="button" class="friend-row__btn friend-row__btn--primary" data-follow-invite>✈️ Позвать друга</button></li>`
+    : `<li class="follow-empty">Ты ни на кого не подписан. Подпишись на активных игроков ниже — следи за их сериями и подтягивайся.</li>`;
+  // Подборка активных игроков (GET /api/people/active) под списком подписок и под пустым списком подписчиков: так знакомятся с теми, кого
+  // не знают. Тех, на кого уже подписались, прячем сразу — следующая перезагрузка списка их и так уберёт.
+  const known = new Set(users.map((u) => Number(u.telegram_id)));
+  const recs = (followListRecs || []).filter((r) => !known.has(Number(r.telegram_id))).slice(0, 5);
+  const showRecs = recs.length && (followListKind === "following" || !users.length);
+  list.innerHTML = (users.length ? users.map(followRowHtml).join("") : empty)
+    + (showRecs
+      ? `<li class="follow-recs__head"><b>Активные игроки ADAM</b><small>Подпишись — если подпишутся в ответ, вы друзья и сможете брать задания вместе</small></li>${recs.map(followRowHtml).join("")}`
+      : "");
 }
 
 async function loadFollowList(kind, { quiet = false } = {}) {
@@ -8288,11 +8338,38 @@ async function loadFollowList(kind, { quiet = false } = {}) {
   if (list && !quiet) list.innerHTML = `<li class="empty-hint">Загружаю…</li>`;
   try {
     followListData = await api(`/api/follows?kind=${encodeURIComponent(kind)}`, { timeoutMs: 8000 });
+    syncFollowCounts(followListData.counts, followListData.new_followers);
     renderFollowList();
+    // Список подписчиков открыт — новые подписчики стали «просмотренными» (метка на счётчике в шапке гаснет).
+    if (kind === "followers" && Number(followListData.new_followers) > 0) markFollowersSeen();
   } catch (err) {
     if (list && !quiet) list.innerHTML = "";
     showToast(friendlyError(err), "error");
   }
+}
+
+async function markFollowersSeen() {
+  try {
+    const res = await api("/api/follows/seen", { method: "POST" });
+    if (state?.user && res?.follow_counts) {
+      state.user.follow_counts = res.follow_counts;
+      renderFollowCounters();
+    }
+  } catch (_) { /* метка погаснет при следующем открытии списка */ }
+}
+
+// Подборка активных игроков для списков подписок; грузится параллельно со списком и один раз за открытие окна.
+let followListRecs = [];
+
+async function loadFollowListRecs() {
+  try {
+    const data = await api("/api/people/active", { timeoutMs: 8000 });
+    followListRecs = data.users || [];
+  } catch (_) {
+    followListRecs = [];
+  }
+  const sheet = document.getElementById("followListSheet");
+  if (sheet && !sheet.hidden && followListData) renderFollowList();
 }
 
 async function openFollowList(kind) {
@@ -8302,6 +8379,8 @@ async function openFollowList(kind) {
   sheet.hidden = false;
   sheet.setAttribute("aria-hidden", "false");
   requestAnimationFrame(() => sheet.classList.add("is-open"));
+  followListRecs = [];
+  loadFollowListRecs();
   await loadFollowList(kind === "followers" ? "followers" : "following");
 }
 
@@ -8569,7 +8648,16 @@ function initProfileOverlays() {
     haptic("light");
     await loadFollowList(tab.dataset.followKind);
   });
+  document.getElementById("playerFollow")?.addEventListener("click", (e) => {
+    const openBtn = e.target.closest("[data-follow-open]");
+    if (openBtn) openFollowList(openBtn.dataset.followOpen);
+  });
   document.getElementById("followList")?.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-follow-invite]")) {
+      closeFollowListSheet();
+      await openFriendInvite();
+      return;
+    }
     const actBtn = e.target.closest("[data-follow-act]");
     if (actBtn) {
       await changeRelation(Number(actBtn.dataset.followId), actBtn.dataset.followAct, actBtn.dataset.followName);

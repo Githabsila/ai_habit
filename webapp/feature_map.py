@@ -170,12 +170,12 @@ FEATURES = (
     Feature(
         "friends", "Друзья и подписки", "social", "2026-09-10",
         screens=("userProfile",),
-        clicks=("friend-row__btn*", "friends-card__*", "up-*"),
+        clicks=("friend-row__btn*", "friends-card__*", "up-*", "player-follow__*", "follow-recs__*"),
         events=("friend_added",),
         api=("POST /api/friends/{telegram_id}/nudge", "POST /api/friends/{telegram_id}/remove", "POST /api/users/{telegram_id}/follow",
              "POST /api/users/{telegram_id}/unfollow", "POST /api/users/{telegram_id}/block", "POST /api/users/{telegram_id}/unblock",
              "POST /api/users/{telegram_id}/report", "GET /api/users/search", "GET /api/users/{telegram_id}/profile",
-             "POST /api/settings/friend-nudges", "GET /api/people/active"),
+             "POST /api/settings/friend-nudges", "GET /api/people/active", "POST /api/follows/seen"),
         bot=("cb:community", "cb:community_chat", "cb:find_match", "cb:start_challenge", "cb:challenge_with:*"),
     ),
     Feature(

@@ -186,10 +186,49 @@ def get_counts(user_id):
         conn.close()
 
 
+def new_followers_count(user_id):
+    """Сколько человек подписалось с тех пор, как он последний раз открывал список «Подписчики» (метка на счётчике в шапке). Первое обращение
+    запоминает «сейчас»: уже существующие подписчики новыми не считаются, иначе у всех при выходе функции горела бы цифра."""
+    conn = connect()
+    try:
+        row = conn.execute("SELECT followers_seen_at FROM users WHERE telegram_id=?", (user_id,)).fetchone()
+        if row is None:
+            return 0
+        if not row["followers_seen_at"]:
+            conn.execute("UPDATE users SET followers_seen_at=CURRENT_TIMESTAMP WHERE telegram_id=? AND followers_seen_at IS NULL", (user_id,))
+            conn.commit()
+            return 0
+        return int(conn.execute(
+            "SELECT COUNT(*) AS n FROM follows f JOIN users u ON u.telegram_id = f.follower_id "
+            "WHERE f.followee_id=? AND f.created_at > ? AND u.banned = 0",
+            (user_id, row["followers_seen_at"]),
+        ).fetchone()["n"] or 0)
+    finally:
+        conn.close()
+
+
+def mark_followers_seen(user_id):
+    """Человек открыл «Подписчики» — все нынешние подписчики перестают быть новыми."""
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET followers_seen_at=CURRENT_TIMESTAMP WHERE telegram_id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def follow_summary(user_id):
+    """Счётчики для шапки приложения: подписки, подписчики и сколько подписчиков новых."""
+    counts = get_counts(user_id)
+    counts["new"] = new_followers_count(user_id)
+    return counts
+
+
 def list_follows(user_id, kind, limit=200):
     """kind: "followers" (кто подписан на меня) или "following" (на кого
     подписан я). Каждая запись несёт отношения относительно user_id — по
-    ним фронт рисует «Подписаться в ответ» / «Вы подписаны»."""
+    ним фронт рисует «Подписаться в ответ» / «Вы подписаны». У подписчиков
+    is_new — подписался после последнего открытия этого списка."""
     if kind == "followers":
         my_col, other_col = "followee_id", "follower_id"
     elif kind == "following":
@@ -202,7 +241,8 @@ def list_follows(user_id, kind, limit=200):
             f"""
             SELECT u.telegram_id, u.first_name, u.username, u.handle, u.avatar_id, u.frame_id, u.streak, u.best_streak,
                    EXISTS(SELECT 1 FROM follows a WHERE a.follower_id=:me AND a.followee_id=u.telegram_id) AS following,
-                   EXISTS(SELECT 1 FROM follows b WHERE b.follower_id=u.telegram_id AND b.followee_id=:me) AS followed_by
+                   EXISTS(SELECT 1 FROM follows b WHERE b.follower_id=u.telegram_id AND b.followee_id=:me) AS followed_by,
+                   f.created_at > COALESCE((SELECT followers_seen_at FROM users WHERE telegram_id=:me), '9999-12-31') AS is_new
             FROM follows f
             JOIN users u ON u.telegram_id = f.{other_col}
             WHERE f.{my_col} = :me AND u.banned = 0
@@ -229,6 +269,7 @@ def list_follows(user_id, kind, limit=200):
             "following": following,
             "followed_by": followed_by,
             "friends": following and followed_by,
+            "is_new": bool(r["is_new"]) if kind == "followers" else False,
         })
     return result
 

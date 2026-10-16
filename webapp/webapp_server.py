@@ -427,7 +427,19 @@ def _shape_user(telegram_id, user, is_admin=False):
         # handlers/start.py при переходе по инвайт-ссылке) — для экрана
         # "Позови друзей" в стартовой воронке онбординга.
         "referrals": user["referrals"] if user and "referrals" in user.keys() else 0,
+        # Подписки/подписчики и сколько подписчиков новых — счётчики в шапке приложения (db/follows.py::follow_summary).
+        "follow_counts": _follow_counts(telegram_id) if user else {"following": 0, "followers": 0, "new": 0},
     }
+
+
+def _follow_counts(telegram_id):
+    """Счётчики для шапки. Сбой подсчёта не должен ронять bootstrap и ответ на отметку привычки."""
+    from db.follows import follow_summary
+    try:
+        return follow_summary(telegram_id)
+    except Exception:
+        logger.warning("Не удалось посчитать подписки для шапки (%s)", telegram_id, exc_info=True)
+        return {"following": 0, "followers": 0, "new": 0}
 
 
 def _safe_suggested_time(h, telegram_id):
@@ -1836,6 +1848,7 @@ async def friends_route(request):
         "invite_url": f"https://t.me/{username}?start=friend_{telegram_id}" if username else None,
         # Награда за приглашения (db/referrals.py): сколько слотов осталось — по этому Mini App пишет «за первых двух…».
         "invite_reward": reward_summary(telegram_id),
+        "new_followers": _follow_counts(telegram_id)["new"],
         "nudges_enabled": friend_nudges_enabled(get_settings(telegram_id)),
     })
 
@@ -2044,7 +2057,17 @@ async def follows_list_route(request):
         "kind": kind,
         "users": list_follows(telegram_id, kind),
         "counts": get_counts(telegram_id),
+        "new_followers": _follow_counts(telegram_id)["new"],
     })
+
+
+@routes.post("/api/follows/seen")
+async def follows_seen_route(request):
+    """Человек открыл «Подписчики» — новые подписчики перестают быть новыми (метка на счётчике в шапке гаснет)."""
+    telegram_id, _ = await _authenticate(request)
+    from db.follows import mark_followers_seen
+    mark_followers_seen(telegram_id)
+    return web.json_response({"ok": True, "follow_counts": _follow_counts(telegram_id)})
 
 
 @routes.post("/api/users/{telegram_id}/block")
