@@ -47,6 +47,7 @@ from db import (
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from db import ai_usage
 from db.checkpoint_style import recent_checkpoint_picks, save_checkpoint_picks, checkpoints_sent_today
+from db.notification_skips import record_skip
 from adam_messages import (
     format_day_progress_message,
     format_habit_checkpoint_message,
@@ -319,6 +320,94 @@ async def run_planned_time_reminders(bot):
 # В 12:00 отдельный job уже рассылает индивидуальные пинги по оставшимся
 # привычкам.
 
+def checkpoint_verdict(telegram_id, settings, now, target_hour, check_window=True, check_fresh_mark=True):
+    """Единое решение «уйдёт ли человеку точка дня в этот час». И рассылка (_run_habit_checkpoint), и разбор «почему не пришло» в админке
+    (reminder_diagnosis.py) смотрят сюда, поэтому расходиться не могут.
+
+    Возвращает {'reason': код или None, 'incomplete': [...], 'free': [...], 'timed': [(час, минута, название), ...]}; reason=None — уйдёт.
+    Коды причин и их подписи — db/notification_skips.py. 'outside_window' — просто не наше время (не пропуск, в журнал не пишется)."""
+    out = {"reason": None, "incomplete": [], "free": [], "timed": []}
+
+    # Окно допуска, не "== ровно эта минута" — от повторов защищает claim_notification в рассылке (атомарный, один раз в день на kind),
+    # а не точность попадания в тик планировщика. Проверяется первым: всё остальное имеет смысл, только когда сейчас наш час.
+    if check_window and not in_time_window(now, hour=target_hour, minute=0):
+        out["reason"] = "outside_window"
+        return out
+
+    # Найдено при разборе мониторинга ошибок: без этой проверки каждый прогон (и у всех 4 habit_checkpoint_*, и у morning_ping) заново
+    # пытался писать уже заблокировавшим бота — Telegram отвечает Forbidden на КАЖДУЮ такую попытку, это не временный сбой.
+    if is_bot_blocked(telegram_id):
+        out["reason"] = "bot_blocked"
+        return out
+
+    if not reminder_category_enabled(settings, "habits"):
+        out["reason"] = "reminders_off" if not (settings and settings["reminders"]) else "habits_off"
+        return out
+
+    if in_quiet_hours(settings, now):
+        out["reason"] = "quiet_hours"
+        return out
+
+    # Если пользователь реально выпал из режима (последний закрытый день был раньше сегодняшнего), в этот слот должен говорить именно
+    # сценарий возврата в ударный режим. Иначе в 10:00 параллельно может прийти сухая "контрольная точка привычек", которая по смыслу хуже
+    # подходит человеку, который сегодня ещё вообще не заходил. run_streak_reengagement_notifications() отправляет персональное сообщение
+    # в 10:00/16:00/21:00.
+    try:
+        reengage_state = get_streak_reengagement_state(telegram_id)
+        if (
+            reminder_category_enabled(settings, "streak")
+            and reengage_state.get("has_history")
+            and int(reengage_state.get("inactive_days") or 0) > 0
+            and not has_completed_today(telegram_id)
+        ):
+            out["reason"] = "reengage"
+            return out
+    except Exception:
+        # Не блокируем обычное напоминание, если дополнительная проверка состояния возврата временно недоступна.
+        pass
+
+    incomplete = get_incomplete_habits(telegram_id)
+    out["incomplete"] = incomplete
+    if not incomplete:
+        out["reason"] = "all_done" if get_habits(telegram_id) else "no_habits"
+        return out
+
+    # Человек только что отметил привычку (идёт окно x2, он в движении): сверка курса ему не нужна. Окно точки дня короткое, поэтому
+    # она в этот раз пропускается; до этого дня «сверка» писала сразу после отметки.
+    if check_fresh_mark:
+        from db.adam_checkin import FRESH_MARK_MIN, last_mark_minutes
+        marked_ago = last_mark_minutes(telegram_id)
+        if marked_ago is not None and marked_ago < FRESH_MARK_MIN:
+            out["reason"] = "fresh_mark"
+            return out
+
+    # Привычки со своим временем (planned_time), которое ещё не наступило, не должны дублироваться в общей точке дня — по каждой из них своё
+    # отдельное напоминание всё равно придёт ровно в её время (run_planned_time_reminders). Здесь они лишь упоминаются доп. строкой
+    # "Не забудь в HH:MM — ...". А если своё время уже прошло (привычка просрочена) — она давно не "своё время в будущем", а обычная
+    # незакрытая привычка, и идёт в общий список как раньше.
+    now_hm = (now.hour, now.minute)
+    for h in incomplete:
+        planned_time = h["planned_time"]
+        if planned_time:
+            try:
+                planned_hour, planned_minute = (int(x) for x in planned_time.split(":"))
+                if (planned_hour, planned_minute) > now_hm:
+                    out["timed"].append((planned_hour, planned_minute, str(h["title"])))
+                    continue
+            except (ValueError, AttributeError):
+                pass
+        out["free"].append(h)
+
+    if not out["free"]:
+        # Все оставшиеся привычки ждут ещё не наступившего своего времени — отдельное напоминание по каждой уже в пути, дублировать это
+        # точкой дня было бы спамом.
+        out["reason"] = "only_timed"
+        return out
+
+    out["timed"].sort(key=lambda t: (t[0], t[1]))
+    return out
+
+
 async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
     """Отправляет одну контрольную точку по привычкам в локальный час пользователя.
 
@@ -326,97 +415,26 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
     отправки Telegram-сообщения. Раньше claim_notification() выполнялся до
     send_message(); если Telegram временно отвечал ошибкой, уведомление
     помечалось как уже отправленное и пользователь больше его не получал.
+
+    Все условия «слать или нет» — в checkpoint_verdict; если человеку в его час
+    не ушло, причина записывается (db/notification_skips.py) и видна в админке.
     """
     users = get_all_users(include_blocked=False)
     sent = 0
 
     for user in users:
         telegram_id = user["telegram_id"]
-
-        # Найдено при разборе мониторинга ошибок: без этой проверки каждый
-        # прогон (и у всех 4 habit_checkpoint_*, и у morning_ping) заново
-        # пытался писать уже заблокировавшим бота пользователям — Telegram
-        # отвечает Forbidden на КАЖДУЮ такую попытку, это не временный сбой.
-        # См. db/users.py::mark_bot_blocked/is_bot_blocked.
-        if is_bot_blocked(telegram_id):
-            continue
-
         settings = get_settings(telegram_id)
-        if not reminder_category_enabled(settings, "habits"):
-            continue
 
         try:
             now = datetime.now(ZoneInfo(get_timezone(telegram_id)))
-            if in_quiet_hours(settings, now):
+            verdict = checkpoint_verdict(telegram_id, settings, now, target_hour)
+            if verdict["reason"] == "outside_window":
                 continue
-            # Окно допуска, не "== ровно эта минута" — от повторов защищает
-            # claim_notification ниже (атомарный, один раз в день на kind),
-            # а не точность попадания в тик планировщика.
-            if not in_time_window(now, hour=target_hour, minute=0):
+            if verdict["reason"]:
+                record_skip(telegram_id, now.date().isoformat(), kind, verdict["reason"])
                 continue
-
-            # Если пользователь реально выпал из режима (последний
-            # закрытый день был раньше сегодняшнего), в этот слот должен
-            # говорить именно сценарий возврата в ударный режим. Иначе в 10:00
-            # параллельно может прийти сухая "контрольная точка привычек",
-            # которая по смыслу хуже подходит человеку, который сегодня ещё
-            # вообще не заходил. run_streak_reengagement_notifications()
-            # отправляет персональное сообщение в 10:00/16:00/21:00.
-            try:
-                reengage_state = get_streak_reengagement_state(telegram_id)
-                if (
-                    reminder_category_enabled(settings, "streak")
-                    and reengage_state.get("has_history")
-                    and int(reengage_state.get("inactive_days") or 0) > 0
-                    and not has_completed_today(telegram_id)
-                ):
-                    continue
-            except Exception:
-                # Не блокируем обычное напоминание, если дополнительная
-                # проверка состояния возврата временно недоступна.
-                pass
-
-            incomplete = get_incomplete_habits(telegram_id)
-            if not incomplete:
-                continue
-
-            # Человек только что отметил привычку (идёт окно x2, он в движении): сверка курса ему не нужна. Окно точки дня короткое, поэтому
-            # она в этот раз пропускается; до этого дня «сверка» писала сразу после отметки.
-            from db.adam_checkin import FRESH_MARK_MIN, last_mark_minutes
-            marked_ago = last_mark_minutes(telegram_id)
-            if marked_ago is not None and marked_ago < FRESH_MARK_MIN:
-                continue
-
-            # Привычки со своим временем (planned_time), которое ещё не
-            # наступило, не должны дублироваться в общей точке дня —
-            # по каждой из них своё отдельное напоминание всё равно придёт
-            # ровно в её время (run_planned_time_reminders). Здесь они лишь
-            # упоминаются доп. строкой "Не забудь в HH:MM — ...". А если
-            # своё время уже прошло (привычка просрочена) — она давно не
-            # "своё время в будущем", а обычная незакрытая привычка, и идёт
-            # в общий список как раньше.
-            now_hm = (now.hour, now.minute)
-            free_habits = []
-            timed_habits = []
-            for h in incomplete:
-                planned_time = h["planned_time"]
-                if planned_time:
-                    try:
-                        planned_hour, planned_minute = (int(x) for x in planned_time.split(":"))
-                        if (planned_hour, planned_minute) > now_hm:
-                            timed_habits.append((planned_hour, planned_minute, str(h["title"])))
-                            continue
-                    except (ValueError, AttributeError):
-                        pass
-                free_habits.append(h)
-
-            if not free_habits:
-                # Все оставшиеся привычки ждут ещё не наступившего своего
-                # времени — отдельное напоминание по каждой уже в пути,
-                # дублировать это точкой дня было бы спамом.
-                continue
-
-            timed_habits.sort(key=lambda t: (t[0], t[1]))
+            incomplete, free_habits, timed_habits = verdict["incomplete"], verdict["free"], verdict["timed"]
 
             # 'simple' — для тех, у кого почти все привычки уже на таймере
             # и своя система в голове/жизни выстроена: без рамки "X из Y

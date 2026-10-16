@@ -1025,6 +1025,7 @@ textarea.field{resize:vertical;min-height:88px}
         '<div id="accessSection">' + accessHtml(u) + '</div>' +
         '<div id="aiSection">' + aiUsageHtml(u) + '</div>' +
         '<div id="summarySection"><div class="section-label" style="margin:16px 2px 8px">ИИ-сводка</div><div class="empty-note">Загружаю…</div></div>' +
+        '<div id="remindersSection"><div class="section-label" style="margin:16px 2px 8px">Напоминания: почему не приходят</div><div class="empty-note">Загружаю…</div></div>' +
         '<div id="journeySection"><div class="section-label" style="margin:16px 2px 8px">Путь человека</div><div class="empty-note">Загружаю…</div></div>' +
         '<div class="btn-row" style="margin-top:12px">' +
           (u.banned
@@ -1052,11 +1053,42 @@ textarea.field{resize:vertical;min-height:88px}
     bindAccess(u);
     bindAiUsage(u);
     loadSummary(u.telegram_id);
+    loadReminders(u.telegram_id);
     loadJourney(u.telegram_id);
 
     box.querySelectorAll('[data-xp]').forEach(function(btn){
       btn.addEventListener('click', function(){ giveXp(u.telegram_id, parseInt(btn.dataset.xp, 10)); });
     });
+  }
+
+  // «Напоминания: почему не приходят» (reminder_diagnosis.py): условия рассылки по человеку, решение по каждой точке дня, что реально ушло.
+  async function loadReminders(userId){
+    var box = document.getElementById('remindersSection');
+    if (!box) return;
+    var title = '<div class="section-label" style="margin:16px 2px 8px">Напоминания: почему не приходят</div>';
+    try{
+      var d = await api('/api/admin/user/' + userId + '/reminders');
+      var account = d.account.map(function(a){
+        return '<div class="list-row"><div class="list-row-name"><b>' + (a.ok ? '✅ ' : '⛔ ') + escapeHtml(a.label) + '</b><small>' + escapeHtml(a.detail) + '</small></div></div>';
+      }).join('');
+      var points = d.checkpoints.map(function(c){
+        return '<div class="list-row"><div class="list-row-name"><b>' + ('0' + c.hour).slice(-2) + ':00 — ' + (c.will_send ? 'по правилам придёт ✅' : 'по правилам не придёт ⛔') + '</b>' +
+          '<small>' + (c.rule ? escapeHtml(c.rule) + ' · ' : '') + escapeHtml(c.actual) + '</small></div></div>';
+      }).join('');
+      var recent = (d.recent || []).length
+        ? '<div class="empty-note" style="line-height:1.6">' + d.recent.map(function(r){ return escapeHtml(r.when) + ' — ' + escapeHtml(r.label); }).join('<br>') + '</div>'
+        : '<div class="empty-note">За последние 3 дня бот ничего не отправлял</div>';
+      var skips = (d.skips || []).length
+        ? '<div class="empty-note" style="line-height:1.6">' + d.skips.map(function(s){ return escapeHtml(s.day) + ' · ' + escapeHtml(s.kind.replace('habit_checkpoint_', '')) + ':00 — ' + escapeHtml(s.label); }).join('<br>') + '</div>'
+        : '<div class="empty-note">Пропусков за неделю не записано (журнал причин ведётся с 16.10)</div>';
+      box.innerHTML = title +
+        '<div class="empty-note" style="padding:0 0 6px;line-height:1.5"><b>' + escapeHtml(d.summary) + '</b><br>Привычек: ' + d.habits.total + ', не закрыто сейчас: ' + d.habits.open + '</div>' +
+        account + '<div class="empty-note" style="padding:10px 0 4px">Точки дня (по текущему состоянию человека):</div>' + points +
+        '<div class="empty-note" style="padding:10px 0 4px">Что бот отправлял за 3 дня:</div>' + recent +
+        '<div class="empty-note" style="padding:10px 0 4px">Причины пропусков:</div>' + skips;
+    }catch(e){
+      box.innerHTML = title + '<div class="empty-note">Не получилось загрузить</div>';
+    }
   }
 
   // ---------- Доступ: временный на 3/7/14 дней, подарочные дни, триал для аккаунта (db/access.py) ----------

@@ -1437,11 +1437,23 @@ async def streak_status_route(request):
     status["weekly_bonus_available"] = get_weekly_bonus_available(telegram_id)
     return web.json_response(status)
 
+# Часовой пояс присылает само приложение при каждом открытии. «UTC» из браузера чаще всего значит «пояс скрыт или не определён»
+# (Telegram Web с защитой от слежки, некоторые WebView), а не «человек живёт по Гринвичу» — тот присылает Europe/London и т.п.
+_MASKED_TIMEZONES = ("", "UTC", "ETC/UTC", "GMT", "ETC/GMT", "ETC/UNKNOWN")
+
+
 @routes.post("/api/streak/timezone")
 async def set_streak_timezone(request):
     telegram_id, _ = await _authenticate(request)
     body = await request.json()
-    timezone = str(body.get("timezone", "UTC"))
+    timezone = str(body.get("timezone", "UTC")).strip()
+    if timezone.upper() in _MASKED_TIMEZONES:
+        # Открыли с устройства, где пояс не виден, — не затираем им уже известный настоящий пояс: от этого точки дня и утренние сообщения
+        # уезжали бы в «чужие» часы (или не приходили вовремя вовсе).
+        from db.streak import get_timezone
+        known = get_timezone(telegram_id)
+        if known != "UTC":
+            return web.json_response({"ok": True, "timezone": known, "kept": True})
     set_timezone(telegram_id, timezone)
     return web.json_response({"ok": True, "timezone": timezone})
 

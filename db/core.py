@@ -1406,6 +1406,18 @@ def create_tables():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_referral_invites_inviter ON referral_invites(inviter_id, status)")
 
+    # Почему напоминание не ушло (db/notification_skips.py): одна запись на человека, день и точку дня — для разбора «почему не пришло» в админке.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS notification_skips(
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(user_id, day, kind)
+    )
+    """)
+
     # ---------------- Эволюции ADAM (db/evolution.py) ----------------
     # seen_level — до какой эволюции игрок уже видел праздник «EVOLUTION N
     # UNLOCKED». Сами эволюции нигде не хранятся: они считаются по лучшей серии.

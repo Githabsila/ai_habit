@@ -339,6 +339,22 @@ async def admin_users_active_route(request):
     return web.json_response({"users": list_active_users_for_admin()})
 
 
+@routes.get("/api/admin/user/{telegram_id}/reminders")
+async def admin_user_reminders_route(request):
+    """«Почему не приходят напоминания»: настройки человека, решение по каждой точке дня тем же кодом, что у рассылки, что реально ушло
+    и причины пропусков (reminder_diagnosis.py)."""
+    await _authenticate_admin(request)
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return web.json_response({"error": "invalid_user"}, status=400)
+    import reminder_diagnosis
+    result = reminder_diagnosis.diagnose_user(telegram_id)
+    if result is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response(result)
+
+
 @routes.get("/api/admin/user/{telegram_id}")
 async def admin_user_card_route(request):
     """Roadmap #44 — консолидированная карточка пользователя для
