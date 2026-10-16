@@ -6054,7 +6054,7 @@ function initPlanActions() {
         already_invited: "Ты уже позвал(а) друга — дождись ответа или отзови приглашение",
         invited_you: "Этот друг уже позвал тебя — прими приглашение на Главной",
         not_pending: "Это приглашение уже не действует",
-        cannot_cancel: "Начавшееся задание отменить нельзя",
+        cannot_cancel: "Начавшееся задание можно покинуть, только если напарник 2 дня и больше не заходит",
         not_completed: "Задание ещё не выполнено",
         not_reached: "Сундук ещё закрыт — выполни больше заданий",
         already_claimed: "Этот сундук уже открыт",
@@ -6997,11 +6997,21 @@ function closePairGuide() {
 
 function pairActionsHtml(q) {
   const partner = q.partner;
+  let nudge = "";
   if (q.partner_state === "can_remind") {
-    return `<div class="pq-actions"><button type="button" class="pq-nudge" data-pair-act="nudge" data-id="${partner.telegram_id}">👋 Напомнить</button></div>`;
+    nudge = `<button type="button" class="pq-nudge" data-pair-act="nudge" data-id="${partner.telegram_id}">👋 Напомнить</button>`;
+  } else if (q.partner_state === "reminded") {
+    nudge = `<span class="pq-nudge is-sent">✓ Напомнили</span>`;
   }
-  if (q.partner_state === "reminded") return `<div class="pq-actions"><span class="pq-nudge is-sent">✓ Напомнили</span></div>`;
-  return "";
+  // Напарник пропал (2+ полных дня не заходит и не отмечается): можно не ждать конца недели — выйти и позвать другого друга.
+  const idle = Number(q.partner_idle_days) || 0;
+  const leave = q.can_leave
+    ? `<button type="button" class="pair-btn pair-btn--ghost pq-leave" data-pair-act="cancel" data-id="${q.id}" data-leave="1" data-confirm="Выйти из парного задания? Оно закончится без награды, и ты сможешь взять новое с другим другом.">Выйти</button>`
+    : "";
+  const note = q.can_leave
+    ? `<div class="pq-idle-note">${escapeHtml(q.partner?.first_name || "Напарник")} не заходит уже ${pairDaysWord(idle)} — можно не ждать конца недели и взять другого напарника.</div>`
+    : "";
+  return nudge || leave ? `<div class="pq-actions">${nudge}${leave}</div>${note}` : "";
 }
 
 function pairQuestBodyHtml(pq, q, boxKey) {
@@ -7413,6 +7423,7 @@ async function pairCardAction(button) {
     } else {
       haptic("medium");
       if (act === "accept") showToast("✅ Приняли! Задание стартует завтра", "success", 3200);
+      if (act === "cancel" && result.left_early) showToast("Вышли из задания — теперь можно выбрать нового союзника", "success", 3600);
       applyPairQuest(result.pair_quest);
     }
   } catch (err) {

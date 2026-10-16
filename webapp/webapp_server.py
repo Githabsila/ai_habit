@@ -797,12 +797,26 @@ async def pair_decline_route(request):
 
 @routes.post("/api/pair-quest/{quest_id}/cancel")
 async def pair_cancel_route(request):
-    """Отозвать своё приглашение или выйти из задания до его старта."""
+    """Отозвать своё приглашение или выйти из задания до его старта — либо раньше срока, если напарник пропал (2+ полных дня не заходит и
+    не отмечается): тогда ответ несёт left_early, а напарнику уходит сообщение, что задание закончено и можно брать новое."""
     telegram_id, _ = await _authenticate(request)
     result = cancel_pair_quest(telegram_id, request.match_info["quest_id"])
     if "error" in result:
         return _pair_error(result)
-    return web.json_response({"ok": True, "pair_quest": get_pair_quest(telegram_id)})
+    left_early = bool(result.get("left_early"))
+    if left_early:
+        try:
+            from db.tracking import track_server
+            track_server(telegram_id, "pair_left_early", meta={"partner": result["partner_id"], "idle_days": result["idle_days"]})
+            name = _name_with_handle(get_user(telegram_id), "Напарник")
+            _spawn_background(_send_social_push(
+                request.app, result["partner_id"],
+                f"🤝 {name} вышел(а) из парного задания: тебя не было {result['idle_days']} дн. Задание закончено — "
+                "можно взять новое, с тем же или другим другом. Открой ADAM → Главная.",
+            ))
+        except Exception:
+            logger.exception("Не удалось сообщить напарнику о выходе из парного задания")
+    return web.json_response({"ok": True, "left_early": left_early, "pair_quest": get_pair_quest(telegram_id)})
 
 
 @routes.post("/api/pair-quest/{quest_id}/claim")

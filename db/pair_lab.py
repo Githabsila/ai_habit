@@ -22,6 +22,7 @@ SCENARIOS = (
     ("mid", "День 4 — идём в темпе"),
     ("tight", "День 6 — темп ниже нужного"),
     ("lost", "День 7 — уже не успеть"),
+    ("partner_gone", "Напарник пропал на 3 дня — можно выйти"),
     ("hold_partner", "Последняя привычка ждёт друга"),
     ("hold_me", "Последняя привычка — моя"),
     ("done", "Выполнено — сундук ждёт"),
@@ -33,7 +34,7 @@ def lab_scenarios():
     return [{"key": key, "title": title} for key, title in SCENARIOS]
 
 
-def _view(*, status="active", start_offset=-3, me=(), partner=(), claimed=False, partner_state=None):
+def _view(*, status="active", start_offset=-3, me=(), partner=(), claimed=False, partner_state=None, partner_idle_days=None):
     today = date.today()
     start = today + timedelta(days=start_offset)
     end = start + timedelta(days=pq.PAIR_WINDOW_DAYS - 1)
@@ -44,7 +45,7 @@ def _view(*, status="active", start_offset=-3, me=(), partner=(), claimed=False,
     return pq._build_view(
         quest_id=0, status=status, goal=pq.PAIR_GOAL, rules=pq.RULES_HABITS,
         start_day=str(start), end_day=str(end), viewer_is_inviter=True, partner=dict(PARTNER),
-        calc=calc, today=today, claimed=claimed, partner_state=partner_state,
+        calc=calc, today=today, claimed=claimed, partner_state=partner_state, partner_idle_days=partner_idle_days,
     ), str(end)
 
 
@@ -71,6 +72,8 @@ def build_scenario(key):
         state["quest"], _ = _view(start_offset=-5, me=(2, 1, 2, 1, 1, 0), partner=(1, 1, 1, 1, 0, 0), partner_state="can_remind")
     elif key == "lost":
         state["quest"], _ = _view(start_offset=-5, me=(1, 0, 1, 0, 0, 0), partner=(0, 1, 0, 0, 0, 0), partner_state="can_remind")
+    elif key == "partner_gone":
+        state["quest"], _ = _view(start_offset=-4, me=(2, 1, 2, 1, 0), partner=(1, 1, 0, 0, 0), partner_state="can_remind", partner_idle_days=3)
     elif key == "hold_partner":
         state["quest"], _ = _view(start_offset=-3, me=(3, 3, 2, 3), partner=(3, 3, 3, 0), partner_state="can_remind")
     elif key == "hold_me":

@@ -59,6 +59,9 @@ RULES_DAYS = "days"
 # Награда каждому участнику; коины идут через add_xp, как и награды за обычные
 # задания (в уровень — да, подарить нельзя).
 PAIR_REWARD_COINS = 60
+# Напарник не заходит в приложение и не отмечается столько ПОЛНЫХ дней — из начавшегося задания можно выйти раньше срока и позвать другого
+# друга (п.16 владельца): ждать, пока кончится недельное окно, бессмысленно, когда второй участник пропал.
+LEAVE_IDLE_DAYS = 2
 PAIR_REWARD_DIAMONDS = 1
 # Столько очков «Заданий месяца» даёт каждое забранное парное задание.
 PAIR_MONTH_POINTS = 3
@@ -354,8 +357,36 @@ def _claimed_by(q, user_id):
 # СОСТОЯНИЕ ДЛЯ ЭКРАНА
 # ---------------------------------------------------------------------------
 
+def _parse_moment(value):
+    """Время из базы (ISO с «T» или через пробел, UTC без пояса) → naive datetime или None."""
+    text = str(value or "").strip().replace("T", " ")
+    for size in (26, 19):
+        try:
+            return datetime.strptime(text[:size], "%Y-%m-%d %H:%M:%S.%f" if size == 26 else "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+    return None
+
+
+def partner_idle_days(cursor, partner_id, since_day=None, now=None):
+    """Сколько ПОЛНЫХ дней человек не заходил (бот или приложение) и ничего не отмечал: от самого позднего из двух — последнего касания
+    (users.last_seen) и последней отметки привычки. Нет данных вовсе — считаем от since_day (начало задания). None — считать нечем."""
+    now = now or datetime.now(timezone.utc).replace(tzinfo=None)
+    seen = cursor.execute("SELECT last_seen FROM users WHERE telegram_id=?", (partner_id,)).fetchone()
+    mark = cursor.execute("SELECT MAX(completed_at) AS t FROM habit_completion_events WHERE user_id=?", (partner_id,)).fetchone()
+    moments = [m for m in (_parse_moment(seen["last_seen"]) if seen else None, _parse_moment(mark["t"]) if mark else None) if m]
+    if moments:
+        return max(0, int((now - max(moments)).total_seconds() // 86400))
+    if since_day:
+        try:
+            return max(0, (now.date() - date.fromisoformat(str(since_day))).days)
+        except ValueError:
+            return None
+    return None
+
+
 def _build_view(*, quest_id, status, goal, rules, start_day, end_day, viewer_is_inviter, partner, calc, today,
-                claimed, partner_state):
+                claimed, partner_state, partner_idle_days=None):
     """Чистая функция (без БД): то, что получает карточка. Её же использует «Лаборатория» в админке для демо-состояний."""
     start = date.fromisoformat(start_day)
     end = date.fromisoformat(end_day)
@@ -438,6 +469,9 @@ def _build_view(*, quest_id, status, goal, rules, start_day, end_day, viewer_is_
         # «Напомнить» в друзьях (db/friends.py).
         "partner_state": partner_state,
         "can_cancel": phase == "scheduled",
+        # Напарник пропал: сколько полных дней не заходил и не отмечался; с LEAVE_IDLE_DAYS можно выйти из задания и взять другого друга.
+        "partner_idle_days": partner_idle_days if phase == "active" else None,
+        "can_leave": phase == "active" and partner_idle_days is not None and partner_idle_days >= LEAVE_IDLE_DAYS,
     }
 
 
@@ -463,6 +497,7 @@ def _quest_view(cursor, q, user_id, today):
         today=today,
         claimed=_claimed_by(q, user_id) is not None,
         partner_state=get_friend_state(user_id, partner_id, partner_row) if active_now else None,
+        partner_idle_days=partner_idle_days(cursor, partner_id, since_day=q["start_day"]) if active_now else None,
     )
 
 
@@ -801,7 +836,9 @@ def decline_pair_invite(user_id, quest_id):
 def cancel_pair_quest(user_id, quest_id):
     """Отозвать своё приглашение или выйти из задания, которое ещё не
     стартовало. Начавшееся задание отменить нельзя — иначе напарник остался бы
-    без награды из-за чужого настроения."""
+    без награды из-за чужого настроения. Исключение — напарник пропал: не заходит
+    и не отмечается LEAVE_IDLE_DAYS полных дней и больше; тогда можно выйти
+    раньше срока (результат содержит left_early и idle_days) и взять другого друга."""
     try:
         quest_id = int(quest_id)
     except (TypeError, ValueError):
@@ -810,9 +847,19 @@ def cancel_pair_quest(user_id, quest_id):
     if q is None or not _is_member(q, user_id):
         return {"error": "not_found"}
     today = _local_today(user_id)
+    idle = None
     if q["status"] == "pending" and q["inviter_id"] == user_id:
         from_status = "pending"
     elif q["status"] == "active" and today < date.fromisoformat(q["start_day"]):
+        from_status = "active"
+    elif q["status"] == "active":
+        conn = connect()
+        try:
+            idle = partner_idle_days(conn, _partner_of(q, user_id), since_day=q["start_day"])
+        finally:
+            conn.close()
+        if idle is None or idle < LEAVE_IDLE_DAYS:
+            return {"error": "cannot_cancel"}
         from_status = "active"
     else:
         return {"error": "cannot_cancel"}
@@ -821,7 +868,12 @@ def cancel_pair_quest(user_id, quest_id):
         done = _finish(conn, quest_id, from_status, "cancelled")
     finally:
         conn.close()
-    return {"ok": True, "partner_id": _partner_of(q, user_id)} if done else {"error": "cannot_cancel"}
+    if not done:
+        return {"error": "cannot_cancel"}
+    result = {"ok": True, "partner_id": _partner_of(q, user_id)}
+    if idle is not None:
+        result.update({"left_early": True, "idle_days": idle})
+    return result
 
 
 def claim_pair_chest(user_id, quest_id):

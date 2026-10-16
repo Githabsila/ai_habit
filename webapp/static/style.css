@@ -14716,3 +14716,12 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .follow-recs__head small{display:block;margin-top:3px;font-size:11.5px;line-height:1.4;color:var(--text-muted,#9D9DB3)}
 .follow-empty{list-style:none;text-align:center;color:var(--text-muted,#9D9DB3);font-size:13px;line-height:1.5;padding:22px 10px 10px}
 .follow-empty .friend-row__btn{margin-top:12px}
+
+/* Парное задание: напарник пропал — кнопка «Выйти» рядом с «Напомнить» и пояснение под ней (п.16). Только плоские цвета. */
+.pq-actions .pq-leave{flex:0 0 auto;width:auto;min-width:88px;padding:0 16px}
+.pq-idle-note{margin-top:8px;font-size:12px;line-height:1.4;color:#B9B3D6;text-align:left}
+
+/* У админов кнопка админки стояла в правом нижнем углу шапки — теперь там «Подписки/Подписчики». Кнопка поднята на строку с монетой и серией,
+   а полоса опыта снова во всю ширину. Отсчёт от низа карточки (а не сверху): при полноэкранном режиме Telegram верх сдвигается, низ — нет. */
+.player-card__admin-btn{bottom:74px !important}
+.player-card.has-admin-btn .xp-bar,.player-card.has-admin-btn .xp-bar__label{margin-right:0 !important}

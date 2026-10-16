@@ -138,7 +138,7 @@ FEATURES = (
         "pair_quest", "Парное задание", "social", "2026-10-02",
         screens=("pairGuide",),
         clicks=("pair-*", "pairSheet*", "pq-info-btn*", "pairGuideClose"),
-        events=("pair_invite",),
+        events=("pair_invite", "pair_left_early"),
         api=("POST /api/pair-quest/invite", "POST /api/pair-quest/{quest_id}/accept", "POST /api/pair-quest/{quest_id}/decline",
              "POST /api/pair-quest/{quest_id}/cancel", "POST /api/pair-quest/{quest_id}/claim"),
     ),
