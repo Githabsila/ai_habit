@@ -238,6 +238,14 @@ async def _authenticate(request):
     # мидлвара на каждый маршрут.
     touch_last_seen(telegram_id)
 
+    # Ник приходит в подписанных данных Telegram — актуальный; поменял или убрал — в админке и статистике будет новый
+    # (db/users.py::sync_telegram_username, не чаще раза в 10 минут на человека).
+    try:
+        from db.users import sync_telegram_username
+        sync_telegram_username(telegram_id, tg_user.get("username"))
+    except Exception:
+        logger.warning("Не удалось обновить Telegram-ник (%s)", telegram_id, exc_info=True)
+
     return telegram_id, is_admin
 
 # ====================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ======================

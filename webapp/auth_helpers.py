@@ -80,4 +80,10 @@ async def authenticate(init_data):
             )
 
     touch_last_seen(telegram_id)
+    # Ник приходит в подписанных данных Telegram — актуальный; если человек поменял или убрал его, в админке будет новый.
+    try:
+        from db.users import sync_telegram_username
+        sync_telegram_username(telegram_id, tg_user.get("username"))
+    except Exception:
+        pass
     return telegram_id, is_admin

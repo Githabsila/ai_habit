@@ -664,6 +664,18 @@ async def admin_flags_delete_route(request):
     return web.json_response({"ok": True})
 
 
+@routes.post("/api/admin/usernames/sync")
+async def admin_usernames_sync_route(request):
+    """Сверить Telegram-ники ВСЕХ людей прямо сейчас (обычно это делается само: при заходах и раз в ночь, см. username_sync.py)."""
+    await _authenticate_admin(request)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "bot_unavailable"}, status=503)
+    import username_sync
+    stats = await username_sync.run_username_sync(bot, limit=username_sync.MANUAL_LIMIT, stale_days=0)
+    return web.json_response(stats)
+
+
 @routes.get("/api/admin/referrals")
 async def admin_referrals_route(request):
     """Приглашения друзей: сводка, состояние выключателей и последние приглашения с признаками для проверки (db/referrals.py)."""

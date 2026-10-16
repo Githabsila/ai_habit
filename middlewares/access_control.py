@@ -3,6 +3,7 @@ from aiogram.types import CallbackQuery, Message
 
 from config import ADMIN_IDS
 from db import bot_access_allowed, get_subscription_status, touch_last_seen, clear_bot_blocked
+from db.users import sync_telegram_username
 from keyboards import subscription_buy_keyboard
 
 # Пром 13: колбэки, которые обязаны проходить даже для заблокированного
@@ -31,6 +32,11 @@ class AccessControlMiddleware(BaseMiddleware):
         # вдруг не получится записать (например гонка до add_user).
         try:
             touch_last_seen(user_id)
+        except Exception:
+            pass
+        # Человек мог поменять @ник в Telegram — в статистике и админке должен быть новый (db/users.py::sync_telegram_username).
+        try:
+            sync_telegram_username(user_id, user.username)
         except Exception:
             pass
         # Любой апдейт ОТ пользователя боту — доказательство, что бот снова

@@ -1,6 +1,10 @@
-from datetime import date
+import logging
+import time
+from datetime import date, datetime, timedelta, timezone
 
 from .core import connect
+
+logger = logging.getLogger(__name__)
 
 
 # =====================================
@@ -15,6 +19,79 @@ def survey_variant(telegram_id):
     get_survey_funnel_by_variant) — не нужна ни миграция, ни бэкфилл для
     уже существующих пользователей."""
     return "B" if telegram_id % 2 else "A"
+
+# ---------------------------------------------------------------------------------------------------------------- Telegram-ник
+
+USERNAME_RECHECK_SECONDS = 600        # «живое» обновление — не чаще раза в 10 минут на человека (без лишних запросов к базе)
+_USERNAME_SEEN = {}                    # user_id -> (ник, время в monotonic): что мы уже сверили в этом процессе
+
+
+def normalize_telegram_username(value):
+    """Ник как его отдаёт Telegram: без «@», до 64 символов; пусто — у человека ника нет."""
+    text = str(value or "").strip().lstrip("@").strip()
+    return text[:64] or None
+
+
+def sync_telegram_username(user_id, username, force=False):
+    """Записывает актуальный Telegram-ник человека (None — он убрал ник). True, если записанный ник изменился.
+    Зовётся при каждом апдейте бота и запросе приложения (там данные приходят от самого Telegram), а ночная сверка (username_sync.py)
+    спрашивает Telegram сама. Без force не ходит в базу, если этот же ник уже сверяли меньше USERNAME_RECHECK_SECONDS назад."""
+    username = normalize_telegram_username(username)
+    now = time.monotonic()
+    if not force:
+        seen = _USERNAME_SEEN.get(user_id)
+        if seen and seen[0] == username and now - seen[1] < USERNAME_RECHECK_SECONDS:
+            return False
+    conn = connect()
+    try:
+        row = conn.execute("SELECT username FROM users WHERE telegram_id=?", (user_id,)).fetchone()
+        if row is None:
+            return False
+        previous = row["username"] or None
+        conn.execute(
+            "UPDATE users SET username=?, username_checked_at=? WHERE telegram_id=?",
+            (username, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    if len(_USERNAME_SEEN) > 5000:
+        _USERNAME_SEEN.clear()
+    _USERNAME_SEEN[user_id] = (username, now)
+    if previous == username:
+        return False
+    try:
+        from .tracking import track_server
+        track_server(user_id, "username_changed", meta={"from": previous, "to": username})
+    except Exception:
+        logger.warning("Не удалось записать событие смены ника (%s)", user_id, exc_info=True)
+    return True
+
+
+def mark_username_checked(user_id):
+    """Отметить, что ник проверяли (даже если Telegram не ответил), чтобы недоступного человека не проверять каждую ночь."""
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET username_checked_at=? WHERE telegram_id=?", (datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), user_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def stale_username_users(limit, stale_days=7):
+    """Кого пора сверить: ник не проверяли stale_days дней (или никогда); самые давние первыми. stale_days=0 — всех."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=int(stale_days))).strftime("%Y-%m-%d %H:%M:%S")
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT telegram_id FROM users WHERE username_checked_at IS NULL OR username_checked_at < ? "
+            "ORDER BY COALESCE(username_checked_at, '') ASC, telegram_id LIMIT ?",
+            (cutoff if int(stale_days) > 0 else "9999-12-31", int(limit)),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [r["telegram_id"] for r in rows]
+
 
 def add_user(telegram_id, username, first_name):
     conn = connect()

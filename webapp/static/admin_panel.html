@@ -458,6 +458,13 @@ textarea.field{resize:vertical;min-height:88px}
         '</div>' +
       '</div>' +
 
+      '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--teal">✏️</span>Ники людей</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Telegram-ник обновляется сам: при каждом заходе человека в бота или приложение и раз в ночь (бот спрашивает Telegram у тех, кого не проверяли неделю). Кнопка проверяет всех сразу.</div>' +
+        '<div class="btn-row"><button class="btn btn-block" id="syncUsernamesBtn">🔄 Сверить ники сейчас</button></div>' +
+        '<div class="empty-note" id="syncUsernamesResult" style="padding:8px 0 0"></div>' +
+      '</div>' +
+
       '<div class="section-label">Лаборатория</div>' +
 
       '<div class="card">' +
@@ -502,6 +509,7 @@ textarea.field{resize:vertical;min-height:88px}
     document.getElementById('lookupBtn').addEventListener('click', lookupUser);
     document.getElementById('broadcastBtn').addEventListener('click', sendBroadcast);
     document.getElementById('exportDbBtn').addEventListener('click', exportDb);
+    document.getElementById('syncUsernamesBtn').addEventListener('click', syncUsernames);
 
     document.getElementById('userIdInput').addEventListener('keydown', function(e){
       if (e.key === 'Enter') lookupUser();
@@ -530,6 +538,21 @@ textarea.field{resize:vertical;min-height:88px}
     loadFlags();
 
     document.getElementById('addFlagBtn').addEventListener('click', addFlag);
+  }
+
+  // Сверка Telegram-ников (username_sync.py): бот спрашивает у Telegram актуальный ник каждого человека и правит в нашей базе.
+  async function syncUsernames(){
+    var btn = document.getElementById('syncUsernamesBtn'), out = document.getElementById('syncUsernamesResult');
+    btn.disabled = true;
+    out.textContent = 'Сверяю…';
+    try{
+      var r = await api('/api/admin/usernames/sync', { method: 'POST', body: '{}' });
+      out.textContent = 'Проверено ' + r.checked + ' · ник изменился у ' + r.changed + ' · не удалось ' + r.failed + (r.left ? ' · осталось ' + r.left + ' (нажми ещё раз)' : '');
+      haptic('light');
+    }catch(e){
+      out.textContent = 'Не получилось сверить';
+    }
+    btn.disabled = false;
   }
 
   async function loadFlags(){
@@ -1019,6 +1042,7 @@ textarea.field{resize:vertical;min-height:88px}
           '<div class="user-tile"><div class="user-tile-label">Без захода</div><div class="user-tile-value">' + (u.inactive_days || 0) + ' дн.</div></div>' +
           '<div class="user-tile"><div class="user-tile-label">Подписка</div><div class="user-tile-value">' + (sub.has_paid ? '✅ активна' : (sub.in_trial ? 'триал д.' + sub.trial_day : 'нет')) + '</div></div>' +
           '<div class="user-tile"><div class="user-tile-label">Покупок Stars</div><div class="user-tile-value">' + (u.purchases_count || 0) + '</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Ник сверен</div><div class="user-tile-value">' + fmtDate(u.username_checked_at) + '</div></div>' +
         '</div>' +
         '<div class="empty-note" style="padding:10px 0 4px">Привычки сейчас: ' + habitsDone + '/' + (u.habits || []).length + ' · последние отметки:</div>' +
         '<div class="btn-row" style="flex-wrap:wrap;gap:6px">' + recentLogsHtml + '</div>' +

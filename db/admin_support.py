@@ -169,6 +169,7 @@ def get_user_support_card(user_id):
         "streak": user["streak"],
         "last_seen": str(user["last_seen"]) if "last_seen" in keys and user["last_seen"] else None,
         "created_at": str(user["created_at"]) if "created_at" in keys and user["created_at"] else None,
+        "username_checked_at": str(user["username_checked_at"]) if "username_checked_at" in keys and user["username_checked_at"] else None,
         "inactive_days": reengagement.get("inactive_days", 0),
         "habits": [
             {"title": h["title"], "completed": bool(h["completed"])}

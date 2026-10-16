@@ -50,6 +50,7 @@ EVENT_LABELS = {
     "ai_message": ("💬", "Написал Адаму"),
     "friend_added": ("🤝", "Добавил друга"),
     "pair_invite": ("🤝", "Позвал в парное задание"),
+    "username_changed": ("✏️", "Сменил @ник в Telegram"),
     "referral_joined": ("👋", "Пришёл по приглашению друга"),
     "referral_rejected": ("🚫", "Переход по ссылке не засчитан"),
     "referral_paid": ("🎁", "Получил награду за приглашение"),

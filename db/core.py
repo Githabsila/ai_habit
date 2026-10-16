@@ -224,6 +224,9 @@ def create_tables():
     # mark_bot_blocked, используется в coach.py/morning_ping.py).
     if "bot_blocked_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN bot_blocked_at TIMESTAMP")
+    # Когда последний раз сверяли Telegram-ник человека (db/users.py::sync_telegram_username, username_sync.py).
+    if "username_checked_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN username_checked_at TEXT")
     # Когда человек последний раз открывал список «Подписчики» (db/follows.py::new_followers_count): всё новее — «новые подписчики».
     if "followers_seen_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN followers_seen_at TEXT")

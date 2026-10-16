@@ -31,6 +31,7 @@ from goal_feedback import run_goal_feedback
 from morning_ping import run_morning_ping
 from adam_proactive import run_adam_checkins
 from referral_mailing import run_referral_mailing, run_referral_notices
+from username_sync import run_username_sync
 from subscription_scheduler import run_trial_reminders
 from admin_digest_scheduler import run_admin_daily_digest, DIGEST_HOUR_UTC
 from error_alert_scheduler import run_error_spike_check
@@ -193,6 +194,8 @@ async def main():
     # выплаченных после первой отметки друга. Выключатель — флаг referral_mailing.
     scheduler.add_job(run_referral_mailing, "interval", minutes=5, args=[bot], max_instances=1, coalesce=True)
     scheduler.add_job(run_referral_notices, "interval", minutes=2, args=[bot], max_instances=1, coalesce=True)
+    # Сверка Telegram-ников (username_sync.py): раз в сутки ночью бот спрашивает у Telegram ник тех, кого не проверяли 7 дней.
+    scheduler.add_job(run_username_sync, "cron", hour=4, minute=20, args=[bot], max_instances=1, coalesce=True)
 
     # --- Промт п.8: начало/конец недели и месяца ---
     scheduler.add_job(run_week_start_ping, "cron", day_of_week="mon", hour=7, minute=0, args=[bot])
