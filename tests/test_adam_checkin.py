@@ -65,6 +65,11 @@ def _habits(uid_, titles, done=0):
     rows = list(reversed(get_habits(uid_)))               # get_habits отдаёт новые первыми
     for row in rows[:done]:
         complete_habit(row["id"])
+    if done:                                              # отметка — не «только что» (15.10: пока человек в движении, Адам не пишет и о темпе молчит)
+        conn = connect()
+        conn.execute("UPDATE habit_completion_events SET completed_at=datetime('now','-2 hours') WHERE user_id=? AND completed_at>=datetime('now','-10 minutes')", (uid_,))
+        conn.commit()
+        conn.close()
     return rows
 
 
@@ -206,7 +211,10 @@ def test_morning_is_statements_only_and_the_chat_greeting_follows_the_state():
     assert ac.pick_scenario(_state(0, 3, hour=19), "app")[0] == "zero_done_evening"
     assert ac.pick_scenario(_state(2, 3, hour=14), "app")[0] == "one_left"
     assert ac.pick_scenario(_state(3, 3, hour=14), "app")[0] == "all_done"
-    assert ac.pick_scenario(_state(1, 4, hour=14), "app")[0] == "behind"
+    # «Темп ниже обычного» — только когда есть на что опереться: свой обычный темп или позднее время при малой доле (15.10)
+    assert ac.pick_scenario(_state(1, 4, hour=14), "app")[0] == "steady", "без истории и до 15:00 темп оценивать нечем"
+    assert ac.pick_scenario(_state(1, 4, hour=15), "app")[0] == "behind"
+    assert ac.pick_scenario(_state(1, 4, hour=14, pace=KNOWN_PACE), "app")[0] == "behind", "свой обычный темп известен"
     assert ac.pick_scenario(_state(1, 4, hour=20), "app")[0] == "evening_left"
 
 
@@ -702,6 +710,10 @@ def test_a_habit_that_keeps_failing_gets_its_own_scenario_on_chat_days(uid):
     _user(uid)
     rows = _habits(uid, ["Зарядка", "Чтение"], done=1)
     _miss_logs(uid, rows[1]["id"], "Чтение")
+    conn = connect()
+    conn.execute("UPDATE habit_completion_events SET completed_at=datetime('now','-3 hours') WHERE user_id=?", (uid,))      # отметка не «только что»
+    conn.commit()
+    conn.close()
     state = ac.build_checkin_state(uid, _local(20, 30))
     assert state["struggling"] == {"title": "Чтение", "missed": 4}
     assert ac.pick_scenario(state, "evening", chat_day=True)[0] == "struggling"

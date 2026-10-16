@@ -63,9 +63,29 @@ PAUSE_DAYS = 3                       # столько дней без заход
 SIMILARITY_LOOKBACK = 8              # с какими прежними сообщениями Адама сравниваем новое, чтобы не повторяться
 SIMILARITY_LIMIT = 0.5               # доля общих слов, начиная с которой тексты считаем «слишком похожими»
 
+# Реакция на ТОЛЬКО ЧТО сделанное (15.10, жалоба владельца: Адам написал «темп ниже обычного» через минуту после первой отметки, хотя после
+# отметки 30 минут идёт окно x2, и вторую привычку человек мог закрыть через 20 минут). Правило одно для ВСЕХ сообщений Адама.
+FRESH_MARK_MIN = 30                  # столько минут после отметки человек «в движении» (= окно x2 Adam Coin, db/habits.py::BONUS_WINDOW_MINUTES)
+JUDGE_AFTER_MARK_MIN = 45            # о темпе («ниже обычного», «отстаёшь»), невыполненном и новых делах — только когда после отметки прошло столько
+RECENT_MARK_ALLOWED = ("positive", "all_done", "free_chat", "check_in")      # что можно писать, пока человек «в движении»
+
+# Эксперимент «Адам пишет сам после действий человека»: через 35–60 минут после отметки (или 60–90 после разговора в чате) Адам может
+# вернуться с одной репликой по смыслу — осталось дело / всё закрыто / вернуться к разговору. Раскатка — флаг adam_followups (записи нет —
+# только админы; запись «выключено» — никому). Тот же режим тишины и тумблеры, что у остальных сообщений Адама.
+FOLLOWUP_FLAG = "adam_followups"
+FOLLOWUP_DELAY = (35, 60)            # минут после отметки; своё число на каждое событие, чтобы не «ровно через час»
+FOLLOWUP_CHAT_DELAY = (60, 90)       # после разговора с Адамом в чате — дольше
+FOLLOWUP_MAX_AGE_MIN = 150           # позже этого после действия реплика уже не по теме — молчим
+FOLLOWUP_FROM_MIN, FOLLOWUP_TO_MIN = 10 * 60 + 30, 21 * 60 + 30
+FOLLOWUPS_PER_DAY = 2
+FOLLOWUP_CHAT_QUIET_MIN = 45         # человек сам писал Адаму только что — он в разговоре, не вмешиваемся
+ADAM_GAP_MIN = 150                   # между двумя сообщениями Адама (пуш, повтор после действия, первое в чате) — не меньше этого
+FOLLOWUP_SLOTS = ("fu_mark", "fu_done", "fu_chat", "fu_visit")
+
 SCENARIOS = (
     "zero_done", "zero_done_evening", "behind", "one_left", "evening_left", "all_done", "free_chat", "morning", "struggling",
     "missed_habit", "task_progress", "task_remaining", "positive", "check_in", "late_visit", "evening_regular", "back_after_pause",
+    "just_done", "steady", "after_mark", "after_done", "chat_followup", "after_visit",
 )
 
 # Повод (intent) из ТЗ для каждого сценария — так он называется в журнале, админке и в контексте разговора.
@@ -75,6 +95,8 @@ INTENT_LABELS = {
     "struggling": "MISSED_HABIT", "missed_habit": "MISSED_HABIT", "task_progress": "TASK_PROGRESS",
     "task_remaining": "TASK_REMAINING", "positive": "POSITIVE", "check_in": "CHECK_IN",
     "late_visit": "LATE_VISIT", "evening_regular": "USUAL_TIME", "back_after_pause": "WELCOME_BACK",
+    "just_done": "MOMENTUM", "steady": "STEADY", "after_mark": "FOLLOW_UP", "after_done": "AFTER_DONE", "chat_followup": "CHAT_FOLLOW_UP",
+    "after_visit": "VISIT_FOLLOW_UP",
 }
 
 # Шаблонные фразы, которых Адам писать не должен (проверка по тексту без ё и в нижнем регистре).
@@ -560,6 +582,7 @@ def build_checkin_state(user_id, now_local=None, with_pace=True):
             tasks.append({"title": _short(task["text"]), "done": bool(task["completed"]), "main": False})
 
     minutes_since_chat = chat_minutes_ago(user_id)
+    last_mark_min, last_mark_title = last_mark_info(user_id)
     progress = get_progress(user_id) or {}
     profile = activity_profile(user_id, now_local) if with_pace else EMPTY_PROFILE
     plan_date = _effective_plan_date()
@@ -588,6 +611,10 @@ def build_checkin_state(user_id, now_local=None, with_pace=True):
         "mood_hint": _short(get_proactive_topic(user_id), 160),
         "pair_lines": _pair_lines(user_id),
         "minutes_since_chat": minutes_since_chat,
+        "last_mark_min": last_mark_min,
+        "last_open_min": last_open_minutes(user_id),
+        "last_mark_title": _short(last_mark_title or "", 60),
+        "bonus_min_left": bonus_minutes_left(user_id),
         "seen_minutes_ago": seen_minutes_ago(user_id),
         "recent_scenarios": recent_scenarios(user_id, 6),
         "last_check_in_days": days_since_scenario(user_id, "check_in", now_local.date()),
@@ -596,7 +623,10 @@ def build_checkin_state(user_id, now_local=None, with_pace=True):
         "rhythm": visit_rhythm(user_id, now_local),
         "pace": pace_history(user_id, now_local) if with_pace else {"days": 0, "avg_by_now": 0.0, "avg_total": 0.0, "yesterday": 0, "active_7": 0},
     }
-    return fill_counts(state)
+    state = fill_counts(state)
+    if not state["habits_done"]:
+        state["last_mark_min"] = state["bonus_min_left"] = None        # отметки сняты или день сменился: «только что отметил» — не про этого человека
+    return state
 
 
 # ------------------------------------------------------------------ какой сценарий нужен
@@ -695,6 +725,76 @@ def list_candidates(state, slot, chat_day=False):
                 add("missed_habit", 82 if sole else 70, f"«{missed['title']}» обычно уже выполнена к этому времени")
             if state.get("struggling_done"):
                 add("positive", 55, f"выполнена «{state['struggling_done']}» — привычка, которая обычно ускользает")
+    if not judge_ready(state):
+        out = [c for c in out if c["scenario"] in RECENT_MARK_ALLOWED]
+    out.sort(key=lambda c: -c["priority"])
+    return out
+
+
+def recently_marked(state, minutes=FRESH_MARK_MIN):
+    """Человек отметил привычку меньше `minutes` минут назад (и она сейчас отмечена): он «в движении», идёт окно x2."""
+    since = state.get("last_mark_min")
+    return bool(since is not None and since < minutes and state.get("habits_done", 0) > 0)
+
+
+def judge_ready(state):
+    """После последней отметки прошло достаточно времени, чтобы говорить о темпе, невыполненном и новых делах."""
+    return not recently_marked(state, JUDGE_AFTER_MARK_MIN)
+
+
+def behind_evidence(state):
+    """Есть ли основание сказать «темп ниже обычного». Свой обычный темп известен — человек заметно позади него (по привычкам). Не известен —
+    только когда сделано меньше трети и день уже на исходе (с 15:00): раньше оценивать нечем."""
+    pace = state.get("pace") or {}
+    if pace.get("days", 0) >= PACE_MIN_DAYS:
+        return bool(state["habits_total"] and pace.get("avg_by_now", 0) >= 1 and state["habits_done"] < 0.6 * pace["avg_by_now"])
+    return bool(state["total"] and state["done"] / state["total"] < 0.34 and state["hour"] >= 15)
+
+
+def actionable_left(state):
+    """Что осталось и не ждёт своего времени: у привычки со временем, которое ещё впереди, своё напоминание — её не торопим."""
+    now_minute = state["hour"] * 60 + state.get("minute", 0)
+    items = []
+    for habit in state["habits"]:
+        planned = _parse_hhmm(habit.get("planned"))
+        if habit["done"] or (planned is not None and planned > now_minute):
+            continue
+        items.append(habit["title"])
+    return items + list(state.get("pending_tasks") or [])
+
+
+def followup_delay(user_id, day_iso, key, chat=False):
+    """Через сколько минут после события Адам может вернуться: у (человека, дня, события) всегда одно число из диапазона."""
+    lo, hi = FOLLOWUP_CHAT_DELAY if chat else FOLLOWUP_DELAY
+    return random.Random(f"adam-followup:{user_id}:{day_iso}:{key}").randint(lo, hi)
+
+
+def followup_candidates(state, day_iso=None):
+    """Поводы вернуться к человеку ПОСЛЕ его действия (эксперимент «Адам пишет сам»): [{"scenario", "slot", "priority", "reason"}], важные
+    первыми. Пора — когда с момента действия прошло задержку этого события (35–60 мин после отметки, 60–90 после разговора в чате), но не
+    дольше FOLLOWUP_MAX_AGE_MIN: позже реплика уже не по теме. Лимиты дня и допуск (тишина, тумблеры) проверяет вызывающий код."""
+    user_id = state.get("user_id", 0)
+    day_iso = day_iso or datetime.now().date().isoformat()
+    since = state.get("last_mark_min")
+    marked = since is not None and state.get("habits_done", 0) > 0
+    left_items = actionable_left(state)
+    out = []
+    if marked and since <= FOLLOWUP_MAX_AGE_MIN:
+        if state["left"] == 0 and state["total"]:
+            if since >= followup_delay(user_id, day_iso, "done"):
+                out.append({"scenario": "after_done", "slot": "fu_done", "priority": 80, "reason": f"всё закрыто {since} мин назад"})
+        elif left_items and since >= followup_delay(user_id, day_iso, f"mark{state['habits_done']}"):
+            out.append({"scenario": "after_mark", "slot": "fu_mark", "priority": 70,
+                        "reason": f"после отметки прошло {since} мин, осталось дел: {len(left_items)}"})
+    chat = state.get("minutes_since_chat")
+    if (state.get("mood_hint") and chat is not None and left_items and chat <= FOLLOWUP_MAX_AGE_MIN
+            and chat >= followup_delay(user_id, day_iso, "chat", chat=True) and (not marked or since > chat)):
+        out.append({"scenario": "chat_followup", "slot": "fu_chat", "priority": 60, "reason": f"разговор в чате был {chat} мин назад"})
+    opened = state.get("last_open_min")
+    if (opened is not None and not marked and state.get("habits_total") and state["left"] and left_items
+            and state["hour"] >= 11 and opened <= FOLLOWUP_MAX_AGE_MIN and opened >= followup_delay(user_id, day_iso, "visit")
+            and (chat is None or chat > opened)):
+        out.append({"scenario": "after_visit", "slot": "fu_visit", "priority": 55, "reason": f"заходил {opened} мин назад, отметок сегодня нет"})
     out.sort(key=lambda c: -c["priority"])
     return out
 
@@ -710,6 +810,9 @@ def pick_scenario(state, slot, chat_day=False):
         if candidates:
             return candidates[0]["scenario"], candidates[0]["reason"]
         return None, _silence_reason(state, slot, chat_day)
+    if slot == "followup":
+        candidates = followup_candidates(state)
+        return (candidates[0]["scenario"], candidates[0]["reason"]) if candidates else (None, "после действия ещё рано или не о чем")
     # 'app': человек сам зашёл в чат — отвечаем на то, что происходит сейчас и на его привычный ритм
     total, done, left = state["total"], state["done"], state["left"]
     if state["hour"] < 12:
@@ -733,7 +836,17 @@ def pick_scenario(state, slot, chat_day=False):
         return ("zero_done_evening" if state["hour"] >= 18 else "zero_done"), "ничего не выполнено"
     if left == 1:
         return "one_left", "остался один пункт"
-    return ("evening_left" if state["hour"] >= 18 else "behind"), "осталось несколько пунктов"
+    # Осталось несколько пунктов. Только что отметил — человек в движении (идёт окно x2): ни слова о темпе. Темп оцениваем, лишь когда
+    # после отметки прошло время и есть на что опереться (свой обычный темп); иначе — спокойный итог без оценок.
+    if recently_marked(state):
+        return "just_done", f"отметил привычку {state['last_mark_min']} мин назад: человек в движении"
+    if not judge_ready(state):
+        return "steady", "отметка была недавно: темп не оцениваем"
+    if state["hour"] >= 18:
+        return "evening_left", "осталось несколько пунктов"
+    if behind_evidence(state):
+        return "behind", "заметно ниже своего обычного темпа"
+    return "steady", "идёт ровно: оценивать темп не на чем"
 
 
 def choose_scenario(state, slot, chat_day=False, recent=()):
@@ -770,6 +883,12 @@ SCENARIO_GUIDE = {
     "late_visit": "Человек обычно заходит раньше (его привычное время — в контексте), а сегодня появился только сейчас, поздно, и ничего не отмечено. Дай понять, что ты заметил, что сегодня его долго не было, и спроси ОДИН вопрос без упрёка: что случилось, день пошёл не по плану? Не стыди, не требуй и не перечисляй дела; в конце можно предложить одно самое маленькое дело на остаток дня. Приветствие необязательно.",
     "evening_regular": "Вечер — привычное время этого человека (оно в контексте), он пришёл как обычно, но пока ничего не отмечено. Скажи тепло, что ждал его, и спроси ОДИН вопрос про готовность или настроение взяться за планы на сегодня (вопрос про настроение здесь допустим, если он про дело, например «как настроение — возьмёмся за наши планы?»). Без упрёка, без перечисления дел; можно назвать одно самое простое.",
     "back_after_pause": "Человека не было в приложении несколько дней (сколько — в контексте). Скажи тепло и без упрёка, что заметил паузу и рад его видеть, и задай ОДИН вопрос: что изменилось или с чего удобнее вернуться. Не упоминай серию и потерянные очки, не перечисляй дела.",
+    "just_done": "Человек только что отметил привычку (сколько минут назад — в контексте) и идёт дальше. Поддержи по факту (сколько уже сделано, что именно) и назови ОДНО следующее дело из оставшегося как возможность, не как задание. Если окно x2 открыто (минуты в контексте), скажи, что следующая привычка принесёт вдвое больше монет. НИ СЛОВА о низком темпе, отставании, «медленно» и сравнении с обычным днём: человек в движении, торопить нельзя. Вопрос необязателен, максимум один и лёгкий.",
+    "steady": "Сегодня уже есть отметки, осталось несколько дел, повода для тревоги нет. Коротко отметь сделанное по факту и предложи на выбор одно следующее дело. НЕ говори о низком темпе и отставании и не сравнивай с обычным днём: оценивать темп не на чем. Один лёгкий вопрос или без вопроса.",
+    "after_mark": "Человек недавно отметил привычку (что и сколько минут назад — в контексте) и после этого уже около часа тихо; сегодня осталось ещё несколько дел. Напиши коротко, как наставник, который замечает паузу после хорошего шага: отметь сделанное, назови ОДНО следующее дело и предложи маленький шаг в ближайший час. Без упрёка, без «ты остановился/пропал» и без оценки темпа. Один вопрос максимум.",
+    "after_done": "Человек недавно закрыл ВСЁ на сегодня (сколько минут назад — в контексте). Не хвали общими словами: одной фразой отметь результат конкретно (счёт, а серию — только если это помогает) и задай ОДИН вопрос для рефлексии: что получилось лучше всего или какой момент дня запомнился. Новых дел не придумывай.",
+    "after_visit": "Человек недавно заходил в приложение (сколько минут назад — в контексте), но сегодня ничего не отметил и ушёл. Дай понять, что ты рядом и ничего страшного: самое сложное — начать. Назови ОДНО самое лёгкое из оставшегося и предложи сделать его за пару минут. Без упрёка и без «зашёл и ничего не сделал»; один лёгкий вопрос.",
+    "chat_followup": "Недавно человек писал тебе в чате (тема — в контексте: «Недавняя тема из разговора»; сколько минут назад — тоже). Вернись к этой теме одной фразой, будто помнишь разговор: спроси, как сейчас, и предложи ОДИН самый маленький шаг из оставшегося. Не цитируй дословно, без упрёка и давления.",
 }
 
 # Эталонные сообщения. Первые три — от владельца проекта (как должно звучать); остальные в том же тоне. В промпт идут как
@@ -792,6 +911,12 @@ REFERENCE_EXAMPLES = {
     "late_visit": "Что случилось — сегодня тебя не было весь день, а обычно ты здесь с утра. День пошёл не по плану?",
     "evening_regular": "Привет, я ждал тебя. Как настроение — возьмёмся сегодня за наши планы?",
     "back_after_pause": "Тебя не было несколько дней — я заметил. Что изменилось и с чего удобнее вернуться?",
+    "just_done": "Первая привычка уже есть — хороший старт. Следом хорошо зайдёт «Чтение»: что скажешь?",
+    "steady": "Уже 3 из 6 — идёшь ровно. Дальше хорошо зайдёт «Чтение»: получится сегодня?",
+    "after_mark": "«Зарядка» уже в копилке — хороший шаг. Следом по списку «Чтение»: возьмёшь его в ближайший час?",
+    "after_done": "День закрыт полностью — 4 из 4. Что из сегодняшнего далось легче всего?",
+    "chat_followup": "Про усталость мы говорили недавно — как сейчас? Если силы вернулись, самое лёгкое — «Зарядка».",
+    "after_visit": "Самое сложное — начать, дальше легче. «Зарядка» займёт пару минут: возьмёшь её сейчас?",
 }
 
 
@@ -872,6 +997,24 @@ def _hhmm(minute):
     return f"{minute // 60:02d}:{minute % 60:02d}"
 
 
+def recency_lines(state):
+    """Факты о ТОЛЬКО ЧТО сделанном: когда была последняя отметка и открыто ли окно x2 Adam Coin. Правило одно для всех сообщений Адама (и в чате,
+    и пушей): пока человек в движении, о низком темпе, отставании и новых делах речи нет."""
+    out = []
+    since = state.get("last_mark_min")
+    if since is not None and since < 180 and state.get("habits_done", 0) > 0:
+        title = state.get("last_mark_title")
+        out.append(f"Последнюю привычку человек отметил {int(since)} мин назад" + (f" («{title}»)" if title else ""))
+        if since < JUDGE_AFTER_MARK_MIN:
+            out.append("После последней отметки прошло мало времени: человек в движении. НЕ говори о низком темпе, отставании, «медленно» и "
+                       "«ниже обычного», не сравнивай с обычным днём и не торопи; поддержи и подскажи следующий шаг")
+    bonus = state.get("bonus_min_left")
+    if bonus:
+        out.append(f"Окно x2 Adam Coin открыто ещё около {int(bonus)} мин: следующая отмеченная привычка принесёт вдвое больше монет — "
+                   "упомяни это как возможность одной фразой, не как давление")
+    return out
+
+
 def build_checkin_prompt(state, scenario, opener, recent_messages=(), recent_scenarios=(), angle=None):
     """Данные для модели. Привычки и задачи — вместе, но с разбивкой, чтобы текст мог назвать нужное по имени. Задач нет — об этом
     сказано прямо (ТЗ §4: не придумывать и не спрашивать про задачи)."""
@@ -933,8 +1076,11 @@ def build_checkin_prompt(state, scenario, opener, recent_messages=(), recent_sce
     if state.get("above_usual") and state["left"] == 0:
         lines.append("Результат сегодня выше обычного для этого человека")
     lines.extend(rhythm_lines(state))
+    lines.extend(recency_lines(state))
     if state.get("mood_hint"):
         lines.append(f"Недавняя тема из разговора (мягко учти, не цитируй): {state['mood_hint']}")
+        if scenario == "chat_followup" and state.get("minutes_since_chat") is not None:
+            lines.append(f"Человек писал тебе в чате {state['minutes_since_chat']} мин назад")
     pair = state.get("pair_lines") or []
     if pair:
         lines.extend(pair)
@@ -1070,6 +1216,44 @@ FALLBACKS = {
         "давно не виделись: {gap_phrase}. Что изменилось за это время?",
         "рад видеть тебя снова — прошло {gap_phrase}. Что помогло бы вернуться в ритм?",
     ),
+    # Только что отметил: без слов о темпе. {x2_line} — про окно x2, пока оно открыто (иначе пусто).
+    "just_done": (
+        "уже {done} из {total} — хороший ход. {x2_line}Следом можно «{p1}», когда будет момент.",
+        "{done} из {total} есть. {x2_line}Что возьмёшь следом — «{p1}»?",
+        "ритм пошёл: {done} из {total}. {x2_line}«{p1}» подойдёт следующей, без спешки.",
+        "хорошее начало — {done} из {total}. {x2_line}Дальше хорошо зайдёт «{p1}».",
+    ),
+    "steady": (
+        "уже {done} из {total} — идём ровно. Дальше хорошо зайдёт «{p1}».",
+        "{done} из {total} в копилке. Что возьмёшь следом — «{p1}»?",
+        "есть {done} из {total}, день идёт. Когда будет окно, «{p1}» подойдёт.",
+        "{done} из {total} уже позади. «{p1}» — хороший кандидат на следующий шаг.",
+    ),
+    # {last} — название последней отмеченной привычки; шаблоны с ним берутся, только если оно известно.
+    "after_mark": (
+        "«{last}» уже в копилке — хороший шаг. Следом по списку «{p1}»: возьмёшь в ближайший час?",
+        "{done} из {total} уже есть. Пока день идёт — самое время для «{p1}».",
+        "после «{last}» наступила пауза — это нормально. «{p1}» займёт пару минут: сделаем?",
+        "{done} из {total} — хороший задел. «{p1}» ждёт: возьмёшь в ближайший час?",
+    ),
+    "after_done": (
+        "день закрыт полностью — {total} из {total}. Что из сегодняшнего далось легче всего?",
+        "все дела на сегодня выполнены — сильный результат. Что помогло так собраться?",
+        "{total} из {total}: ничего не осталось. Что сегодня удалось лучше всего?",
+        "полностью закрытый день — {total} из {total}. Какой момент запомнился больше всего?",
+    ),
+    "after_visit": (
+        "самое сложное — начать, дальше легче. «{p1}» займёт пару минут: возьмёшь сейчас?",
+        "пока в списке тихо. Хватит одного маленького шага — «{p1}».",
+        "день идёт, а список ждёт. Начни с «{p1}»: пара минут — и ритм пошёл.",
+        "один маленький шаг сейчас — «{p1}» — и день сдвинется с места.",
+    ),
+    "chat_followup": (
+        "недавно в чате был разговор — как сейчас? Если силы есть, самое лёгкое — «{p1}».",
+        "после нашего разговора прошло немного времени. Получится что-то из списка — например, «{p1}»?",
+        "что с настроением после разговора? Один маленький шаг — «{p1}» — и достаточно.",
+        "вернусь к нашему разговору: стало легче? Если да, «{p1}» займёт пару минут.",
+    ),
 }
 
 
@@ -1097,6 +1281,11 @@ def fallback_text(state, scenario, user_id=None, day_iso=None, avoid=()):
         elif state["done"]:
             key = "morning_progress"
     pool = FALLBACKS[key]
+    last_title = state.get("last_mark_title") or ""
+    if not last_title:
+        pool = tuple(t for t in pool if "{last}" not in t) or pool
+    if scenario == "behind" and (state.get("pace") or {}).get("days", 0) < PACE_MIN_DAYS:
+        pool = tuple(t for t in pool if "обычн" not in t) or pool           # про «обычно у тебя быстрее» — только когда свой темп известен
     rng = random.Random(f"adam-fallback:{user_id}:{day_iso}:{key}")
     streak = int(state.get("streak") or 0)
     streak_unit = "день" if streak % 10 == 1 and streak % 100 != 11 else "дня" if 2 <= streak % 10 <= 4 and not 12 <= streak % 100 <= 14 else "дней"
@@ -1112,6 +1301,9 @@ def fallback_text(state, scenario, user_id=None, day_iso=None, avoid=()):
         p1 = state["missed"]["title"]
     elif key == "positive_habit":
         p1 = state["struggling_done"]
+    elif scenario in ("just_done", "steady", "after_mark", "chat_followup", "after_visit"):
+        p1 = (actionable_left(state) or pending)[0]
+    x2_line = "Окно x2 ещё открыто — следующая привычка принесёт вдвое больше монет. " if state.get("bonus_min_left") else ""
     gap_phrase = _days_phrase((state.get("rhythm") or {}).get("gap_days"))
 
     def render(template):
@@ -1120,7 +1312,7 @@ def fallback_text(state, scenario, user_id=None, day_iso=None, avoid=()):
             missed=(state.get("struggling") or {}).get("missed", 4),
             count_phrase=_count_phrase(state["total"]), left_phrase=_count_phrase(state["left"]),
             streak_line=f"Серия {streak} {streak_unit} держится, и её сохранит даже одна отметка. " if streak > 0 else "",
-            gap_phrase=gap_phrase,
+            gap_phrase=gap_phrase, last=last_title, x2_line=x2_line,
         ).replace("  ", " ").strip()
 
     chosen = rng.choice(pool)
@@ -1312,6 +1504,114 @@ def seen_minutes_ago(user_id):
     return max(0, int((datetime.now(timezone.utc) - seen).total_seconds() // 60))
 
 
+def last_mark_info(user_id, now_utc=None):
+    """(минут назад, название) последней отметки привычки за последние сутки; (None, None) — отметок нет."""
+    now_utc = now_utc or datetime.now(timezone.utc)
+    since = (now_utc - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = connect()
+    try:
+        row = conn.execute(
+            """SELECT e.completed_at AS at, h.title AS title FROM habit_completion_events e LEFT JOIN habits h ON h.id = e.habit_id
+               WHERE e.user_id=? AND e.completed_at>=? ORDER BY e.id DESC LIMIT 1""",
+            (user_id, since),
+        ).fetchone()
+    finally:
+        conn.close()
+    moment = _parse_utc(row["at"]) if row else None
+    if moment is None:
+        return None, None
+    return max(0, int((now_utc - moment).total_seconds() // 60)), row["title"]
+
+
+def last_open_minutes(user_id, now_utc=None):
+    """Сколько минут назад человек последний раз открывал приложение (по журналу заходов app_opens); None — заходов нет."""
+    now_utc = now_utc or datetime.now(timezone.utc)
+    conn = connect()
+    try:
+        row = conn.execute("SELECT MAX(at) AS at FROM app_opens WHERE user_id=?", (user_id,)).fetchone()
+    finally:
+        conn.close()
+    moment = _parse_utc(row["at"]) if row and row["at"] else None
+    return max(0, int((now_utc - moment).total_seconds() // 60)) if moment else None
+
+
+def last_mark_minutes(user_id, now_utc=None):
+    """Сколько минут назад человек последний раз отметил привычку (None — за сутки ни одной)."""
+    return last_mark_info(user_id, now_utc)[0]
+
+
+def bonus_minutes_left(user_id, now_utc=None):
+    """Сколько минут ещё открыто окно x2 Adam Coin (None — не открыто). Окно открывает каждая отметка, пока есть что отмечать дальше."""
+    from .streak import get_bonus_window
+    until = get_bonus_window(user_id)
+    if until is None:
+        return None
+    if until.tzinfo is not None:
+        until = until.astimezone(timezone.utc).replace(tzinfo=None)
+    seconds = (until - (now_utc or datetime.now(timezone.utc)).replace(tzinfo=None)).total_seconds()
+    return int(-(-seconds // 60)) if seconds > 0 else None
+
+
+def adam_wrote_minutes_ago(user_id, day_iso=None):
+    """Сколько минут назад Адам последний раз сам написал человеку (пуш, повтор после действия, первое сообщение в чате); None — не писал.
+    day_iso — только сообщения этого дня (местного): интервал между сообщениями нужен внутри дня, а не через полночь."""
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT created_at FROM adam_checkins WHERE user_id=? AND status='sent'" + (" AND day=?" if day_iso else "") + " ORDER BY id DESC LIMIT 1",
+            (user_id, day_iso) if day_iso else (user_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    last = _parse_utc(row["created_at"]) if row else None
+    return max(0, int((datetime.now(timezone.utc) - last).total_seconds() // 60)) if last else None
+
+
+def followups_sent_today(user_id, day_iso):
+    """Сколько повторов после действий Адам уже отправил (или отправляет прямо сейчас) человеку за этот день."""
+    marks = ",".join("?" * len(FOLLOWUP_SLOTS))
+    conn = connect()
+    try:
+        row = conn.execute(
+            f"SELECT COUNT(*) AS n FROM adam_checkins WHERE user_id=? AND day=? AND slot IN ({marks}) AND status IN ('sent','pending')",
+            (user_id, day_iso, *FOLLOWUP_SLOTS),
+        ).fetchone()
+    finally:
+        conn.close()
+    return int(row["n"])
+
+
+def followups_enabled_for(user_id):
+    """Эксперимент «Адам пишет сам после действий»: записи флага нет — только админам; запись есть — по ней (включено и процент раскатки),
+    «выключено» отключает эксперимент всем, в том числе админам."""
+    from config import ADMIN_IDS
+    conn = connect()
+    try:
+        row = conn.execute("SELECT enabled, rollout_pct FROM feature_flags WHERE key=?", (FOLLOWUP_FLAG,)).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return user_id in ADMIN_IDS
+    if not row["enabled"]:
+        return False
+    if user_id in ADMIN_IDS:
+        return True
+    from .feature_flags import is_feature_enabled
+    return is_feature_enabled(FOLLOWUP_FLAG, user_id)
+
+
+def followup_possible(user_id):
+    """Дешёвая проверка перед тяжёлой сборкой состояния: есть ли вообще действие (отметка или разговор), от которого сейчас могла пройти задержка."""
+    since = last_mark_minutes(user_id)
+    if since is not None and FOLLOWUP_DELAY[0] <= since <= FOLLOWUP_MAX_AGE_MIN:
+        return True
+    chat = chat_minutes_ago(user_id)
+    if chat is not None and FOLLOWUP_CHAT_DELAY[0] <= chat <= FOLLOWUP_MAX_AGE_MIN:
+        return True
+    opened = last_open_minutes(user_id)
+    return opened is not None and FOLLOWUP_DELAY[0] <= opened <= FOLLOWUP_MAX_AGE_MIN
+
+
 def recent_scenarios(user_id, limit=INTENT_COOLDOWN):
     """Сценарии последних отправленных сообщений Адама (в чате и пушей), новые первыми — для cooldown повода."""
     conn = connect()
@@ -1411,7 +1711,8 @@ def checkin_stats(days=7):
 # ------------------------------------------------------------------ демо для «Лаборатории» админки
 
 def _lab_state(first_name, hour, minute, habits, tasks, streak=5, pace=None, gender="m", mood_hint="", style="neutral",
-               struggling=None, missed=None, struggling_done=None, main_age_min=None, task_hist=None, last_check_in_days=None, rhythm=None):
+               struggling=None, missed=None, struggling_done=None, main_age_min=None, task_hist=None, last_check_in_days=None, rhythm=None,
+               last_mark_min=None, last_mark_title="", bonus_min_left=None, minutes_since_chat=None, last_open_min=None):
     state = {
         "user_id": 0, "first_name": first_name, "gender": gender, "hour": hour, "minute": minute,
         "time": f"{hour:02d}:{minute:02d}", "part": part_of_day(hour), "weekday": 2,
@@ -1422,7 +1723,8 @@ def _lab_state(first_name, hour, minute, habits, tasks, streak=5, pace=None, gen
         "struggling": struggling, "struggling_done": struggling_done, "missed": missed, "mood_hint": mood_hint,
         "usual": {"day": None, "evening": None}, "first_habit_minute": None,
         "main_age_min": main_age_min, "task_hist": task_hist or {"days_with_main": 0, "main_done_days": 0, "tasks_set": 0, "tasks_done": 0},
-        "minutes_since_chat": None, "seen_minutes_ago": None, "recent_scenarios": [], "last_check_in_days": last_check_in_days,
+        "minutes_since_chat": minutes_since_chat, "seen_minutes_ago": None, "recent_scenarios": [], "last_check_in_days": last_check_in_days,
+        "last_mark_min": last_mark_min, "last_mark_title": last_mark_title, "bonus_min_left": bonus_min_left, "last_open_min": last_open_min,
         "language": "ru", "style": style, "rhythm": dict(rhythm or EMPTY_RHYTHM),
         "pace": pace or {"days": 9, "avg_by_now": 2.4, "avg_total": 4.2, "yesterday": 4, "active_7": 6},
     }
@@ -1498,6 +1800,21 @@ def lab_scenarios():
                              _lab_state("Дмитрий", 13, 20, _LAB_HABITS, _LAB_TASKS, streak=0, rhythm={
                                  "days": 9, "usual_first": 9 * 60 + 10, "usual_part": "утро", "first_mark": None,
                                  "first_today": 13 * 60 + 15, "arrived_now": True, "gap_days": 4})),
+        # реакция на только что сделанное (15.10) и «Адам пишет сам после действий» (эксперимент)
+        "just_done": ("Минуту назад отметил первую привычку, окно x2 открыто (14:29)", "app",
+                      _lab_state("Александр", 14, 29, done(_LAB_HABITS, 1), _LAB_TASKS, last_mark_min=1, last_mark_title="Зарядка", bonus_min_left=29)),
+        "steady": ("Половина сделана давно, оценивать темп не на чем (15:10)", "app",
+                   _lab_state("Мария", 15, 10, done(_LAB_HABITS, 3), _LAB_TASKS, gender="f", last_mark_min=75, last_mark_title="Холодный душ",
+                              pace={"days": 0, "avg_by_now": 0.0, "avg_total": 0.0, "yesterday": 0, "active_7": 0})),
+        "after_mark": ("Час назад отметил привычку, дальше тишина (15:35)", "followup",
+                       _lab_state("Дмитрий", 15, 35, done(_LAB_HABITS, 1), _LAB_TASKS, last_mark_min=62, last_mark_title="Зарядка")),
+        "after_done": ("Всё закрыто больше часа назад (19:10)", "followup",
+                       _lab_state("Анна", 19, 10, done(_LAB_HABITS, 4), [("Отправить предложение клиенту", True, True), ("Созвон с командой", True, False)],
+                                  gender="f", streak=14, last_mark_min=70, last_mark_title="Английский")),
+        "after_visit": ("Час назад заходил в приложение, ничего не отметил (15:20)", "followup",
+                        _lab_state("Мария", 15, 20, _LAB_HABITS, _LAB_TASKS, gender="f", last_open_min=65)),
+        "chat_followup": ("Полтора часа назад писал Адаму про усталость (16:00)", "followup",
+                          _lab_state("Алексей", 16, 0, _LAB_HABITS, [], mood_hint="устал, мало сил", minutes_since_chat=95)),
         # три примера владельца проекта: время и счёт — как в его описании
         "owner_a": ("Пример А: дневной провал (14:45, 0/3)", "day",
                     _lab_state("Александр", 14, 45, _OWNER_HABITS, [])),
@@ -1516,4 +1833,5 @@ def lab_state_summary(state):
         "tasks": f'{state["tasks_done"]}/{state["tasks_total"]}', "mood_hint": state.get("mood_hint") or "",
         "pace": state.get("pace"), "struggling": state.get("struggling"), "missed": state.get("missed"),
         "main_is_rest": state.get("main_is_rest"), "main_open": state.get("main_open"), "ahead": state.get("ahead"),
+        "last_mark_min": state.get("last_mark_min"), "bonus_min_left": state.get("bonus_min_left"),
     }

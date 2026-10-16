@@ -2949,7 +2949,11 @@
   let adamNudgeActive = false;
   let adamNudgeDemoLit = false;
   let adamNudgeTimer = null;
+  let adamNudgeDelayTimer = null;
   const ADAM_NUDGE_EVENING_HOUR = 17;
+  // После отметки подсказка «у меня к тебе вопрос» ждёт (db/ai_nudge.py::NUDGE_AFTER_MARK_MIN): человек в движении, 30 минут идёт окно x2,
+  // и сразу выскакивающая подсказка сбивала того, кто шёл отмечать вторую привычку.
+  const ADAM_NUDGE_AFTER_ACTION_MS = 35 * 60 * 1000;
 
   function renderAiNudgeBadge() {
     const tour = !!state?.show_app_tour;
@@ -2975,9 +2979,16 @@
   }
 
   // Ждём тишины (праздничные экраны, шторки, подсказки тура) и показываем.
-  function scheduleAdamNudge() {
+  function scheduleAdamNudge({ delayMs = 0 } = {}) {
     const nudge = state?.ai_nudge;
-    if (adamNudgeTimer || !nudge?.eligible || nudge.hint_shown_today || state?.show_app_tour) return;
+    if (!nudge?.eligible || nudge.hint_shown_today || state?.show_app_tour) return;
+    if (delayMs > 0) {
+      // Новое действие сбрасывает отсчёт: подсказка придёт, когда человек затихнет, а не посреди отметок.
+      clearTimeout(adamNudgeDelayTimer);
+      adamNudgeDelayTimer = setTimeout(() => { adamNudgeDelayTimer = null; scheduleAdamNudge(); }, delayMs);
+      return;
+    }
+    if (adamNudgeTimer) return;
     const startedAt = Date.now();
     let quietTicks = 0;
     adamNudgeTimer = setInterval(() => {
@@ -2998,7 +3009,9 @@
   // Вечером (с 17:00 по времени телефона) напоминание приходит и просто при входе —
   // если человек ещё не писал Адаму сегодня.
   function maybeScheduleEveningAdamNudge() {
-    if (new Date().getHours() >= ADAM_NUDGE_EVENING_HOUR) scheduleAdamNudge();
+    if (new Date().getHours() < ADAM_NUDGE_EVENING_HOUR) return;
+    // Зашёл вечером сразу после отметки (например, из бота) — сервер говорит, сколько ещё подождать.
+    scheduleAdamNudge({ delayMs: Math.max(0, Number(state?.ai_nudge?.wait_min) || 0) * 60 * 1000 });
   }
 
   function goToAdamChat() {
@@ -4950,7 +4963,7 @@ function applyActionPatch(result) {
   // «Пинок» перерисовки — только заменённой строке привычки и дням серии (а не всему списку).
   const changedRow = habitPatched && result.habit ? document.querySelector(`.habit-item[data-id="${result.habit.id}"]`) : null;
   stabilizeFirstPaint([changedRow, "streakDays"].filter(Boolean), { lists: false });
-  scheduleAdamNudge();
+  scheduleAdamNudge({ delayMs: ADAM_NUDGE_AFTER_ACTION_MS });
 }
 
 // Тот же приём, что и applyActionPatch выше, для тумблеров плана дня
@@ -4962,7 +4975,7 @@ function applyPlanPatch(result) {
   renderPlan();
   renderTodayFocus();
   stabilizeFirstPaint(["planList"], { lists: false });
-  scheduleAdamNudge();
+  scheduleAdamNudge({ delayMs: ADAM_NUDGE_AFTER_ACTION_MS });
 }
 
 // Roadmap #3 — заметка/фото к выполненной привычке: маленькая встроенная

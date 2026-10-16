@@ -235,6 +235,8 @@ def situation_lines(state, pair_lines=(), back_days=0):
     if back_days > 0:
         lines.append(f"Человек вернулся после {back_days} дн. без отметок: без упрёков, начни с маленького шага")
     from db import adam_checkin as ac
+    # Только что отметил привычку / открыто окно x2 — в любом ответе: пока человек в движении, о низком темпе речи нет (15.10).
+    lines.extend(ac.recency_lines(state))
     if ac.rhythm_notable(state):
         lines.extend(ac.rhythm_lines(state))
     best = int(state.get("best_streak") or 0)

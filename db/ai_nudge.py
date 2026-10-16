@@ -25,6 +25,10 @@ from .streak import get_timezone
 # напоминание про того же Адама было бы навязчивым.
 FRESH_ACCOUNT_MINUTES = 30
 
+# После отметки привычки подсказка «у меня к тебе вопрос» ждёт: человек в движении (30 минут идёт окно x2 Adam Coin) и может идти отмечать
+# вторую привычку — подсказка поверх экрана сбивала его (15.10). Столько минут после последней отметки подсказка не показывается.
+NUDGE_AFTER_MARK_MIN = 35
+
 # До 12:00 «как прошёл день» не подходит — отдельные варианты на утро.
 GREETINGS_MORNING = (
     "Привет, {name}! Как настроение с утра? Какие планы на сегодня?",
@@ -57,7 +61,8 @@ def get_ai_nudge_state(user_id):
     pending          — сегодня человек не писал Адаму и Адам ещё не здоровался;
     eligible         — pending и аккаунт не новый: можно показывать подсказку;
     hint_shown_today — подсказка сегодня уже была (метка на «ИИ» остаётся до захода в чат);
-    has_chatted      — переписка с Адамом уже была когда-либо.
+    has_chatted      — переписка с Адамом уже была когда-либо;
+    wait_min         — сколько минут подсказке ещё ждать после последней отметки привычки (0 — можно сразу).
     """
     conn = connect()
     try:
@@ -72,7 +77,7 @@ def get_ai_nudge_state(user_id):
     finally:
         conn.close()
     if not row:
-        return {"pending": False, "eligible": False, "hint_shown_today": False, "has_chatted": False}
+        return {"pending": False, "eligible": False, "hint_shown_today": False, "has_chatted": False, "wait_min": 0}
 
     now = _now_local(user_id)
     today = now.date().isoformat()
@@ -82,11 +87,14 @@ def get_ai_nudge_state(user_id):
 
     created = _parse_utc(row["created_at"])
     fresh = bool(created) and (datetime.now(timezone.utc) - created).total_seconds() < FRESH_ACCOUNT_MINUTES * 60
+    from .adam_checkin import last_mark_minutes
+    since_mark = last_mark_minutes(user_id)
     return {
         "pending": pending,
         "eligible": pending and not fresh,
         "hint_shown_today": row["ai_nudge_hint_day"] == today,
         "has_chatted": bool(row["ai_intro_shown"]),
+        "wait_min": max(0, NUDGE_AFTER_MARK_MIN - since_mark) if since_mark is not None else 0,
     }
 
 
@@ -117,6 +125,11 @@ def begin_ai_greeting(user_id, demo=False):
     if not demo:
         state = get_ai_nudge_state(user_id)
         if not (state["pending"] and state["has_chatted"]):
+            return None
+        # Адам уже написал сам совсем недавно (повтор после действия) — в чате это сообщение уже есть, второе подряд не нужно.
+        from .adam_checkin import ADAM_GAP_MIN, adam_wrote_minutes_ago
+        recent = adam_wrote_minutes_ago(user_id, today)
+        if recent is not None and recent < ADAM_GAP_MIN:
             return None
 
     conn = connect()

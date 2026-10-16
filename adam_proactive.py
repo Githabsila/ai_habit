@@ -10,6 +10,8 @@
 
 Сообщение пишется в переписку (ai_messages) как реплика Адама: ответ человека в чате продолжит именно этот разговор.
 Раскатка — флаг adam_checkin (админы — всегда). Уведомление учитывает общий тумблер «Напоминания», тихие часы, блокировку бота.
+Эксперимент «Адам пишет сам после действий» (process_followup): повтор через 35–60 минут после отметки — флаг adam_followups (админы — пока записи нет).
+Под каждым сообщением Адама — кнопка от первого лица «Написать мне 📩» (keyboards.adam_chat_markup).
 """
 import asyncio
 import logging
@@ -18,9 +20,6 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from aiogram.exceptions import TelegramForbiddenError
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-
-from config import WEBAPP_URL
 from db import (
     add_ai_message, claim_notification, get_all_users, get_settings, get_timezone, in_quiet_hours, log_error,
     mark_bot_blocked, notification_scope, reminder_category_enabled, release_notification,
@@ -91,11 +90,9 @@ async def compose_app_greeting(user_id, timeout=APP_LLM_TIMEOUT):
 
 
 def _keyboard():
-    if not WEBAPP_URL:
-        return None
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💬 Ответить Адаму", web_app=WebAppInfo(url=f"{WEBAPP_URL}/coach"))]
-    ])
+    """«Написать мне 📩» — от первого лица: Адам пишет сам, и кнопка под его сообщением говорит его голосом (keyboards.adam_chat_markup)."""
+    from keyboards import adam_chat_markup
+    return adam_chat_markup()
 
 
 def other_push_recently(user_id, minutes=OTHER_PUSH_QUIET_MINUTES):
@@ -104,7 +101,7 @@ def other_push_recently(user_id, minutes=OTHER_PUSH_QUIET_MINUTES):
     conn = connect()
     try:
         row = conn.execute(
-            "SELECT 1 FROM notification_log WHERE user_id=? AND sent_at>=? AND category!='adam_checkin' LIMIT 1", (user_id, since)
+            "SELECT 1 FROM notification_log WHERE user_id=? AND sent_at>=? AND category NOT LIKE 'adam_checkin%' LIMIT 1", (user_id, since)
         ).fetchone()
     finally:
         conn.close()
@@ -131,6 +128,9 @@ def skip_reason(telegram_id, now_local, settings):
             return "человека возвращают в серию отдельные напоминания (пропущенные дни)"
     if ac.adam_wrote_today(telegram_id, day_iso):
         return "Адам уже писал сегодня"
+    wrote = ac.adam_wrote_minutes_ago(telegram_id, day_iso)
+    if wrote is not None and wrote < ac.ADAM_GAP_MIN:
+        return "Адам писал совсем недавно (повтор после действия или первое сообщение в чате)"
     if ac.chatted_today(telegram_id, now_local):
         return "человек сам уже общался с Адамом сегодня"
     seen = ac.seen_minutes_ago(telegram_id)
@@ -152,6 +152,11 @@ async def process_user(bot, telegram_id, scope, now_local=None):
     slot = ac.slot_due(telegram_id, now_local, ac.preferred_minutes(telegram_id, now_local))
     if slot is None:
         return "not_due"
+    # Только что отметил привычку (идёт окно x2, человек в движении) — подгонять нельзя. Окно не занимаем: пока оно открыто, следующий тик
+    # проверит снова; а если человека ждать больше нечего, он и без того в процессе.
+    since_mark = ac.last_mark_minutes(telegram_id)
+    if since_mark is not None and since_mark < ac.JUDGE_AFTER_MARK_MIN:
+        return "wait: недавно отметил привычку"
     day_iso = now_local.date().isoformat()
     if not ac.claim_slot(telegram_id, day_iso, slot):
         return "already_handled"
@@ -195,6 +200,85 @@ async def process_user(bot, telegram_id, scope, now_local=None):
         return "error"
 
 
+def followup_skip_reason(telegram_id, now_local, settings):
+    """Почему Адам сейчас не будет возвращаться к человеку после его действия (None — можно). Это временные причины: окно не занимаем,
+    следующий тик проверит снова, пока повод не устарел."""
+    if not reminder_category_enabled(settings, "habits"):
+        return "напоминания выключены"
+    if in_quiet_hours(settings, now_local):
+        return "тихие часы"
+    if not ac.account_old_enough(telegram_id):
+        return "аккаунт слишком новый"
+    if ac.is_dormant(telegram_id):
+        return "давно не заходил"
+    if not ai_usage.check_allowed(telegram_id)["ok"]:
+        return "ИИ для человека ограничен админом"
+    seen = ac.seen_minutes_ago(telegram_id)
+    if seen is not None and seen <= ac.ACTIVE_NOW_MINUTES:
+        return "человек прямо сейчас в приложении"
+    chat = ac.chat_minutes_ago(telegram_id)
+    if chat is not None and chat < ac.FOLLOWUP_CHAT_QUIET_MIN:
+        return "человек только что говорил с Адамом"
+    wrote = ac.adam_wrote_minutes_ago(telegram_id, now_local.date().isoformat())
+    if wrote is not None and wrote < ac.ADAM_GAP_MIN:
+        return "Адам писал совсем недавно"
+    if other_push_recently(telegram_id):
+        return "недавно приходил другой пуш"
+    return None
+
+
+async def process_followup(bot, telegram_id, scope, now_local=None):
+    """Эксперимент «Адам пишет сам после действий»: через 35–60 минут после отметки (или 60–90 после разговора в чате) Адам возвращается с
+    одной репликой по смыслу — осталось дело / всё закрыто / вернуться к разговору. Не чаще FOLLOWUPS_PER_DAY раз в день и не чаще раза в
+    ADAM_GAP_MIN минут, только с 10:30 до 21:30. Включено админам; остальным — флаг adam_followups. Возвращает строку-итог (для тестов и логов)."""
+    now_local = now_local or datetime.now(ZoneInfo(get_timezone(telegram_id)))
+    minute = now_local.hour * 60 + now_local.minute
+    if not (ac.FOLLOWUP_FROM_MIN <= minute < ac.FOLLOWUP_TO_MIN):
+        return "not_due"
+    if not ac.followups_enabled_for(telegram_id):
+        return "disabled"
+    if not ac.followup_possible(telegram_id):
+        return "not_due"
+    day_iso = now_local.date().isoformat()
+    if ac.followups_sent_today(telegram_id, day_iso) >= ac.FOLLOWUPS_PER_DAY:
+        return "cap"
+    reason = followup_skip_reason(telegram_id, now_local, get_settings(telegram_id))
+    if reason:
+        return f"wait: {reason}"
+    state = ac.build_checkin_state(telegram_id, now_local)
+    for candidate in ac.followup_candidates(state, day_iso):
+        scenario, slot = candidate["scenario"], candidate["slot"]
+        if not ac.claim_slot(telegram_id, day_iso, slot):
+            continue                                                  # про это сегодня уже писали — берём следующий повод
+        try:
+            text, source = await compose_message(state, scenario, telegram_id, day_iso)
+            if not text:
+                ac.finish_slot(telegram_id, day_iso, slot, "skipped", scenario=scenario, note="нет текста")
+                return "skipped: нет текста"
+            kind = f"adam_checkin_{slot}"
+            if not claim_notification(telegram_id, day_iso, kind, scope):
+                ac.finish_slot(telegram_id, day_iso, slot, "skipped", scenario=scenario, note="уже было уведомление Адама")
+                return "skipped: duplicate"
+            try:
+                await bot.send_message(telegram_id, text, reply_markup=_keyboard())
+            except Exception:
+                release_notification(telegram_id, day_iso, kind, scope)
+                raise
+            message_id = add_ai_message(telegram_id, "assistant", text)
+            ac.finish_slot(telegram_id, day_iso, slot, "sent", scenario=scenario, source=source, message_id=message_id, note=candidate["reason"])
+            return f"sent: {scenario}/{source}"
+        except TelegramForbiddenError as exc:
+            mark_bot_blocked(telegram_id)
+            ac.finish_slot(telegram_id, day_iso, slot, "skipped", note="бот заблокирован")
+            log_error("adam_followup", exc, telegram_id)
+            return "skipped: blocked"
+        except Exception as exc:
+            ac.release_slot(telegram_id, day_iso, slot)               # временный сбой: следующий тик повторит, пока повод не устарел
+            log_error("adam_followup", exc, telegram_id)
+            return "error"
+    return "not_due"
+
+
 async def run_adam_checkins(bot):
     """Тик планировщика: см. заголовок модуля."""
     if not bot:
@@ -209,5 +293,10 @@ async def run_adam_checkins(bot):
             continue
         if outcome.startswith("sent"):
             sent += 1
+        try:
+            if (await process_followup(bot, user["telegram_id"], scope)).startswith("sent"):
+                sent += 1
+        except Exception as exc:
+            log_error("adam_followup", exc, user["telegram_id"])
     if sent:
         logger.info("Адам пишет первым: отправлено %s сообщений", sent)

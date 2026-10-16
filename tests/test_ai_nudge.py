@@ -58,7 +58,7 @@ def test_new_account_is_pending_but_not_eligible_for_the_first_half_hour(uid):
 def test_old_account_that_did_not_chat_today_is_eligible(uid):
     _user(uid, chatted_before=True)
     assert get_ai_nudge_state(uid) == {
-        "pending": True, "eligible": True, "hint_shown_today": False, "has_chatted": True,
+        "pending": True, "eligible": True, "hint_shown_today": False, "has_chatted": True, "wait_min": 0,
     }
 
 
@@ -187,10 +187,11 @@ def test_mini_app_wires_the_reminder_to_actions_and_to_the_evening():
     for needle in ("function showAdamNudge(", "function scheduleAdamNudge(", "function renderAiNudgeBadge(",
                    "function maybeScheduleEveningAdamNudge("):
         assert needle in APP_JS, needle
+    # после действия подсказка ждёт (15.10): человек в движении, сразу выскакивающее окно сбивало отметку второй привычки
     patch = APP_JS[APP_JS.index("function applyActionPatch("):][:6500]
-    assert "scheduleAdamNudge();" in patch
+    assert "scheduleAdamNudge({ delayMs: ADAM_NUDGE_AFTER_ACTION_MS });" in patch
     plan = APP_JS[APP_JS.index("function applyPlanPatch("):][:600]
-    assert "scheduleAdamNudge();" in plan
+    assert "scheduleAdamNudge({ delayMs: ADAM_NUDGE_AFTER_ACTION_MS });" in plan
     assert "maybeScheduleEveningAdamNudge();" in APP_JS[APP_JS.index("function renderAll()"):][:1500]
 
 

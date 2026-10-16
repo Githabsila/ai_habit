@@ -217,11 +217,21 @@ async def admin_lab_adam_chat_route(request):
 async def admin_lab_adam_route(request):
     """«Адам пишет первым» в Лаборатории: раскатка (флаг), окна, сводка за неделю, демо-сценарии."""
     await _authenticate_admin(request)
-    flag = next((f for f in get_all_flags() if f["key"] == adam_ck.FLAG_KEY), {"enabled": False, "rollout_pct": 100})
+    flags = {f["key"]: f for f in get_all_flags()}
+    flag = flags.get(adam_ck.FLAG_KEY, {"enabled": False, "rollout_pct": 100})
+    fu_flag = flags.get(adam_ck.FOLLOWUP_FLAG)
+    followup_status = ("только админы (записи флага нет)" if fu_flag is None
+                       else f"включено для {fu_flag['rollout_pct']}% людей и админов" if fu_flag["enabled"] else "выключено всем")
     windows = {slot: f"{lo // 60:02d}:{lo % 60:02d}–{hi // 60:02d}:{hi % 60:02d}" for slot, (lo, hi) in adam_ck.SLOT_WINDOWS.items()}
     return web.json_response({
         "flag": flag, "windows": windows, "stats": adam_ck.checkin_stats(7),
         "limits": {"per_day": 1, "per_week": adam_ck.MAX_PUSH_PER_WEEK, "chat_days": list(adam_ck.CHAT_DAYS_PER_WEEK)},
+        # эксперимент «Адам пишет сам после действий»: записи флага нет — включено только админам
+        "followups": {
+            "flag": adam_ck.FOLLOWUP_FLAG, "delay_min": list(adam_ck.FOLLOWUP_DELAY), "chat_delay_min": list(adam_ck.FOLLOWUP_CHAT_DELAY),
+            "per_day": adam_ck.FOLLOWUPS_PER_DAY, "gap_min": adam_ck.ADAM_GAP_MIN, "status": followup_status,
+            "window": f"{adam_ck.FOLLOWUP_FROM_MIN // 60:02d}:{adam_ck.FOLLOWUP_FROM_MIN % 60:02d}–{adam_ck.FOLLOWUP_TO_MIN // 60:02d}:{adam_ck.FOLLOWUP_TO_MIN % 60:02d}",
+        },
         "scenarios": [{"key": k, "title": title, "slot": slot} for k, (title, slot, _state) in adam_ck.lab_scenarios().items()],
     })
 
@@ -259,7 +269,8 @@ async def _adam_preview(admin_id, body):
     state["user_id"] = admin_id
     scenario, reason = adam_ck.pick_scenario(state, slot, chat_day)
     # Все уместные поводы с весом — видно, ПОЧЕМУ выбран именно этот (и почему при тишине выбирать нечего).
-    candidates = adam_ck.list_candidates(state, slot, chat_day) if slot in ("day", "evening") else []
+    candidates = (adam_ck.list_candidates(state, slot, chat_day) if slot in ("day", "evening")
+                  else adam_ck.followup_candidates(state) if slot == "followup" else [])
     baseline = {
         "usual_day": state.get("usual", {}).get("day"), "usual_evening": state.get("usual", {}).get("evening"),
         "first_habit_minute": state.get("first_habit_minute"), "task_hist": state.get("task_hist"),

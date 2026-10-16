@@ -70,7 +70,8 @@ async def run_morning_ping(bot):
                 if not text:
                     text = FALLBACK_TEXT
 
-                await bot.send_message(chat_id=telegram_id, text=text)
+                from keyboards import adam_chat_markup
+                await bot.send_message(chat_id=telegram_id, text=text, reply_markup=adam_chat_markup())
             except Exception:
                 # Резерв освобождаем, только если реально не отправили —
                 # иначе временный сбой (AI/сеть) молча "съедал" всё утреннее

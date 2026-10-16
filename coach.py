@@ -380,6 +380,13 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
             if not incomplete:
                 continue
 
+            # Человек только что отметил привычку (идёт окно x2, он в движении): сверка курса ему не нужна. Окно точки дня короткое, поэтому
+            # она в этот раз пропускается; до этого дня «сверка» писала сразу после отметки.
+            from db.adam_checkin import FRESH_MARK_MIN, last_mark_minutes
+            marked_ago = last_mark_minutes(telegram_id)
+            if marked_ago is not None and marked_ago < FRESH_MARK_MIN:
+                continue
+
             # Привычки со своим временем (planned_time), которое ещё не
             # наступило, не должны дублироваться в общей точке дня —
             # по каждой из них своё отдельное напоминание всё равно придёт
@@ -605,16 +612,10 @@ AI_WELCOME_NUDGE_TEXT = (
 
 
 def _ai_welcome_keyboard():
-    if not WEBAPP_URL:
-        return None
-    # web_app=WebAppInfo (не обычная url-кнопка) — та же причина, что и у
-    # streak_scheduler.py::_countdown_keyboard: открывает Mini App с
-    # сохранённой авторизацией Telegram, а не внешний браузер без initData.
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="💬 Написать ADAM", web_app=WebAppInfo(url=f"{WEBAPP_URL}/coach"))]
-        ]
-    )
+    # web_app=WebAppInfo (не обычная url-кнопка) — та же причина, что и у streak_scheduler.py::_countdown_keyboard: открывает Mini App с
+    # сохранённой авторизацией Telegram, а не внешний браузер без initData. Подпись от первого лица («Написать мне 📩»): Адам говорит сам.
+    from keyboards import adam_chat_markup
+    return adam_chat_markup()
 
 
 async def run_ai_welcome_nudge(bot):

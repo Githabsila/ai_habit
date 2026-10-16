@@ -102,6 +102,11 @@ async def test_checkpoint_17_still_fires_after_partial_completion(monkeypatch, u
     add_habit(uid, "Медитация")
     done_id = get_habits(uid)[0]["id"]
     complete_habit(done_id)
+    from db.core import connect
+    conn = connect()          # отметка была днём, а не минуту назад: «только что отметил» сверку пропускает (tests/test_adam_recency.py)
+    conn.execute("UPDATE habit_completion_events SET completed_at=datetime('now','-3 hours') WHERE user_id=?", (uid,))
+    conn.commit()
+    conn.close()
 
     _patch_user(monkeypatch, uid)
     _freeze(monkeypatch, 17, 0)

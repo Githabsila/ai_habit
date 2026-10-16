@@ -180,6 +180,17 @@ def main_menu(is_admin=False):
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+ADAM_CHAT_BUTTON = "Написать мне 📩"
+
+
+def adam_chat_markup():
+    """Кнопка под сообщениями, которые Адам пишет сам: от первого лица («Написать мне»), чтобы было ощущение живого разговора, а не рассылки.
+    Открывает чат с ним в приложении (страница /coach). Нет адреса приложения — без кнопки."""
+    if not WEBAPP_URL:
+        return None
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=ADAM_CHAT_BUTTON, web_app=WebAppInfo(url=f"{WEBAPP_URL}/coach"))]])
+
+
 def welcome_menu(is_admin=False):
     """Главное меню + первой строкой кнопка «Открыть ADAM» (Mini App).
 
