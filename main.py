@@ -30,6 +30,7 @@ from onboarding_auto import run_auto_approve
 from goal_feedback import run_goal_feedback
 from morning_ping import run_morning_ping
 from adam_proactive import run_adam_checkins
+from referral_mailing import run_referral_mailing, run_referral_notices
 from subscription_scheduler import run_trial_reminders
 from admin_digest_scheduler import run_admin_daily_digest, DIGEST_HOUR_UTC
 from error_alert_scheduler import run_error_spike_check
@@ -188,6 +189,10 @@ async def main():
     # «Адам пишет первым» (adam_proactive.py): в случайный момент окон 14:00–16:30 и 19:30–21:30 по местному времени человека
     # решает, нужно ли сообщение (отстаёт от своего темпа / итог вечера / чатовый день), и шлёт его. Раскатка — флаг adam_checkin.
     scheduler.add_job(run_adam_checkins, "interval", minutes=3, args=[bot], max_instances=1, coalesce=True)
+    # «Позови друга» (referral_mailing.py): новичкам на 2-й/4-й/6-й день в обеденное окно по местному времени, плюс уведомления о наградах,
+    # выплаченных после первой отметки друга. Выключатель — флаг referral_mailing.
+    scheduler.add_job(run_referral_mailing, "interval", minutes=5, args=[bot], max_instances=1, coalesce=True)
+    scheduler.add_job(run_referral_notices, "interval", minutes=2, args=[bot], max_instances=1, coalesce=True)
 
     # --- Промт п.8: начало/конец недели и месяца ---
     scheduler.add_job(run_week_start_ping, "cron", day_of_week="mon", hour=7, minute=0, args=[bot])

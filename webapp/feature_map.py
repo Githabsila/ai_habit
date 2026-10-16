@@ -186,6 +186,7 @@ FEATURES = (
     ),
     Feature(
         "invites", "Приглашения и реферальные ссылки", "growth", "2026-01-01",
+        events=("referral_joined", "referral_rejected", "referral_paid", "referral_activated", "referral_revoked", "referral_mail"),
         api=("GET /api/share-link",),
         bot=("cb:invite_friend", "cb:my_referrals"),
         note="Ссылка-приглашение и переходы по ней",

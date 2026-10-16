@@ -483,6 +483,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--gold">🎁</span>Приглашения друзей</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Кто кого позвал, кому и сколько выплачено. Здесь же выключатели наград и рассылки «позови друга», тест сообщений себе и отзыв награды, если приглашение выглядит накруткой.</div>' +
+        '<div id="referralsBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--gold">🏆</span>Рейтинг пар (тест)</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Сырая версия: сколько заданий выполнено, самое быстрое завершение и как идёт текущее. Пользователи этого пока не видят.</div>' +
         '<div id="pairRatingBox"><div class="empty-note">Загружаю…</div></div>' +
@@ -516,6 +522,7 @@ textarea.field{resize:vertical;min-height:88px}
     loadLab();
     loadAdamLab();
     loadAdamChatLab();
+    loadReferrals();
     loadPairRating();
     loadChurnRisk();
     loadClientErrors();
@@ -875,6 +882,79 @@ textarea.field{resize:vertical;min-height:88px}
       });
     }catch(e){
       out.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  // «Приглашения друзей»: сводка, выключатели (флаги), тест рассылки себе и список приглашений с отзывом награды (db/referrals.py).
+  function personHtml(p){
+    return escapeHtml((p && p.name) || '—') + ((p && p.handle) ? ' <small>@' + escapeHtml(p.handle) + '</small>' : '');
+  }
+
+  async function loadReferrals(){
+    var box = document.getElementById('referralsBox');
+    if (!box) return;
+    try{
+      var d = await api('/api/admin/referrals');
+      var c = d.counts || {}, m = d.mailing || {};
+      var switches = [
+        { key: d.flags.pause, on: d.paused, label: d.paused ? '⏸ Выплаты на паузе — возобновить' : '💸 Выплаты идут — поставить на паузу',
+          hint: 'На паузе приглашения записываются, но коины никому не платятся.' },
+        { key: d.flags.after_mark, on: d.after_mark, label: d.after_mark ? '⏳ Награда после первой отметки друга — вернуть «сразу»' : '⚡ Награда сразу — платить после первой отметки друга',
+          hint: 'Строже против накрутки: коины приходят, только когда друг реально отметил привычку.' },
+        { key: d.flags.mailing, on: m.on, label: m.on ? '📨 Рассылка новичкам включена — выключить' : '📪 Рассылка выключена — включить',
+          hint: 'На 2-й, 4-й и 6-й день с регистрации, 13:00–14:00 по местному времени.' },
+      ];
+      box.innerHTML =
+        '<div class="list-row"><div class="list-row-name"><b>Правила</b><small>' + d.reward + ' Адам коинов пригласившему и ' + d.invitee_reward + ' новичку — только за первых ' + d.limit +
+          ' приглашённых на человека, счёт идёт навсегда. Если пригласивший младше суток, награда ждёт первой отметки друга.</small></div></div>' +
+        '<div class="list-row"><div class="list-row-name"><b>Всего приглашений: ' + d.total + '</b><small>выплачено ' + (c.paid || 0) + ' · ждут первой отметки ' + (c.pending || 0) +
+          ' · без награды ' + (c.no_reward || 0) + ' · отозвано ' + (c.revoked || 0) + ' · друг отметился ' + d.activated + ' · выдано коинов ' + d.coins_paid + '</small></div></div>' +
+        '<div class="btn-row" style="flex-direction:column;align-items:stretch;gap:6px;margin:8px 0">' +
+          switches.map(function(s, i){
+            return '<button class="btn" style="text-align:left" data-ref-switch="' + i + '">' + escapeHtml(s.label) + '<small style="display:block;opacity:.7;font-weight:400">' + escapeHtml(s.hint) + '</small></button>';
+          }).join('') +
+        '</div>' +
+        '<div class="empty-note" style="padding:4px 0">Прислать мне сообщение рассылки (с рабочей кнопкой):</div>' +
+        '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
+          '<button class="btn" data-ref-preview="0">День 2</button><button class="btn" data-ref-preview="1">День 4</button><button class="btn" data-ref-preview="2">День 6</button>' +
+          '<button class="btn" data-ref-preview="0" data-ref-second="1">Один слот занят</button>' +
+        '</div>' +
+        '<div style="margin-top:10px">' + (d.items.length ? d.items.map(function(it){
+          var flags = it.flags.length ? ' · ⚠️ ' + it.flags.map(function(f){ return escapeHtml(f.label); }).join(', ') : '';
+          var mark = it.activated ? 'отметился (' + it.marks + ')' : 'ещё не отмечался';
+          return '<div class="list-row"><div class="list-row-name"><b>' + personHtml(it.inviter) + ' → ' + personHtml(it.invitee) + '</b>' +
+            '<small>' + escapeHtml(it.status_label) + (it.reason ? ' (' + escapeHtml(it.reason) + ')' : '') + (it.coins ? ' · ' + it.coins + ' коинов' : '') +
+            ' · друг ' + mark + ' · ' + escapeHtml(it.created_at || '') + flags + '</small></div>' +
+            (it.can_revoke ? '<button class="btn btn-danger" data-ref-revoke="' + it.invitee.id + '">Отозвать</button>' : '') + '</div>';
+        }).join('') : '<div class="empty-note">Приглашений пока нет</div>') + '</div>';
+      box.querySelectorAll('[data-ref-switch]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          var s = switches[parseInt(btn.dataset.refSwitch, 10)];
+          try{
+            await api('/api/admin/flags', { method: 'POST', body: JSON.stringify({ key: s.key, enabled: !s.on, rollout_pct: 100 }) });
+            haptic('light'); loadReferrals(); loadFlags();
+          }catch(e){ showToast('Ошибка'); }
+        });
+      });
+      box.querySelectorAll('[data-ref-preview]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          try{
+            await api('/api/admin/referrals/preview', { method: 'POST', body: JSON.stringify({ step: parseInt(btn.dataset.refPreview, 10), second: !!btn.dataset.refSecond }) });
+            haptic('light'); showToast('Отправил тебе в Telegram');
+          }catch(e){ showToast('Не получилось отправить'); }
+        });
+      });
+      box.querySelectorAll('[data-ref-revoke]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          if (!window.confirm('Отозвать награду за это приглашение? Коины спишутся, слот пригласившего останется занятым.')) return;
+          try{
+            await api('/api/admin/referrals/' + btn.dataset.refRevoke + '/revoke', { method: 'POST', body: '{}' });
+            haptic('light'); showToast('Награда отозвана'); loadReferrals();
+          }catch(e){ showToast('Не получилось отозвать'); }
+        });
+      });
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }
   }
 

@@ -1816,11 +1816,14 @@ async def friends_route(request):
     telegram_id, _ = await _authenticate(request)
     overview = get_friends_overview(telegram_id)
     username = await _get_bot_username(request.app.get("bot"))
+    from db.referrals import reward_summary
     return web.json_response({
         "friends": overview["friends"],
         "viewer_done": overview["viewer_done"],
         "counts": get_counts(telegram_id),
         "invite_url": f"https://t.me/{username}?start=friend_{telegram_id}" if username else None,
+        # Награда за приглашения (db/referrals.py): сколько слотов осталось — по этому Mini App пишет «за первых двух…».
+        "invite_reward": reward_summary(telegram_id),
         "nudges_enabled": friend_nudges_enabled(get_settings(telegram_id)),
     })
 

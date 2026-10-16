@@ -455,6 +455,11 @@ def _xp(user_id):
 
 async def test_friend_link_befriends_new_user_and_pays_referral_bonus(start_handler, uid):
     inviter, newcomer = _user(uid, "Аня"), uid + 1
+    # Награда сразу — тому, кто в ADAM не первый день (совсем новому аккаунту она ждёт первой отметки друга: tests/test_referrals.py)
+    conn = connect()
+    conn.execute("UPDATE users SET created_at=datetime('now','-3 days') WHERE telegram_id=?", (inviter,))
+    conn.commit()
+    conn.close()
     before = _xp(inviter)
     message = _start_message(newcomer, f"friend_{inviter}")
     await start_handler(message, None)

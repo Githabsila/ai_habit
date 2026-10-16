@@ -1552,9 +1552,10 @@ def bonus_minutes_left(user_id, now_utc=None):
     return int(-(-seconds // 60)) if seconds > 0 else None
 
 
-def adam_wrote_minutes_ago(user_id, day_iso=None):
+def adam_wrote_minutes_ago(user_id, day_iso=None, now_utc=None):
     """Сколько минут назад Адам последний раз сам написал человеку (пуш, повтор после действия, первое сообщение в чате); None — не писал.
-    day_iso — только сообщения этого дня (местного): интервал между сообщениями нужен внутри дня, а не через полночь."""
+    day_iso — только сообщения этого дня (местного): интервал между сообщениями нужен внутри дня, а не через полночь.
+    now_utc — «сейчас» (для проверок со своим временем; по умолчанию настоящее)."""
     conn = connect()
     try:
         row = conn.execute(
@@ -1564,7 +1565,7 @@ def adam_wrote_minutes_ago(user_id, day_iso=None):
     finally:
         conn.close()
     last = _parse_utc(row["created_at"]) if row else None
-    return max(0, int((datetime.now(timezone.utc) - last).total_seconds() // 60)) if last else None
+    return max(0, int(((now_utc or datetime.now(timezone.utc)) - last).total_seconds() // 60)) if last else None
 
 
 def followups_sent_today(user_id, day_iso):

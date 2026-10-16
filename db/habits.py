@@ -724,6 +724,10 @@ def complete_habit(habit_id):
     completed_today = total_habits - remaining_incomplete
     perfect_day = remaining_incomplete == 0 and completed_today >= PERFECT_DAY_MIN_HABITS
 
+    # Приглашённый друг отметился: пригласившему уходит награда, если она ждала первой отметки (db/referrals.py). Сбой отметке не мешает.
+    from .referrals import on_first_mark
+    on_first_mark(user_id)
+
     # Roadmap #7 — цепочки привычек: "сделал А → предложи Б". Если на эту
     # привычку как на триггер настроена другая (chain_trigger_habit_id) и
     # она сегодня ещё не выполнена/не пропущена — подсказываем её фронту

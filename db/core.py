@@ -1382,6 +1382,30 @@ def create_tables():
     )
     """)
 
+    # ---------------- Приглашения друзей (db/referrals.py) ----------------
+    # Один приглашённый = одна строка навсегда (UNIQUE по invitee_id; не удаляется вместе с аккаунтом — «зайти заново» награду не повторит).
+    # status: pending (ждёт выплаты/первой отметки) | paid | no_reward | revoked | expired. flags — признаки для проверки админом.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS referral_invites(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invitee_id INTEGER NOT NULL UNIQUE,
+        inviter_id INTEGER NOT NULL,
+        via TEXT,
+        status TEXT NOT NULL,
+        reason TEXT,
+        flags TEXT,
+        inviter_coins INTEGER DEFAULT 0,
+        invitee_coins INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        paid_at TEXT,
+        activated_at TEXT,
+        notified_at TEXT,
+        revoked_at TEXT,
+        revoked_by INTEGER
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_referral_invites_inviter ON referral_invites(inviter_id, status)")
+
     # ---------------- Эволюции ADAM (db/evolution.py) ----------------
     # seen_level — до какой эволюции игрок уже видел праздник «EVOLUTION N
     # UNLOCKED». Сами эволюции нигде не хранятся: они считаются по лучшей серии.

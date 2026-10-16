@@ -11,12 +11,10 @@ from keyboards import welcome_menu
 from db import (
     add_user,
     get_user,
-    set_referrer,
-    add_referral,
-    add_xp,
     add_friendship,
     get_access_status,
 )
+from db.referrals import REWARD_COINS, register_invite, mark_notified
 
 from handlers.onboarding import begin_survey
 from db.traffic import attribute as attribute_source, parse_payload
@@ -34,27 +32,39 @@ def _display_name(user, fallback):
     return user["first_name"] or user["username"] or fallback
 
 
-async def _announce_friendship(message: Message, inviter_id: int):
+def _reward_line(invite, my_name):
+    """Строка о награде для пригласившего: выплачено / ждёт первой отметки / ничего (слоты кончились, пауза)."""
+    if not invite or not invite.get("counted"):
+        return ""
+    if invite["status"] == "paid":
+        return (f"\n\n🎁 +{invite['inviter_coins']} Адам коинов за приглашение "
+                f"({invite['slot']} из {invite['limit']}).")
+    if invite["status"] == "pending":
+        return f"\n\n🎁 +{REWARD_COINS} Адам коинов за приглашение придут, когда <b>{my_name}</b> отметит первую привычку."
+    return ""
+
+
+async def _announce_friendship(message: Message, inviter_id: int, invite=None, friends=True):
     """Обе стороны узнают, что подружились: пригласившему — push (иначе он
-    не заметит, что по его ссылке пришли), перешедшему — короткое
-    подтверждение. Сбой доставки пригласившему не должен ломать /start."""
+    не заметит, что по его ссылке пришли) со строкой о награде, перешедшему —
+    короткое подтверждение. Сбой доставки пригласившему не должен ломать /start."""
     me = message.from_user
     my_name = html.escape(me.first_name or me.username or "Друг")
     inviter_name = html.escape(_display_name(get_user(inviter_id), "друг"))
+    head = (f"🤝 <b>{my_name}</b> теперь в твоих друзьях в ADAM! Смотри, кто сегодня отметился, и подталкивай друг друга."
+            if friends else f"👋 По твоей ссылке пришёл новый игрок: <b>{my_name}</b>.")
     try:
-        await message.bot.send_message(
-            inviter_id,
-            f"🤝 <b>{my_name}</b> теперь в твоих друзьях в ADAM! "
-            "Смотри, кто сегодня отметился, и подталкивай друг друга.",
-            parse_mode="HTML",
-        )
+        await message.bot.send_message(inviter_id, head + _reward_line(invite, my_name), parse_mode="HTML")
     except Exception:
         logger.info("Не удалось уведомить %s о новом друге", inviter_id, exc_info=True)
-    await message.answer(
-        f"🤝 Теперь вы с <b>{inviter_name}</b> друзья в ADAM — "
-        "смотрите, кто сегодня отметился, и подталкивайте друг друга.",
-        parse_mode="HTML",
-    )
+    if invite and invite.get("invite_id") and invite.get("status") == "paid":
+        mark_notified(invite["invite_id"])
+    if friends:
+        await message.answer(
+            f"🤝 Теперь вы с <b>{inviter_name}</b> друзья в ADAM — "
+            "смотрите, кто сегодня отметился, и подталкивайте друг друга.",
+            parse_mode="HTML",
+        )
 
 
 @router.message(CommandStart())
@@ -69,10 +79,11 @@ async def start(message: Message, state: FSMContext):
     )
 
     # Проверяем реферальную ссылку. Две формы: «?start=<id>» (пригласи
-    # друга — бонус за нового игрока) и «?start=friend_<id>» (кнопка
-    # «Добавить друга» в Mini App — дружба даже между уже зарегистрированными).
+    # друга) и «?start=friend_<id>» (кнопка «Добавить друга» в Mini App).
+    # Обе сводят в друзья; награда за приглашение — по правилам
+    # db/referrals.py (только за НОВОГО игрока и только за первых двоих).
     args = message.text.split()
-    referred_bonus_given = False
+    invite = None
     inviter_id = None
     via_friend_link = False
 
@@ -91,47 +102,25 @@ async def start(message: Message, state: FSMContext):
         except ValueError:
             inviter_id = None
 
-    if inviter_id is not None:
-        referrer_id = inviter_id
+    # Нельзя пригласить самого себя
+    if inviter_id is not None and inviter_id != message.from_user.id:
+        via = "friend_link" if via_friend_link else "invite"
 
-        # Нельзя пригласить самого себя
-        if referrer_id != message.from_user.id:
+        # Приглашение засчитывается только новому аккаунту и только если
+        # у пригласившего остались «слоты» награды (db/referrals.py): ссылка
+        # раздаётся и тем, кто уже пользуется ADAM, — для них только дружба.
+        invite = register_invite(inviter_id, message.from_user.id, via=via)
+        if invite["counted"]:
+            attribute_source(message.from_user.id, "ref", via=via)
 
-            user = get_user(message.from_user.id)
+        # Пришедший по ссылке становится другом пригласившего
+        # (db/friends.py): так «Напомнить друзьям» есть кому слать.
+        # Дружба от награды не зависит.
+        became_friends = add_friendship(message.from_user.id, inviter_id)
+        if became_friends or (invite["counted"] and invite["status"] in ("paid", "pending")):
+            await _announce_friendship(message, inviter_id, invite, friends=became_friends)
 
-            # Бонус за приглашение — за НОВОГО игрока. Ссылка «Добавить
-            # друга» шлётся и тем, кто уже пользуется ADAM: для них она
-            # только создаёт дружбу, без XP-бонусов (иначе её можно
-            # раздавать налево и направо ради очков).
-            bonus_allowed = not via_friend_link or get_access_status(message.from_user.id) == "new"
-
-            # Если пригласивший ещё не записан
-            if user["referrer_id"] is None and bonus_allowed:
-
-                set_referrer(
-                    message.from_user.id,
-                    referrer_id
-                )
-                attribute_source(message.from_user.id, "ref", via="friend_link" if via_friend_link else "invite")
-
-                # Засчитываем приглашение
-                add_referral(referrer_id)
-
-                # Начисляем бонус пригласившему
-                add_xp(referrer_id, 100)
-
-                # Бонус и приглашённому — раньше выгоду от рефералки
-                # получала только одна сторона, что слабее мотивирует
-                # переходить по ссылке (в отличие от "пригласи и оба
-                # получите бонус").
-                add_xp(message.from_user.id, 50)
-                referred_bonus_given = True
-
-            # Пришедший по приглашению становится другом пригласившего
-            # (db/friends.py): так «Напомнить друзьям» есть кому слать.
-            if via_friend_link or referred_bonus_given:
-                if add_friendship(message.from_user.id, referrer_id):
-                    await _announce_friendship(message, referrer_id)
+    referred_bonus_given = bool(invite and invite.get("invitee_coins"))
 
     # Проверяем бан ДО отправки меню
     user = get_user(message.from_user.id)
@@ -148,7 +137,7 @@ async def start(message: Message, state: FSMContext):
 
     if not is_admin and status == "new":
         if referred_bonus_given:
-            await message.answer("🎁 Бонус за переход по приглашению друга: +50 Adam Coin!")
+            await message.answer(f"🎁 Бонус за переход по приглашению друга: +{invite['invitee_coins']} Adam Coin!")
         await begin_survey(message, state)
         return
 
@@ -161,7 +150,7 @@ async def start(message: Message, state: FSMContext):
         return
 
     if referred_bonus_given:
-        await message.answer("🎁 Бонус за переход по приглашению друга: +50 Adam Coin!")
+        await message.answer(f"🎁 Бонус за переход по приглашению друга: +{invite['invitee_coins']} Adam Coin!")
 
     # Приветственное сообщение
     await message.answer(

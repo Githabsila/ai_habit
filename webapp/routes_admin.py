@@ -648,6 +648,54 @@ async def admin_flags_delete_route(request):
     return web.json_response({"ok": True})
 
 
+@routes.get("/api/admin/referrals")
+async def admin_referrals_route(request):
+    """Приглашения друзей: сводка, состояние выключателей и последние приглашения с признаками для проверки (db/referrals.py)."""
+    await _authenticate_admin(request)
+    from db import referrals
+    return web.json_response(referrals.admin_overview())
+
+
+@routes.post("/api/admin/referrals/{invitee_id}/revoke")
+async def admin_referral_revoke_route(request):
+    """Отозвать награду за приглашение: коины списываются (не глубже нуля), слот пригласившего остаётся занятым."""
+    admin_id = await _authenticate_admin(request)
+    try:
+        invitee_id = int(request.match_info["invitee_id"])
+    except ValueError:
+        return web.json_response({"error": "invalid_user"}, status=400)
+    from db import referrals
+    result = referrals.revoke_invite(invitee_id, admin_id)
+    if "error" in result:
+        return web.json_response(result, status=404 if result["error"] == "not_found" else 409)
+    return web.json_response(result)
+
+
+@routes.post("/api/admin/referrals/preview")
+async def admin_referral_preview_route(request):
+    """Прислать САМОМУ АДМИНУ сообщение рассылки «позови друга» с рабочей кнопкой (body: step 0–2, second — вариант для тех, у кого один слот уже занят)."""
+    admin_id = await _authenticate_admin(request)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "bot_unavailable"}, status=503)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    import referral_mailing
+    from db import referrals
+    try:
+        step = int(body.get("step") or 0)
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid_step"}, status=400)
+    if not 0 <= step < len(referral_mailing.STEP_DAYS):
+        return web.json_response({"error": "invalid_step"}, status=400)
+    text = referral_mailing.compose_text(step, 1 if body.get("second") else 0, referrals.pay_mode())
+    username = (await bot.get_me()).username
+    await bot.send_message(admin_id, "🧪 Тест · " + text, reply_markup=referral_mailing.share_markup(username, admin_id))
+    return web.json_response({"ok": True, "text": text})
+
+
 @routes.get("/api/admin/churn-risk")
 async def admin_churn_risk_route(request):
     """Roadmap #45 — сводка риска оттока: сколько пользователей в каждом

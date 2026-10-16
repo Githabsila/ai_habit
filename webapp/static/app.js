@@ -6532,6 +6532,10 @@ function renderFriendsCard() {
   } else if (waiting && !friendsData.viewer_done) {
     hint = "Отметь свою привычку — и сможешь напомнить друзьям, которые ещё не начали день.";
   }
+  const reward = friendsData.invite_reward;
+  const rewardHint = reward && Number(reward.left) > 0
+    ? `🎁 За каждого из первых двух приглашённых — ${Number(reward.coins)} Адам коинов${Number(reward.used) ? ` (осталось ${Number(reward.left)})` : ""}.`
+    : "";
   const typedSearch = document.getElementById("friendsSearchInput")?.value || "";
   box.innerHTML = `
     <div class="friends-card__head">
@@ -6547,6 +6551,7 @@ function renderFriendsCard() {
       <button type="submit" class="friends-card__find">Найти</button>
     </form>
     ${hint ? `<div class="friends-card__hint">${hint}</div>` : ""}
+    ${rewardHint ? `<div class="friends-card__hint">${rewardHint}</div>` : ""}
     ${friends.length ? `<ul class="friends-list">${friends.map(f => friendRowHtml(f, { viewerDone: !!friendsData.viewer_done })).join("")}</ul>` : ""}`;
   // Перерисовка (например, после отметки привычки) не должна стирать то, что
   // человек уже набрал в поиске.
@@ -7126,10 +7131,12 @@ function pairShareText() {
 // «Добавить друзей»: ссылка в Telegram (так бота рекомендуют знакомым) или подписка на активных игроков ADAM.
 function pairAddViewHtml() {
   const minStreak = pairPeople?.min_streak || PAIR_PEOPLE_MIN_STREAK;
+  const reward = friendsData?.invite_reward;
+  const rewardNote = reward && Number(reward.left) > 0 ? `. Тебе — ${Number(reward.coins)} Адам коинов за каждого из первых двух` : "";
   return `
     <li class="pair-option" data-pair-act="invite-link" role="button" tabindex="0">
       <span class="pair-option__icon" aria-hidden="true">✈️</span>
-      <span class="pair-option__text"><b>Отправить ссылку в Telegram</b><small>Друг откроет бота и сразу станет твоим другом</small></span>
+      <span class="pair-option__text"><b>Отправить ссылку в Telegram</b><small>Друг откроет бота и сразу станет твоим другом${rewardNote}</small></span>
       ${PAIR_ICON_NEXT}
     </li>
     <li class="pair-option" data-pair-act="pick-people" role="button" tabindex="0">

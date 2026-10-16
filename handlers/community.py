@@ -89,13 +89,21 @@ async def find_match(callback: CallbackQuery):
 @router.callback_query(F.data == "invite_friend")
 async def invite_friend(callback: CallbackQuery):
 
+    from db.referrals import reward_summary
+
     bot_user = await callback.bot.get_me()
     link = f"https://t.me/{bot_user.username}?start={callback.from_user.id}"
+    reward = reward_summary(callback.from_user.id)
+
+    if reward["left"] > 0:
+        offer = (f"за первых двух приглашённых вы получите по {reward['coins']} Adam Coin "
+                 f"(осталось приглашений с наградой: {reward['left']}):")
+    else:
+        offer = "награда за первых двух приглашённых уже получена, но друзья по ссылке по-прежнему попадут к вам в друзья:"
 
     await callback.message.edit_text(
         "🤝 <b>Пригласить друга</b>\n\n"
-        "Отправьте другу вашу персональную ссылку — за каждого "
-        "приглашённого вы получите 100 Adam Coin:\n\n"
+        f"Отправьте другу вашу персональную ссылку — {offer}\n\n"
         f"<code>{link}</code>",
         parse_mode="HTML",
         reply_markup=community_keyboard()
