@@ -1042,6 +1042,7 @@ textarea.field{resize:vertical;min-height:88px}
           '<div class="user-tile"><div class="user-tile-label">Без захода</div><div class="user-tile-value">' + (u.inactive_days || 0) + ' дн.</div></div>' +
           '<div class="user-tile"><div class="user-tile-label">Подписка</div><div class="user-tile-value">' + (sub.has_paid ? '✅ активна' : (sub.in_trial ? 'триал д.' + sub.trial_day : 'нет')) + '</div></div>' +
           '<div class="user-tile"><div class="user-tile-label">Покупок Stars</div><div class="user-tile-value">' + (u.purchases_count || 0) + '</div></div>' +
+          '<div class="user-tile"><div class="user-tile-label">Язык</div><div class="user-tile-value">' + (u.language === 'en' ? 'EN' : 'RU') + '</div></div>' +
           '<div class="user-tile"><div class="user-tile-label">Ник сверен</div><div class="user-tile-value">' + fmtDate(u.username_checked_at) + '</div></div>' +
         '</div>' +
         '<div class="empty-note" style="padding:10px 0 4px">Привычки сейчас: ' + habitsDone + '/' + (u.habits || []).length + ' · последние отметки:</div>' +

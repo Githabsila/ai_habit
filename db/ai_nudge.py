@@ -150,6 +150,17 @@ def begin_ai_greeting(user_id, demo=False):
     return {"name": name, "hour": now.hour, "today": today}
 
 
+def release_ai_greeting(user_id, today):
+    """Текст первого сообщения не получился — снимаем отметку «поздоровался сегодня», чтобы следующий заход в чат попробовал ещё раз
+    (иначе день был бы потерян без единого сообщения)."""
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET ai_greet_day=NULL WHERE telegram_id=? AND ai_greet_day=?", (user_id, today))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def finish_ai_greeting(user_id, text):
     """Вторая половина: реплика Адама в историю (следующий ответ человека пойдёт в ИИ уже с ней в контексте)."""
     message_id = add_ai_message(user_id, "assistant", text)

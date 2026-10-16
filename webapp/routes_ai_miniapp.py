@@ -60,7 +60,7 @@ from webapp.services.ai_utils import (
     context_fingerprint,
 )
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
-from db.ai_nudge import begin_ai_greeting, finish_ai_greeting, pick_greeting
+from db.ai_nudge import begin_ai_greeting, finish_ai_greeting, pick_greeting, release_ai_greeting
 from db import adam_checkin as adam_ck
 from webapp.services.ai_jobs import ai_jobs
 from webapp.services import chat_brain
@@ -504,7 +504,7 @@ async def ai_greet_miniapp(request):
     # Первое сообщение строится по привычкам, задачам и ритму заходов человека прямо сейчас (adam_proactive.compose_app_greeting) —
     # у ВСЕХ, а не только при флаге adam_checkin: человек открыл чат сам, это не пуш, и статичное «Как дела, что выполнил сегодня?»
     # человеку, который сегодня ничего не отмечал, выглядело глупо. Флаг по-прежнему управляет только пушами. Нет модели — запасной
-    # текст по тем же данным; статичная фраза — лишь на случай сбоя.
+    # текст по тем же данным.
     text, scenario, source = None, None, "static"
     try:
         from adam_proactive import compose_app_greeting
@@ -512,9 +512,15 @@ async def ai_greet_miniapp(request):
         if composed:
             text, scenario, source = composed
     except Exception as exc:
-        logger.warning("контекстное первое сообщение Адама не получилось (%s) — статичное", exc)
+        logger.warning("контекстное первое сообщение Адама не получилось (%s) — сегодня без него", exc)
     if not text:
-        text, source = pick_greeting(user_id, slot["name"], slot["hour"], slot["today"]), "static"
+        # Общих «Привет, Имя! Как у тебя дела? Как прошёл день?» больше нет (16.10: человек получал их изо дня в день, одинаковые и не про
+        # его день). Текста нет — английский интерфейс и модель не ответила, или сбой — Адам молчит, а метку «поздоровался сегодня»
+        # снимаем: следующий заход в чат попробует ещё раз. Только «Показать напоминание» в Настройках (demo) всегда что-то показывает.
+        if not demo:
+            release_ai_greeting(user_id, slot["today"])
+            return web.json_response({"greeting": None})
+        text = pick_greeting(user_id, slot["name"], slot["hour"], slot["today"])
     greeting = finish_ai_greeting(user_id, text)
     if not demo and source != "static":
         # журнал окон: в этот день Адам уже писал в чате (для сводки в админке)
