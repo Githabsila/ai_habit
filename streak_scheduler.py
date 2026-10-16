@@ -5,7 +5,7 @@ import logging
 import random
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
-from aiogram.exceptions import TelegramForbiddenError
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from config import WEBAPP_URL
 from adam_messages import plural_ru
@@ -125,6 +125,18 @@ async def _run_countdown(bot, uid, message_id, tz_name, deadline):
                     parse_mode="HTML",
                     reply_markup=_countdown_keyboard(),
                 )
+            except TelegramBadRequest as exc:
+                reason = str(exc).lower()
+                if "message is not modified" in reason:
+                    pass                                    # текст тот же, что уже показан: Telegram ругается, но делать нечего — не шум в логах
+                elif "not found" in reason or "can't be edited" in reason:
+                    logger.info("Сообщение таймера для %s исчезло, таймер остановлен", uid)
+                    break                                   # человек удалил сообщение/чат: править больше нечего
+                else:
+                    logger.exception("Не удалось обновить таймер для %s", uid)
+            except TelegramForbiddenError:
+                logger.info("Бот заблокирован у %s, таймер остановлен", uid)
+                break
             except Exception:
                 logger.exception("Не удалось обновить таймер для %s", uid)
 
