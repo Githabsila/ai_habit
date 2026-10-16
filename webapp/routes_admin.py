@@ -664,6 +664,33 @@ async def admin_flags_delete_route(request):
     return web.json_response({"ok": True})
 
 
+@routes.get("/api/admin/abuse")
+async def admin_abuse_route(request):
+    """«Накрутка наград»: последние подозрения (много удалений/созданий привычек, создание пачкой), пороги и кто заморожен."""
+    await _authenticate_admin(request)
+    from db import habit_guard
+    return web.json_response(habit_guard.overview())
+
+
+@routes.post("/api/admin/abuse/{user_id}/freeze")
+async def admin_abuse_freeze_route(request):
+    """Заморозить человеку награды за привычки (body: {"hours": 24 | 168}) или снять заморозку ({"hours": 0}). Отметки и серия считаются как обычно."""
+    await _authenticate_admin(request)
+    try:
+        user_id = int(request.match_info["user_id"])
+        body = await request.json()
+        hours = int(body.get("hours"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return web.json_response({"error": "invalid_request"}, status=400)
+    from db import habit_guard
+    if hours != 0 and hours not in habit_guard.FREEZE_CHOICES_HOURS:
+        return web.json_response({"error": "invalid_hours"}, status=400)
+    result = habit_guard.freeze_rewards(user_id, hours)
+    if not result["found"]:
+        return web.json_response({"error": "not_found"}, status=404)
+    return web.json_response({"ok": True, "frozen_until": result["until"]})
+
+
 @routes.post("/api/admin/usernames/sync")
 async def admin_usernames_sync_route(request):
     """Сверить Telegram-ники ВСЕХ людей прямо сейчас (обычно это делается само: при заходах и раз в ночь, см. username_sync.py)."""

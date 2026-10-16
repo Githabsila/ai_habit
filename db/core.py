@@ -224,6 +224,9 @@ def create_tables():
     # mark_bot_blocked, используется в coach.py/morning_ping.py).
     if "bot_blocked_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN bot_blocked_at TIMESTAMP")
+    # До какого момента админ заморозил награды за привычки (db/habit_guard.py).
+    if "rewards_frozen_until" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN rewards_frozen_until TEXT")
     # Когда последний раз сверяли Telegram-ник человека (db/users.py::sync_telegram_username, username_sync.py).
     if "username_checked_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN username_checked_at TEXT")
@@ -1411,6 +1414,30 @@ def create_tables():
     )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_referral_invites_inviter ON referral_invites(inviter_id, status)")
+
+    # Защита от накрутки монет через привычки (db/habit_guard.py): журнал создания/удаления привычек и подозрения для админов.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS habit_churn(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        at TEXT DEFAULT (datetime('now'))
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_habit_churn_user_day ON habit_churn(user_id, day)")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS abuse_flags(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        detail TEXT,
+        created_at TEXT,
+        notified_at TEXT,
+        UNIQUE(user_id, day, kind)
+    )
+    """)
 
     # Почему напоминание не ушло (db/notification_skips.py): одна запись на человека, день и точку дня — для разбора «почему не пришло» в админке.
     cursor.execute("""

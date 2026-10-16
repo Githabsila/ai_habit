@@ -137,6 +137,7 @@ def get_user_support_card(user_id):
     from .subscription import get_subscription_status
     from .streak import get_streak_reengagement_state
     from .users import get_language
+    from .habit_guard import frozen_until as _frozen_until
 
     user = get_user(user_id)
     if user is None:
@@ -171,6 +172,7 @@ def get_user_support_card(user_id):
         "last_seen": str(user["last_seen"]) if "last_seen" in keys and user["last_seen"] else None,
         "created_at": str(user["created_at"]) if "created_at" in keys and user["created_at"] else None,
         "language": get_language(user_id),
+        "rewards_frozen_until": (lambda until: until.isoformat() if until else None)(_frozen_until(user_id)),
         "username_checked_at": str(user["username_checked_at"]) if "username_checked_at" in keys and user["username_checked_at"] else None,
         "inactive_days": reengagement.get("inactive_days", 0),
         "habits": [

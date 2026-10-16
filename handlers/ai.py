@@ -475,6 +475,8 @@ async def ai_add_suggested_habit(callback: CallbackQuery):
                 "добавление новых открыто с 00:00.",
                 show_alert=True,
             )
+        elif str(exc) == "habit_too_fast":
+            await callback.answer("⚠️ Слишком быстро — подожди минуту.", show_alert=True)
         else:
             raise
         return

@@ -459,6 +459,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--red">🛑</span>Накрутка наград</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Монеты за день — не больше, чем привычек в списке сейчас, так что «добавил → отметил → удалил» новых выплат не даёт. Здесь — те, кто делает это слишком часто: у них монеты за привычки в этот день отключены. Заморозить награды можно и дольше.</div>' +
+        '<div id="abuseBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--teal">✏️</span>Ники людей</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Telegram-ник обновляется сам: при каждом заходе человека в бота или приложение и раз в ночь (бот спрашивает Telegram у тех, кого не проверяли неделю). Кнопка проверяет всех сразу.</div>' +
         '<div class="btn-row"><button class="btn btn-block" id="syncUsernamesBtn">🔄 Сверить ники сейчас</button></div>' +
@@ -531,6 +537,7 @@ textarea.field{resize:vertical;min-height:88px}
     loadAdamLab();
     loadAdamChatLab();
     loadReferrals();
+    loadAbuse();
     loadPairRating();
     loadChurnRisk();
     loadClientErrors();
@@ -981,6 +988,42 @@ textarea.field{resize:vertical;min-height:88px}
     }
   }
 
+  // «Накрутка наград» (db/habit_guard.py): подозрения и заморозка наград за привычки.
+  async function freezeRewards(userId, hours){
+    await api('/api/admin/abuse/' + userId + '/freeze', { method: 'POST', body: JSON.stringify({ hours: hours }) });
+  }
+
+  async function loadAbuse(){
+    var box = document.getElementById('abuseBox');
+    if (!box) return;
+    try{
+      var d = await api('/api/admin/abuse');
+      var lim = d.limits || {};
+      var head = '<div class="empty-note" style="padding:0 0 8px;line-height:1.5">Порог: ' + lim.delete_per_day + ' удалений или ' + lim.add_per_day + ' новых привычек за день, либо ' + lim.add_burst + '+ за ' + lim.burst_seconds + ' секунд.</div>';
+      box.innerHTML = head + (d.items.length ? d.items.map(function(it){
+        var frozen = it.frozen_until ? '<br>❄️ награды заморожены до ' + fmtDate(it.frozen_until) : '';
+        return '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(it.name) + (it.handle ? ' <small>@' + escapeHtml(it.handle) + '</small>' : '') + '</b>' +
+          '<small>' + escapeHtml(it.label) + ' · ' + escapeHtml(it.detail || '') + ' · ' + escapeHtml(it.day) + frozen + '</small></div>' +
+          '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
+            '<button class="btn" data-freeze="' + it.user_id + '" data-hours="24">❄️ 24 ч</button>' +
+            '<button class="btn" data-freeze="' + it.user_id + '" data-hours="168">❄️ 7 дн</button>' +
+            (it.frozen_until ? '<button class="btn btn-accent" data-freeze="' + it.user_id + '" data-hours="0">↺ Снять</button>' : '') +
+            '<button class="btn" data-open="' + it.user_id + '">Открыть</button></div></div>';
+      }).join('') : '<div class="empty-note">За неделю подозрений нет</div>');
+      box.querySelectorAll('[data-freeze]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          try{
+            await freezeRewards(btn.dataset.freeze, parseInt(btn.dataset.hours, 10));
+            haptic('light'); showToast(btn.dataset.hours === '0' ? 'Заморозка снята' : 'Награды заморожены'); loadAbuse();
+          }catch(e){ showToast('Не получилось'); }
+        });
+      });
+      bindUserRows(box);
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
   async function loadPairRating(){
     var box = document.getElementById('pairRatingBox');
     if (!box) return;
@@ -1047,6 +1090,11 @@ textarea.field{resize:vertical;min-height:88px}
         '</div>' +
         '<div class="empty-note" style="padding:10px 0 4px">Привычки сейчас: ' + habitsDone + '/' + (u.habits || []).length + ' · последние отметки:</div>' +
         '<div class="btn-row" style="flex-wrap:wrap;gap:6px">' + recentLogsHtml + '</div>' +
+        '<div class="section-label" style="margin:16px 2px 8px">Награды за привычки</div>' +
+        '<div class="empty-note" style="padding:0 0 6px">' + (u.rewards_frozen_until ? '❄️ Заморожены до ' + fmtDate(u.rewards_frozen_until) + ' — отметки считаются, монет нет' : 'Платятся как обычно') + '</div>' +
+        '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
+          '<button class="btn" id="freeze24Btn">❄️ Заморозить на 24 ч</button><button class="btn" id="freeze168Btn">❄️ На 7 дней</button>' +
+          (u.rewards_frozen_until ? '<button class="btn btn-accent" id="freezeOffBtn">↺ Снять</button>' : '') + '</div>' +
         '<div id="accessSection">' + accessHtml(u) + '</div>' +
         '<div id="aiSection">' + aiUsageHtml(u) + '</div>' +
         '<div id="summarySection"><div class="section-label" style="margin:16px 2px 8px">ИИ-сводка</div><div class="empty-note">Загружаю…</div></div>' +
@@ -1075,6 +1123,17 @@ textarea.field{resize:vertical;min-height:88px}
     if (unbanBtn) unbanBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'unban'); });
     premiumBtn.addEventListener('click', function(){ userAction(u.telegram_id, 'premium'); });
     document.getElementById('badgeBtn').addEventListener('click', function(){ giveBadge(u.telegram_id); });
+    [['freeze24Btn', 24], ['freeze168Btn', 168], ['freezeOffBtn', 0]].forEach(function(pair){
+      var el = document.getElementById(pair[0]);
+      if (!el) return;
+      el.addEventListener('click', async function(){
+        try{
+          await freezeRewards(u.telegram_id, pair[1]);
+          haptic('light'); showToast(pair[1] ? 'Награды заморожены' : 'Заморозка снята');
+          renderUserCard(await api('/api/admin/user/' + u.telegram_id));
+        }catch(e){ showToast('Не получилось'); }
+      });
+    });
     bindAccess(u);
     bindAiUsage(u);
     loadSummary(u.telegram_id);

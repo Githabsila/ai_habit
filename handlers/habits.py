@@ -11,6 +11,7 @@ from db import (
     get_habits,
     complete_habit,
     REWARD_CAPPED_TEXT,
+    reward_cap_text,
     update_daily_task,
     get_user,
     consume_completion_event,
@@ -96,6 +97,8 @@ async def save_habit(message: Message, state: FSMContext):
                 "⚠️ Сегодня уже была отметка и удаление привычки — "
                 "добавление новых открыто с 00:00."
             )
+        elif str(exc) == "habit_too_fast":
+            await message.answer("⚠️ Слишком быстро — подожди минуту и добавь остальное.")
         else:
             raise
         return
@@ -304,7 +307,7 @@ async def complete(callback: CallbackQuery):
     )
 
     coin_line = (
-        f"⭐ {REWARD_CAPPED_TEXT}" if success.get("reward_capped")
+        f"⭐ {reward_cap_text(success.get('reward_cap_reason'))}" if success.get("reward_capped")
         else f"⭐ +{success['coins']} Adam Coin" + (" ⚡️×2" if success["doubled"] else "")
     )
     bonus_line = (

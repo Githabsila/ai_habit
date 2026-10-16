@@ -89,25 +89,25 @@ def test_honest_user_is_paid_for_all_ten_habits(uid):
         assert result["reward_capped"] is False and result["coins"] > 0
 
 
-def test_add_complete_delete_loop_stops_paying_after_the_cap(uid):
+def test_add_complete_delete_loop_pays_only_for_the_first_round(uid):
+    """Круг из жалобы владельца (16.10): с одной привычкой в списке платят за одну отметку в день, сколько ни удаляй и ни создавай заново.
+    Раньше платили за десять (потолок не зависел от числа привычек)."""
     add_user(uid, "u", "Накрутчик")
-    rounds = [_farm_round(uid, f"Привычка {i}") for i in range(MAX_REWARDED_COMPLETIONS_PER_DAY + 3)]
-    paid, capped = rounds[:MAX_REWARDED_COMPLETIONS_PER_DAY], rounds[MAX_REWARDED_COMPLETIONS_PER_DAY:]
-    assert all(r["coins"] > 0 and not r["reward_capped"] for r in paid)
-    assert all(r["coins"] == 0 and r["reward_capped"] for r in capped)
-    # Сверх потолка баланс и рейтинг (total_xp) не двигаются вовсе — проверяем
-    # на том же пользователе, повторив «накрутку» ещё раз.
+    rounds = [_farm_round(uid, f"Привычка {i}") for i in range(6)]
+    assert rounds[0]["coins"] > 0 and not rounds[0]["reward_capped"]
+    assert all(r["coins"] == 0 and r["reward_capped"] for r in rounds[1:])
+    # Дальше баланс и рейтинг (total_xp) не двигаются вовсе — проверяем на том же человеке, повторив круг ещё раз.
     coins_before, total_before = _coins(uid), int(get_user(uid)["total_xp"])
-    for i in range(5):
+    for i in range(2):
         assert _farm_round(uid, f"Ещё {i}")["reward_capped"] is True
     assert _coins(uid) == coins_before and int(get_user(uid)["total_xp"]) == total_before
 
 
 def test_capped_completion_still_counts_for_the_habit_and_the_streak(uid):
     add_user(uid, "u", "Test")
-    for i in range(MAX_REWARDED_COMPLETIONS_PER_DAY):
+    for i in range(3):
         _farm_round(uid, f"Привычка {i}")
-    habit_id = add_habit(uid, "Одиннадцатая")
+    habit_id = add_habit(uid, "Четвёртая")
     result = complete_habit(habit_id)
     assert result["reward_capped"] is True and result["coins"] == 0
     assert any(h["id"] == habit_id and h["completed"] for h in get_habits(uid))
@@ -127,13 +127,14 @@ def test_cap_is_per_day_and_per_user(uid):
     add_user(uid, "u", "Первый")
     other = uid + 1
     add_user(other, "o", "Второй")
-    for i in range(MAX_REWARDED_COMPLETIONS_PER_DAY):
+    for i in range(2):
         _farm_round(uid, f"П{i}")
     assert _farm_round(uid)["reward_capped"] is True
     assert _farm_round(other)["reward_capped"] is False          # у другого игрока свой счётчик
 
     conn = connect()
     conn.execute("UPDATE habit_reward_days SET day='2000-01-01' WHERE user_id=?", (uid,))
+    conn.execute("UPDATE habit_churn SET day='2000-01-01' WHERE user_id=?", (uid,))
     conn.commit()
     conn.close()
     result = _farm_round(uid)                                     # «наступил новый день»
@@ -165,9 +166,9 @@ async def test_create_habit_route_after_mark_and_delete(client, uid):
 
 async def test_complete_route_reports_the_cap(client, uid):
     add_user(uid, "u", "Test")
-    for i in range(MAX_REWARDED_COMPLETIONS_PER_DAY):
+    for i in range(3):
         _farm_round(uid, f"П{i}")
-    created = await (await client.post("/api/habits", json={"title": "Одиннадцатая"}, headers=_headers(uid))).json()
+    created = await (await client.post("/api/habits", json={"title": "Четвёртая"}, headers=_headers(uid))).json()
     data = await (await client.post(f"/api/habits/{created['habit']['id']}/complete", headers=_headers(uid))).json()
     assert data["ok"] and data["reward_capped"] is True and data["coins"] == 0
 

@@ -62,7 +62,7 @@ FEATURES = (
         "habits", "Привычки", "core", "2026-01-01",
         clicks=("addHabitTrigger", "newHabit*", "habit-item__*", "habit-filter-chip*", "habit-template-chip*", "habit-program-card*",
                 "habit-note-form__*", "struggling-habit-banner__*"),
-        events=("habit_form_open", "habit_added", "habit_deleted", "habit_completed"),
+        events=("habit_form_open", "habit_added", "habit_deleted", "habit_completed", "abuse_flagged"),
         api=("POST /api/habits", "PUT /api/habits/{habit_id}", "POST /api/habits/{habit_id}/complete",
              "POST /api/habits/{habit_id}/progress", "POST /api/habits/{habit_id}/note", "DELETE /api/habits/{habit_id}"),
         bot=("cb:add_habit", "cb:complete_#", "cb:delete_#", "cb:edit_#", "cb:my_habits", "cb:habits", "cb:streak_continue"),

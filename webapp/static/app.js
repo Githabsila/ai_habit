@@ -4851,7 +4851,7 @@ async function celebrateHabitCompletion(result) {
   // Сверх дневного потолка наград (db/habits.py) привычка отмечена, а монет нет:
   // `result.coins || 10` показал бы «+10», поэтому честно говорим про потолок.
   if (result.reward_capped) {
-    showToast("Отмечено ✓ Монеты за сегодня уже выданы — завтра снова", "success", 3600);
+    showToast(`Отмечено ✓ ${result.reward_cap_text || "Монеты за сегодня уже выданы — завтра снова"}`, "success", 4200);
   } else {
     showToast(`+${result.coins || 10} Adam Coin` + boostTag, "praise");
   }
@@ -5964,6 +5964,7 @@ function initPlanActions() {
     invalid_theme: "That theme doesn't exist",
     task_limit: "You can add up to 9 tasks",
     habit_limit: "You can add up to 10 habits",
+    habit_too_fast: "Too fast — wait a minute",
     daily_limit_reached: "Already bought today — available again tomorrow",
     habit_add_locked: "You already logged and deleted a habit today — adding new ones reopens at midnight",
     invalid_init_data: "Telegram didn't pass auth data. Close the Mini App and reopen it.",
@@ -6022,6 +6023,7 @@ function initPlanActions() {
         invalid_theme: "Такой темы не существует",
         task_limit: "Можно добавить не больше 9 задач",
         habit_limit: "Можно добавить не больше 10 привычек",
+        habit_too_fast: "Слишком быстро — подожди минуту и добавь остальное",
         daily_limit_reached: "Этот пакет уже куплен сегодня — доступен снова завтра",
         habit_add_locked: "Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00",
         access_expired: "Тестовый доступ закончился. Напиши администратору — он продлит.",

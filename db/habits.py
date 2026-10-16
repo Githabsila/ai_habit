@@ -18,9 +18,20 @@ MAX_HABITS = 10
 # MAX_HABITS). Всё, что сверх, возможно только через «отметить → удалить →
 # добавить новую → отметить», и такие отметки монет не приносят.
 MAX_REWARDED_COMPLETIONS_PER_DAY = MAX_HABITS
-REWARD_CAPPED_TEXT = (
-    f"Монеты за сегодня уже выданы за {MAX_REWARDED_COMPLETIONS_PER_DAY} отметок — завтра снова"
-)
+# Монеты за день — не больше, чем привычек в списке прямо сейчас (но не больше MAX_REWARDED_COMPLETIONS_PER_DAY): круг «удалил и создал новую»
+# не даёт новых выплат. Подробно — db/habit_guard.py.
+REWARD_CAPPED_TEXT = "Монеты за сегодня уже выданы за все твои привычки — завтра снова"
+REWARD_CAP_TEXTS = {
+    "limit": REWARD_CAPPED_TEXT,
+    "churn": "Сегодня слишком много изменений в списке привычек — монеты за отметки начислятся завтра",
+    "frozen": "Награды за привычки временно отключены — если это ошибка, напиши администратору",
+}
+
+
+def reward_cap_text(reason=None):
+    """Что сказать человеку, когда за отметку монет нет: reason — 'limit' | 'churn' | 'frozen' (None — как 'limit')."""
+    return REWARD_CAP_TEXTS.get(reason or "limit", REWARD_CAPPED_TEXT)
+
 # «Идеальный день» (короткое поздравление) — когда закрыты все привычки и их было не меньше стольких.
 PERFECT_DAY_MIN_HABITS = 2
 
@@ -130,7 +141,7 @@ def _claim_reward_slot(user_id):
 def reward_line(done):
     """Строка про монеты для сообщений бота после отметки привычки."""
     if done.get("reward_capped"):
-        return f"⭐ {REWARD_CAPPED_TEXT}"
+        return f"⭐ {reward_cap_text(done.get('reward_cap_reason'))}"
     return f"⭐ +{done['coins']} Adam Coin" + (" (×2 — успей закрыть ещё одну!)" if done["doubled"] else "")
 
 
@@ -161,6 +172,10 @@ def add_habit(user_id, title, planned_time=None, time_window_minutes=60, categor
     ok, reason = can_add_habit(user_id)
     if not ok:
         raise ValueError(reason)
+    # Много привычек подряд за минуту — не человек (скрипт или накрутка): подождать (db/habit_guard.py).
+    from .habit_guard import burst_blocked
+    if burst_blocked(user_id, _local_day(user_id)):
+        raise ValueError("habit_too_fast")
     title = (title or "").strip()[:MAX_HABIT_TITLE_LENGTH]
     if category is not None and category not in HABIT_CATEGORIES:
         category = None
@@ -185,6 +200,8 @@ def add_habit(user_id, title, planned_time=None, time_window_minutes=60, categor
     habit_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    from .habit_guard import record
+    record(user_id, _local_day(user_id), "add")
     from .tracking import track_server
     track_server(user_id, "habit_added", meta={"title": title[:60]})
     return habit_id
@@ -292,6 +309,8 @@ def delete_habit(habit_id):
     conn.close()
     if row:
         log_habit_deletion(row["user_id"])
+        from .habit_guard import record
+        record(row["user_id"], _local_day(row["user_id"]), "delete")
         from .tracking import track_server
         track_server(row["user_id"], "habit_deleted")
 
@@ -674,7 +693,14 @@ def complete_habit(habit_id):
 
     # Дневной потолок наград (см. MAX_REWARDED_COMPLETIONS_PER_DAY): сверх него
     # привычка всё равно отмечается и считается в серии, но монет за неё нет.
-    reward_capped = _claim_reward_slot(user_id) > MAX_REWARDED_COMPLETIONS_PER_DAY
+    # Монеты платятся за первые N отметок дня, где N — число привычек в списке прямо сейчас (не больше MAX_REWARDED_COMPLETIONS_PER_DAY): удаление
+    # привычки счётчик отметок не уменьшает, поэтому «добавил → отметил → удалил → добавил» новых выплат не даёт. Много удалений/созданий за день или
+    # заморозка админом (db/habit_guard.py) — монет нет совсем. Отметка, серия и привычка при этом засчитываются как обычно.
+    from .habit_guard import reward_lock
+    over_limit = _claim_reward_slot(user_id) > min(MAX_REWARDED_COMPLETIONS_PER_DAY, total_habits)
+    lock = reward_lock(user_id, _local_day(user_id))
+    reward_capped = over_limit or lock is not None
+    reward_cap_reason = lock or ("limit" if over_limit else None)
     if reward_capped:
         coins = 0
 
@@ -749,6 +775,8 @@ def complete_habit(habit_id):
     return {
         "coins": coins,
         "reward_capped": reward_capped,
+        "reward_cap_reason": reward_cap_reason,
+        "reward_cap_text": reward_cap_text(reward_cap_reason) if reward_capped else None,
         "doubled": doubled,
         "priority_bonus": priority_bonus,
         "loyalty_bonus": loyalty_bonus,

@@ -221,6 +221,8 @@ def try_handle_habit_intent(user_id: int, text: str) -> str | None:
                 return "⚠️ Можно добавить не больше 10 привычек."
             if str(exc) == "habit_add_locked":
                 return "⚠️ Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00."
+            if str(exc) == "habit_too_fast":
+                return "⚠️ Слишком быстро — подожди минуту и добавь остальное."
             raise
         return f"✅ Привычка «{title}» добавлена" + (f" на {planned_time}." if planned_time else "!")
 
@@ -478,6 +480,8 @@ async def try_handle_habit_intent_ai(user_id: int, text: str) -> str | None:
                 return "⚠️ Можно добавить не больше 10 привычек."
             if str(exc) == "habit_add_locked":
                 return "⚠️ Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00."
+            if str(exc) == "habit_too_fast":
+                return "⚠️ Слишком быстро — подожди минуту и добавь остальное."
             raise
         return f"✅ Привычка «{title}» добавлена!"
 

@@ -1110,6 +1110,8 @@ async def create_habit(request):
         # потолок наград, см. db/habits.py::can_add_habit.)
         if str(exc) in ("habit_limit", "habit_add_locked"):
             return web.json_response({"error": str(exc)}, status=400)
+        if str(exc) == "habit_too_fast":
+            return web.json_response({"error": "habit_too_fast"}, status=429)
         raise
     first_habit = not had_habits
     # Возвращаем созданную запись, чтобы Mini App мог показать её сразу,
@@ -1309,6 +1311,7 @@ async def complete_habit_route(request):
         "streak_event": event,
         "coins": success["coins"],
         "reward_capped": bool(success.get("reward_capped")),
+        "reward_cap_text": success.get("reward_cap_text"),
         "doubled": success["doubled"],
         "bonus_active": success["bonus_active"],
         "bonus_until": success["bonus_until"],
@@ -1403,6 +1406,7 @@ async def habit_progress_route(request):
         "streak_event": event,
         "coins": result["coins"],
         "reward_capped": bool(result.get("reward_capped")),
+        "reward_cap_text": result.get("reward_cap_text"),
         "doubled": result["doubled"],
         "bonus_active": result["bonus_active"],
         "bonus_until": result["bonus_until"],
