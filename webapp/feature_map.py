@@ -59,6 +59,14 @@ FEATURES = (
         note="Любое действие в анкете, квизе, туре и подсказках",
     ),
     Feature(
+        "adam_intro", "Знакомство с Адамом (тест, метод планирования дня)", "core", "2026-10-20",
+        screens=("adamIntro",),
+        clicks=("adamIntro*", "adam-intro-*"),
+        events=("adam_intro_shown", "adam_intro_step", "adam_intro_done", "adam_intro_skip", "adam_intro_habit", "adam_intro_chat"),
+        api=("GET /api/adam-profile", "POST /api/adam-profile", "POST /api/adam-profile/recommend", "POST /api/adam-profile/skip"),
+        note="Тест после онбординга: вопросы, итог с методом (Помодоро, 45+10, 90+20, три главных дела), первые привычки, разговор о целях",
+    ),
+    Feature(
         "habits", "Привычки", "core", "2026-01-01",
         clicks=("addHabitTrigger", "newHabit*", "habit-item__*", "habit-filter-chip*", "habit-template-chip*", "habit-program-card*",
                 "habit-note-form__*", "struggling-habit-banner__*"),

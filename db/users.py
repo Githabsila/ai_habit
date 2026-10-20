@@ -205,6 +205,8 @@ def reset_onboarding(user_id):
     )
     conn.commit()
     conn.close()
+    from .adam_profile import reset_profile      # и «Знакомство с Адамом» — тоже часть онбординга
+    reset_profile(user_id)
 
 
 # =====================================

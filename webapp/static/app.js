@@ -1077,6 +1077,7 @@
     setBonusWindow(bw && bw.active ? bw.until : null);
     maybeShowStartQuiz();
     maybeShowStreakOnboarding();
+    maybeShowAdamIntro();
     stabilizeFirstPaint();
     maybeScheduleEveningAdamNudge();
     scheduleAdminGift();
@@ -2055,6 +2056,330 @@
     });
   }
 
+  // ===================== ЗНАКОМСТВО С АДАМОМ =====================
+  // Тест после онбординга: Адам узнаёт, что для человека важно, что мешает и когда у него больше сил, и по ответам подбирает метод
+  // планирования дня (Помодоро 25 + 5, блоки 45 + 10, глубокая работа 90 + 20, «три главных дела»), предлагает первые привычки и
+  // начинает разговор о целях в чате. Вопросы, методы и правила подбора — db/adam_profile.py (приложению их отдаёт /api/adam-profile).
+  // Ответы сервер сохраняет, как только показан итог; «Позже» закрывает окно, и само оно больше не откроется (кнопка есть в «Прогрессе»).
+  // sim — симуляция из админки (SIM_SCENES): те же экраны, но ничего не сохраняется и привычки не добавляются.
+  let adamIntro = null;   // { quiz, answers, index, result, method, sim, retake, then, busy, added }
+  let adamIntroHandled = false;   // окно уже показывали в этой сессии: перезагрузка состояния раньше ответа сервера не откроет его снова
+  const ADAM_INTRO_THINK_MS = 900;
+  const ADAM_INTRO_CTA = {
+    month: "Обсудить цель на месяц", year: "Обсудить цель на год", today: "Составить план на сегодня", look: "Написать Адаму",
+  };
+  const ADAM_INTRO_NEXT_TEXT = {
+    month: "Давай обсудим твою цель на ближайший месяц и разобьём её на шаги.",
+    year: "Давай поговорим о большой цели на год и о том, с чего её начать.",
+    today: "Давай прямо сейчас составим план на сегодня — по твоему методу.",
+    look: "Загляни в чат: расскажу, с чего тебе лучше начать.",
+  };
+
+  function adamIntroAvatarHtml() {
+    const src = state?.hero?.image;
+    return src ? `<img src="${escapeHtml(src)}" alt="" decoding="async">` : `<span class="adam-intro-avatar__mark">A</span>`;
+  }
+
+  function adamIntroMethodBlock(s) {
+    const methods = s.quiz.methods || [];
+    const current = methods.find((m) => m.key === s.method) || methods[0];
+    if (!current) return "";
+    const recommended = s.method === s.result.method;
+    const reasons = recommended && (s.result.reasons || []).length
+      ? `<ul class="adam-intro-reasons">${s.result.reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>` : "";
+    const peak = s.result.peak
+      ? `<div class="adam-intro-peak"><span>⚡</span>Главное дело ставлю на ${escapeHtml(s.result.peak.label)} (${escapeHtml(s.result.peak.window)})</div>` : "";
+    return `
+      <section class="adam-intro-block">
+        <div class="adam-intro-label">Метод планирования дня${recommended ? " · подобрал Адам" : ""}</div>
+        <div class="adam-intro-method"><span class="adam-intro-method__icon">${current.icon}</span><b>${escapeHtml(current.title)}</b></div>
+        <p class="adam-intro-blurb">${escapeHtml(current.blurb)}</p>
+        ${reasons}
+        <div class="adam-intro-chips" role="radiogroup" aria-label="Метод планирования дня">
+          ${methods.map((m) => `<button type="button" class="adam-intro-chip${m.key === s.method ? " is-selected" : ""}" role="radio" aria-checked="${m.key === s.method}" data-ai-method="${escapeHtml(m.key)}"><span>${m.icon}</span>${escapeHtml(m.title)}</button>`).join("")}
+        </div>
+        ${peak}
+      </section>`;
+  }
+
+  function adamIntroHabitsBlock(s) {
+    const habits = s.result.habits || [];
+    if (!habits.length) return "";
+    return `
+      <section class="adam-intro-block">
+        <div class="adam-intro-label">Первые привычки</div>
+        <div class="adam-intro-habits">
+          ${habits.map((title) => {
+            const added = s.added.has(title);
+            return `<button type="button" class="adam-intro-habit${added ? " is-added" : ""}" data-ai-habit="${escapeHtml(title)}"${added ? " disabled" : ""}><span class="adam-intro-habit__mark">${added ? "✓" : "＋"}</span>${escapeHtml(title)}</button>`;
+          }).join("")}
+        </div>
+        <p class="adam-intro-note">Нажми, чтобы добавить в список. Позже их можно поменять.</p>
+      </section>`;
+  }
+
+  function renderAdamIntro() {
+    const s = adamIntro;
+    if (!s) return;
+    const questions = s.quiz.questions;
+    const total = questions.length;
+    const card = document.getElementById("adamIntroCard");
+    const body = document.getElementById("adamIntroBody");
+    const title = document.getElementById("adamIntroTitle");
+    const content = document.getElementById("adamIntroContent");
+    const step = s.index < 0 ? "intro" : s.index < total ? "question" : s.result ? "result" : "think";
+    const sameScreen = card.dataset.step === step && card.dataset.index === String(s.index);
+    const scrollTop = sameScreen ? body.scrollTop : 0;
+    card.dataset.step = step;
+    card.dataset.index = String(s.index);
+
+    document.getElementById("adamIntroBack").hidden = step === "intro" || step === "think";
+    const later = document.getElementById("adamIntroLater");
+    later.hidden = step === "result" || step === "think";
+    later.textContent = s.retake ? "Отмена" : "Позже";
+    document.getElementById("adamIntroProgress").style.width = `${Math.round(((Math.min(s.index, total) + 1) / (total + 1)) * 100)}%`;
+    const next = document.getElementById("adamIntroNext");
+    next.hidden = step === "question" || step === "think";
+    document.getElementById("adamIntroClose").hidden = step !== "result";
+
+    if (step === "intro") {
+      title.textContent = "Давай познакомимся";
+      next.textContent = "Начать";
+      content.innerHTML = `
+        <div class="adam-intro-hero">
+          <span class="adam-intro-avatar">${adamIntroAvatarHtml()}</span>
+          <div class="adam-intro-bubble">Привет! Я Адам. Несколько коротких вопросов — и я подстрою план дня под тебя. Это займёт минуту.</div>
+        </div>
+        <ul class="adam-intro-perks">
+          <li><span>🗓</span>Метод планирования дня под твой ритм</li>
+          <li><span>🌱</span>Первые привычки без долгих раздумий</li>
+          <li><span>🎯</span>Разговор о целях: на месяц и на год</li>
+        </ul>`;
+    } else if (step === "question") {
+      const q = questions[s.index];
+      title.innerHTML = `<small class="adam-intro-eyebrow">Вопрос ${s.index + 1} из ${total}</small>${escapeHtml(q.title)}`;
+      content.innerHTML = `<div class="start-quiz-options">${q.options.map((o) => `
+        <button type="button" class="start-quiz-option${s.answers[q.key] === o.value ? " is-selected" : ""}" data-ai-option="${escapeHtml(o.value)}">
+          <span class="start-quiz-option__dot"></span>
+          <span class="start-quiz-option__label">${escapeHtml(o.label)}</span>
+          <span class="start-quiz-option__icon">${o.icon}</span>
+        </button>`).join("")}</div>`;
+      if (!sameScreen) trk("adam_intro_step", q.key, { i: s.index + 1, of: total });
+    } else if (step === "think") {
+      title.textContent = "Адам думает…";
+      content.innerHTML = `<div class="adam-intro-hero"><span class="adam-intro-avatar">${adamIntroAvatarHtml()}</span><div class="adam-intro-bubble">Подбираю метод и привычки под твои ответы…</div></div>`;
+    } else {
+      const talk = s.answers.talk || "look";
+      title.textContent = "Вот что я для тебя подобрал";
+      next.textContent = ADAM_INTRO_CTA[talk] || ADAM_INTRO_CTA.look;
+      content.innerHTML = `
+        ${adamIntroMethodBlock(s)}
+        ${adamIntroHabitsBlock(s)}
+        <section class="adam-intro-block">
+          <div class="adam-intro-label">Что дальше</div>
+          <p class="adam-intro-blurb">Скажи мне «План на день» — составлю его по твоему методу. ${escapeHtml(ADAM_INTRO_NEXT_TEXT[talk] || "")}</p>
+        </section>`;
+    }
+    body.scrollTop = scrollTop;
+  }
+
+  async function openAdamIntro({ sim = false, then = null, retake = false, demo = null, jump = false } = {}) {
+    const overlay = document.getElementById("adamIntroOverlay");
+    if (!overlay || adamIntro) { if (then) then(); return false; }
+    let data;
+    try {
+      data = await api("/api/adam-profile");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+      if (then) then();
+      return false;
+    }
+    if (adamIntro) return false;   // пока ждали ответ, окно уже открыли
+    adamIntro = {
+      quiz: data, sim, then, retake, index: -1, result: null, method: null, busy: false, added: new Set(),
+      answers: demo ? { ...demo } : (retake ? { ...(data.profile?.answers || {}) } : {}),
+    };
+    hideProductHint();
+    renderAdamIntro();
+    overlay.hidden = false;
+    overlay.setAttribute("aria-hidden", "false");
+    void overlay.offsetWidth;
+    overlay.classList.add("show");
+    haptic("light");
+    if (jump) showAdamIntroResult();
+    return true;
+  }
+
+  async function showAdamIntroResult() {
+    const s = adamIntro;
+    if (!s) return;
+    s.index = s.quiz.questions.length;
+    s.result = null;
+    renderAdamIntro();
+    const startedAt = performance.now();
+    let result;
+    try {
+      // Настоящее прохождение сохраняет ответы сразу (метод — рекомендованный); симуляция только считает итог.
+      const reply = await api(s.sim ? "/api/adam-profile/recommend" : "/api/adam-profile", { method: "POST", body: JSON.stringify({ answers: s.answers }) });
+      result = reply.result;
+    } catch (err) {
+      if (adamIntro !== s) return;
+      showToast(friendlyError(err), "error");
+      s.index = s.quiz.questions.length - 1;
+      renderAdamIntro();
+      return;
+    }
+    const reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const wait = (reduceMotion ? 150 : ADAM_INTRO_THINK_MS) - (performance.now() - startedAt);
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    if (adamIntro !== s) return;
+    s.result = result;
+    s.method = result.method;
+    haptic("success");
+    renderAdamIntro();
+  }
+
+  function onAdamIntroAnswer(value) {
+    const s = adamIntro;
+    const q = s?.quiz.questions[s.index];
+    if (!q || s.busy) return;
+    s.answers[q.key] = value;
+    s.busy = true;
+    haptic("light");
+    renderAdamIntro();
+    setTimeout(() => {
+      if (adamIntro !== s) return;
+      s.busy = false;
+      if (s.index + 1 < s.quiz.questions.length) { s.index += 1; renderAdamIntro(); }
+      else showAdamIntroResult();
+    }, 220);
+  }
+
+  function onAdamIntroBack() {
+    const s = adamIntro;
+    if (!s || s.busy || s.index < 0) return;
+    haptic("light");
+    s.result = null;
+    s.index = Math.max(-1, s.index - 1);
+    renderAdamIntro();
+  }
+
+  async function onAdamIntroMethod(key) {
+    const s = adamIntro;
+    if (!s || !s.result || s.method === key) return;
+    s.method = key;
+    haptic("light");
+    renderAdamIntro();
+    if (s.sim) return;
+    try {
+      await api("/api/adam-profile", { method: "POST", body: JSON.stringify({ answers: s.answers, method: key }) });
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  }
+
+  async function onAdamIntroHabit(btn) {
+    const s = adamIntro;
+    const title = btn.dataset.aiHabit;
+    if (!s || !title || s.added.has(title) || btn.disabled) return;
+    btn.disabled = true;
+    if (s.sim) {
+      s.added.add(title);
+      haptic("light");
+      showToast("🎬 Демо: привычка не добавляется", "success", 1800);
+      renderAdamIntro();
+      return;
+    }
+    try {
+      const result = await api("/api/habits", { method: "POST", body: JSON.stringify({ title }) });
+      if (result?.habit && state) {
+        state.habits = [result.habit, ...(state.habits || [])];
+        renderHabits();
+      }
+      s.added.add(title);
+      haptic("light");
+      trk("adam_intro_habit");
+      if (adamIntro === s) renderAdamIntro();
+    } catch (err) {
+      btn.disabled = false;
+      showToast(friendlyError(err), "error");
+    }
+  }
+
+  function renderAdamIntroSettings() {
+    const btn = document.getElementById("adamIntroBtn");
+    if (btn) btn.textContent = state?.adam_intro?.done ? "Пройти заново" : "Пройти";
+  }
+
+  // chat — открыть чат с Адамом на выбранную тему; skip — «Позже» (само окно больше не откроется).
+  function closeAdamIntro({ chat = false, skip = false } = {}) {
+    const s = adamIntro;
+    if (!s) return;
+    const overlay = document.getElementById("adamIntroOverlay");
+    const finished = !!s.result;
+    if (!s.sim) {
+      adamIntroHandled = true;
+      if (skip && !s.retake && !finished) api("/api/adam-profile/skip", { method: "POST" }).catch(() => {});
+      if (state) {
+        const method = finished ? s.method : (state.adam_intro?.method ?? null);
+        const methodTitle = (s.quiz.methods || []).find((m) => m.key === method)?.title ?? null;
+        state.adam_intro = { show: false, done: finished || !!state.adam_intro?.done, method, method_title: methodTitle };
+      }
+      renderAdamIntroSettings();
+    }
+    overlay.classList.remove("show");
+    overlay.setAttribute("aria-hidden", "true");
+    setTimeout(() => { if (!adamIntro) overlay.hidden = true; }, 300);
+    adamIntro = null;
+    haptic("light");
+    const talk = s.answers.talk || "look";
+    if (chat) {
+      if (s.sim) {
+        showToast(`🎬 Демо: откроется чат с Адамом — «${ADAM_INTRO_CTA[talk] || ADAM_INTRO_CTA.look}»`, "success", 2600);
+        return;
+      }
+      trk("adam_intro_chat", talk);
+      const loading = document.getElementById("loadingOverlay");
+      if (loading) loading.hidden = false;
+      setTimeout(() => { window.location.href = `/coach?intro=plans&t=${encodeURIComponent(talk)}`; }, 60);
+      return;
+    }
+    if (s.then) setTimeout(s.then, 380);
+  }
+
+  function onAdamIntroNext() {
+    const s = adamIntro;
+    if (!s) return;
+    if (s.index < 0) { haptic("light"); s.index = 0; renderAdamIntro(); return; }
+    if (s.result) closeAdamIntro({ chat: true });
+  }
+
+  // chain — вызов из цепочки онбординга (она сама решает, когда пора); then — что делать после закрытия окна. true — окно открыто.
+  function maybeShowAdamIntro({ chain = false, then = null } = {}) {
+    if (!state?.adam_intro?.show || adamIntro || adamIntroHandled) return false;
+    if (!chain && (introChainPending() || streakOnboardingDue() || celebrationOverlayOpen())) return false;
+    trk("adam_intro_shown");
+    openAdamIntro({ then });
+    return true;
+  }
+
+  function initAdamIntro() {
+    document.getElementById("adamIntroOverlay")?.addEventListener("click", (e) => {
+      if (!adamIntro) return;
+      const option = e.target.closest("[data-ai-option]");
+      if (option) { onAdamIntroAnswer(option.dataset.aiOption); return; }
+      const method = e.target.closest("[data-ai-method]");
+      if (method) { onAdamIntroMethod(method.dataset.aiMethod); return; }
+      const habit = e.target.closest("[data-ai-habit]");
+      if (habit) { onAdamIntroHabit(habit); return; }
+      if (e.target.closest("#adamIntroBack")) { onAdamIntroBack(); return; }
+      if (e.target.closest("#adamIntroLater")) { closeAdamIntro({ skip: true }); return; }
+      if (e.target.closest("#adamIntroClose")) { closeAdamIntro(); return; }
+      if (e.target.closest("#adamIntroNext")) onAdamIntroNext();
+    });
+    document.getElementById("adamIntroBtn")?.addEventListener("click", () => { haptic("light"); openAdamIntro({ retake: true }); });
+  }
+
   // ===================== ОБУЧЕНИЕ ПРИ ПЕРВОМ ВХОДЕ =====================
   // Короткая вводная модалка — 3 шага вместо прежних 6, текста в разы
   // меньше: одна главная мысль на шаг, без перечисления всех фич разом.
@@ -2855,9 +3180,10 @@
         productOnboardingTimers.push(setTimeout(() => showProductHint(3), 700));
       }
     };
-    // Вводная часть закончилась — сначала окно про ударный режим (если оно ещё не показано), потом подсказки.
-    if (maybeShowStreakOnboarding({ chain: true, then: startHints })) return;
-    startHints();
+    // Вводная часть закончилась — сначала окно про ударный режим (если оно ещё не показано), потом знакомство с Адамом, потом подсказки.
+    const afterStreak = () => { if (!maybeShowAdamIntro({ chain: true, then: startHints })) startHints(); };
+    if (maybeShowStreakOnboarding({ chain: true, then: afterStreak })) return;
+    afterStreak();
   }
 
   // Вызывается из обработчика создания привычки (app.js::addHabitForm) —
@@ -3236,6 +3562,7 @@
     const next = afterStreakOnboarding;
     afterStreakOnboarding = null;
     if (next) setTimeout(next, 380);
+    else setTimeout(() => maybeShowAdamIntro(), 450);
   }
 
   async function maybeShowWeeklyBonus() {
@@ -6809,7 +7136,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -7683,6 +8010,8 @@ const SIM_SCENES = {
     eyebrow: "СУНДУК НА ДВОИХ", caption: "Награда за парное задание",
     request: simReply({ reward: { coins: 60, diamonds: 1, month_points: 3 } }),
   }),
+  adam_intro: () => openAdamIntro({ sim: true }),
+  adam_intro_result: () => openAdamIntro({ sim: true, jump: true, demo: { focus: "study", struggle: "start", energy: "morning", span: "s25", hours: "h2", talk: "month" } }),
   levelup: () => showLevelUp(12, 11),
   levelup_milestone: () => showLevelUp(30, 29),
   streak: () => openStreakCelebration({
@@ -9960,6 +10289,7 @@ async function boot() {
         if (!preBootstrapInitDone) {
             initTelegram();
             initStartQuiz();
+            initAdamIntro();
             initAppTour();
             initHandleIntro();
             initSelfRewardActions();
@@ -10011,6 +10341,7 @@ async function boot() {
             postBootstrapInitDone = true;
             initLabMode();
             initSimMode();
+            renderAdamIntroSettings();
         }
         if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {
           document.getElementById("archetypeQuizBtn").textContent = state.user.archetype;

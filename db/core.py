@@ -1451,6 +1451,20 @@ def create_tables():
     )
     """)
 
+    # Знакомство с Адамом (db/adam_profile.py): ответы теста после онбординга и выбранный метод планирования дня.
+    # Строка есть и у тех, кто пропустил (skipped_at): автоматически знакомство им больше не показываем.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS adam_profile(
+        user_id INTEGER PRIMARY KEY,
+        answers TEXT,
+        method TEXT,
+        version INTEGER NOT NULL DEFAULT 1,
+        completed_at TEXT,
+        skipped_at TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     # ---------------- Эволюции ADAM (db/evolution.py) ----------------
     # seen_level — до какой эволюции игрок уже видел праздник «EVOLUTION N
     # UNLOCKED». Сами эволюции нигде не хранятся: они считаются по лучшей серии.

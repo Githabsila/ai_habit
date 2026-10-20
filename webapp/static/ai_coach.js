@@ -647,6 +647,20 @@ function AiChat() {
                     history.replaceState(null, '', location.pathname);
                     return;
                 }
+                // «Знакомство с Адамом» (app.js::openAdamIntro): после теста человек выбрал, с чего начать разговор. Это явное
+                // действие, поэтому первое сообщение шлём всегда; ответ Адам строит по профилю (webapp/services/chat_brain.py).
+                if (params.get('intro') === 'plans') {
+                    sentOnboardingIntroRef.current = true;
+                    const starters = {
+                        month: 'Давай обсудим мою цель на ближайший месяц: помоги сформулировать её и разбить на шаги.',
+                        year: 'Давай обсудим мою большую цель на год и дальше. С чего мне начать?',
+                        today: 'Составь мне план на сегодня.',
+                        look: 'Подскажи, с чего мне начать в ADAM.'
+                    };
+                    sendText(starters[params.get('t') || ''] || starters.look);
+                    history.replaceState(null, '', location.pathname);
+                    return;
+                }
                 if (hasHistory)
                     return;
                 if (params.get('intro') !== 'archetype')

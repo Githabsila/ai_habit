@@ -14587,6 +14587,76 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .pair-row .friend-row__meta{white-space:normal}
 
 /* =========================================================
+   Знакомство с Адамом (тест после онбординга, app.js::openAdamIntro): приветствие, шесть вопросов, итог с методом планирования
+   дня и первыми привычками. Варианты ответов — те же .start-quiz-option, что в стартовом квизе. Только transform/opacity и
+   конечные переходы: без filter и бесконечных анимаций (диета для отрисовки).
+   ========================================================= */
+.adam-intro-overlay{
+  position:fixed;inset:0;z-index:10150;display:flex;flex-direction:column;
+  background:
+    radial-gradient(480px 280px at 80% -10%,rgba(255,150,45,.16),transparent 60%),
+    radial-gradient(420px 260px at 0% 110%,rgba(139,92,246,.20),transparent 62%),
+    linear-gradient(170deg,#171320,#0c0b12);
+  opacity:0;transition:opacity .3s ease;
+}
+.adam-intro-overlay.show{opacity:1}
+.adam-intro-overlay[hidden]{display:none !important}
+.adam-intro-card{
+  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;max-width:480px;width:100%;margin:0 auto;box-sizing:border-box;
+  padding:calc(env(safe-area-inset-top,0px) + 20px) 22px calc(env(safe-area-inset-bottom,0px) + 22px);
+}
+.adam-intro-card .start-quiz-topbar{margin-bottom:18px}
+.adam-intro-later{flex:0 0 auto;background:none;border:0;padding:8px 2px;color:#9893ad;font-size:13.5px;font-weight:600;cursor:pointer}
+.adam-intro-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:10px}
+.adam-intro-title{font:800 24px/1.2 'Space Grotesk',sans-serif;letter-spacing:-.02em;color:#fff;margin:4px 0 20px;text-align:left}
+.adam-intro-eyebrow{display:block;margin-bottom:10px;font:700 11px/1 'Space Grotesk',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#FFB454}
+.adam-intro-footer{flex:0 0 auto;display:flex;flex-direction:column;gap:4px;padding-top:12px}
+.adam-intro-footer [hidden]{display:none !important}
+.adam-intro-card .start-quiz-continue{margin-top:6px}
+.adam-intro-secondary{background:none;border:0;padding:10px;color:#9893ad;font-size:14px;font-weight:600;cursor:pointer}
+.adam-intro-card .start-quiz-option__label{line-height:1.3}
+
+.adam-intro-hero{display:flex;align-items:flex-start;gap:12px;margin-bottom:20px}
+.adam-intro-avatar{flex:0 0 auto;width:56px;height:56px;border-radius:50%;overflow:hidden;display:grid;place-items:center;
+  background:linear-gradient(135deg,#7c3aed,#ff8a00);border:2px solid rgba(255,255,255,.18)}
+.adam-intro-avatar img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 18%}
+.adam-intro-avatar__mark{font:800 22px 'Space Grotesk',sans-serif;color:#fff}
+.adam-intro-bubble{flex:1 1 auto;padding:13px 15px;border-radius:4px 18px 18px 18px;background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.1);color:#ECE9F6;font-size:14.5px;line-height:1.5}
+.adam-intro-perks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.adam-intro-perks li{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:16px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);color:#E4E1F0;font-size:14.5px;font-weight:600;line-height:1.35}
+.adam-intro-perks li span{flex:0 0 auto;width:26px;text-align:center;font-size:19px}
+
+.adam-intro-block{padding:16px;margin-bottom:12px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1)}
+.adam-intro-label{margin-bottom:10px;font:700 11px/1.3 'Space Grotesk',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#9893ad}
+.adam-intro-method{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.adam-intro-method__icon{font-size:26px;line-height:1}
+.adam-intro-method b{font:800 20px 'Space Grotesk',sans-serif;color:#fff}
+.adam-intro-blurb{margin:0 0 10px;color:#B8B4C8;font-size:14px;line-height:1.55}
+.adam-intro-reasons{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:6px}
+.adam-intro-reasons li{position:relative;padding-left:18px;color:#DAD6EA;font-size:13.5px;line-height:1.45}
+.adam-intro-reasons li::before{content:"";position:absolute;left:2px;top:.5em;width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,#FF8A00,#EF4444)}
+.adam-intro-chips{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.adam-intro-chip{display:flex;align-items:center;gap:7px;padding:10px 11px;border-radius:14px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.03);color:#E4E1F0;font-size:13px;font-weight:600;line-height:1.25;text-align:left;cursor:pointer;
+  transition:border-color .2s ease,background .2s ease,transform .15s ease}
+.adam-intro-chip span{flex:0 0 auto;font-size:16px}
+.adam-intro-chip.is-selected{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.12);color:#fff}
+.adam-intro-chip:active{transform:scale(.98)}
+.adam-intro-peak{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(255,184,76,.1);color:#FFD9A0;font-size:13.5px;line-height:1.4}
+.adam-intro-habits{display:flex;flex-direction:column;gap:8px}
+.adam-intro-habit{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border-radius:14px;border:1px dashed rgba(255,255,255,.22);
+  background:rgba(255,255,255,.03);color:#EEEAF8;font-size:14.5px;font-weight:600;line-height:1.3;text-align:left;cursor:pointer;
+  transition:border-color .2s ease,background .2s ease,transform .15s ease}
+.adam-intro-habit:active{transform:scale(.98)}
+.adam-intro-habit__mark{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.1);font-size:14px;line-height:1}
+.adam-intro-habit.is-added{border-style:solid;border-color:rgba(123,227,164,.5);background:rgba(123,227,164,.1);color:#CFF5DE}
+.adam-intro-habit.is-added .adam-intro-habit__mark{background:#163a29;color:#7be3a4}
+.adam-intro-note{margin:10px 0 0;color:#8b879b;font-size:12.5px;line-height:1.45}
+@media(max-width:380px){.adam-intro-title{font-size:21px}}
+
+/* =========================================================
    Окно «Сундук» (открытие сундука месяца и парного задания): закрытый сундук потряхивает, пока идёт запрос, потом
    крышка откидывается, вылетают искры и появляются награды. Только transform/opacity и конечные анимации — без
    размытия, без CSS-фильтров и вечных циклов (слабые Android WebView).

@@ -53,6 +53,12 @@ EVENT_LABELS = {
     "pair_invite": ("🤝", "Позвал в парное задание"),
     "pair_left_early": ("🚪", "Вышел из парного задания (напарник пропал)"),
     "chest_opened": ("🎁", "Открыл сундук (месяца или парного задания)"),
+    "adam_intro_shown": ("🧠", "Увидел знакомство с Адамом"),
+    "adam_intro_step": ("🧠", "Вопрос знакомства с Адамом"),
+    "adam_intro_done": ("🧠", "Прошёл знакомство с Адамом (метод планирования выбран)"),
+    "adam_intro_skip": ("🧠", "Отложил знакомство с Адамом («Позже»)"),
+    "adam_intro_habit": ("🌱", "Добавил привычку из знакомства с Адамом"),
+    "adam_intro_chat": ("💬", "После знакомства пошёл говорить с Адамом о планах"),
     "username_changed": ("✏️", "Сменил @ник в Telegram"),
     "referral_joined": ("👋", "Пришёл по приглашению друга"),
     "referral_rejected": ("🚫", "Переход по ссылке не засчитан"),
@@ -559,6 +565,13 @@ def _collect_marks(conn, where, params):
 
 
 
+# Знакомство с Адамом (db/adam_profile.py): подписи шагов для воронки. Ключи — ключи вопросов; новый вопрос без подписи виден «без названия».
+ADAM_INTRO_STEP_LABELS = {
+    "focus": "Вопрос 1: что сейчас важнее всего", "struggle": "Вопрос 2: что мешает", "energy": "Вопрос 3: когда больше сил",
+    "span": "Вопрос 4: сколько держит фокус", "hours": "Вопрос 5: сколько времени в день", "talk": "Вопрос 6: с чего начать разговор",
+}
+
+
 def onboarding_steps(conn, base_ids):
     """Онбординг по шагам для людей base_ids (открывали приложение): сколько человек дошло до каждого шага и сколько ушло именно здесь.
     Порядок — как в приложении: квиз → тур → экран @ника → окно про ударный режим → подсказки. «Ушли после шага» считается только там,
@@ -570,7 +583,7 @@ def onboarding_steps(conn, base_ids):
     for r in conn.execute(
         f"SELECT name, COALESCE(step,'') AS step, COUNT(DISTINCT user_id) AS u FROM user_events WHERE user_id IN ({marks}) "
         "AND name IN ('quiz_start','quiz_step','quiz_done','tour_start','tour_step','tour_done','handle_intro_shown','handle_intro_done',"
-        "'onb_streak_shown','onb_streak_ok','hint_shown') GROUP BY name, step", base_ids,
+        "'onb_streak_shown','onb_streak_ok','hint_shown','adam_intro_shown','adam_intro_step','adam_intro_skip','adam_intro_habit') GROUP BY name, step", base_ids,
     ).fetchall():
         seen[(r["name"], r["step"])] = r["u"]
     total = len(base_ids)
@@ -600,6 +613,24 @@ def onboarding_steps(conn, base_ids):
     tour = [row("tour:" + step, label, users_of("tour_start") if step == "1" else users_of("tour_step", step)) for step, label in TOUR_LABELS.items()]
     tour.append(row("tour_done", "Закончили тур", users_of("tour_done")))
 
+    def distinct_users(name):
+        return conn.execute(f"SELECT COUNT(DISTINCT user_id) FROM user_events WHERE user_id IN ({marks}) AND name=?", [*base_ids, name]).fetchone()[0]
+
+    # Знакомство с Адамом: «готово» и «пошли в чат» пишутся с шагом (метод, тема), поэтому считаются по людям, а не по шагам.
+    from .adam_profile import METHODS, QUESTION_KEYS
+    adam = [row("adam_intro_shown", "Увидели знакомство с Адамом", users_of("adam_intro_shown"))]
+    adam += [row("adam_q:" + key, ADAM_INTRO_STEP_LABELS.get(key, key), users_of("adam_intro_step", key), unnamed=key not in ADAM_INTRO_STEP_LABELS)
+             for key in QUESTION_KEYS]
+    adam += [row("adam_intro_done", "Дошли до итога и получили метод", distinct_users("adam_intro_done")),
+             row("adam_intro_chat", "Пошли говорить с Адамом о планах", distinct_users("adam_intro_chat"))]
+    adam = sequential(adam)
+    adam += [row("adam_intro_habit", "Добавили привычку из итога", users_of("adam_intro_habit")),
+             row("adam_intro_skip", "Нажали «Позже»", users_of("adam_intro_skip"))]
+    chosen = {r["step"]: r["n"] for r in conn.execute(
+        f"SELECT step, COUNT(*) AS n FROM user_events WHERE name='adam_intro_done' AND user_id IN ({marks}) "
+        "AND id IN (SELECT MAX(id) FROM user_events WHERE name='adam_intro_done' GROUP BY user_id) GROUP BY step", base_ids).fetchall()}
+    methods = [row("adam_method:" + key, method["title"], chosen.get(key, 0)) for key, method in METHODS.items()]
+
     hints = [row("hint:" + step, label, users_of("hint_shown", step)) for step, label in HINT_LABELS.items()]
     hints += [row("hint:" + step, "Подсказка " + step, users_of("hint_shown", step), unnamed=True) for step in extras("hint_shown", HINT_LABELS)]
 
@@ -612,6 +643,8 @@ def onboarding_steps(conn, base_ids):
         {"id": "streak", "title": "Окно «Не дай серии погаснуть»", "rows": sequential([
             row("onb_streak_shown", "Увидели окно", users_of("onb_streak_shown")),
             row("onb_streak_ok", "Нажали «Я в игре»", users_of("onb_streak_ok"))])},
+        {"id": "adam_intro", "title": "Знакомство с Адамом", "rows": adam},
+        {"id": "adam_method", "title": "Какой метод планирования выбрали (последний сохранённый)", "rows": methods},
         {"id": "hints", "title": "Подсказки в приложении", "rows": hints},
     ]
 

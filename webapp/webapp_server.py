@@ -100,6 +100,7 @@ from db import (
 from datetime import date, datetime, timezone
 from multi_agent import generate_progress_analysis
 from db import ai_usage
+from db import adam_profile as adam_profile_db
 from db.tracking import ingest as ingest_track
 from db import usage as usage_db
 from db.traffic import attribute_from_init_data
@@ -568,6 +569,8 @@ async def bootstrap(request):
         "admin_gift": get_unseen_admin_gift(telegram_id),
         "show_handle_intro": should_show_handle_intro(telegram_id),
         "show_start_quiz": should_show_start_quiz(telegram_id),
+        # Знакомство с Адамом (db/adam_profile.py): show — открыть окно после онбординга; method — выбранный метод планирования дня.
+        "adam_intro": adam_profile_db.public_state(telegram_id),
         # Режим доступа (db/access.py): paywall — показывать ли окно оплаты в стартовом квизе (только в сценарии триала).
         "access": public_access(telegram_id),
         "self_reward_cost": SELF_REWARD_COST,
@@ -1575,6 +1578,68 @@ async def start_quiz_seen(request):
     age_range = body.get("age_range")
     goal = body.get("goal")
     mark_start_quiz_seen(telegram_id, age_range=age_range, goal=goal)
+    return web.json_response({"ok": True})
+
+
+# ====================== ЗНАКОМСТВО С АДАМОМ ======================
+# Тест после онбординга (вопросы, методы планирования и правила подбора — db/adam_profile.py). Окно в приложении: app.js::openAdamIntro.
+
+def _my_habit_titles(telegram_id):
+    return [h["title"] for h in get_habits(telegram_id)]
+
+
+@routes.get("/api/adam-profile")
+async def adam_profile_route(request):
+    """Вопросы и методы для окна знакомства + что человек уже отвечал (чтобы «пройти заново» открывалось с его ответами)."""
+    telegram_id, _ = await _authenticate(request)
+    profile = adam_profile_db.get_profile(telegram_id)
+    done = bool(profile and profile["completed_at"])
+    return web.json_response({
+        **adam_profile_db.quiz_payload(),
+        "profile": {"done": done, "answers": profile["answers"] if done else {}, "method": profile["method"] if done else None},
+    })
+
+
+@routes.post("/api/adam-profile/recommend")
+async def adam_profile_recommend_route(request):
+    """Итог по ответам БЕЗ сохранения: метод, причины, лучшее время, предложенные привычки (без тех, что у человека уже есть)."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    answers = adam_profile_db.clean_answers(body.get("answers"))
+    if len(answers) < len(adam_profile_db.QUESTION_KEYS):
+        return web.json_response({"error": "incomplete"}, status=400)
+    return web.json_response({"result": adam_profile_db.build_result(answers, _my_habit_titles(telegram_id))})
+
+
+@routes.post("/api/adam-profile")
+async def adam_profile_save_route(request):
+    """Сохраняет пройденное знакомство: ответы и выбранный метод планирования дня."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    saved = adam_profile_db.save_profile(telegram_id, body.get("answers"), body.get("method"))
+    if saved.get("error"):
+        return web.json_response({"error": saved["error"]}, status=400)
+    from db.tracking import track_server
+    track_server(telegram_id, "adam_intro_done", step=saved["method"], meta={"answers": saved["answers"]})
+    return web.json_response({
+        "ok": True, "method": saved["method"], "adam_intro": adam_profile_db.public_state(telegram_id),
+        "result": adam_profile_db.build_result(saved["answers"], _my_habit_titles(telegram_id)),
+    })
+
+
+@routes.post("/api/adam-profile/skip")
+async def adam_profile_skip_route(request):
+    """«Позже»: окно само больше не открывается (в Настройках остаётся кнопка)."""
+    telegram_id, _ = await _authenticate(request)
+    adam_profile_db.skip_profile(telegram_id)
+    from db.tracking import track_server
+    track_server(telegram_id, "adam_intro_skip")
     return web.json_response({"ok": True})
 
 @routes.post("/api/self-reward")
