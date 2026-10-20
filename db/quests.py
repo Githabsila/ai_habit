@@ -29,14 +29,41 @@ QUEST_KEYS = list(QUEST_DEFINITIONS.keys())
 QUESTS_PER_DAY = 3
 
 
+# Квесты, которые по смыслу почти одно и то же: в один день берём не больше одного из группы (п.7 владельца, 20.10).
+# «Закрой все привычки» и «Ни одного пропуска» засчитываются одним и тем же (всё закрыто, без пропусков) и стояли рядом;
+# «Привычки из 2 категорий» требует тех же двух отметок, что и «Выполни 2 привычки».
+OVERLAPPING_QUESTS = (
+    ("all_done", "no_skip"),
+    ("two_habits", "two_categories"),
+)
+
+
+def quests_overlap(first, second):
+    return any(first in group and second in group for group in OVERLAPPING_QUESTS)
+
+
 def _pick_quests_for_day(user_id, day):
     """Детерминированный выбор 3 из 6 квестов на конкретный день — тот же
     пользователь в тот же день всегда видит один и тот же набор при
-    повторных запросах, без необходимости хранить выбор в БД."""
+    повторных запросах, без необходимости хранить выбор в БД.
+    Квесты одинакового смысла (OVERLAPPING_QUESTS) вместе не попадаются: берём по порядку перемешанного списка и
+    пропускаем тот, что повторяет уже выбранный; без пересечений набор остаётся прежним."""
     seed = int(hashlib.md5(f"{user_id}:{day}".encode("utf-8")).hexdigest(), 16)
     keys = QUEST_KEYS[:]
     random.Random(seed).shuffle(keys)
-    return keys[:QUESTS_PER_DAY]
+    picked = []
+    for key in keys:
+        if any(quests_overlap(key, other) for other in picked):
+            continue
+        picked.append(key)
+        if len(picked) == QUESTS_PER_DAY:
+            break
+    for key in keys:          # запас: если групп станет больше, чем свободных квестов, добираем из оставшихся
+        if len(picked) == QUESTS_PER_DAY:
+            break
+        if key not in picked:
+            picked.append(key)
+    return picked
 
 
 def _quest_progress(user_id, day, habits, key):
