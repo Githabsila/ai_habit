@@ -32,6 +32,7 @@ const src = fs.readFileSync(process.env.HAPTICS_PATH, "utf8");
 
 function makeEnv({ stored = null, telegram = true, loadedAt = 0 } = {}) {
   let now = loadedAt;
+  let nextId = 0;
   const timers = [];
   const calls = [];
   const handlers = {};
@@ -54,8 +55,8 @@ function makeEnv({ stored = null, telegram = true, loadedAt = 0 } = {}) {
     window: win,
     document: { addEventListener: (type, fn) => { handlers[type] = fn; } },
     navigator: { vibrate: (p) => calls.push("vibrate:" + JSON.stringify(p)) },
-    setTimeout: (fn, ms) => { timers.push({ fn, ms, at: now + ms }); return timers.length; },
-    clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].dead = true; },
+    setTimeout: (fn, ms) => { const timer = { id: ++nextId, fn, ms, at: now + ms }; timers.push(timer); return timer.id; },
+    clearTimeout: (id) => { const timer = timers.find((t) => t.id === id); if (timer) timer.dead = true; },
     Date: { now: () => now },
   };
   vm.createContext(sandbox);
@@ -226,6 +227,40 @@ const out = {};
   out.ghostClick = e.calls.slice();
 }
 
+// 7. Тройная долгая вибрация и удары по сундуку.
+{
+  const e = makeEnv();
+  e.advance(1000);
+  e.api.triple();
+  out.tripleStart = e.calls.slice();
+  e.advance(2000);
+  out.triple = e.calls.slice();
+
+  e.calls.length = 0; e.advance(1000);
+  e.api.triple(); e.advance(100); e.api.triple(); e.advance(2000);   // второй вызов обрывает первый
+  out.tripleRestarted = e.calls.slice();
+
+  e.calls.length = 0; e.advance(1000);
+  e.api.triple(); e.advance(100); e.api.setEnabled(false); e.advance(2000);
+  out.tripleCutByOff = e.calls.slice();
+
+  e.calls.length = 0; e.advance(1000);
+  out.tripleWhileOff = [e.api.triple(), e.calls.slice()];
+  e.api.setEnabled(true);
+
+  const web = makeEnv({ telegram: false });
+  web.advance(1000); web.api.triple(); web.advance(2000);
+  out.tripleFallback = web.calls.slice();
+
+  const k = makeEnv();
+  k.advance(1000);
+  out.knocks = [1, 2, 3].map((n) => { k.calls.length = 0; k.advance(500); k.api.knock(n); k.advance(200); return k.calls.slice(); });
+
+  const p = makeEnv();
+  p.advance(1000); p.api.play("triple"); p.advance(2000);
+  out.playTriple = p.calls.length;
+}
+
 console.log(JSON.stringify(out));
 """
 
@@ -265,6 +300,29 @@ def test_nothing_strong_is_ever_fired(run):
     fired = [c for _, calls in run["mapping"] for c in calls]
     for strong in ("impact:heavy", "impact:medium", "impact:rigid", "notify:error"):
         assert strong not in fired
+
+
+BURST = ["notify:success"] + ["impact:light"] * 4
+
+
+def test_triple_vibration_is_three_long_bursts_in_the_gentle_palette(run):
+    assert run["tripleStart"] == ["notify:success"], "первый всплеск идёт сразу, без задержки"
+    assert run["triple"] == BURST * 3, "три всплеска: системный success и серия лёгких тиков, ничего сильнее"
+    assert run["playTriple"] == 15, 'haptic("triple") — то же самое'
+
+
+def test_a_new_triple_replaces_the_old_one_and_the_switch_cuts_it(run):
+    assert run["tripleRestarted"] == ["notify:success", "impact:light", "impact:light"] + BURST * 3
+    assert run["tripleCutByOff"] == ["notify:success", "impact:light", "impact:light"]
+    assert run["tripleWhileOff"] == [False, []]
+
+
+def test_triple_outside_telegram_is_one_long_phone_pattern(run):
+    assert run["tripleFallback"] == ["vibrate:[180,110,180,110,260]"]
+
+
+def test_chest_knocks_grow_from_tap_to_tap(run):
+    assert run["knocks"] == [["impact:soft"], ["impact:light"], ["impact:light", "impact:soft"]]
 
 
 def test_rapid_calls_do_not_stutter(run):
@@ -339,7 +397,14 @@ def test_meaningful_moments_use_dedicated_effects():
     assert 'haptic("success")' in APP_JS           # уровень, серия, сундук
     assert 'haptic("reward")' in APP_JS            # похвала за награду
     assert 'haptic("warning")' in APP_JS           # ошибки
-    assert re.search(r'haptic\("success"\);\s*\n\s*playChestSound\("open"\)', APP_JS), "сундук: вибро-отклик в момент открытия крышки"
+    assert re.search(r'haptic\("triple"\);\s*\n\s*playChestSound\("open"\)', APP_JS), "сундук: тройная долгая вибрация в момент открытия крышки"
+    level = APP_JS[APP_JS.index("function showLevelUp("):][:2600]
+    assert 'haptic(isMilestone ? "triple" : "success")' in level, "рубеж уровня — тройная, обычный уровень — «успех»"
+    assert 'haptic(reward ? "triple" : "success")' in APP_JS, "новый статус серии — тройная"
+    assert 'evolutionAt(4300, () => { add("is-flash"); haptic("triple");' in APP_JS, "эволюция"
+    pair = APP_JS[APP_JS.index("function applyPairQuest("):][:700]
+    assert 'cur.phase === "completed" && prev.phase !== "completed") {\n      haptic("triple");' in pair.replace("\r\n", "\n"), "парное задание выполнено"
+    assert APP_JS.count('haptic("triple")') >= 5
 
 
 def test_coach_chat_uses_the_same_module():

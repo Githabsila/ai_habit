@@ -1517,8 +1517,9 @@
     const message = document.getElementById("streakCelebrationMessage");
     const seven = document.getElementById("celebrationSeven");
     if (!overlay || !event) return;
+    // event.reward — только у симуляции (SIM_SCENES.streak_status); настоящий статус берётся из наград серии
+    const reward = event.reward || (state.streak?.rewards || []).find(r => Number(r.milestone) === Number(event.streak));
     if (message) {
-      const reward = (state.streak?.rewards || []).find(r => Number(r.milestone) === Number(event.streak));
       message.textContent = reward
         ? `🏆 Новый статус «${reward.status}» — открыта рамка «${reward.frame}». ${event.message || ""}`
         : (event.message || "День закрыт. Продолжай.");
@@ -1533,7 +1534,7 @@
     overlay.hidden = false;
     overlay.setAttribute("aria-hidden", "false");
     requestAnimationFrame(() => overlay.classList.add("show"));
-    haptic("success");
+    haptic(reward ? "triple" : "success");        // новый статус серии — сложное достижение: тройная долгая вибрация
     playChime();
     const fire = document.getElementById("streakCelebrationFire");
     fire?.classList.remove("ignite");
@@ -5394,23 +5395,30 @@ function compressImageToDataUrl(file) {
 }
 
 // ===================== Окно «Сундук» =====================
-// Открытие сундука месяца и парного задания. Закрытый сундук потряхивает, пока идёт запрос (минимум ~1.2 с —
-// награда не «выскакивает» мгновенно), потом крышка откидывается, вылетают искры, одна за другой появляются награды
-// и загорается «Забрать». Данные (монеты, месяц, уровень) применяем, когда окно закрыли: левел-ап не прячется
-// под сундуком, а числа в шапке меняются на глазах. Только transform/opacity и конечные анимации (см. style.css).
+// Открытие сундука месяца и парного задания — как ежедневный сундук в Duolingo, только за сложные задания: сундук появляется, его нужно
+// тапнуть три раза. Каждый тап — удар по сундуку со своим звуком и лёгкой вибрацией (всё сильнее, шкала из трёх точек и свечение растут);
+// после третьего уходит запрос, сундук потряхивает, крышка откидывается, вылетают искры, появляются награды, идёт тройная долгая вибрация.
+// «Не сейчас» закрывает окно без запроса: сундук остаётся ждать. Данные (монеты, месяц, уровень) применяем, когда окно закрыли: левел-ап
+// не прячется под сундуком, а числа в шапке меняются на глазах. Только transform/opacity и конечные анимации (см. style.css).
 let chestRevealBusy = false;
-const CHEST_SHAKE_MS = 1250;
+const CHEST_TAPS = 3;
+const CHEST_SHAKE_MS = 700;
 
-function playChestSound(phase) {
+function playChestSound(phase, n = 1) {
   if (evolutionSilence) return;
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
-    // [частота, начало (с), длительность (с), тип, громкость]: глухие «тук-тук», пока сундук трясётся, и восходящий «дзынь» при открытии
+    // [частота, начало (с), длительность (с), тип, громкость]: глухой удар по дереву (с каждым тапом чуть ниже и плотнее) и восходящий «дзынь» при открытии
+    const knock = [
+      [[160, 0, .1, "triangle", .22], [330, 0, .03, "square", .04]],
+      [[180, 0, .1, "triangle", .25], [110, .05, .09, "triangle", .2], [380, 0, .03, "square", .05]],
+      [[210, 0, .11, "triangle", .3], [125, .05, .1, "triangle", .26], [85, .1, .12, "triangle", .22], [440, 0, .03, "square", .06]],
+    ];
     const notes = phase === "open"
       ? [[523, 0, .2, "sine", .13], [659, .09, .2, "sine", .13], [784, .18, .22, "sine", .13], [1047, .28, .45, "sine", .14]]
-      : [[180, 0, .1, "triangle", .22], [150, .32, .1, "triangle", .22], [180, .64, .1, "triangle", .22], [150, .96, .1, "triangle", .22]];
+      : knock[Math.min(Math.max(n, 1), CHEST_TAPS) - 1];
     let end = 0;
     notes.forEach(([freq, at, dur, type, vol]) => {
       const osc = ctx.createOscillator();
@@ -5427,6 +5435,12 @@ function playChestSound(phase) {
     });
     setTimeout(() => { try { ctx.close(); } catch (_) {} }, (end + 0.3) * 1000);
   } catch (_) {}
+}
+
+// Тап по сундуку: n = 1..3. Вибро — от тихого к заметному (см. haptics.js::knock).
+function hapticKnock(n) {
+  if (window.AdamHaptics && window.AdamHaptics.knock) window.AdamHaptics.knock(n);
+  else haptic("light");
 }
 
 function chestPrizeItems(reward) {
@@ -5455,8 +5469,10 @@ function hideChestOverlay(overlay) {
   setTimeout(() => { if (!chestRevealBusy) overlay.hidden = true; }, 240);
 }
 
-// request — функция, делающая запрос на открытие (вернёт ответ с reward); onDone(result) — когда окно закрыли.
-// Ошибку запроса окно не глотает: закрывается и пробрасывает её вызывающему (там показывают тост).
+const CHEST_TAP_HINTS = ["Нажми на сундук 3 раза", "Ещё 2 раза", "Ещё один!"];
+
+// request — функция, делающая запрос на открытие (вернёт ответ с reward; её зовут только после третьего тапа); onDone(result) — когда окно
+// закрыли. Ошибку запроса окно не глотает: закрывается и пробрасывает её вызывающему (там показывают тост). «Не сейчас» → null, запроса не было.
 async function openChestReveal({ eyebrow, caption = "", final = false, request, onDone }) {
   const overlay = document.getElementById("chestOverlay");
   const card = document.getElementById("chestCard");
@@ -5465,25 +5481,69 @@ async function openChestReveal({ eyebrow, caption = "", final = false, request, 
     if (onDone) onDone(result);
     return result;
   }
+  const stage = document.getElementById("chestStage");
   const title = document.getElementById("chestTitle");
   const sub = document.getElementById("chestSub");
+  const hint = document.getElementById("chestHint");
   const prizes = document.getElementById("chestPrizes");
   const closeBtn = document.getElementById("chestClose");
   chestRevealBusy = true;
   card.classList.toggle("is-final", !!final);
-  card.dataset.phase = "shake";
+  card.dataset.phase = "wait";
+  card.dataset.taps = "0";
   card.dataset.ready = "0";
   document.getElementById("chestEyebrow").textContent = eyebrow;
-  title.textContent = "Открываем сундук…";
+  title.textContent = "Тапни по сундуку";
   sub.textContent = caption;
+  hint.textContent = CHEST_TAP_HINTS[0];
   prizes.innerHTML = "";
-  closeBtn.disabled = true;
+  closeBtn.textContent = "Не сейчас";
+  closeBtn.disabled = false;
   overlay.hidden = false;
   overlay.setAttribute("aria-hidden", "false");
   void overlay.offsetWidth;
   overlay.classList.add("show");
-  haptic("medium");
-  playChestSound("shake");
+  haptic("light");
+
+  // Ждём три тапа по сундуку (или «Не сейчас»).
+  const outcome = await new Promise((resolve) => {
+    let taps = 0;
+    const finish = (value) => {
+      stage.removeEventListener("click", onTap);
+      overlay.removeEventListener("click", onWaitClick);
+      document.removeEventListener("keydown", onWaitKey);
+      resolve(value);
+    };
+    function onTap() {
+      if (taps >= CHEST_TAPS) return;
+      taps += 1;
+      card.dataset.taps = String(taps);
+      stage.style.setProperty("--kn", String(taps));
+      stage.classList.remove("is-knock");
+      void stage.offsetWidth;                 // перезапуск анимации удара
+      stage.classList.add("is-knock");
+      hapticKnock(taps);
+      playChestSound("tap", taps);
+      hint.textContent = CHEST_TAP_HINTS[taps] || "";
+      if (taps >= CHEST_TAPS) finish("tapped");
+    }
+    function onWaitClick(e) { if (e.target === overlay || e.target.closest("#chestClose")) finish("later"); }
+    function onWaitKey(e) {
+      if (e.key === "Escape") finish("later");
+      else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap(); }
+    }
+    stage.addEventListener("click", onTap);
+    overlay.addEventListener("click", onWaitClick);
+    document.addEventListener("keydown", onWaitKey);
+  });
+  if (outcome === "later") {
+    chestRevealBusy = false;
+    hideChestOverlay(overlay);
+    return null;
+  }
+
+  card.dataset.phase = "shake";
+  title.textContent = "Открываем…";
   const startedAt = performance.now();
   let result;
   try {
@@ -5500,8 +5560,10 @@ async function openChestReveal({ eyebrow, caption = "", final = false, request, 
   const items = chestPrizeItems(result?.reward || {});
   title.textContent = final ? "Главный сундук открыт!" : "Сундук открыт!";
   prizes.innerHTML = items.join("");
+  closeBtn.textContent = "Забрать";
+  closeBtn.disabled = true;
   card.dataset.phase = "open";
-  haptic("success");
+  haptic("triple");
   playChestSound("open");
 
   let closed = false;
@@ -6606,7 +6668,7 @@ function initPlanActions() {
     overlay.classList.add("show");
     window.__adamLevelUpAt = performance.now();
     burstCoins();
-    haptic("success");
+    haptic(isMilestone ? "triple" : "success");   // рубеж (10/20/30…) — тройная долгая вибрация, обычный уровень — «успех»
 
     const dismiss = () => {
       overlay.classList.remove("show");
@@ -7617,7 +7679,7 @@ function applyPairQuest(next) {
   const cur = next?.quest;
   if (prev && cur && prev.id === cur.id) {
     if (cur.phase === "completed" && prev.phase !== "completed") {
-      haptic("success");
+      haptic("triple");
       showToast("🏆 Парное задание выполнено — открой сундук на Главной", "praise", 4600);
     } else if (cur.phase === "active" && cur.progress > prev.progress) {
       showToast(`🤝 ${cur.progress}/${cur.goal}`, "success", 2200);
@@ -7882,13 +7944,14 @@ async function pairCardAction(button) {
   button.disabled = true;
   try {
     if (act === "claim") {
-      // Окно «Сундук»: запрос идёт, пока сундук трясётся; данные применяем, когда окно закрыли.
-      await openChestReveal({
+      // Окно «Сундук»: три тапа по сундуку, потом запрос; данные применяем, когда окно закрыли.
+      const opened = await openChestReveal({
         eyebrow: "СУНДУК НА ДВОИХ",
         caption: "Награда за парное задание",
         request: () => api(`/api/pair-quest/${id}/claim`, { method: "POST" }),
         onDone: (result) => applyActionPatch(result),       // обновит монеты/алмазы, месяц и саму карточку
       });
+      if (!opened) button.disabled = false;                 // «Не сейчас»: сундук ждёт, кнопка снова нажимается
     } else {
       const result = await api(`/api/pair-quest/${id}/${endpoint}`, { method: "POST" });
       haptic("medium");
@@ -8012,8 +8075,16 @@ const SIM_SCENES = {
   }),
   adam_intro: () => openAdamIntro({ sim: true }),
   adam_intro_result: () => openAdamIntro({ sim: true, jump: true, demo: { focus: "study", struggle: "start", energy: "morning", span: "s25", hours: "h2", talk: "month" } }),
+  haptic_triple: () => {
+    haptic("triple");
+    showToast("📳 Тройная долгая вибрация — так ощущается сложное достижение", "success", 3600);
+  },
   levelup: () => showLevelUp(12, 11),
   levelup_milestone: () => showLevelUp(30, 29),
+  streak_status: () => openStreakCelebration({
+    streak: 7, message: "День закрыт. Продолжай.", reward: { status: "Старт", frame: "Первая искра" },
+    last7: Array(7).fill({ status: "completed" }),
+  }),
   streak: () => openStreakCelebration({
     streak: 7, message: "День закрыт. Продолжай.",
     last7: ["completed", "completed", "freeze", "completed", "completed", "completed", "completed"].map((status) => ({ status })),
@@ -8481,12 +8552,12 @@ function playEvolutionCinematic(level, { replay = false } = {}) {
 
   evolutionAt(30, () => add("is-dim"));
   if (lite) {
-    evolutionAt(700, () => { haptic("success"); revealEvolution(); });
+    evolutionAt(700, () => { haptic("triple"); revealEvolution(); });
   } else {
     evolutionAt(700, () => { evolutionRun.video?.pause(); add("is-s1"); haptic("select"); });
     evolutionAt(1900, () => { add("is-s2"); haptic("light"); });
     evolutionAt(3100, () => { add("is-gold"); haptic("confirm"); });
-    evolutionAt(4300, () => { add("is-flash"); haptic("success"); playEvolutionSwell(); });
+    evolutionAt(4300, () => { add("is-flash"); haptic("triple"); playEvolutionSwell(); });
     evolutionAt(4800, revealEvolution);
   }
   return true;

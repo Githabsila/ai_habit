@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261020_INTRO_V64">
+<link rel="stylesheet" href="/static/style.css?v=20261020_TAPS_V65">
 </head>
 <body>
 
@@ -1379,9 +1379,9 @@ class="habit-add-form__submit">
 </div>
 
 <div class="chest-overlay" id="chestOverlay" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="chestTitle">
-  <div class="chest-card" id="chestCard" data-phase="shake" data-ready="0">
+  <div class="chest-card" id="chestCard" data-phase="wait" data-taps="0" data-ready="0">
     <div class="chest-eyebrow" id="chestEyebrow">СУНДУК МЕСЯЦА</div>
-    <div class="chest-stage" aria-hidden="true">
+    <div class="chest-stage" id="chestStage" role="button" tabindex="0" aria-label="Нажми на сундук три раза, чтобы открыть">
       <span class="chest-glow"></span>
       <span class="chest-ring"></span>
       <div class="chest-box">
@@ -1427,10 +1427,12 @@ class="habit-add-form__submit">
       <i class="chest-spark" style="--dx:-84px;--dy:8px;--delay:.09s"></i>
       <i class="chest-spark chest-spark--w" style="--dx:82px;--dy:10px;--delay:.02s"></i>
     </div>
-    <h2 class="chest-title" id="chestTitle" aria-live="polite">Открываем сундук…</h2>
+    <div class="chest-pips" aria-hidden="true"><i></i><i></i><i></i></div>
+    <h2 class="chest-title" id="chestTitle" aria-live="polite">Тапни по сундуку</h2>
     <p class="chest-sub" id="chestSub"></p>
+    <p class="chest-hint" id="chestHint" aria-live="polite">Нажми на сундук 3 раза</p>
     <ul class="chest-prizes" id="chestPrizes"></ul>
-    <button class="chest-btn" id="chestClose" type="button" disabled>Забрать</button>
+    <button class="chest-btn" id="chestClose" type="button">Не сейчас</button>
   </div>
 </div>
 
@@ -1578,9 +1580,9 @@ class="habit-add-form__submit">
 </div>
 
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
-<script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
+<script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261020_INTRO_V74"></script>
+<script type="module" src="/static/app.js?v=20261020_TAPS_V75"></script>
 
 </body>
 </html>

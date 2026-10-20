@@ -6,6 +6,10 @@
  *   • подтверждение действия — лёгкий удар и тихое эхо через 70 мс;
  *   • праздник (уровень, серия, сундук) и предупреждение — системные
  *     notification success/warning, а не самые сильные «heavy»/«error»;
+ *   • за что-то по-настоящему сложное (открытый сундук, рубеж уровня, эволюция,
+ *     выполненное парное задание, новый статус серии) — тройная долгая
+ *     вибрация triple(), как за целый раздел в Duolingo; удары по сундуку
+ *     knock(1..3) растут от тапа к тапу;
  *   • два вызова подряд сливаются: чаще чем раз в 30 мс вибрация не идёт.
  *
  * Глобальный обработчик клика сам даёт «тап» любой кнопке и кликабельной
@@ -37,7 +41,15 @@
     select: 5,
     success: [10, 50, 10, 50, 14],
     warning: [12, 60, 12],
+    triple: [180, 110, 180, 110, 260],
   };
+
+  // Тройная долгая вибрация: Telegram умеет только короткие удары, поэтому «долгий» всплеск — это системный success и следом серия
+  // лёгких тиков каждые 45 мс; три всплеска с паузами (всё вместе около секунды). Остаётся в той же мягкой палитре: success + light.
+  var TRIPLE_BURST_MS = 330;
+  var TRIPLE_TICK_MS = 45;
+  var TRIPLE_TICKS = 4;
+  var tripleTimers = [];
 
   var lastAt = 0;
   var seq = 0;
@@ -83,6 +95,10 @@
     return true;
   }
 
+  function cancelTriple() {
+    while (tripleTimers.length) clearTimeout(tripleTimers.pop());
+  }
+
   var AdamHaptics = {
     // Обычное нажатие.
     tap: function () { return fire("soft"); },
@@ -105,6 +121,30 @@
     reward: function () { return fire("soft", 450); },
     // Праздник: уровень, серия, сундук.
     success: function () { return fire("success"); },
+    // Тап по сундуку: первый — самый тихий, второй чуть заметнее, третий — подтверждение с эхом (растёт к открытию).
+    knock: function (n) { return n >= 3 ? AdamHaptics.confirm() : fire(n === 2 ? "light" : "soft"); },
+    // Тройная долгая вибрация — за что-то сложное (см. шапку файла). Новый вызов обрывает прошлый, выключатель её глушит.
+    triple: function () {
+      if (!enabled) return false;
+      cancelTriple();
+      lastAt = Date.now();
+      seq += 1;
+      if (echoTimer) { clearTimeout(echoTimer); echoTimer = null; }
+      if (!nativeFeedback()) {
+        try { if (navigator.vibrate) navigator.vibrate(FALLBACK.triple); } catch (_) {}
+        return true;
+      }
+      for (var burst = 0; burst < 3; burst++) {
+        (function (offset) {
+          var start = function () { pulse("success"); };
+          if (offset === 0) start(); else tripleTimers.push(setTimeout(start, offset));
+          for (var tick = 1; tick <= TRIPLE_TICKS; tick++) {
+            tripleTimers.push(setTimeout(function () { if (enabled) pulse("light"); }, offset + tick * TRIPLE_TICK_MS));
+          }
+        })(burst * TRIPLE_BURST_MS);
+      }
+      return true;
+    },
     // Мягкое предупреждение: ошибка, необратимое действие.
     warning: function () { return fire("warning"); },
     // Совместимость со старыми вызовами haptic("light"|"medium"|"heavy"):
@@ -118,6 +158,7 @@
         case "error":
         case "warning": return AdamHaptics.warning();
         case "success": return AdamHaptics.success();
+        case "triple": return AdamHaptics.triple();
         case "reward": return AdamHaptics.reward();
         default: return AdamHaptics.tap(); // light, soft, rigid, tap и всё прочее
       }
@@ -125,6 +166,7 @@
     isEnabled: function () { return enabled; },
     setEnabled: function (value) {
       enabled = !!value;
+      if (!enabled) cancelTriple();
       try { window.localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0"); } catch (_) {}
     },
   };
