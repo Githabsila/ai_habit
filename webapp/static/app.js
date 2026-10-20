@@ -728,7 +728,7 @@
           const left = Math.round(100 * ch.at / mq.goal);
           const stateClass = ch.claimed ? "is-claimed" : (ch.reached ? "is-ready" : "");
           return `<div class="month-chest ${stateClass}" style="left:${left}%">
-            <span class="month-chest__icon">${ch.claimed ? "✓" : (ch.final ? "🏆" : "🎁")}</span>
+            <span class="month-chest__icon">${ch.claimed ? ICON_CHECK : `<span class="month-chest__glyph">${ch.final ? "🏆" : "🎁"}</span>`}</span>
             <span class="month-chest__at">${ch.at}</span>
             <span class="month-chest__reward">${monthChestLabel(ch)}</span>
           </div>`;
@@ -5065,6 +5065,142 @@ function compressImageToDataUrl(file) {
   });
 }
 
+// ===================== Окно «Сундук» =====================
+// Открытие сундука месяца и парного задания. Закрытый сундук потряхивает, пока идёт запрос (минимум ~1.2 с —
+// награда не «выскакивает» мгновенно), потом крышка откидывается, вылетают искры, одна за другой появляются награды
+// и загорается «Забрать». Данные (монеты, месяц, уровень) применяем, когда окно закрыли: левел-ап не прячется
+// под сундуком, а числа в шапке меняются на глазах. Только transform/opacity и конечные анимации (см. style.css).
+let chestRevealBusy = false;
+const CHEST_SHAKE_MS = 1250;
+
+function playChestSound(phase) {
+  if (evolutionSilence) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    // [частота, начало (с), длительность (с), тип, громкость]: глухие «тук-тук», пока сундук трясётся, и восходящий «дзынь» при открытии
+    const notes = phase === "open"
+      ? [[523, 0, .2, "sine", .13], [659, .09, .2, "sine", .13], [784, .18, .22, "sine", .13], [1047, .28, .45, "sine", .14]]
+      : [[180, 0, .1, "triangle", .22], [150, .32, .1, "triangle", .22], [180, .64, .1, "triangle", .22], [150, .96, .1, "triangle", .22]];
+    let end = 0;
+    notes.forEach(([freq, at, dur, type, vol]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = ctx.currentTime + at;
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t); osc.stop(t + dur + 0.02);
+      end = Math.max(end, at + dur);
+    });
+    setTimeout(() => { try { ctx.close(); } catch (_) {} }, (end + 0.3) * 1000);
+  } catch (_) {}
+}
+
+function chestPrizeItems(reward) {
+  const items = [];
+  const chip = (icon, big, small) => items.push(
+    `<li class="chest-prize" style="--i:${items.length}"><span class="chest-prize__icon">${icon}</span><b>${big}</b><small>${small}</small></li>`
+  );
+  const coins = Number(reward.coins) || 0;
+  const diamonds = Number(reward.diamonds) || 0;
+  const points = Number(reward.month_points) || 0;
+  if (coins) chip(ADAM_COIN_ICON, `+${coins}`, "Adam Coin");
+  if (diamonds) chip("💎", `+${diamonds}`, pluralRu(diamonds, "алмаз", "алмаза", "алмазов"));
+  if (points) chip("🎯", `+${points}`, "к заданиям месяца");
+  if (reward.badge) {
+    items.push(
+      `<li class="chest-prize chest-prize--wide" style="--i:${items.length}"><span class="chest-prize__icon">🏆</span>` +
+      `<span class="chest-prize__text"><b>Значок «${escapeHtml(reward.badge)}»</b><small>в твоих достижениях</small></span></li>`
+    );
+  }
+  return items;
+}
+
+function hideChestOverlay(overlay) {
+  overlay.classList.remove("show");
+  overlay.setAttribute("aria-hidden", "true");
+  setTimeout(() => { if (!chestRevealBusy) overlay.hidden = true; }, 240);
+}
+
+// request — функция, делающая запрос на открытие (вернёт ответ с reward); onDone(result) — когда окно закрыли.
+// Ошибку запроса окно не глотает: закрывается и пробрасывает её вызывающему (там показывают тост).
+async function openChestReveal({ eyebrow, caption = "", final = false, request, onDone }) {
+  const overlay = document.getElementById("chestOverlay");
+  const card = document.getElementById("chestCard");
+  if (!overlay || !card || chestRevealBusy) {
+    const result = await request();
+    if (onDone) onDone(result);
+    return result;
+  }
+  const title = document.getElementById("chestTitle");
+  const sub = document.getElementById("chestSub");
+  const prizes = document.getElementById("chestPrizes");
+  const closeBtn = document.getElementById("chestClose");
+  chestRevealBusy = true;
+  card.classList.toggle("is-final", !!final);
+  card.dataset.phase = "shake";
+  card.dataset.ready = "0";
+  document.getElementById("chestEyebrow").textContent = eyebrow;
+  title.textContent = "Открываем сундук…";
+  sub.textContent = caption;
+  prizes.innerHTML = "";
+  closeBtn.disabled = true;
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  void overlay.offsetWidth;
+  overlay.classList.add("show");
+  haptic("medium");
+  playChestSound("shake");
+  const startedAt = performance.now();
+  let result;
+  try {
+    result = await request();
+  } catch (err) {
+    chestRevealBusy = false;
+    hideChestOverlay(overlay);
+    throw err;
+  }
+  const reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const wait = (reduceMotion ? 250 : CHEST_SHAKE_MS) - (performance.now() - startedAt);
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+
+  const items = chestPrizeItems(result?.reward || {});
+  title.textContent = final ? "Главный сундук открыт!" : "Сундук открыт!";
+  prizes.innerHTML = items.join("");
+  card.dataset.phase = "open";
+  haptic("success");
+  playChestSound("open");
+
+  let closed = false;
+  const close = () => {
+    if (closed || card.dataset.ready !== "1") return;
+    closed = true;
+    overlay.removeEventListener("click", onOverlayClick);
+    document.removeEventListener("keydown", onKey);
+    chestRevealBusy = false;
+    hideChestOverlay(overlay);
+    haptic("light");
+    if (onDone) {
+      try { onDone(result); } catch (err) { console.error("chest onDone", err); }
+    }
+  };
+  function onOverlayClick(e) { if (e.target === overlay || e.target.closest("#chestClose")) close(); }
+  function onKey(e) { if (e.key === "Escape" || e.key === "Enter") close(); }
+  overlay.addEventListener("click", onOverlayClick);
+  document.addEventListener("keydown", onKey);
+  setTimeout(() => {
+    card.dataset.ready = "1";
+    closeBtn.disabled = false;
+    try { closeBtn.focus({ preventScroll: true }); } catch (_) {}
+  }, reduceMotion ? 300 : 450 + Math.max(items.length, 1) * 180 + 450);
+  return result;
+}
+
 // Roadmap #12 — клик "Забрать" у выполненного квеста дня + открытие/
 // закрытие модалки квестов (кнопка #dailyQuestsBtn в "Сегодня").
 function initDailyQuestActions() {
@@ -5075,16 +5211,17 @@ function initDailyQuestActions() {
     const btn = e.currentTarget;
     const at = Number(btn.dataset.chest);
     if (!at) return;
+    const mq = state?.month_quests;
+    const chest = (mq?.chests || []).find((c) => Number(c.at) === at);
     btn.disabled = true;
     try {
-      const result = await api("/api/month-quests/claim", { method: "POST", body: JSON.stringify({ at }) });
-      haptic("success");
-      const r = result.reward;
-      const parts = [`+${r.coins} Adam Coin`];
-      if (r.diamonds) parts.push(`+${r.diamonds} 💎`);
-      showToast(`🎁 ${parts.join(", ")}`, "praise", 3800);
-      if (r.badge) setTimeout(() => showToast(`🏆 Значок «${r.badge}» — в твоих достижениях`, "praise", 4500), 3000);
-      applyActionPatch(result);
+      await openChestReveal({
+        eyebrow: chest?.final ? "ГЛАВНЫЙ СУНДУК МЕСЯЦА" : "СУНДУК МЕСЯЦА",
+        caption: `${at} из ${mq?.goal || 60} заданий месяца`,
+        final: !!chest?.final,
+        request: () => api("/api/month-quests/claim", { method: "POST", body: JSON.stringify({ at }) }),
+        onDone: (result) => applyActionPatch(result),
+      });
     } catch (err) {
       showToast(friendlyError(err), "error");
     } finally {
@@ -6671,7 +6808,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -7416,13 +7553,16 @@ async function pairCardAction(button) {
   pairBusy = true;
   button.disabled = true;
   try {
-    const result = await api(`/api/pair-quest/${id}/${endpoint}`, { method: "POST" });
     if (act === "claim") {
-      haptic("success");
-      const r = result.reward || {};
-      showToast(`🎁 Сундук открыт: +${r.coins} Adam Coin и 💎${r.diamonds}`, "praise", 4200);
-      applyActionPatch(result);       // обновит монеты/алмазы, месяц и саму карточку
+      // Окно «Сундук»: запрос идёт, пока сундук трясётся; данные применяем, когда окно закрыли.
+      await openChestReveal({
+        eyebrow: "СУНДУК НА ДВОИХ",
+        caption: "Награда за парное задание",
+        request: () => api(`/api/pair-quest/${id}/claim`, { method: "POST" }),
+        onDone: (result) => applyActionPatch(result),       // обновит монеты/алмазы, месяц и саму карточку
+      });
     } else {
+      const result = await api(`/api/pair-quest/${id}/${endpoint}`, { method: "POST" });
       haptic("medium");
       if (act === "accept") showToast("✅ Приняли! Задание стартует завтра", "success", 3200);
       if (act === "cancel" && result.left_early) showToast("Вышли из задания — теперь можно выбрать нового союзника", "success", 3600);

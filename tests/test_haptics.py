@@ -339,7 +339,7 @@ def test_meaningful_moments_use_dedicated_effects():
     assert 'haptic("success")' in APP_JS           # уровень, серия, сундук
     assert 'haptic("reward")' in APP_JS            # похвала за награду
     assert 'haptic("warning")' in APP_JS           # ошибки
-    assert re.search(r'api\("/api/month-quests/claim".{0,120}\n\s*haptic\("success"\)', APP_JS, re.S)
+    assert re.search(r'haptic\("success"\);\s*\n\s*playChestSound\("open"\)', APP_JS), "сундук: вибро-отклик в момент открытия крышки"
 
 
 def test_coach_chat_uses_the_same_module():

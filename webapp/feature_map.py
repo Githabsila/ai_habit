@@ -129,8 +129,9 @@ FEATURES = (
     ),
     Feature(
         "quests", "Квесты дня и задания месяца", "growth", "2026-01-01",
-        screens=("dailyQuests",),
-        clicks=("dailyQuestsBtn", "monthCardOpen", "daily-quest__*"),
+        screens=("dailyQuests", "chest"),
+        clicks=("dailyQuestsBtn", "monthCardOpen", "daily-quest__*", "chestClose"),
+        events=("chest_opened",),
         api=("POST /api/quests/{quest_key}/claim", "POST /api/month-quests/claim", "POST /api/daily-bonus/claim"),
         bot=("cb:daily", "cb:daily_bonus", "cb:refresh_daily"),
     ),

@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261016_PAIRLEAVE_V62">
+<link rel="stylesheet" href="/static/style.css?v=20261020_CHEST_V63">
 </head>
 <body>
 
@@ -1373,6 +1373,62 @@ class="habit-add-form__submit">
   </div>
 </div>
 
+<div class="chest-overlay" id="chestOverlay" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="chestTitle">
+  <div class="chest-card" id="chestCard" data-phase="shake" data-ready="0">
+    <div class="chest-eyebrow" id="chestEyebrow">СУНДУК МЕСЯЦА</div>
+    <div class="chest-stage" aria-hidden="true">
+      <span class="chest-glow"></span>
+      <span class="chest-ring"></span>
+      <div class="chest-box">
+        <svg class="chest-body" viewBox="0 0 160 96" width="160" height="96">
+          <defs>
+            <linearGradient id="chestWood" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" style="stop-color:var(--chest-wood-1,#D88A3A)"/>
+              <stop offset="1" style="stop-color:var(--chest-wood-2,#92501A)"/>
+            </linearGradient>
+            <linearGradient id="chestGold" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" style="stop-color:var(--chest-gold-1,#FFE59A)"/>
+              <stop offset="1" style="stop-color:var(--chest-gold-2,#F2A81D)"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="0" width="144" height="40" rx="12" fill="#1d0f04"/>
+          <ellipse class="chest-inside" cx="80" cy="12" rx="62" ry="9" fill="#FFE08A"/>
+          <rect x="8" y="12" width="144" height="82" rx="12" fill="url(#chestWood)" stroke="#5b2f0d" stroke-width="3"/>
+          <path d="M11 44h138M11 68h138" stroke="#5b2f0d" stroke-opacity=".32" stroke-width="2"/>
+          <rect x="8" y="12" width="144" height="11" rx="5" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
+          <rect x="30" y="12" width="14" height="82" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
+          <rect x="116" y="12" width="14" height="82" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
+          <rect x="8" y="84" width="144" height="10" rx="5" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
+        </svg>
+        <svg class="chest-lid" viewBox="0 0 160 70" width="160" height="70">
+          <path d="M8 66V38C8 16 40 4 80 4s72 12 72 34v28z" fill="url(#chestWood)" stroke="#5b2f0d" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M22 36C24 22 46 13 80 13" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="4" stroke-linecap="round"/>
+          <rect x="30" y="8" width="14" height="58" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
+          <rect x="116" y="8" width="14" height="58" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
+          <rect x="8" y="56" width="144" height="12" rx="5" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
+          <rect class="chest-lock" x="67" y="46" width="26" height="24" rx="6" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="2"/>
+          <circle cx="80" cy="56" r="3.6" fill="#5b2f0d"/>
+          <rect x="78.4" y="57" width="3.2" height="7" rx="1.4" fill="#5b2f0d"/>
+        </svg>
+      </div>
+      <i class="chest-spark" style="--dx:-92px;--dy:-74px;--delay:0s"></i>
+      <i class="chest-spark chest-spark--w" style="--dx:90px;--dy:-80px;--delay:.05s"></i>
+      <i class="chest-spark" style="--dx:-62px;--dy:-100px;--delay:.1s"></i>
+      <i class="chest-spark chest-spark--w" style="--dx:64px;--dy:-104px;--delay:.03s"></i>
+      <i class="chest-spark chest-spark--w" style="--dx:-104px;--dy:-24px;--delay:.08s"></i>
+      <i class="chest-spark" style="--dx:102px;--dy:-18px;--delay:.12s"></i>
+      <i class="chest-spark chest-spark--w" style="--dx:-34px;--dy:-114px;--delay:.06s"></i>
+      <i class="chest-spark" style="--dx:36px;--dy:-116px;--delay:.14s"></i>
+      <i class="chest-spark" style="--dx:-84px;--dy:8px;--delay:.09s"></i>
+      <i class="chest-spark chest-spark--w" style="--dx:82px;--dy:10px;--delay:.02s"></i>
+    </div>
+    <h2 class="chest-title" id="chestTitle" aria-live="polite">Открываем сундук…</h2>
+    <p class="chest-sub" id="chestSub"></p>
+    <ul class="chest-prizes" id="chestPrizes"></ul>
+    <button class="chest-btn" id="chestClose" type="button" disabled>Забрать</button>
+  </div>
+</div>
+
 <div class="levelup-overlay" id="levelupOverlay" hidden>
   <div class="levelup-card">
     <div class="levelup-sparkles">✨🎉✨</div>
@@ -1504,7 +1560,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261003_HAPTICS_V1"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261016_ADAM_V71"></script>
+<script type="module" src="/static/app.js?v=20261020_CHEST_V72"></script>
 
 </body>
 </html>

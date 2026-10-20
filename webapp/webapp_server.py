@@ -649,6 +649,8 @@ async def claim_month_chest_route(request):
     result = claim_month_chest(telegram_id, body.get("at"))
     if "error" in result:
         return web.json_response({"error": result["error"]}, status=400)
+    from db.tracking import track_server
+    track_server(telegram_id, "chest_opened", step=f"month_{result['at']}", meta={"coins": result["coins"], "diamonds": result["diamonds"]})
     return web.json_response({
         "ok": True,
         "reward": {k: result[k] for k in ("at", "coins", "diamonds", "badge")},
@@ -826,6 +828,8 @@ async def pair_claim_route(request):
     result = claim_pair_chest(telegram_id, request.match_info["quest_id"])
     if "error" in result:
         return _pair_error(result)
+    from db.tracking import track_server
+    track_server(telegram_id, "chest_opened", step="pair", meta={"coins": result["coins"], "diamonds": result["diamonds"]})
     return web.json_response({
         "ok": True,
         "reward": {"coins": result["coins"], "diamonds": result["diamonds"], "month_points": result["month_points"]},

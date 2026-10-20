@@ -521,7 +521,7 @@ async def test_followup_without_a_model_uses_a_clean_fallback_text(uid, monkeypa
     assert await adam_proactive.process_followup(bot, uid, "s", _local(15, 30)) == "sent: after_mark/fallback"
     text = bot.sent[0][1]
     assert ac.is_acceptable(text, "after_mark") and not _problems(text) and "{" not in text
-    assert "Зарядка" in text or "Чтение" in text, text
+    assert any(title in text for title in ("Зарядка", "Чтение", "Английский")), text      # какая именно — зависит от (человек, дата)
 
 
 async def test_followup_after_a_chat_remembers_the_topic(uid, monkeypatch, no_followup_flag):

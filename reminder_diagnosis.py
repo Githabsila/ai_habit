@@ -89,7 +89,7 @@ def diagnose_user(user_id, now_utc=None):
         recent.append({"when": f"{local:%d.%m %H:%M}", "label": item["label"]})
         if local.date().isoformat() == today:
             sent_today.setdefault(item["category"], f"{local:%H:%M}")
-    skips_today = {s["kind"]: s for s in recent_skips(user_id, days=1) if s["day"] == today}
+    skips_today = {s["kind"]: s for s in recent_skips(user_id, since_day=today) if s["day"] == today}
 
     checkpoints = []
     for hour in CHECK_HOURS:

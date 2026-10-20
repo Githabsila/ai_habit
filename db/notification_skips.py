@@ -42,13 +42,14 @@ def record_skip(user_id, day, kind, reason):
         logger.warning("Не удалось записать причину пропуска напоминания (%s)", user_id, exc_info=True)
 
 
-def recent_skips(user_id, days=7):
-    """Причины пропусков за последние дни, новые первыми: [{"day", "kind", "reason", "label"}]."""
+def recent_skips(user_id, days=7, since_day=None):
+    """Причины пропусков за последние дни, новые первыми: [{"day", "kind", "reason", "label"}]. since_day (YYYY-MM-DD) — считать
+    с этого дня, а не с «сегодня по часам сервера»: разбор точки дня задаёт свой «сейчас»."""
     conn = connect()
     try:
         rows = conn.execute(
-            "SELECT day, kind, reason FROM notification_skips WHERE user_id=? AND day >= date('now', ?) ORDER BY day DESC, kind",
-            (int(user_id), f"-{int(days)} days"),
+            "SELECT day, kind, reason FROM notification_skips WHERE user_id=? AND day >= COALESCE(?, date('now', ?)) ORDER BY day DESC, kind",
+            (int(user_id), since_day, f"-{int(days)} days"),
         ).fetchall()
     finally:
         conn.close()
