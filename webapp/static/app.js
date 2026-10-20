@@ -1523,7 +1523,8 @@
         : (event.message || "День закрыт. Продолжай.");
     }
     if (seven) {
-      seven.innerHTML = (state.streak?.last7 || []).map(d => {
+      // event.last7 — только у симуляции (SIM_SCENES.streak): настоящее событие недели с собой не несёт
+      seven.innerHTML = (event.last7 || state.streak?.last7 || []).map(d => {
         const cls = d.status === "completed" ? "is-done" : d.status === "freeze" ? "is-freeze" : "is-empty";
         return `<span class="streak-seven__day ${cls}">${d.status === "completed" ? "🔥" : d.status === "freeze" ? "❄️" : "○"}</span>`;
       }).join("");
@@ -7659,6 +7660,90 @@ function renderLabBar() {
     <button type="button" class="lab-bar__btn lab-bar__btn--exit" data-lab="exit" aria-label="Выйти из лаборатории">${ICON_X}</button>`;
 }
 
+// ===================== СИМУЛЯЦИИ ОКОН (только админ) =====================
+// Админка → «Окна и анимации» открывает приложение с ?sim=<ключ>: новое окно или праздник проигрывается НАСТОЯЩИМ кодом на
+// демо-данных. Ничего не сохраняется, не отправляется и не начисляется: в сценах нет запросов к серверу (тест это проверяет).
+// Новое окно с анимацией = новая сцена здесь + строка в db/sim_lab.py (тест следит, чтобы списки совпадали). Внизу панель:
+// «‹ предыдущее · ↻ повторить · › следующее · ✕ выйти в админку». Панель лежит под окнами — после закрытия окна она снова видна.
+let simMode = null;   // { list, index }
+
+// Ответ «сервера» в демо: через паузу, чтобы успела сыграть тряска закрытого сундука.
+const simReply = (result, ms = 700) => () => new Promise((resolve) => setTimeout(() => resolve(result), ms));
+
+const SIM_SCENES = {
+  chest_month: () => openChestReveal({
+    eyebrow: "СУНДУК МЕСЯЦА", caption: "30 из 60 заданий месяца",
+    request: simReply({ reward: { at: 30, coins: 50, diamonds: 1 } }),
+  }),
+  chest_final: () => openChestReveal({
+    eyebrow: "ГЛАВНЫЙ СУНДУК МЕСЯЦА", caption: "60 из 60 заданий месяца", final: true,
+    request: simReply({ reward: { at: 60, coins: 150, diamonds: 1, badge: "Октябрь 2026" } }),
+  }),
+  chest_pair: () => openChestReveal({
+    eyebrow: "СУНДУК НА ДВОИХ", caption: "Награда за парное задание",
+    request: simReply({ reward: { coins: 60, diamonds: 1, month_points: 3 } }),
+  }),
+  levelup: () => showLevelUp(12, 11),
+  levelup_milestone: () => showLevelUp(30, 29),
+  streak: () => openStreakCelebration({
+    streak: 7, message: "День закрыт. Продолжай.",
+    last7: ["completed", "completed", "freeze", "completed", "completed", "completed", "completed"].map((status) => ({ status })),
+  }),
+};
+
+async function initSimMode() {
+  const key = new URLSearchParams(location.search).get("sim");
+  if (!key || !state?.user?.is_admin) return;
+  try {
+    const list = ((await api("/api/admin/lab/sims")).scenes || []).filter((item) => SIM_SCENES[item.key]);
+    if (!list.length) return;
+    simMode = { list, index: Math.max(0, list.findIndex((item) => item.key === key)) };
+    renderSimBar();
+    setTimeout(playSimScene, 500);
+  } catch (err) {
+    console.error("initSimMode failed:", err);
+    simMode = null;
+  }
+}
+
+function playSimScene() {
+  const item = simMode?.list[simMode.index];
+  const run = item && SIM_SCENES[item.key];
+  if (!run) return;
+  Promise.resolve(run()).catch((err) => console.error("sim scene failed:", err));
+}
+
+const SIM_ICON_REPLAY = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function renderSimBar() {
+  let bar = document.getElementById("simBar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "simBar";
+    bar.className = "lab-bar";
+    document.body.appendChild(bar);
+    bar.addEventListener("click", (e) => {
+      const act = e.target.closest("[data-sim]")?.dataset.sim;
+      if (!act || !simMode) return;
+      haptic("light");
+      if (act === "exit") { window.location.href = "/admin"; return; }
+      if (act !== "replay") {
+        const n = simMode.list.length;
+        simMode.index = (simMode.index + (act === "next" ? 1 : n - 1)) % n;
+        renderSimBar();
+      }
+      playSimScene();
+    });
+  }
+  const item = simMode.list[simMode.index];
+  bar.innerHTML = `
+    <button type="button" class="lab-bar__btn" data-sim="prev" aria-label="Предыдущее окно">${LAB_ICON_PREV}</button>
+    <button type="button" class="lab-bar__btn" data-sim="replay" aria-label="Повторить">${SIM_ICON_REPLAY}</button>
+    <div class="lab-bar__text"><b>🎬 Окно ${simMode.index + 1}/${simMode.list.length}</b><small>${escapeHtml(item.title)}</small></div>
+    <button type="button" class="lab-bar__btn" data-sim="next" aria-label="Следующее окно">${LAB_ICON_NEXT}</button>
+    <button type="button" class="lab-bar__btn lab-bar__btn--exit" data-sim="exit" aria-label="Выйти в админку">${ICON_X}</button>`;
+}
+
 function togglePairHome() {
   pairHomeExpanded = !pairHomeExpanded;
   haptic("light");
@@ -9925,6 +10010,7 @@ async function boot() {
             initGenderActions();
             postBootstrapInitDone = true;
             initLabMode();
+            initSimMode();
         }
         if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {
           document.getElementById("archetypeQuizBtn").textContent = state.user.archetype;

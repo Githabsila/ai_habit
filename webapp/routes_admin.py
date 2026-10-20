@@ -42,6 +42,7 @@ from db.core import DB_PATH
 from db.admin_gifts import grant_admin_badge
 from db.admin_support import find_users_for_admin, list_active_users_for_admin
 from db.pair_lab import build_scenario, lab_scenarios
+from db.sim_lab import sim_scenes
 from db import adam_checkin as adam_ck
 from db.pair_quests import get_pair_rating
 from db import ai_usage as ai_usage_db
@@ -163,6 +164,13 @@ async def admin_lab_pair_route(request):
     if payload is None:
         return web.json_response({"error": "not_found"}, status=404)
     return web.json_response({"pair_quest": payload})
+
+
+@routes.get("/api/admin/lab/sims")
+async def admin_lab_sims_route(request):
+    """«Окна и анимации»: список симуляций новых окон (db/sim_lab.py); приложение проигрывает их по ?sim=<ключ>."""
+    await _authenticate_admin(request)
+    return web.json_response({"scenes": sim_scenes()})
 
 
 @routes.get("/api/admin/lab/adam-chat")

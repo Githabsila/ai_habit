@@ -480,6 +480,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--gold">🎬</span>Окна и анимации</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Новые окна и праздники — настоящие, но на демо-данных: ничего не начисляется и не сохраняется. Внизу экрана стрелки между окнами и «повторить».</div>' +
+        '<div id="simBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--violet">🗣</span>Ответы Адама в чате</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Проверить, как Адам отвечает на типовые сообщения: живая модель, твой день и привычки (или любого человека по ID). В переписку ничего не пишется и лимит не тратится.</div>' +
         '<select class="field" id="adamChatPreset"><option value="">Выбрать типовое сообщение…</option></select>' +
@@ -534,6 +540,7 @@ textarea.field{resize:vertical;min-height:88px}
     });
     loadActiveUsers();
     loadLab();
+    loadSims();
     loadAdamLab();
     loadAdamChatLab();
     loadReferrals();
@@ -818,6 +825,23 @@ textarea.field{resize:vertical;min-height:88px}
       box.innerHTML = '<div class="btn-row" style="flex-direction:column;align-items:stretch;gap:6px">' +
         items.map(function(s){
           return '<a class="btn" style="text-align:left;text-decoration:none" href="/?lab=' + encodeURIComponent(s.key) + '">🤝 ' + escapeHtml(s.title) + '</a>';
+        }).join('') + '</div>';
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  // «Окна и анимации»: каждая кнопка открывает приложение с ?sim=<ключ> (app.js::initSimMode), список — db/sim_lab.py.
+  async function loadSims(){
+    var box = document.getElementById('simBox');
+    if (!box) return;
+    try{
+      var items = (await api('/api/admin/lab/sims')).scenes || [];
+      box.innerHTML = '<div class="btn-row" style="flex-direction:column;align-items:stretch;gap:6px">' +
+        items.map(function(s){
+          return '<a class="btn" style="text-align:left;text-decoration:none" href="/?sim=' + encodeURIComponent(s.key) + '">' +
+            '<span style="display:block;flex:1;min-width:0">' + escapeHtml(s.icon) + ' ' + escapeHtml(s.title) +
+            '<br><small style="font-weight:400;opacity:.65">' + escapeHtml(s.note) + '</small></span></a>';
         }).join('') + '</div>';
     }catch(e){
       box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
