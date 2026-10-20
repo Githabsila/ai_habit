@@ -1522,7 +1522,7 @@
     if (message) {
       message.textContent = reward
         ? `🏆 Новый статус «${reward.status}» — открыта рамка «${reward.frame}». ${event.message || ""}`
-        : (event.message || "День закрыт. Продолжай.");
+        : (event.message || "Отличный ход.");
     }
     if (seven) {
       // event.last7 — только у симуляции (SIM_SCENES.streak): настоящее событие недели с собой не несёт
@@ -5469,7 +5469,7 @@ function hideChestOverlay(overlay) {
   setTimeout(() => { if (!chestRevealBusy) overlay.hidden = true; }, 240);
 }
 
-const CHEST_TAP_HINTS = ["Нажми на сундук 3 раза", "Ещё 2 раза", "Ещё один!"];
+const CHEST_TAP_HINTS = ["Тапни 3 раза", "Ещё 2 раза", "Ещё один!"];
 
 // request — функция, делающая запрос на открытие (вернёт ответ с reward; её зовут только после третьего тапа); onDone(result) — когда окно
 // закрыли. Ошибку запроса окно не глотает: закрывается и пробрасывает её вызывающему (там показывают тост). «Не сейчас» → null, запроса не было.
@@ -5493,7 +5493,7 @@ async function openChestReveal({ eyebrow, caption = "", final = false, request, 
   card.dataset.taps = "0";
   card.dataset.ready = "0";
   document.getElementById("chestEyebrow").textContent = eyebrow;
-  title.textContent = "Тапни по сундуку";
+  title.textContent = "Тебя ждёт награда";
   sub.textContent = caption;
   hint.textContent = CHEST_TAP_HINTS[0];
   prizes.innerHTML = "";
@@ -5558,7 +5558,7 @@ async function openChestReveal({ eyebrow, caption = "", final = false, request, 
   if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
 
   const items = chestPrizeItems(result?.reward || {});
-  title.textContent = final ? "Главный сундук открыт!" : "Сундук открыт!";
+  title.textContent = final ? "Весь приз твой!" : "Всё твоё!";
   prizes.innerHTML = items.join("");
   closeBtn.textContent = "Забрать";
   closeBtn.disabled = true;
@@ -5607,7 +5607,7 @@ function initDailyQuestActions() {
     try {
       await openChestReveal({
         eyebrow: chest?.final ? "ГЛАВНЫЙ СУНДУК МЕСЯЦА" : "СУНДУК МЕСЯЦА",
-        caption: `${at} из ${mq?.goal || 60} заданий месяца`,
+        caption: `${at} из ${mq?.goal || 60} заданий`,
         final: !!chest?.final,
         request: () => api("/api/month-quests/claim", { method: "POST", body: JSON.stringify({ at }) }),
         onDone: (result) => applyActionPatch(result),
@@ -6621,7 +6621,7 @@ function initPlanActions() {
     { name: "🥈 Серебро", text: "Дисциплина уже не случайность — это ты.", a: "#171b24", b: "#0a0c10", glow: "rgba(180,200,224,.36)", glowStrong: "rgba(180,200,224,.6)", accent: "#C9D6E8" },
     { name: "🥇 Золото", text: "Ты сильнее, чем месяц назад.", a: "#2a2007", b: "#100c04", glow: "rgba(240,180,41,.42)", glowStrong: "rgba(240,180,41,.68)", accent: "#FFD54F" },
     { name: "💎 Платина", text: "Немногие заходят так далеко.", a: "#07242a", b: "#040e10", glow: "rgba(45,212,191,.40)", glowStrong: "rgba(45,212,191,.65)", accent: "#2DD4BF" },
-    { name: "👑 Легенда", text: "Легенда ADAM. Продолжай.", a: "#1c0a2a", b: "#0b0410", glow: "rgba(167,139,250,.44)", glowStrong: "rgba(167,139,250,.7)", accent: "#A78BFA" },
+    { name: "👑 Легенда", text: "Выше — только ты сам.", a: "#1c0a2a", b: "#0b0410", glow: "rgba(167,139,250,.44)", glowStrong: "rgba(167,139,250,.7)", accent: "#A78BFA" },
   ];
   let levelUpTimer = null;
 
@@ -8276,7 +8276,7 @@ async function pairCardAction(button) {
       // Окно «Сундук»: три тапа по сундуку, потом запрос; данные применяем, когда окно закрыли.
       const opened = await openChestReveal({
         eyebrow: "СУНДУК НА ДВОИХ",
-        caption: "Награда за парное задание",
+        caption: "За парное задание",
         request: () => api(`/api/pair-quest/${id}/claim`, { method: "POST" }),
         onDone: (result) => applyActionPatch(result),       // обновит монеты/алмазы, месяц и саму карточку
       });
@@ -8413,15 +8413,15 @@ const SIM_FRIEND = { telegram_id: 0, first_name: "Мария", avatar_id: "defau
 
 const SIM_SCENES = {
   chest_month: () => openChestReveal({
-    eyebrow: "СУНДУК МЕСЯЦА", caption: "30 из 60 заданий месяца",
+    eyebrow: "СУНДУК МЕСЯЦА", caption: "30 из 60 заданий",
     request: simReply({ reward: { at: 30, coins: 50, diamonds: 1 } }),
   }),
   chest_final: () => openChestReveal({
-    eyebrow: "ГЛАВНЫЙ СУНДУК МЕСЯЦА", caption: "60 из 60 заданий месяца", final: true,
+    eyebrow: "ГЛАВНЫЙ СУНДУК МЕСЯЦА", caption: "60 из 60 заданий", final: true,
     request: simReply({ reward: { at: 60, coins: 150, diamonds: 1, badge: "Октябрь 2026" } }),
   }),
   chest_pair: () => openChestReveal({
-    eyebrow: "СУНДУК НА ДВОИХ", caption: "Награда за парное задание",
+    eyebrow: "СУНДУК НА ДВОИХ", caption: "За парное задание",
     request: simReply({ reward: { coins: 60, diamonds: 1, month_points: 3 } }),
   }),
   adam_intro: () => openAdamIntro({ sim: true }),
@@ -8436,11 +8436,11 @@ const SIM_SCENES = {
   levelup: () => showLevelUp(12, 11),
   levelup_milestone: () => showLevelUp(30, 29),
   streak_status: () => openStreakCelebration({
-    streak: 7, message: "День закрыт. Продолжай.", reward: { status: "Старт", frame: "Первая искра" },
+    streak: 7, message: "Отличный ход.", reward: { status: "Старт", frame: "Первая искра" },
     last7: Array(7).fill({ status: "completed" }),
   }),
   streak: () => openStreakCelebration({
-    streak: 7, message: "День закрыт. Продолжай.",
+    streak: 7, message: "Отличный ход.",
     last7: ["completed", "completed", "freeze", "completed", "completed", "completed", "completed"].map((status) => ({ status })),
   }),
 };
@@ -8582,7 +8582,7 @@ const EVO_ICONS = {
   apex: '<path d="M.8 14.2L6 4.8l2.4 3.8 1.9-2.6 4.9 8.2z"/>',
   legend: '<path d="M1 12.8L.6 4.2l3.9 3.4L8 2.4l3.5 5.2 3.9-3.4-.4 8.6z"/>',
 };
-const EVOLUTION_REVEAL_TEXT = "Эта форма ADAM теперь с тобой навсегда — срыв серии её не отнимет. Друзья увидят твой ранг в профиле.";
+const EVOLUTION_REVEAL_TEXT = "Эта форма ADAM теперь с тобой навсегда — даже срыв серии её не отнимет. Друзья увидят твой ранг.";
 
 function evoLadder() { return state?.hero?.evolution?.ladder || []; }
 

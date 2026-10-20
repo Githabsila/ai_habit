@@ -69,7 +69,7 @@ def test_chest_window_markup_is_a_hidden_dialog_with_all_parts():
 
 
 def test_script_and_style_versions_follow_the_release():
-    assert "style.css?v=20261020_INBOX_V67" in INDEX and "app.js?v=20261020_INBOX_V77" in INDEX
+    assert "style.css?v=20261020_INBOX_V67" in INDEX and "app.js?v=20261020_COPY_V78" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- скрипт
@@ -110,7 +110,7 @@ def test_every_tap_knocks_with_its_own_sound_and_vibration_and_the_hint_counts_d
     assert "hapticKnock(taps);" in tap and 'playChestSound("tap", taps);' in tap
     assert 'stage.classList.add("is-knock")' in tap and "void stage.offsetWidth" in tap, "каждый удар перезапускает анимацию"
     assert "if (taps >= CHEST_TAPS) finish(\"tapped\");" in tap
-    assert 'CHEST_TAP_HINTS = ["Нажми на сундук 3 раза", "Ещё 2 раза", "Ещё один!"]' in APP_JS
+    assert 'CHEST_TAP_HINTS = ["Тапни 3 раза", "Ещё 2 раза", "Ещё один!"]' in APP_JS
     assert 'e.key === "Enter" || e.key === " "' in body, "с клавиатуры тоже три нажатия"
     sound = APP_JS[APP_JS.index("function playChestSound("):][:1800]
     assert sound.count('"triangle"') >= 6 and "knock[Math.min(Math.max(n, 1), CHEST_TAPS) - 1]" in sound, "у каждого из трёх ударов свой звук"
