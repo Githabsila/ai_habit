@@ -1162,6 +1162,10 @@ def create_tables():
         temp_status TEXT
     )
     """)
+    # Заморозки кончились (db/gifts.py::freeze_states); остальные поздние колонки streak_meta добавляет db/streak.py::ensure_tables().
+    cursor.execute("PRAGMA table_info(streak_meta)")
+    if "freeze_empty_since" not in {row[1] for row in cursor.fetchall()}:
+        cursor.execute("ALTER TABLE streak_meta ADD COLUMN freeze_empty_since TEXT")
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS streak_days(
         user_id INTEGER NOT NULL,

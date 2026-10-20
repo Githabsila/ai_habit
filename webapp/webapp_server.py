@@ -101,6 +101,7 @@ from datetime import date, datetime, timezone
 from multi_agent import generate_progress_analysis
 from db import ai_usage
 from db import adam_profile as adam_profile_db
+from db.gifts import freeze_help_candidates, FREEZE_GIFT_PRICE
 from db.tracking import ingest as ingest_track
 from db import usage as usage_db
 from db.traffic import attribute_from_init_data
@@ -1939,6 +1940,7 @@ async def friends_route(request):
     return web.json_response({
         "friends": overview["friends"],
         "viewer_done": overview["viewer_done"],
+        "freeze_price": overview["freeze_price"],          # цена подарка-заморозки: серая снежинка у друга (db/gifts.py)
         "counts": get_counts(telegram_id),
         "invite_url": f"https://t.me/{username}?start=friend_{telegram_id}" if username else None,
         # Награда за приглашения (db/referrals.py): сколько слотов осталось — по этому Mini App пишет «за первых двух…».
@@ -2258,11 +2260,18 @@ async def gift_options_route(request):
     return web.json_response(options)
 
 
+@routes.get("/api/freeze-help")
+async def freeze_help_route(request):
+    """Друзья, у которых кончились заморозки (серия идёт, запас 0): окно «Надо помочь другу!» при входе в приложение. Цена подарка — price."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({"price": FREEZE_GIFT_PRICE, "friends": freeze_help_candidates(telegram_id)})
+
+
 @routes.post("/api/users/{telegram_id}/gift")
 async def user_gift_route(request):
-    """Подарок другу: {"kind": "diamonds", "amount": 3} или {"kind": "item",
-    "item_id": 5}. Правила — в db/gifts.py (только друзьям, без очков, лимит
-    в день, платит отправитель)."""
+    """Подарок другу: {"kind": "diamonds", "amount": 3}, {"kind": "item",
+    "item_id": 5} или {"kind": "freeze"} (заморозка серии). Правила — в
+    db/gifts.py (только друзьям, без очков, лимит в день, платит отправитель)."""
     telegram_id, is_admin = await _authenticate(request)
     target_id = _target_id_or_none(request)
     if target_id is None:
@@ -2280,6 +2289,11 @@ async def user_gift_route(request):
     if gift["kind"] == "diamonds":
         what = f"💎 {gift['amount']}"
         hint = ""
+    elif gift["kind"] == "freeze":
+        what = "заморозку серии ❄️"
+        hint = " Она сама сохранит серию, если пропустишь день."
+        from db.tracking import track_server
+        track_server(telegram_id, "freeze_gift_sent", meta={"to": target_id})
     else:
         what = f"«{html.escape(str(gift['label']))}»"
         # Дарятся только рамки и аватар (db/gifts.py::GIFTABLE_ITEM_TYPES) — надеваются

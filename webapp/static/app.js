@@ -6511,6 +6511,8 @@ function initPlanActions() {
     daily_limit: "No more gifts today — try again tomorrow",
     not_enough_diamonds: "Not enough diamonds",
     already_owned: "Your friend already has this",
+    receiver_full: "Your friend already has the maximum number of freezes",
+    receiver_limit: "Your friend already got a freeze today",
     item_not_giftable: "This can't be sent as a gift",
     invalid_amount: "You can't gift that many diamonds",
     not_enough_coins: "Not enough Adam Coin",
@@ -6572,6 +6574,8 @@ function initPlanActions() {
         daily_limit: "На сегодня подарки закончились — завтра снова можно",
         not_enough_diamonds: "Не хватает алмазов",
         already_owned: "У друга это уже есть",
+        receiver_full: "У друга уже максимум заморозок",
+        receiver_limit: "Сегодня другу уже подарили заморозку",
         item_not_giftable: "Такой подарок отправить нельзя",
         invalid_amount: "Столько алмазов подарить нельзя",
         not_enough_coins: "Не хватает Adam Coin",
@@ -7016,11 +7020,11 @@ function avatarFrameClass(user) {
 
 // Имя в строке друга/подписки + значок ранга справа: имя при нехватке места
 // усекается многоточием, значок остаётся целиком.
-function friendNameHtml(u, fallback) {
+function friendNameHtml(u, fallback, extra = "") {
   const name = escapeHtml(u.first_name || fallback);
   const chip = evoChipHtml(u.evo);
-  if (!chip) return `<span class="friend-row__name">${name}</span>`;
-  return `<span class="friend-row__name friend-row__name--evo"><span class="friend-row__name-text">${name}</span>${chip}</span>`;
+  if (!chip && !extra) return `<span class="friend-row__name">${name}</span>`;
+  return `<span class="friend-row__name friend-row__name--evo"><span class="friend-row__name-text">${name}</span>${chip}${extra}</span>`;
 }
 
 function friendRowHtml(f, { viewerDone = true } = {}) {
@@ -7041,7 +7045,7 @@ function friendRowHtml(f, { viewerDone = true } = {}) {
     <li class="friend-row" data-friend-id="${id}" data-profile-id="${id}">
       <span class="friend-row__avatar ${avatarFrameClass(f)}">${avatarInner(f)}</span>
       <span class="friend-row__info">
-        ${friendNameHtml(f, "Друг")}
+        ${friendNameHtml(f, "Друг", friendFreezeHtml(f))}
         ${meta ? `<span class="friend-row__meta">${meta}</span>` : ""}
       </span>
       ${action}
@@ -7198,7 +7202,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -7277,6 +7281,15 @@ function initFriendsActions() {
       await openFriendInvite();
       return;
     }
+    const freezeBtn = e.target.closest("[data-freeze-help]");
+    if (freezeBtn) {
+      const friend = (friendsData?.friends || []).find((f) => Number(f.telegram_id) === Number(freezeBtn.dataset.freezeHelp));
+      if (friend) {
+        trk("freeze_help_open");
+        openFreezeHelp({ friend, price: Number(friendsData.freeze_price) || 200 });
+      }
+      return;
+    }
     const nudgeBtn = e.target.closest("[data-nudge]");
     if (nudgeBtn) {
       await nudgeFriend(Number(nudgeBtn.dataset.nudge), nudgeBtn);
@@ -7305,6 +7318,145 @@ function initFriendsActions() {
   });
   document.getElementById("remindFriendsClose")?.addEventListener("click", closeRemindSheet);
   document.getElementById("remindFriendsBackdrop")?.addEventListener("click", closeRemindSheet);
+}
+
+// ===================== ЗАМОРОЗКА ДРУГУ (взаимопомощь, как в Duolingo) =====================
+// У друга кончились заморозки (последняя ушла на спасение дня, а серия идёт) — в карточке «Друзья» справа от его имени появляется серая
+// снежинка. Тап открывает окно «Надо помочь другу!»: «Отправить одну за 🪙 200» или «Нет, спасибо». То же окно один раз за сессию само
+// появляется при входе, если такой друг есть (по одному разу в день на друга, и только если монет хватает). Подарок и правила — db/gifts.py
+// (kind "freeze": только друзьям, цену платит отправитель, у друга запас не больше двух, в день ему дарят одну). У кого сколько заморозок —
+// видно в списке друзей: синяя снежинка с цифрой. sim — симуляция из админки (SIM_SCENES): ничего не отправляется и не списывается.
+const FREEZE_FLAKE = (cls) =>
+  `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.5v19M3.8 7.25l16.4 9.5M3.8 16.75l16.4-9.5M9.6 4.6L12 6.6l2.4-2M9.6 19.4L12 17.4l2.4 2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+// Значок заморозок у друга: серая кнопка, если они кончились (тап — подарить), синяя снежинка с числом, если запас есть. Нет заморозок и не было — пусто.
+function friendFreezeHtml(f) {
+  const z = f.freeze;
+  if (!z) return "";
+  if (z.needs_help) {
+    return `<button type="button" class="friend-freeze friend-freeze--help" data-freeze-help="${Number(f.telegram_id)}" aria-label="У друга кончились заморозки — подарить одну">${FREEZE_FLAKE("friend-freeze__icon")}</button>`;
+  }
+  const have = Number(z.balance) || 0;
+  return have > 0
+    ? `<span class="friend-freeze friend-freeze--have" title="Заморозок в запасе: ${have}">${FREEZE_FLAKE("friend-freeze__icon")}<b>${have}</b></span>`
+    : "";
+}
+
+let freezeHelp = null;            // { friend, price, coins, sim, step: "offer" | "sent", busy }
+let freezeHelpPrompted = false;   // окно при входе — один раз за сессию
+
+function freezeHelpCoins() {
+  return Number(state?.user?.xp) || 0;
+}
+
+function renderFreezeHelp() {
+  const s = freezeHelp;
+  if (!s) return;
+  const name = s.friend.first_name || "Друг";
+  const card = document.getElementById("freezeHelpCard");
+  const send = document.getElementById("freezeHelpSend");
+  const affordable = s.coins >= s.price;
+  card.dataset.state = s.step;
+  document.getElementById("freezeHelpBalance").innerHTML = `${ADAM_COIN_ICON}<b>${s.coins}</b>`;
+  const avatar = document.getElementById("freezeHelpAvatar");
+  avatar.className = `freeze-help-avatar ${avatarFrameClass(s.friend)}`;
+  avatar.innerHTML = avatarInner(s.friend);
+  const streak = Number(s.friend.streak) || 0;
+  if (s.step === "sent") {
+    document.getElementById("freezeHelpTitle").textContent = "Заморозка отправлена!";
+    document.getElementById("freezeHelpSub").textContent = streak > 0
+      ? `Серия 🔥 ${streak} под защитой: один пропущенный день её не погасит.` : `${name} теперь под защитой от одного пропущенного дня.`;
+    send.textContent = "Отлично";
+    send.disabled = false;
+  } else {
+    document.getElementById("freezeHelpTitle").textContent = `${name} теперь без заморозок! Надо помочь другу!`;
+    document.getElementById("freezeHelpSub").textContent = streak > 0
+      ? `Серия 🔥 ${streak} под угрозой: один пропущенный день — и она погаснет.` : "";
+    send.innerHTML = affordable ? `Отправить одну за ${ADAM_COIN_ICON}${s.price}` : `Не хватает монет: нужно ${s.price}`;
+    send.disabled = !affordable || s.busy;
+  }
+}
+
+function openFreezeHelp({ friend, price, coins = null, sim = false, sent = false } = {}) {
+  const overlay = document.getElementById("freezeHelpOverlay");
+  if (!overlay || freezeHelp || !friend) return false;
+  freezeHelp = { friend, price: Number(price) || 200, coins: coins === null ? freezeHelpCoins() : Number(coins), sim, step: sent ? "sent" : "offer", busy: false };
+  hideProductHint();
+  renderFreezeHelp();
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  void overlay.offsetWidth;
+  overlay.classList.add("show");
+  haptic("light");
+  return true;
+}
+
+function closeFreezeHelp() {
+  const s = freezeHelp;
+  if (!s) return;
+  const overlay = document.getElementById("freezeHelpOverlay");
+  overlay.classList.remove("show");
+  overlay.setAttribute("aria-hidden", "true");
+  setTimeout(() => { if (!freezeHelp) overlay.hidden = true; }, 300);
+  freezeHelp = null;
+  haptic("light");
+}
+
+async function sendFreezeHelp() {
+  const s = freezeHelp;
+  if (!s || s.busy || s.step !== "offer" || s.coins < s.price) return;
+  s.busy = true;
+  renderFreezeHelp();
+  try {
+    if (s.sim) {
+      s.coins -= s.price;
+    } else {
+      const result = await api(`/api/users/${Number(s.friend.telegram_id)}/gift`, { method: "POST", body: JSON.stringify({ kind: "freeze" }) });
+      applyActionPatch(result);
+      s.coins = freezeHelpCoins();
+      const friend = (friendsData?.friends || []).find((f) => Number(f.telegram_id) === Number(s.friend.telegram_id));
+      if (friend) { friend.freeze = { balance: 1, needs_help: false }; renderFriendsCard(); }
+    }
+  } catch (err) {
+    s.busy = false;
+    showToast(friendlyError(err), "error");
+    if (["receiver_full", "receiver_limit", "not_friends"].includes(err?.data?.error)) { closeFreezeHelp(); loadFriendsCard(); }
+    else renderFreezeHelp();
+    return;
+  }
+  s.busy = false;
+  s.step = "sent";
+  renderFreezeHelp();
+  haptic("success");
+  playChime();
+}
+
+// Окно при входе: один запрос и одно окно за сессию, по одному разу в день на друга, только если монет хватает и ничто другое не открыто.
+async function maybeShowFreezeHelp(attempt = 0) {
+  if (freezeHelpPrompted || freezeHelp || labMode || simMode) return;
+  const busy = !state?.user || introChainPending() || adamIntro || state?.adam_intro?.show || celebrationOverlayOpen();
+  if (busy) { if (attempt < 3) setTimeout(() => maybeShowFreezeHelp(attempt + 1), 7000); return; }
+  freezeHelpPrompted = true;
+  let data;
+  try { data = await api("/api/freeze-help", { timeoutMs: 8000 }); } catch (_) { return; }
+  const price = Number(data?.price) || 200;
+  if (freezeHelpCoins() < price) return;
+  const today = new Date().toLocaleDateString("sv");
+  const key = (id) => `adam_freeze_help_${id}`;
+  const friend = (data.friends || []).find((f) => { try { return localStorage.getItem(key(f.telegram_id)) !== today; } catch (_) { return true; } });
+  if (!friend || celebrationOverlayOpen()) return;
+  try { localStorage.setItem(key(friend.telegram_id), today); } catch (_) { /* без памяти окно просто покажется снова в следующий раз */ }
+  trk("freeze_help_shown");
+  openFreezeHelp({ friend, price });
+}
+
+function initFreezeHelp() {
+  document.getElementById("freezeHelpSend")?.addEventListener("click", () => {
+    if (freezeHelp?.step === "sent") closeFreezeHelp();
+    else sendFreezeHelp();
+  });
+  document.getElementById("freezeHelpSkip")?.addEventListener("click", () => closeFreezeHelp());
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && freezeHelp) closeFreezeHelp(); });
 }
 
 // ===================== ПАРНОЕ ЗАДАНИЕ (db/pair_quests.py) =====================
@@ -8060,6 +8212,8 @@ let simMode = null;   // { list, index }
 // Ответ «сервера» в демо: через паузу, чтобы успела сыграть тряска закрытого сундука.
 const simReply = (result, ms = 700) => () => new Promise((resolve) => setTimeout(() => resolve(result), ms));
 
+const SIM_FRIEND = { telegram_id: 0, first_name: "Мария", avatar_id: "default", frame_id: "default", streak: 14 };
+
 const SIM_SCENES = {
   chest_month: () => openChestReveal({
     eyebrow: "СУНДУК МЕСЯЦА", caption: "30 из 60 заданий месяца",
@@ -8075,6 +8229,8 @@ const SIM_SCENES = {
   }),
   adam_intro: () => openAdamIntro({ sim: true }),
   adam_intro_result: () => openAdamIntro({ sim: true, jump: true, demo: { focus: "study", struggle: "start", energy: "morning", span: "s25", hours: "h2", talk: "month" } }),
+  freeze_help: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 640 }),
+  freeze_help_sent: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 440, sent: true }),
   haptic_triple: () => {
     haptic("triple");
     showToast("📳 Тройная долгая вибрация — так ощущается сложное достижение", "success", 3600);
@@ -9057,6 +9213,14 @@ function renderGiftSheet() {
         <button type="button" class="gift-row__btn" data-gift-kind="diamonds" data-gift-amount="${Number(d.amount)}"
           ${d.affordable && !noLeft ? "" : "disabled"}>💎 ${Number(d.amount)}</button>`).join("")}</div>
     </div>
+    ${o.freeze ? `<div class="gift-section">
+      <div class="gift-section__title">Заморозка серии ❄️ <small>${o.freeze.can_send ? "сохранит серию, если друг пропустит день" : (o.freeze.reason === "full" ? "у друга уже полный запас" : "сегодня другу уже дарили")}</small></div>
+      <ul class="gift-items"><li class="gift-row">
+        <span class="gift-row__name">Заморозка · у друга ${Number(o.freeze.receiver_balance)} из ${Number(o.freeze.max_balance)}</span>
+        <button type="button" class="gift-row__btn" data-gift-kind="freeze" data-gift-price="${Number(o.freeze.price)}"
+          ${o.freeze.can_send && o.freeze.affordable && !noLeft ? "" : "disabled"}>${ADAM_COIN_ICON} ${Number(o.freeze.price)}</button>
+      </li></ul>
+    </div>` : ""}
     <div class="gift-section">
       <div class="gift-section__title">Предметы за Adam Coin <small>платишь ты, очки получателю не идут</small></div>
       <ul class="gift-items">${o.items.map((it) => {
@@ -9108,6 +9272,9 @@ async function sendGiftFromSheet(btn) {
   if (kind === "diamonds") {
     payload = { kind, amount: Number(btn.dataset.giftAmount) };
     if (!confirm(`Подарить ${to} 💎 ${payload.amount}? Они спишутся с твоего баланса.`)) return;
+  } else if (kind === "freeze") {
+    payload = { kind: "freeze" };
+    if (!confirm(`Подарить ${to} заморозку серии за ${btn.dataset.giftPrice} Adam Coin? Монеты спишутся с тебя.`)) return;
   } else {
     payload = { kind: "item", item_id: Number(btn.dataset.giftItem) };
     if (!confirm(`Подарить ${to} «${btn.dataset.giftLabel}» за ${btn.dataset.giftPrice} Adam Coin? Монеты спишутся с тебя.`)) return;
@@ -10361,6 +10528,7 @@ async function boot() {
             initTelegram();
             initStartQuiz();
             initAdamIntro();
+            initFreezeHelp();
             initAppTour();
             initHandleIntro();
             initSelfRewardActions();
@@ -10413,6 +10581,7 @@ async function boot() {
             initLabMode();
             initSimMode();
             renderAdamIntroSettings();
+            setTimeout(() => maybeShowFreezeHelp(), 5000);
         }
         if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {
           document.getElementById("archetypeQuizBtn").textContent = state.user.archetype;

@@ -336,7 +336,7 @@ def test_simulations_cover_the_whole_test_and_the_result():
 
 
 def test_window_styles_are_light_for_weak_webviews():
-    css = CSS[CSS.index("Знакомство с Адамом (тест после онбординга"):CSS.index("Окно «Сундук» (открытие сундука месяца")]
+    css = CSS[CSS.index("Знакомство с Адамом (тест после онбординга"):CSS.index("Заморозка другу (app.js::openFreezeHelp)")]
     assert not re.search(r"(?<![\w-])(?:-webkit-)?filter\s*:", css) and "backdrop-filter" not in css
     assert "infinite" not in css and "@keyframes" not in css
     assert ".adam-intro-overlay[hidden]{display:none !important}" in css

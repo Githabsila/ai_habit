@@ -11,7 +11,10 @@
   • алмазы списываются у отправителя и зачисляются получателю;
   • не больше MAX_GIFTS_PER_DAY подарков в сутки на отправителя;
   • пакеты ответов ИИ, бустеры, Premium и товары за Telegram Stars не
-    дарятся: у них свои дневные лимиты/оплата, подарок стал бы обходом.
+    дарятся: у них свои дневные лимиты/оплата, подарок стал бы обходом;
+  • ЗАМОРОЗКА серии (kind="freeze", 20.10): как в Duolingo — когда у друга кончились заморозки, ему можно подарить одну. Цена та же, что
+    в магазине (FREEZE_GIFT_PRICE, монеты отправителя; очки и уровень не трогаются), у друга запас не больше MAX_FREEZE_BALANCE, и ему
+    дарят не больше одной заморозки в день (иначе можно «набить» запас всем миром); общий дневной лимит подарков отправителя — тот же.
 
 Списание, проверка суточного лимита и выдача идут одной транзакцией:
 первый UPDATE берёт блокировку записи SQLite, поэтому параллельные подарки
@@ -23,6 +26,11 @@ from .core import connect
 
 GIFT_DIAMOND_AMOUNTS = (1, 3, 5)
 MAX_GIFTS_PER_DAY = 3
+FREEZE_GIFT_PRICE = 200                 # = db/streak.py::FREEZE_PRICE (тест следит, чтобы совпадало)
+MAX_FREEZE_BALANCE = 2                  # = db/streak.py::MAX_FREEZE_BALANCE
+FREEZE_GIFTS_PER_RECEIVER_PER_DAY = 1
+FREEZE_HELP_MIN_STREAK = 2              # «надо помочь» — только тем, у кого есть что терять: серия не короче
+FREEZE_HELP_LIMIT = 3                   # сколько друзей без заморозок предлагает окно при входе
 # Рамки и аватар — «frame»/«avatar» (на очень старых базах id 4–6 ещё «cosmetic»,
 # см. миграцию в db/core.py): дарим любые.
 # Тема оформления убрана из интерфейса, а медаль 🏅 выдаёт только администратор
@@ -71,6 +79,8 @@ RECEIVED_LIMIT = 50
 def _received_label(row):
     if row["kind"] == "diamonds":
         return f"{int(row['amount'] or 1)} 💎"
+    if row["kind"] == "freeze":
+        return "Заморозка серии ❄️"
     return row["item_name"] or "Подарок"
 
 
@@ -140,11 +150,19 @@ def mark_gifts_seen(user_id):
     return changed
 
 
+def _freeze_gift_today(cursor, receiver_id, day):
+    """Дарили ли этому человеку заморозку в этот (отправителя) день."""
+    return cursor.execute(
+        "SELECT COUNT(*) AS n FROM gifts WHERE to_user_id=? AND kind='freeze' AND day=?", (receiver_id, day)
+    ).fetchone()["n"] >= FREEZE_GIFTS_PER_RECEIVER_PER_DAY
+
+
 def get_gift_options(sender_id, receiver_id):
     """Что можно подарить этому другу прямо сейчас — для окна подарка.
     {"error": "not_friends"} — если он не друг."""
     if not _are_mutual_friends(sender_id, receiver_id):
         return {"error": "not_friends"}
+    day = _local_day(sender_id)
     conn = connect()
     try:
         c = conn.cursor()
@@ -154,6 +172,9 @@ def get_gift_options(sender_id, receiver_id):
             return {"error": "not_found"}
         owned = {r["item_id"] for r in c.execute("SELECT item_id FROM user_items WHERE user_id=?", (receiver_id,)).fetchall()}
         coins, diamonds = int(sender["xp"] or 0), int(sender["diamonds"] or 0)
+        meta = c.execute("SELECT freeze_balance FROM streak_meta WHERE user_id=?", (receiver_id,)).fetchone()
+        receiver_freezes = int(meta["freeze_balance"] or 0) if meta else 0
+        freeze_today = _freeze_gift_today(c, receiver_id, day)
         items = [
             {
                 "id": it["id"],
@@ -172,6 +193,14 @@ def get_gift_options(sender_id, receiver_id):
         "balances": {"coins": coins, "diamonds": diamonds},
         "diamonds": [{"amount": n, "affordable": diamonds >= n} for n in GIFT_DIAMOND_AMOUNTS],
         "items": items,
+        "freeze": {
+            "price": FREEZE_GIFT_PRICE,
+            "affordable": coins >= FREEZE_GIFT_PRICE,
+            "receiver_balance": receiver_freezes,
+            "max_balance": MAX_FREEZE_BALANCE,
+            "can_send": receiver_freezes < MAX_FREEZE_BALANCE and not freeze_today,
+            "reason": "full" if receiver_freezes >= MAX_FREEZE_BALANCE else ("today" if freeze_today else None),
+        },
         "left_today": gifts_left_today(sender_id),
         "max_per_day": MAX_GIFTS_PER_DAY,
     }
@@ -180,10 +209,11 @@ def get_gift_options(sender_id, receiver_id):
 def send_gift(sender_id, receiver_id, kind, amount=None, item_id=None):
     """{"ok": True, "gift": {...}, "left_today"} либо {"error": код}:
     not_friends / invalid_kind / invalid_amount / item_not_giftable /
-    already_owned / not_enough_coins / not_enough_diamonds / daily_limit."""
+    already_owned / not_enough_coins / not_enough_diamonds / daily_limit /
+    (заморозка) receiver_full / receiver_limit."""
     if not _are_mutual_friends(sender_id, receiver_id):
         return {"error": "not_friends"}
-    if kind not in ("diamonds", "item"):
+    if kind not in ("diamonds", "item", "freeze"):
         return {"error": "invalid_kind"}
 
     day = _local_day(sender_id)
@@ -212,6 +242,20 @@ def send_gift(sender_id, receiver_id, kind, amount=None, item_id=None):
                 conn.rollback()
                 return {"error": "not_enough_diamonds"}
             price, label, db_item_id = 0, f"{amount} 💎", None
+        elif kind == "freeze":
+            meta = c.execute("SELECT freeze_balance FROM streak_meta WHERE user_id=?", (receiver_id,)).fetchone()
+            if meta is None:
+                c.execute("INSERT OR IGNORE INTO streak_meta(user_id, onboarding_seen) VALUES (?, 1)", (receiver_id,))
+            if meta is not None and int(meta["freeze_balance"] or 0) >= MAX_FREEZE_BALANCE:
+                return {"error": "receiver_full"}
+            if _freeze_gift_today(c, receiver_id, day):
+                return {"error": "receiver_limit"}
+            price = FREEZE_GIFT_PRICE
+            c.execute("UPDATE users SET xp = xp - ? WHERE telegram_id=? AND xp >= ?", (price, sender_id, price))
+            if c.rowcount == 0:
+                conn.rollback()
+                return {"error": "not_enough_coins"}
+            label, db_item_id = "Заморозка серии", None
         else:
             try:
                 item_id = int(item_id)
@@ -247,6 +291,15 @@ def send_gift(sender_id, receiver_id, kind, amount=None, item_id=None):
 
         if kind == "diamonds":
             c.execute("UPDATE users SET diamonds = diamonds + ? WHERE telegram_id=?", (amount, receiver_id))
+        elif kind == "freeze":
+            c.execute(
+                "UPDATE streak_meta SET freeze_balance = COALESCE(freeze_balance, 0) + 1, freeze_empty_since = NULL "
+                "WHERE user_id=? AND COALESCE(freeze_balance, 0) < ?",
+                (receiver_id, MAX_FREEZE_BALANCE),
+            )
+            if c.rowcount == 0:      # параллельно подарили/купили — запас уже полный
+                conn.rollback()
+                return {"error": "receiver_full"}
         else:
             c.execute(
                 "INSERT OR IGNORE INTO user_items(user_id, item_id, purchased_at) VALUES (?, ?, ?)",
@@ -268,3 +321,75 @@ def send_gift(sender_id, receiver_id, kind, amount=None, item_id=None):
                  "item_id": db_item_id},
         "left_today": max(0, MAX_GIFTS_PER_DAY - used_today - 1),
     }
+
+
+# ---------------------------------------------------------------------------
+# ДРУЗЬЯМ БЕЗ ЗАМОРОЗОК: иконка в рейтинге и окно «Надо помочь другу!»
+# ---------------------------------------------------------------------------
+
+def freeze_states(friend_ids):
+    """{друг: {"balance": запас заморозок, "needs_help": ...}} — для значков в списке друзей рейтинга. needs_help — у человека идёт серия
+    (не короче FREEZE_HELP_MIN_STREAK), а заморозки КОНЧИЛИСЬ: последняя ушла на спасение дня (db/streak.py::freeze_empty_since).
+    Кто заморозок никогда не имел, «нуждающимся» не считается — им дарят через обычное окно подарка."""
+    ids = [int(i) for i in friend_ids]
+    if not ids:
+        return {}
+    marks = ",".join("?" for _ in ids)
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT u.telegram_id, u.streak, u.banned, COALESCE(sm.freeze_balance, 0) AS balance, sm.freeze_empty_since AS since "
+            f"FROM users u LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id WHERE u.telegram_id IN ({marks})",
+            ids,
+        ).fetchall()
+    finally:
+        conn.close()
+    return {
+        r["telegram_id"]: {
+            "balance": int(r["balance"] or 0),
+            "needs_help": bool(
+                not r["banned"] and int(r["balance"] or 0) == 0 and r["since"] and int(r["streak"] or 0) >= FREEZE_HELP_MIN_STREAK
+            ),
+        }
+        for r in rows
+    }
+
+
+def freeze_help_candidates(viewer_id, limit=FREEZE_HELP_LIMIT):
+    """Друзья (взаимная подписка), которым сейчас стоит помочь, — для окна при входе в приложение. Самая длинная серия — первой; тем,
+    кому сегодня уже подарили заморозку, окно не предлагается."""
+    from .friends import get_friend_sources
+
+    friend_ids = [fid for fid, source in get_friend_sources(viewer_id).items() if source == "friend"]
+    needy = [fid for fid, state in freeze_states(friend_ids).items() if state["needs_help"]]
+    if not needy:
+        return []
+    marks = ",".join("?" for _ in needy)
+    day = _local_day(viewer_id)
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT telegram_id, first_name, username, handle, avatar_id, frame_id, streak FROM users "
+            f"WHERE telegram_id IN ({marks}) ORDER BY streak DESC, telegram_id",
+            needy,
+        ).fetchall()
+        gifted = {
+            r["to_user_id"]
+            for r in conn.execute(
+                f"SELECT DISTINCT to_user_id FROM gifts WHERE kind='freeze' AND day=? AND to_user_id IN ({marks})", [day, *needy]
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+    return [
+        {
+            "telegram_id": r["telegram_id"],
+            "first_name": r["first_name"] or r["username"] or "Друг",
+            "handle": r["handle"],
+            "avatar_id": r["avatar_id"] or "default",
+            "frame_id": r["frame_id"] or "default",
+            "streak": int(r["streak"] or 0),
+        }
+        for r in rows
+        if r["telegram_id"] not in gifted
+    ][: int(limit)]

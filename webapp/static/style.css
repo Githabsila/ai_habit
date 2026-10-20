@@ -14657,6 +14657,71 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 @media(max-width:380px){.adam-intro-title{font-size:21px}}
 
 /* =========================================================
+   Заморозка другу (app.js::openFreezeHelp): серая снежинка справа от имени друга, у которого кончились заморозки, синяя с цифрой — у кого
+   они есть; окно «Надо помочь другу!» в духе Duolingo: аватар, снежинка-значок, «Отправить одну за 🪙 200» / «Нет, спасибо». После
+   отправки значок оттаивает (серый → синий) и разлетаются искры. Только transform/opacity и конечные анимации — без filter и вечных циклов.
+   ========================================================= */
+.friend-freeze{flex:none;display:inline-flex;align-items:center;gap:3px;margin-left:6px}
+.friend-freeze__icon{display:block;width:16px;height:16px}
+.friend-freeze--have{color:#5CC8FF;font-size:11px;font-weight:800;line-height:1}
+.friend-freeze--have b{font-weight:800}
+.friend-freeze--help{width:28px;height:28px;padding:0;justify-content:center;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);
+  color:#8D93A8;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s ease,border-color .2s ease}
+.friend-freeze--help:active{transform:scale(.9);border-color:rgba(92,200,255,.6)}
+
+.freeze-help-overlay{
+  position:fixed;inset:0;z-index:10150;display:flex;flex-direction:column;
+  background:
+    radial-gradient(520px 320px at 50% 38%,rgba(92,200,255,.12),transparent 62%),
+    linear-gradient(170deg,#171c27,#0c0e15);
+  opacity:0;transition:opacity .3s ease;
+}
+.freeze-help-overlay.show{opacity:1}
+.freeze-help-overlay[hidden]{display:none !important}
+.freeze-help-card{
+  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;max-width:480px;width:100%;margin:0 auto;box-sizing:border-box;
+  padding:calc(env(safe-area-inset-top,0px) + 18px) 22px calc(env(safe-area-inset-bottom,0px) + 22px);
+}
+.freeze-help-balance{align-self:flex-end;display:inline-flex;align-items:center;gap:7px;font:800 17px 'Space Grotesk',sans-serif;color:#FFD54F}
+.freeze-help-balance .stat-icon{width:22px;height:22px}
+.freeze-help-main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.freeze-help-stage{position:relative;width:176px;height:176px;margin-bottom:38px}
+.freeze-help-avatar{
+  display:grid;place-items:center;width:176px;height:176px;border-radius:50%;overflow:hidden;
+  background:linear-gradient(135deg,#8e70ff,#6847dc);color:#fff;font:800 66px 'Space Grotesk',sans-serif;
+  border:4px solid rgba(255,255,255,.14);box-sizing:border-box;
+}
+.freeze-help-avatar img{display:block;width:100%;height:100%;object-fit:cover}
+.freeze-help-badge{
+  position:absolute;right:-26px;top:-18px;width:84px;height:84px;border-radius:50%;display:grid;place-items:center;
+  background:#1a202c;border:4px solid #2c3446;color:#7E869B;
+}
+.freeze-help-flake{display:block;width:44px;height:44px}
+.freeze-spark{position:absolute;left:50%;top:50%;width:9px;height:9px;margin:-4px 0 0 -4px;border-radius:2px;background:#7FD6FF;opacity:0}
+.freeze-spark--w{width:6px;height:6px;margin:-3px 0 0 -3px;background:#E3F6FF}
+.freeze-help-title{margin:0 0 12px;font:800 27px/1.22 'Space Grotesk',sans-serif;letter-spacing:-.01em;color:#fff}
+.freeze-help-sub{margin:0;min-height:22px;font-size:15px;line-height:1.5;color:#B2B8CC}
+.freeze-help-actions{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
+.freeze-help-send{
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:16px 20px;border:0;border-radius:18px;cursor:pointer;
+  background:#6FCBFF;box-shadow:0 5px 0 #2B7DB8;color:#06243A;font:800 15px 'Inter',sans-serif;letter-spacing:.05em;text-transform:uppercase;
+  -webkit-tap-highlight-color:transparent;transition:transform .12s ease,box-shadow .12s ease;
+}
+.freeze-help-send .stat-icon{width:20px;height:20px}
+.freeze-help-send:active{transform:translateY(3px);box-shadow:0 2px 0 #2B7DB8}
+.freeze-help-send:disabled{opacity:.5;box-shadow:none;transform:translateY(3px);cursor:default}
+.freeze-help-skip{padding:13px;border:0;background:none;color:#6FCBFF;font:800 14px 'Inter',sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.freeze-help-card[data-state="sent"] .freeze-help-skip{display:none}
+.freeze-help-card[data-state="sent"] .freeze-help-badge{color:#5CC8FF;background:#102f47;border-color:#2C7DB3;animation:freezePop .6s cubic-bezier(.2,1.4,.4,1) both}
+.freeze-help-card[data-state="sent"] .freeze-spark{animation:freezeSpark .9s ease-out var(--delay,0s) both}
+@keyframes freezePop{0%{transform:scale(.7)}55%{transform:scale(1.18)}100%{transform:none}}
+@keyframes freezeSpark{0%{opacity:0;transform:translate(0,0) scale(.3) rotate(0)}15%{opacity:1}100%{opacity:0;transform:translate(var(--dx,0),var(--dy,0)) scale(1) rotate(200deg)}}
+@media (prefers-reduced-motion: reduce){
+  .freeze-help-card[data-state="sent"] .freeze-help-badge,.freeze-help-card[data-state="sent"] .freeze-spark{animation:none}
+}
+@media(max-width:380px){.freeze-help-title{font-size:23px}.freeze-help-stage,.freeze-help-avatar{width:150px;height:150px}}
+
+/* =========================================================
    Окно «Сундук» (открытие сундука месяца и парного задания): сундук появляется, его нужно тапнуть три раза (каждый тап — удар,
    шкала и свечение растут), потом сундук потряхивает, пока идёт запрос, крышка откидывается, вылетают искры и появляются награды.
    Только transform/opacity и конечные анимации — без размытия, без CSS-фильтров и вечных циклов (слабые Android WebView).

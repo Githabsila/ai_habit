@@ -189,9 +189,11 @@ FEATURES = (
     ),
     Feature(
         "gifts", "Подарки друзьям", "social", "2026-09-20",
-        screens=("adminGift",),
-        clicks=("openGiftsBtn", "gift-row__btn*"),
+        screens=("adminGift", "freezeHelp"),
+        clicks=("openGiftsBtn", "gift-row__btn*", "friend-freeze*", "freezeHelp*", "freeze-help-*"),
+        events=("freeze_gift_sent", "freeze_help_shown", "freeze_help_open"),
         api=("POST /api/users/{telegram_id}/gift", "POST /api/gifts/seen"),
+        note="Алмазы, косметика и заморозка серии; окно «Надо помочь другу» и серая заморозка у друга в рейтинге",
     ),
     Feature(
         "invites", "Приглашения и реферальные ссылки", "growth", "2026-01-01",
@@ -261,7 +263,7 @@ PASSIVE_API = (
     "GET /analytics", "GET /static/style.css", "GET /static/app.js", "GET /static/ai_coach.js",
     # загрузки данных разделов и «просмотрено» — приходят вместе с открытием экрана, осознанным действием не считаются
     "POST /api/changelog/seen", "GET /api/activity-feed", "GET /api/notifications/history", "GET /api/reactions", "GET /api/friends",
-    "GET /api/follows", "GET /api/gifts/received", "GET /api/gifts/options", "GET /api/self-reward/history",
+    "GET /api/follows", "GET /api/gifts/received", "GET /api/gifts/options", "GET /api/freeze-help", "GET /api/self-reward/history",
     "GET /api/public/profile/{telegram_id}", "GET /u/{telegram_id}", "GET /api/habits/notes", "GET /api/milestones",
     "GET /api/daily-tasks", "GET /api/shop", "GET /api/ai/history", "GET /api/ai/quota", "GET /api/ai/chat/result",
 )

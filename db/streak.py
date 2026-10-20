@@ -40,6 +40,11 @@ RISK_23 = [
     "Самое время доказать, что ты не сдался, или я ошибаюсь? 😡",
 ]
 
+# Заморозка серии: цена (в магазине и как подарок другу — db/gifts.py) и потолок запаса.
+FREEZE_PRICE = 200
+MAX_FREEZE_BALANCE = 2
+
+
 def ensure_tables():
     conn = connect()
     c = conn.cursor()
@@ -59,6 +64,10 @@ def ensure_tables():
     streak_meta_cols = {r[1] for r in c.fetchall()}
     if "bonus_window_until" not in streak_meta_cols:
         c.execute("ALTER TABLE streak_meta ADD COLUMN bonus_window_until TEXT")
+    # Когда у человека кончились заморозки (местный день): последняя ушла на спасение дня и запас стал 0. Друзьям в рейтинге это видно
+    # серой иконкой — можно подарить заморозку (db/gifts.py). Сбрасывается, когда заморозка снова появилась (покупка или подарок).
+    if "freeze_empty_since" not in streak_meta_cols:
+        c.execute("ALTER TABLE streak_meta ADD COLUMN freeze_empty_since TEXT")
     # Улучшение #50: бесплатное восстановление сорванной серии раз в
     # календарный месяц. last_broken_streak/last_broken_date — снимок того,
     # что было потеряно при последнем срыве (пишется в rollover_user),
@@ -314,7 +323,9 @@ def rollover_user(user_id):
         bal = int(c.fetchone()["freeze_balance"] or 0)
         if bal > 0:
             bal -= 1
-            c.execute("""UPDATE streak_meta SET freeze_balance=? WHERE user_id=?""", (bal, user_id))
+            # Запас кончился именно сейчас — запоминаем день: друзья увидят иконку «без заморозок» (db/gifts.py::freeze_states).
+            c.execute("""UPDATE streak_meta SET freeze_balance=?, freeze_empty_since=? WHERE user_id=?""",
+                      (bal, str(today) if bal == 0 else None, user_id))
             c.execute("""INSERT OR REPLACE INTO streak_days(user_id,day,status,streak_after,ai_message)
                          VALUES(?,?,?,?,?)""", (user_id, previous_day, "freeze", streak, "❄️ День сохранён заморозкой."))
         else:
@@ -562,18 +573,18 @@ def buy_freeze(user_id):
     if count >= 2:
         conn.close()
         return {"ok": False, "error": "weekly_limit"}
-    if bal >= 2:
+    if bal >= MAX_FREEZE_BALANCE:
         conn.close()
         return {"ok": False, "error": "max_balance"}
-    if xp < 200:
+    if xp < FREEZE_PRICE:
         conn.close()
         return {"ok": False, "error": "not_enough_coins"}
-    c.execute("UPDATE users SET xp=xp-200 WHERE telegram_id=?", (user_id,))
-    c.execute("""UPDATE streak_meta SET freeze_balance=?, freeze_purchased_week=?, freeze_purchased_count=?
+    c.execute("UPDATE users SET xp=xp-? WHERE telegram_id=?", (FREEZE_PRICE, user_id))
+    c.execute("""UPDATE streak_meta SET freeze_balance=?, freeze_purchased_week=?, freeze_purchased_count=?, freeze_empty_since=NULL
                  WHERE user_id=?""", (bal + 1, wk, count + 1, user_id))
     conn.commit()
     conn.close()
-    return {"ok": True, "balance": bal + 1, "cost": 200}
+    return {"ok": True, "balance": bal + 1, "cost": FREEZE_PRICE}
 
 def claim_weekly_reward(user_id, reward_type):
     if reward_type not in ("coins", "frame"):
