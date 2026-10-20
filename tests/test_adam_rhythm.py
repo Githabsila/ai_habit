@@ -20,7 +20,7 @@ from tests.test_adam_checkin import _events, _generate_returns, _habits, _local,
 
 TZ = ZoneInfo("Europe/Moscow")
 _counter = itertools.count(870_000_000, 10)
-LATE = "Что случилось — сегодня тебя не было весь день, а обычно ты здесь раньше. День пошёл не по плану?"
+LATE = "Что случилось — сегодня тебя не было весь день. День пошёл не по плану?"
 
 
 @pytest.fixture
@@ -131,7 +131,7 @@ def test_the_prompt_carries_the_rhythm_the_angle_and_the_no_snooping_rule():
     assert "обычно заходит в приложение утром (около 08:40" in prompt and "пришёл только сейчас" in prompt
     assert "Первую привычку за день обычно отмечает около 09:00" in prompt
     assert "Сценарий: " + ac.SCENARIO_GUIDE["late_visit"] in prompt and "Подход на этот раз: " + ac.ANGLES[0] in prompt
-    assert "без слов «слежу»" in prompt and "не больше одного такого наблюдения" in prompt
+    assert "без слов «слежу»" in prompt and "НЕ пересказывай человеку, когда он обычно заходит" in prompt
     quiet = ac.build_checkin_prompt(dict(state, rhythm=dict(ac.EMPTY_RHYTHM)), "zero_done_evening", "no_greeting")
     assert "Ритм человека" not in quiet and "Подход на этот раз" not in quiet
     pause = ac.build_checkin_prompt(_lab("back_after_pause"), "back_after_pause", "short_greeting")
@@ -144,6 +144,63 @@ def test_the_evening_regular_may_be_asked_about_the_mood_but_only_about_the_plan
     assert not ac.is_acceptable(mood, "zero_done_evening") and not ac.is_acceptable("Привет! Как дела?", "evening_regular")
     for scenario in ("late_visit", "evening_regular", "back_after_pause"):
         assert ac.is_acceptable(ac.REFERENCE_EXAMPLES[scenario], scenario), scenario
+
+
+def test_adam_knows_the_usual_visit_time_but_does_not_tell_it_to_the_person():
+    """Владелец (20.10): «Вечером ты обычно заглядываешь сюда» — лишняя информация; Адам использует её молча."""
+    told = [
+        "Привет! Вечером ты обычно заглядываешь сюда — рад тебя видеть. Как по энергии: начнём с «Читать 20 минут»?",
+        "Что случилось — сегодня тебя не было весь день, а обычно ты здесь раньше.",
+        "Вот и ты — обычно раньше. Что-то поменяло планы?",
+        "Ты обычно приходишь утром, а сегодня только сейчас.",
+        "Заглядываешь сюда обычно вечером — вот и сейчас.",
+        "В твоё привычное время ты заходишь реже.",
+    ]
+    for text in told:
+        assert ac.tells_the_visit_habit(text), text
+        for scenario in ("evening_regular", "late_visit", "back_after_pause", "check_in", "free_chat"):
+            assert not ac.is_acceptable(text, scenario), (scenario, text)
+    quiet = [
+        "Привет! Рад тебя видеть. Как по энергии: начнём с «Читать 20 минут»?",
+        "Я ждал тебя. Как настроение — возьмёмся за наши планы?",
+        "Две из шести — для тебя это медленнее обычного. Что отъедает время?",
+        "Сегодня не увидел твоей обычной вечерней тренировки. День просто пошёл иначе?",
+        "Я всегда здесь, если нужно.",
+        "Тебя не было 4 дня — с чего удобнее вернуться?",
+    ]
+    for text in quiet:
+        assert not ac.tells_the_visit_habit(text), text
+    # Модель получает правило в самом промпте и в снимке для чата; сценарии не просят «покажи, что замечаешь время захода».
+    prompt = ac.build_checkin_prompt(_lab("evening_regular"), "evening_regular", "short_greeting")
+    assert "НЕ пересказывай человеку, когда он обычно заходит" in prompt and "вечером ты обычно заглядываешь сюда" in prompt
+    assert "Покажи, что замечаешь привычное время" not in prompt
+    for scenario in ("late_visit", "evening_regular", "back_after_pause"):
+        assert "не называй" in ac.SCENARIO_GUIDE[scenario] or "НЕ называй" in ac.SCENARIO_GUIDE[scenario], scenario
+
+
+def test_no_prepared_text_retells_the_visit_habit():
+    """Эталоны, запасные тексты и шаблоны (то, что пользователь увидит, если модель недоступна) не рассказывают про привычное время."""
+    texts = list(ac.REFERENCE_EXAMPLES.values())
+    for options in ac.FALLBACKS.values():
+        texts.extend([options] if isinstance(options, str) else options)
+    assert len(texts) > 40
+    for text in texts:
+        assert not ac.tells_the_visit_habit(text), text
+
+
+async def test_a_model_text_that_retells_the_habit_is_rewritten(uid, monkeypatch):
+    _person(uid)
+    told = "Привет! Вечером ты обычно заглядываешь сюда — рад тебя видеть. Как по энергии: начнём с «Читать 20 минут»?"
+    answers = [told, "Привет! Рад тебя видеть. Как по энергии: начнём с «Читать 20 минут»?"]
+    prompts = []
+
+    async def fake(prompt, style):
+        prompts.append(prompt)
+        return answers.pop(0)
+    monkeypatch.setattr(adam_proactive, "_generate", fake)
+    text, source = await adam_proactive.compose_message(_lab("evening_regular"), "evening_regular", uid, "2026-10-20")
+    assert source == "llm" and "обычно" not in text and len(prompts) == 2
+    assert "не прошёл проверку" in prompts[1] and "когда человек обычно заходит" in prompts[1]
 
 
 def test_the_chat_snapshot_mentions_the_rhythm_only_when_there_is_something_to_notice():
@@ -183,7 +240,7 @@ def test_the_angle_changes_with_the_last_message_and_is_stable_for_the_same_one(
 async def test_a_repeating_model_text_is_rewritten_once_and_a_template_one_too(uid, monkeypatch):
     _person(uid)
     add_ai_message(uid, "assistant", LATE)
-    answers = [LATE, "Странно видеть тебя только сейчас — обычно ты здесь раньше. Что-то пошло иначе?"]
+    answers = [LATE, "Странно видеть тебя только сейчас. Что-то пошло иначе?"]
     prompts = []
 
     async def fake(prompt, style):
@@ -241,7 +298,7 @@ async def test_the_chat_greeting_notices_a_late_arrival_for_a_regular_user(clien
     real_pick = ac.pick_scenario
     monkeypatch.setattr(ac, "pick_scenario", lambda state, slot, chat_day=False: real_pick({**state, "hour": 19, "minute": 40}, slot, chat_day))
     prompts = []
-    _generate_returns(monkeypatch, "Странно видеть тебя только сейчас — обычно ты здесь с утра. День пошёл иначе?", prompts)
+    _generate_returns(monkeypatch, "Странно видеть тебя только сейчас. День пошёл иначе?", prompts)
     reply = await client.post("/api/ai/greet", json={"init_data": sign_init_data(uid)})
     greeting = (await reply.json())["greeting"]
     assert greeting["message"].startswith("Странно видеть тебя только сейчас")
