@@ -188,6 +188,14 @@ FEATURES = (
         bot=("cb:community", "cb:community_chat", "cb:find_match", "cb:start_challenge", "cb:challenge_with:*"),
     ),
     Feature(
+        "inbox", "Уведомления (колокольчик, разделы)", "social", "2026-10-20",
+        screens=("inbox",),
+        clicks=("inboxBtn", "inbox-*", "inboxOverlay*"),
+        events=("inbox_open", "inbox_tab", "inbox_item"),
+        api=("GET /api/inbox",),
+        note="Экран «Уведомления»: все подарки, сообщения Адама, друзья, подписчики и системное по вкладкам; число новых на колокольчике",
+    ),
+    Feature(
         "gifts", "Подарки друзьям", "social", "2026-09-20",
         screens=("adminGift", "freezeHelp"),
         clicks=("openGiftsBtn", "gift-row__btn*", "friend-freeze*", "freezeHelp*", "freeze-help-*"),
@@ -263,7 +271,8 @@ PASSIVE_API = (
     "GET /analytics", "GET /static/style.css", "GET /static/app.js", "GET /static/ai_coach.js",
     # загрузки данных разделов и «просмотрено» — приходят вместе с открытием экрана, осознанным действием не считаются
     "POST /api/changelog/seen", "GET /api/activity-feed", "GET /api/notifications/history", "GET /api/reactions", "GET /api/friends",
-    "GET /api/follows", "GET /api/gifts/received", "GET /api/gifts/options", "GET /api/freeze-help", "GET /api/self-reward/history",
+    "GET /api/follows", "GET /api/gifts/received", "GET /api/gifts/options", "GET /api/freeze-help",
+    "GET /api/inbox/summary", "POST /api/inbox/seen", "GET /api/self-reward/history",
     "GET /api/public/profile/{telegram_id}", "GET /u/{telegram_id}", "GET /api/habits/notes", "GET /api/milestones",
     "GET /api/daily-tasks", "GET /api/shop", "GET /api/ai/history", "GET /api/ai/quota", "GET /api/ai/chat/result",
 )

@@ -7202,7 +7202,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "inboxOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -7318,6 +7318,183 @@ function initFriendsActions() {
   });
   document.getElementById("remindFriendsClose")?.addEventListener("click", closeRemindSheet);
   document.getElementById("remindFriendsBackdrop")?.addEventListener("click", closeRemindSheet);
+}
+
+// ===================== ЦЕНТР УВЕДОМЛЕНИЙ (db/inbox.py) =====================
+// Колокольчик в правом верхнем углу шапки → экран «Уведомления»: вся лента (подарки, сообщения Адама, друзья, подписчики, системное)
+// и вкладки-разделы сверху (Все · Системные · Адам · Друзья · Подписчики · Подарки): переключаются одним тапом, лента грузится один раз,
+// вкладки только фильтруют. Список разделов и записи отдаёт сервер (новый вид уведомления — новый «источник» в db/inbox.py, приложение
+// менять не нужно). На колокольчике — число новых (GET /api/inbox/summary: при входе, при возвращении в приложение и раз в две минуты).
+// Открыли центр — метка «прочитано» обновляется, а новые записи в этой сессии остаются подсвеченными. demo — симуляция из админки.
+let inboxState = null;          // { items, categories, tab, demo }
+let inboxPollTimer = null;
+const INBOX_EMPTY = {
+  all: "Здесь появятся подарки, сообщения Адама и новости от друзей и подписчиков.",
+  system: "Про серию, заморозки и новости ADAM напишем сюда.",
+  adam: "Когда Адам напишет сам, его сообщение будет здесь.",
+  friends: "Поддержка, напоминания и парные задания с друзьями — здесь.",
+  followers: "Новые подписчики появятся здесь.",
+  gifts: "Подарки от друзей и администратора будут здесь.",
+};
+
+function setInboxBadge(count) {
+  const badge = document.getElementById("inboxBadge");
+  if (!badge) return;
+  const n = Number(count) || 0;
+  badge.hidden = n <= 0;
+  badge.textContent = n > 99 ? "99+" : String(n);
+}
+
+async function refreshInboxBadge() {
+  if (labMode || simMode || document.visibilityState === "hidden") return;
+  try {
+    const data = await api("/api/inbox/summary", { timeoutMs: 8000 });
+    setInboxBadge(data?.unread);
+  } catch (_) { /* колокольчик просто останется как был */ }
+}
+
+function inboxWhen(at) {
+  const d = new Date(String(at).replace(" ", "T") + "Z");
+  if (Number.isNaN(d.getTime())) return { day: "", time: "" };
+  const now = new Date();
+  const dayStart = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const day = diff === 0 ? "Сегодня" : diff === 1 ? "Вчера" : d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+  return { day, time };
+}
+
+function inboxItemHtml(it) {
+  const when = inboxWhen(it.at);
+  const lead = it.actor
+    ? `<span class="friend-row__avatar inbox-item__avatar ${avatarFrameClass(it.actor)}">${avatarInner(it.actor)}<i class="inbox-item__kind">${it.icon}</i></span>`
+    : `<span class="inbox-item__icon">${it.icon}</span>`;
+  const action = it.action?.type ? ` data-inbox-action="${escapeHtml(it.action.type)}"${it.action.id ? ` data-inbox-id="${Number(it.action.id)}"` : ""}` : "";
+  return `
+    <li class="inbox-item${it.unread ? " is-unread" : ""}${it.action?.type ? " is-tappable" : ""}" data-inbox-kind="${escapeHtml(it.kind)}"${action}>
+      ${lead}
+      <span class="inbox-item__body">
+        <b class="inbox-item__title">${escapeHtml(it.title)}</b>
+        ${it.text ? `<small class="inbox-item__text">${escapeHtml(it.text)}</small>` : ""}
+      </span>
+      <time class="inbox-item__time">${escapeHtml(when.time)}</time>
+    </li>`;
+}
+
+function renderInbox() {
+  const s = inboxState;
+  const tabs = document.getElementById("inboxTabs");
+  const body = document.getElementById("inboxBody");
+  if (!s || !tabs || !body) return;
+  tabs.innerHTML = s.categories.map((c) => `
+    <button type="button" class="inbox-tab${c.key === s.tab ? " is-active" : ""}" role="tab" aria-selected="${c.key === s.tab}" data-inbox-tab="${escapeHtml(c.key)}">
+      ${escapeHtml(c.label)}${Number(c.unread) > 0 ? `<i class="inbox-tab__count">${Number(c.unread) > 99 ? "99+" : Number(c.unread)}</i>` : ""}
+    </button>`).join("");
+  const items = s.tab === "all" ? s.items : s.items.filter((it) => it.cat === s.tab);
+  if (!items.length) {
+    body.innerHTML = `<div class="inbox-empty"><span class="inbox-empty__icon">🔔</span><b>Здесь пока тихо</b><p>${escapeHtml(INBOX_EMPTY[s.tab] || INBOX_EMPTY.all)}</p></div>`;
+    return;
+  }
+  let lastDay = null;
+  const parts = [];
+  items.forEach((it) => {
+    const day = inboxWhen(it.at).day;
+    if (day !== lastDay) {
+      if (lastDay !== null) parts.push("</ul>");
+      parts.push(`<div class="inbox-day">${escapeHtml(day)}</div><ul class="inbox-list">`);
+      lastDay = day;
+    }
+    parts.push(inboxItemHtml(it));
+  });
+  parts.push("</ul>");
+  body.innerHTML = parts.join("");
+}
+
+function showInboxOverlay() {
+  const overlay = document.getElementById("inboxOverlay");
+  if (!overlay) return;
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  const scroller = document.getElementById("inboxBody");
+  if (scroller) scroller.scrollTop = 0;
+  requestAnimationFrame(() => { overlay.classList.add("is-open"); syncBackButton(); });
+  hideProductHint();
+}
+
+function closeInbox() {
+  const overlay = document.getElementById("inboxOverlay");
+  if (!overlay || overlay.hidden) return;
+  overlay.classList.remove("is-open");
+  overlay.setAttribute("aria-hidden", "true");
+  setTimeout(() => { if (!overlay.classList.contains("is-open")) overlay.hidden = true; }, 300);
+  syncBackButton();
+  if (inboxState && !inboxState.demo) refreshInboxBadge();
+}
+
+// demo — готовая лента для симуляции (SIM_SCENES): ничего не грузится и не отмечается прочитанным.
+async function openInbox({ demo = null } = {}) {
+  haptic("light");
+  inboxState = { items: [], categories: [], tab: "all", demo: !!demo };
+  if (demo) {
+    inboxState.items = demo.items;
+    inboxState.categories = demo.categories;
+  } else {
+    inboxState.categories = [{ key: "all", label: "Все", unread: 0 }];
+    document.getElementById("inboxBody").innerHTML = `<div class="inbox-empty"><b>Загружаю…</b></div>`;
+  }
+  renderInbox();
+  showInboxOverlay();
+  trk("inbox_open", null, { unread: Number(document.getElementById("inboxBadge")?.textContent) || 0 });
+  if (demo) return;
+  try {
+    const data = await api("/api/inbox", { timeoutMs: 8000 });
+    if (!inboxState || inboxState.demo) return;
+    inboxState.items = data.items || [];
+    inboxState.categories = data.categories || [];
+    renderInbox();
+    // открыли — значит, прочитано: бейдж гаснет сразу, а подсветка новых в этой сессии остаётся
+    setInboxBadge(0);
+    api("/api/inbox/seen", { method: "POST" }).catch(() => {});
+  } catch (err) {
+    document.getElementById("inboxBody").innerHTML = `<div class="inbox-empty"><b>Не получилось загрузить</b><p>Проверь соединение и открой снова.</p></div>`;
+  }
+}
+
+function onInboxTap(e) {
+  const tab = e.target.closest("[data-inbox-tab]");
+  if (tab && inboxState) {
+    inboxState.tab = tab.dataset.inboxTab;
+    haptic("select");
+    trk("inbox_tab", inboxState.tab);
+    renderInbox();
+    document.getElementById("inboxBody").scrollTop = 0;
+    tab.scrollIntoView?.({ block: "nearest", inline: "center" });
+    return;
+  }
+  const row = e.target.closest("[data-inbox-action]");
+  if (!row || !inboxState) return;
+  const type = row.dataset.inboxAction;
+  trk("inbox_item", row.dataset.inboxKind || null);
+  if (inboxState.demo) { haptic("light"); showToast("🎬 Демо: тут откроется " + ({ profile: "профиль", gifts: "«Мне подарили»", chat: "чат с Адамом", pair: "парное задание", home: "Главная" }[type] || "нужный экран"), "success", 1800); return; }
+  closeInbox();
+  setTimeout(() => {
+    if (type === "profile") openUserProfile(Number(row.dataset.inboxId));
+    else if (type === "gifts") document.getElementById("openGiftsBtn")?.click();
+    else if (type === "chat") { window.location.href = "/coach"; }
+    else if (type === "pair" || type === "home") document.querySelector('.tab-bar__item[data-tab="home"]')?.click();
+    else if (type === "profile_self") document.querySelector('.tab-bar__item[data-tab="profile"]')?.click();
+  }, 260);
+}
+
+function initInbox() {
+  document.getElementById("inboxBtn")?.addEventListener("click", () => openInbox());
+  document.getElementById("inboxOverlayClose")?.addEventListener("click", closeInbox);
+  document.getElementById("inboxOverlayBackdrop")?.addEventListener("click", closeInbox);
+  document.getElementById("inboxOverlay")?.addEventListener("click", onInboxTap);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshInboxBadge(); });
+  clearInterval(inboxPollTimer);
+  inboxPollTimer = setInterval(refreshInboxBadge, 120000);
+  setTimeout(refreshInboxBadge, 3000);
 }
 
 // ===================== ЗАМОРОЗКА ДРУГУ (взаимопомощь, как в Duolingo) =====================
@@ -8212,6 +8389,26 @@ let simMode = null;   // { list, index }
 // Ответ «сервера» в демо: через паузу, чтобы успела сыграть тряска закрытого сундука.
 const simReply = (result, ms = 700) => () => new Promise((resolve) => setTimeout(() => resolve(result), ms));
 
+// Демо-лента для симуляции «Уведомления»: по записи на каждый раздел и разные виды, часть — «новое».
+const SIM_INBOX = (() => {
+  const who = (id, name) => ({ telegram_id: id, first_name: name, handle: null, avatar_id: "default", frame_id: "default" });
+  const ago = (minutes) => new Date(Date.now() - minutes * 60000).toISOString().slice(0, 19).replace("T", " ");
+  const items = [
+    { id: "s1", cat: "gifts", kind: "gift_freeze", at: ago(12), icon: "❄️", title: "Мария подарил(а) тебе заморозку серии", text: "", actor: who(1, "Мария"), action: { type: "gifts" }, unread: true },
+    { id: "s2", cat: "adam", kind: "adam_checkin", at: ago(55), icon: "💬", title: "Адам написал тебе", text: "Заметил, что вторая привычка ещё ждёт. Начнём с пяти минут?", actor: null, action: { type: "chat" }, unread: true },
+    { id: "s3", cat: "followers", kind: "follower_new", at: ago(95), icon: "➕", title: "Денис подписался(ась) на тебя", text: "", actor: who(2, "Денис"), action: { type: "profile", id: 2 }, unread: true },
+    { id: "s4", cat: "friends", kind: "friend_support", at: ago(240), icon: "💌", title: "Анна поддержал(а) тебя 👍", text: "", actor: who(3, "Анна"), action: { type: "profile", id: 3 }, unread: false },
+    { id: "s5", cat: "friends", kind: "pair_invite", at: ago(300), icon: "🤝", title: "Олег зовёт тебя в парное задание", text: "Прими приглашение на Главной", actor: who(4, "Олег"), action: { type: "pair" }, unread: false },
+    { id: "s6", cat: "system", kind: "streak_freeze", at: ago(1200), icon: "❄️", title: "День сохранён заморозкой", text: "Серия 14 дн. осталась с тобой", actor: null, action: { type: "home" }, unread: false },
+    { id: "s7", cat: "gifts", kind: "gift_diamonds", at: ago(1560), icon: "💎", title: "Мария подарил(а) тебе 3 💎", text: "", actor: who(1, "Мария"), action: { type: "gifts" }, unread: false },
+    { id: "s8", cat: "system", kind: "whats_new", at: ago(3000), icon: "✨", title: "Что нового: Знакомство с Адамом", text: "Теперь Адам узнаёт тебя и подбирает метод планирования дня.", actor: null, action: {}, unread: false },
+    { id: "s9", cat: "friends", kind: "friend_added", at: ago(4200), icon: "🤝", title: "Денис теперь в друзьях", text: "Вы подписаны друг на друга", actor: who(2, "Денис"), action: { type: "profile", id: 2 }, unread: false },
+  ];
+  const labels = [["all", "Все"], ["system", "Системные"], ["adam", "Адам"], ["friends", "Друзья"], ["followers", "Подписчики"], ["gifts", "Подарки"]];
+  const categories = labels.map(([key, label]) => ({ key, label, unread: items.filter((it) => it.unread && (key === "all" || it.cat === key)).length }));
+  return { items, categories };
+})();
+
 const SIM_FRIEND = { telegram_id: 0, first_name: "Мария", avatar_id: "default", frame_id: "default", streak: 14 };
 
 const SIM_SCENES = {
@@ -8229,6 +8426,7 @@ const SIM_SCENES = {
   }),
   adam_intro: () => openAdamIntro({ sim: true }),
   adam_intro_result: () => openAdamIntro({ sim: true, jump: true, demo: { focus: "study", struggle: "start", energy: "morning", span: "s25", hours: "h2", talk: "month" } }),
+  inbox: () => openInbox({ demo: SIM_INBOX }),
   freeze_help: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 640 }),
   freeze_help_sent: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 440, sent: true }),
   haptic_triple: () => {
@@ -10529,6 +10727,7 @@ async function boot() {
             initStartQuiz();
             initAdamIntro();
             initFreezeHelp();
+            initInbox();
             initAppTour();
             initHandleIntro();
             initSelfRewardActions();

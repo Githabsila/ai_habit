@@ -1806,6 +1806,9 @@ def create_tables():
     """)
     if "last_seen_changelog_id" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN last_seen_changelog_id INTEGER DEFAULT 0")
+    # Центр уведомлений (db/inbox.py): когда человек последний раз открывал экран «Уведомления» (UTC); всё, что новее, — «новое».
+    if "inbox_seen_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN inbox_seen_at TEXT")
 
     # ---------------- Телеметрия долгих кадров (Mini App) ----------------
     # Пользователи жалуются на "лаги/чернеет при прокрутке" в Telegram

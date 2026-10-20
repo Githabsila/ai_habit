@@ -14657,6 +14657,69 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 @media(max-width:380px){.adam-intro-title{font-size:21px}}
 
 /* =========================================================
+   Центр уведомлений (app.js::openInbox, db/inbox.py): колокольчик в правом верхнем углу шапки, на нём число новых; экран с вкладками-
+   разделами (Все · Системные · Адам · Друзья · Подписчики · Подарки) — переключаются одним тапом, лента сгруппирована по дням.
+   Только transform/opacity и короткие переходы — без filter и бесконечных анимаций.
+   ========================================================= */
+.player-card__bell{
+  position:absolute;top:12px;right:12px;z-index:3;width:38px;height:38px;padding:0;border-radius:13px;
+  border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;
+  display:grid;place-items:center;-webkit-tap-highlight-color:transparent;transition:transform .15s ease;
+}
+.player-card__bell svg{display:block;width:19px;height:19px;pointer-events:none}
+.player-card__bell:active{transform:scale(.9)}
+.player-card__bell-badge{
+  position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;box-sizing:border-box;
+  background:#FF4D6D;border:2px solid #17121f;color:#fff;font:800 10px/14px 'Space Grotesk',sans-serif;font-style:normal;text-align:center;
+}
+.player-card__bell-badge[hidden]{display:none}
+.player-card__identity{padding-right:46px}
+/* карандаш — внизу строки с @ником и левее колокольчика: ни имя, ни колокольчик ему не мешают */
+.player-card__identity .player-card__edit{top:auto;bottom:4px;right:50px}
+
+.inbox-tabs{
+  flex:0 0 auto;display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  padding:10px 16px;background:#0d0b14;border-bottom:1px solid rgba(255,255,255,.06);touch-action:pan-x;overscroll-behavior-x:contain;
+}
+.inbox-tabs::-webkit-scrollbar{display:none}
+.inbox-tab{
+  flex:0 0 auto;display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);color:#C9C4DE;font:700 13px 'Inter',sans-serif;white-space:nowrap;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;transition:background .2s ease,color .2s ease,border-color .2s ease;
+}
+.inbox-tab.is-active{background:linear-gradient(135deg,#8e70ff,#6847dc);border-color:transparent;color:#fff}
+.inbox-tab__count{
+  margin-left:7px;min-width:17px;height:17px;padding:0 5px;border-radius:9px;box-sizing:border-box;display:inline-block;
+  background:#FF4D6D;color:#fff;font:800 10px/17px 'Space Grotesk',sans-serif;font-style:normal;text-align:center;
+}
+.inbox-body{padding-top:6px}
+.inbox-day{margin:16px 2px 8px;font:800 11px/1 'Space Grotesk',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#8d89a6}
+.inbox-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.inbox-item{
+  position:relative;display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+}
+.inbox-item.is-unread{background:rgba(139,92,246,.12);border-color:rgba(139,92,246,.42)}
+.inbox-item.is-unread::after{content:"";position:absolute;left:-3px;top:-3px;width:11px;height:11px;border-radius:50%;background:#FF4D6D;border:2px solid #0d0b14}
+.inbox-item.is-tappable{cursor:pointer;transition:transform .12s ease}
+.inbox-item.is-tappable:active{transform:scale(.99)}
+.inbox-item__avatar{position:relative;width:42px;height:42px;font-size:16px}
+.inbox-item__avatar .avatar-photo{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.inbox-item__kind{
+  position:absolute;right:-5px;bottom:-5px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
+  background:#1b1830;border:2px solid #0d0b14;font-size:11px;line-height:1;font-style:normal;
+}
+.inbox-item__icon{flex:0 0 auto;width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.07);font-size:20px;line-height:1}
+.inbox-item__body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+.inbox-item__title{font-size:14px;font-weight:700;line-height:1.3;color:#fff}
+.inbox-item__text{font-size:12.5px;line-height:1.4;color:#B2AEC8;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.inbox-item__time{flex:0 0 auto;align-self:flex-start;margin-top:2px;font-size:11px;color:#8d89a6}
+.inbox-empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:64px 28px;text-align:center;color:#B2AEC8}
+.inbox-empty__icon{display:grid;place-items:center;width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.06);font-size:28px;margin-bottom:6px}
+.inbox-empty b{font:800 17px 'Space Grotesk',sans-serif;color:#fff}
+.inbox-empty p{margin:0;font-size:13.5px;line-height:1.5}
+
+/* =========================================================
    Заморозка другу (app.js::openFreezeHelp): серая снежинка справа от имени друга, у которого кончились заморозки, синяя с цифрой — у кого
    они есть; окно «Надо помочь другу!» в духе Duolingo: аватар, снежинка-значок, «Отправить одну за 🪙 200» / «Нет, спасибо». После
    отправки значок оттаивает (серый → синий) и разлетаются искры. Только transform/opacity и конечные анимации — без filter и вечных циклов.

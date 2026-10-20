@@ -101,6 +101,7 @@ from datetime import date, datetime, timezone
 from multi_agent import generate_progress_analysis
 from db import ai_usage
 from db import adam_profile as adam_profile_db
+from db import inbox as inbox_db
 from db.gifts import freeze_help_candidates, FREEZE_GIFT_PRICE
 from db.tracking import ingest as ingest_track
 from db import usage as usage_db
@@ -928,6 +929,28 @@ async def notification_history_route(request):
     для всех), а не чёрный ящик."""
     telegram_id, _ = await _authenticate(request)
     return web.json_response({"history": get_notification_history(telegram_id)})
+
+
+@routes.get("/api/inbox")
+async def inbox_route(request):
+    """Центр уведомлений: вся лента (подарки, Адам, друзья, подписчики, системное) и разделы с числом новых — db/inbox.py."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response(inbox_db.get_feed(telegram_id))
+
+
+@routes.get("/api/inbox/summary")
+async def inbox_summary_route(request):
+    """Число новых для колокольчика в шапке (дёшево: берётся только то, что новее метки «прочитано»)."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response(inbox_db.get_summary(telegram_id))
+
+
+@routes.post("/api/inbox/seen")
+async def inbox_seen_route(request):
+    """Открыли центр уведомлений — всё прочитано."""
+    telegram_id, _ = await _authenticate(request)
+    inbox_db.mark_seen(telegram_id)
+    return web.json_response({"ok": True})
 
 
 @routes.get("/api/changelog/unseen")
