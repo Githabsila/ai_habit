@@ -1,4 +1,5 @@
 from aiogram import Router, F
+from aiogram.filters import Command
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
@@ -8,7 +9,7 @@ from aiogram.types import (
     Message,
 )
 
-from config import PREMIUM_PRICE_STARS
+from config import PREMIUM_PRICE_STARS, ADMIN_IDS, SUPPORT_EMAIL, WEBAPP_URL
 from db import (
     give_premium_admin, set_cosmetic, get_shop_item, add_ai_bonus_answers, log_stars_purchase,
     get_subscription_price_stars, record_subscription_payment, get_subscription_status,
@@ -17,9 +18,10 @@ from db import (
     get_user, get_referred_users,
 )
 from keyboards import (
-    premium_buy_keyboard, back_menu_keyboard, subscription_buy_keyboard,
+    premium_buy_keyboard, back_menu_keyboard, subscription_buy_keyboard, trial_keyboard,
     gift_premium_candidates_keyboard, gift_premium_confirm_keyboard,
 )
+from subscription_flow import complete_subscription_payment, refund_payment
 
 router = Router()
 
@@ -182,9 +184,12 @@ async def gift_premium_confirm(callback: CallbackQuery):
 @router.callback_query(F.data == "buy_subscription")
 async def buy_subscription(callback: CallbackQuery):
     price = get_subscription_price_stars(callback.from_user.id)
+    from config import SUBSCRIPTION_RENEWAL_PRICE_STARS
+    intro = price < SUBSCRIPTION_RENEWAL_PRICE_STARS
     await callback.message.answer_invoice(
-        title="Project ADAM — доступ на месяц",
-        description="Продлевает доступ к боту и мини-приложению на 30 дней.",
+        title="ADAM Pro — доступ на месяц",
+        description=("Первый месяц по особой цене: доступ к приложению и ко мне на 30 дней. Закрытый канал открывается после двух дней "
+                     "ударного режима подряд." if intro else "Доступ к приложению и ко мне на 30 дней. Закрытый канал — после двух дней ударного режима подряд."),
         payload=f"subscription:{callback.from_user.id}",
         provider_token="",
         currency="XTR",
@@ -348,22 +353,9 @@ async def successful_payment(message: Message):
             paid_user_id = message.from_user.id
         if paid_user_id != message.from_user.id:
             return
-        until = record_subscription_payment(message.from_user.id, months=1)
-        status = get_subscription_status(message.from_user.id)
-        until_str = until.strftime("%d.%m.%Y")
-        text = f"✅ Доступ в бота продлён до {until_str}."
-        if status["channel_eligible"]:
-            invite = await try_grant_channel_access(message.bot, message.from_user.id)
-            if invite:
-                text += f"\n\n🔑 Ты выполнил {status['streak_needed_for_channel']}+ дней ударного режима подряд — вот ссылка в закрытый канал: {invite}"
-        else:
-            needed = status["streak_needed_for_channel"]
-            text += (
-                f"\n\nЧтобы получить доступ в закрытый канал, выполни привычку "
-                f"{needed} дня подряд (сейчас серия: {status['streak']}) — "
-                "как наберёшь, ссылка придёт автоматически."
-            )
-        await message.answer(text, reply_markup=back_menu_keyboard())
+        # Что сказать человеку, зависит от дня триала и отметок (ТЗ владельца): subscription_flow / trial_messages.paid_welcome_text.
+        text, snap, link = await complete_subscription_payment(message.bot, message.from_user.id)
+        await message.answer(text, reply_markup=trial_keyboard(("open",), snap["price_stars"]) or back_menu_keyboard())
         return
 
     give_premium_admin(message.from_user.id)
@@ -372,3 +364,45 @@ async def successful_payment(message: Message):
         "цели и остальные плюшки.",
         reply_markup=back_menu_keyboard()
     )
+
+# =====================================
+# ПОДДЕРЖКА ОПЛАТЫ, УСЛОВИЯ, ВОЗВРАТ
+# =====================================
+# Telegram требует у ботов с платежами команды /paysupport (куда писать, если оплата не сработала или нужен возврат) и /terms.
+
+@router.message(Command("paysupport"))
+async def paysupport(message: Message):
+    await message.answer(
+        "💳 <b>Вопросы по оплате</b>\n\n"
+        "Оплата идёт через Telegram Stars. Если Stars списались, а доступ не открылся, или платёж прошёл по ошибке — "
+        f"напиши на <b>{SUPPORT_EMAIL}</b>: укажи свой @ник и время оплаты. Я проверю и, если нужно, верну Stars.\n\n"
+        "Условия оплаты и возврата — /terms."
+    )
+
+
+@router.message(Command("terms"))
+async def terms(message: Message):
+    link = f"{WEBAPP_URL.rstrip('/')}/terms" if WEBAPP_URL else ""
+    await message.answer(
+        "📄 <b>Условия</b>\n\n"
+        "Первые 3 дня — бесплатно. Дальше — доступ на месяц: первый месяц по особой цене, затем полная. "
+        "Подписка не продлевается сама: срок заканчивается, и нужно оплатить заново. Возврат — по правилам Telegram Stars "
+        f"или через поддержку: {SUPPORT_EMAIL} (/paysupport)."
+        + (f"\n\nПолный текст: {link}" if link else "")
+    )
+
+
+@router.message(Command("refund"))
+async def refund_command(message: Message):
+    """Админ: /refund <номер операции Stars> — вернуть платёж (подписка при этом снимается)."""
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    parts = (message.text or "").split()
+    if len(parts) != 2:
+        await message.answer("Формат: /refund <номер операции Stars (charge_id)>")
+        return
+    result = await refund_payment(message.bot, parts[1])
+    if result.get("ok"):
+        await message.answer(f"✅ Возвращено {result['amount']} ⭐ пользователю {result['user_id']}.")
+    else:
+        await message.answer(f"Не получилось: {result['error']} {result.get('detail', '')}".strip())

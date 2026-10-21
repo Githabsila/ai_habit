@@ -426,6 +426,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--gold">⏳</span>Триал · сообщения</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Сообщения сценария триала приходят только тем, у кого он включён (карточка человека → «Триал»). Здесь их можно выключить: все сразу или по одному.</div>' +
+        '<div id="trialOverviewBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--violet">🔥</span>Расход ИИ</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Токены модели по людям и по функциям: кто больше всех тратит и на что. Отсюда можно открыть человека и временно ограничить ему ИИ.</div>' +
         '<div class="btn-row" style="margin-bottom:10px">' +
@@ -530,6 +536,7 @@ textarea.field{resize:vertical;min-height:88px}
     loadPending();
     document.getElementById('openAnalyticsBtn').addEventListener('click', function(){ haptic('light'); window.location.href = '/analytics'; });
     loadAccessOverview();
+    loadTrialOverview();
     loadAiUsage(7);
     document.querySelectorAll('[data-ai-days]').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -1120,6 +1127,7 @@ textarea.field{resize:vertical;min-height:88px}
           '<button class="btn" id="freeze24Btn">❄️ Заморозить на 24 ч</button><button class="btn" id="freeze168Btn">❄️ На 7 дней</button>' +
           (u.rewards_frozen_until ? '<button class="btn btn-accent" id="freezeOffBtn">↺ Снять</button>' : '') + '</div>' +
         '<div id="accessSection">' + accessHtml(u) + '</div>' +
+        '<div id="trialSection">' + trialHtml(u) + '</div>' +
         '<div id="aiSection">' + aiUsageHtml(u) + '</div>' +
         '<div id="summarySection"><div class="section-label" style="margin:16px 2px 8px">ИИ-сводка</div><div class="empty-note">Загружаю…</div></div>' +
         '<div id="remindersSection"><div class="section-label" style="margin:16px 2px 8px">Напоминания: почему не приходят</div><div class="empty-note">Загружаю…</div></div>' +
@@ -1159,6 +1167,7 @@ textarea.field{resize:vertical;min-height:88px}
       });
     });
     bindAccess(u);
+    bindTrial(u);
     bindAiUsage(u);
     loadSummary(u.telegram_id);
     loadReminders(u.telegram_id);
@@ -1307,6 +1316,132 @@ textarea.field{resize:vertical;min-height:88px}
           '<button class="btn" data-open="' + x.telegram_id + '">Открыть</button></div>';
       }).join('') : '<div class="empty-note">Ограничений ни у кого нет — все входят свободно</div>');
       bindUserRows(box);
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  // ---------- Триал: проверка сценария с тестового аккаунта (db/trial.py, trial_messages.py) ----------
+  var TRIAL_PHASES = { day1: 'день 1', day2: 'день 2', day3: 'день 3 (последний)', expired_intro: 'день 4 · последний день скидки', expired_full: 'день 5+ · полная цена', paid: 'оплачено' };
+  var trialCatalog = [];
+
+  function trialHtml(u){
+    var t = u.trial;
+    if (!t || !t.snapshot) return '';
+    var s = t.snapshot;
+    var inTrial = s.mode === 'trial';
+    var head = '<div class="section-label" style="margin:16px 2px 8px">Триал</div>';
+    if (!inTrial) {
+      return head + '<div class="empty-note">Аккаунт вне сценария триала (' + escapeHtml(MODE_SHORT[s.mode] || s.mode) + '). Чтобы проверить триал, нажми «▶ Включить триал» выше.</div>' + trialSendBlock(t, false);
+    }
+    var due = (t.due || []).length ? t.due.map(function(k){ return escapeHtml(trialLabel(k)); }).join(', ') : 'сейчас ничего';
+    var facts = [
+      'цена сейчас: <b>' + s.price_stars + ' ⭐</b>' + (s.intro_active ? ' (скидка)' : ''),
+      'серия: <b>' + s.streak + '</b> из ' + s.needed,
+      'вчера: ' + (s.marked_yesterday ? '✅' : '—') + ' · сегодня: ' + (s.marked_today ? '✅' : '—'),
+      'канал: ' + (s.channel_granted ? 'ссылка выдана' : (s.channel_eligible ? 'условие выполнено' : 'нет условия')) + (s.channel_configured ? '' : ' (CLOSED_CHANNEL_ID не задан)')
+    ].join(' · ');
+    var sent = (t.sent || []).slice(0, 8).map(function(x){
+      return '<div class="empty-note" style="padding:1px 0">' + fmtDate(x.sent_at) + ' · ' + escapeHtml(trialLabel(x.key)) + '</div>';
+    }).join('');
+    var pays = (t.payments || []).map(function(p){
+      return '<div class="empty-note" style="padding:1px 0">💳 ' + fmtDate(p.created_at) + ' · ' + p.amount + ' ⭐' + (p.refunded_at ? ' · возвращён' : '') + '</div>';
+    }).join('');
+    return head +
+      '<div class="user-card-head" style="margin-bottom:6px"><div><b>' + escapeHtml(TRIAL_PHASES[s.phase] || s.phase) + '</b>' +
+        '<div class="empty-note" style="padding:2px 0">сегодня по часам человека ' + s.local_hour + ':00 (' + escapeHtml(s.timezone) + ')</div></div>' +
+        (s.paid ? '<span class="badge badge-ok">оплачено</span>' : '<span class="badge">не оплачено</span>') + '</div>' +
+      '<div class="empty-note" style="padding:2px 0">' + facts + '</div>' +
+      '<div class="empty-note" style="padding:2px 0">Подходит сейчас: ' + due + '</div>' +
+      '<div class="empty-note" style="padding:8px 0 4px">Машина времени: сегодня у этого аккаунта —</div>' +
+      '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
+        [1, 2, 3, 4, 5, 6].map(function(d){ return '<button class="btn' + (d === s.day ? ' btn-accent' : '') + '" data-trial-shift="' + d + '">день ' + d + '</button>'; }).join('') + '</div>' +
+      '<div class="empty-note" style="padding:8px 0 4px">Оплата и старт</div>' +
+      '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
+        '<button class="btn btn-gold" data-trial-act="pay_test">💳 Оплатить тестово</button>' +
+        '<button class="btn" data-trial-act="unpay">↩ Снять тест-оплату</button>' +
+        '<button class="btn" data-trial-act="reset">♻ Обнулить старт</button>' +
+      '</div>' +
+      '<label class="empty-note" style="display:flex;gap:8px;align-items:center;padding:6px 0 0"><input type="checkbox" id="trialResetOnboarding"> с обнулением — показать онбординг заново</label>' +
+      trialSendBlock(t, true) +
+      (sent ? '<div class="empty-note" style="padding:10px 0 2px">Отправлено этому человеку:</div>' + sent : '') +
+      (pays ? '<div class="empty-note" style="padding:10px 0 2px">Платежи:</div>' + pays : '');
+  }
+
+  function trialLabel(key){
+    var found = trialCatalog.filter(function(m){ return m.key === key; })[0];
+    return found ? found.label : key;
+  }
+
+  function trialSendBlock(t, canSendToUser){
+    if (!trialCatalog.length) return '<div class="empty-note" style="padding:8px 0">Сообщения загружаются…</div>';
+    return '<div class="empty-note" style="padding:10px 0 4px">Сообщения сценария — посмотреть, как они выглядят для этого человека:</div>' +
+      trialCatalog.map(function(m){
+        return '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(m.label) + '</b><small>' + escapeHtml(m.when) + '</small></div>' +
+          '<button class="btn" data-trial-send="' + m.key + '" data-to="me">Мне</button>' +
+          (canSendToUser && m.key !== 'channel_link' ? '<button class="btn" data-trial-send="' + m.key + '" data-to="user">Ему</button>' : '') + '</div>';
+      }).join('');
+  }
+
+  function bindTrial(u){
+    var box = document.getElementById('trialSection');
+    if (!box) return;
+    box.querySelectorAll('[data-trial-shift]').forEach(function(btn){
+      btn.addEventListener('click', function(){ trialAction(u.telegram_id, { action: 'shift', day: parseInt(btn.dataset.trialShift, 10) }, 'Теперь у аккаунта день ' + btn.dataset.trialShift); });
+    });
+    box.querySelectorAll('[data-trial-act]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var act = btn.dataset.trialAct;
+        var asks = { pay_test: 'Оплатить тестово? Человеку придёт сообщение после оплаты (без списания Stars).', unpay: 'Снять тестовую оплату?', reset: 'Обнулить старт: триал с дня 1, забыть отправленные сообщения и оплату?' };
+        if (!window.confirm(asks[act])) return;
+        var reset = document.getElementById('trialResetOnboarding');
+        trialAction(u.telegram_id, { action: act, reset_onboarding: !!(reset && reset.checked) }, act === 'pay_test' ? 'Тестовая оплата прошла' : 'Готово');
+      });
+    });
+    box.querySelectorAll('[data-trial-send]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if (btn.dataset.to === 'user' && !window.confirm('Отправить это сообщение человеку прямо сейчас?')) return;
+        trialAction(u.telegram_id, { action: 'send', key: btn.dataset.trialSend, to: btn.dataset.to }, btn.dataset.to === 'me' ? 'Отправил тебе в бот' : 'Отправил человеку', true);
+      });
+    });
+  }
+
+  async function trialAction(id, body, okText, keepCard){
+    try{
+      await api('/api/admin/user/' + id + '/trial', { method: 'POST', body: JSON.stringify(body) });
+      haptic('medium');
+      showToast(okText + ' ✅');
+      if (!keepCard) { renderUserCard(await api('/api/admin/user/' + id)); loadAccessOverview(); }
+    }catch(e){
+      var code = e && e.data && e.data.error;
+      var texts = { not_in_trial: 'Сначала включи триал для этого аккаунта', invalid_day: 'Такого дня нет', bot_unavailable: 'Бот недоступен', send_failed: 'Telegram не принял сообщение (человек мог заблокировать бота)', not_for_user: 'Это сообщение нельзя отправить человеку' };
+      showToast(texts[code] || 'Ошибка');
+    }
+  }
+
+  async function loadTrialOverview(){
+    var box = document.getElementById('trialOverviewBox');
+    if (!box) return;
+    try{
+      var data = await api('/api/admin/trial');
+      trialCatalog = data.messages || [];
+      var c = data.config || {};
+      var facts = 'Триал ' + c.trial_days + ' дн. · цена ' + c.intro_price_stars + ' ⭐ → ' + c.renewal_price_stars + ' ⭐ · канал с ' + c.streak_needed + ' дн. подряд · ' +
+        (c.channel_configured ? 'канал подключён' : '<b>канал не подключён (CLOSED_CHANNEL_ID)</b>') + ' · общий гейт оплаты: ' + (c.gate_enabled ? '<b>ВКЛЮЧЁН</b>' : 'выключен');
+      box.innerHTML = '<div class="empty-note" style="padding:0 0 8px">' + facts + '</div>' +
+        '<label class="list-row" style="cursor:pointer"><div class="list-row-name"><b>Все сообщения триала</b><small>общий выключатель</small></div><input type="checkbox" data-trial-toggle="*"' + (data.enabled ? ' checked' : '') + '></label>' +
+        trialCatalog.map(function(m){
+          return '<label class="list-row" style="cursor:pointer"><div class="list-row-name"><b>' + escapeHtml(m.label) + '</b><small>' + escapeHtml(m.when) + '</small></div><input type="checkbox" data-trial-toggle="' + m.key + '"' + (m.enabled ? ' checked' : '') + '></label>';
+        }).join('');
+      box.querySelectorAll('[data-trial-toggle]').forEach(function(input){
+        input.addEventListener('change', async function(){
+          try{
+            await api('/api/admin/trial/toggle', { method: 'POST', body: JSON.stringify({ key: input.dataset.trialToggle, enabled: input.checked }) });
+            haptic('light');
+            showToast(input.checked ? 'Включено' : 'Выключено');
+          }catch(e){ input.checked = !input.checked; showToast('Ошибка'); }
+        });
+      });
     }catch(e){
       box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }

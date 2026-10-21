@@ -781,6 +781,16 @@ def gift_premium_confirm_keyboard(recipient_id: int, price_stars: int):
     )
 
 
+def trial_keyboard(buttons, price_stars: int):
+    """Кнопки под сообщением триала (trial_messages.py): «buy» — оплатить Stars, «open» — открыть приложение. Нет кнопок — None."""
+    rows = []
+    if "buy" in buttons:
+        rows.append([InlineKeyboardButton(text=f"⭐ Оплатить {price_stars} Stars", callback_data="buy_subscription")])
+    if "open" in buttons and WEBAPP_URL:
+        rows.append([InlineKeyboardButton(text="Открыть ADAM", web_app=WebAppInfo(url=WEBAPP_URL))])
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
+
 def subscription_buy_keyboard(price_stars: int):
     return InlineKeyboardMarkup(
         inline_keyboard=[

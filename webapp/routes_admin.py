@@ -375,6 +375,7 @@ async def admin_user_card_route(request):
         return web.json_response({"error": "not_found"}, status=404)
     card["access"] = get_access(telegram_id)
     card["access_log"] = get_access_log(telegram_id, limit=8)
+    card["trial"] = _trial_state(telegram_id)
     card["ai_usage"] = ai_usage_db.user_usage(telegram_id)
     return web.json_response(card)
 
@@ -643,6 +644,162 @@ async def admin_access_overview_route(request):
     """Все, у кого не безлимит: временный доступ и сценарий триала, ближайшие к концу — первыми."""
     await _authenticate_admin(request)
     return web.json_response(access_overview())
+
+
+# ---------------------------------------------------------------------------------------------------------------- триал
+
+TRIAL_ERRORS = {"not_in_trial": 409, "invalid_day": 400}
+
+
+def _trial_catalog():
+    import trial_messages
+    from db import trial as trial_db
+    states = trial_db.message_states()
+    global_on = states.get(trial_db.ALL, True)
+    return global_on, [
+        {"key": m.key, "label": m.label, "when": m.when, "buttons": list(m.buttons), "phase": m.phase,
+         "enabled": states.get(m.key, True)}
+        for m in trial_messages.CATALOG
+    ]
+
+
+def _trial_state(telegram_id):
+    """Всё про триал человека для карточки в админке: состояние, что подходит сейчас, что уже отправлено, платежи."""
+    import trial_messages
+    from db import trial as trial_db, list_user_payments
+    snap = trial_db.snapshot(telegram_id)
+    if snap is None:
+        return None
+    return {
+        "snapshot": snap,
+        "due": [m.key for m in trial_messages.due_messages(snap)],
+        "sent": trial_db.sent_log(telegram_id, limit=20),
+        "payments": [{"charge_id": p["charge_id"], "amount": p["amount"], "created_at": p["created_at"], "refunded_at": p["refunded_at"]}
+                     for p in list_user_payments(telegram_id, limit=5)],
+    }
+
+
+@routes.get("/api/admin/trial")
+async def admin_trial_overview_route(request):
+    """Общие настройки триала: тумблеры сообщений (все сразу и по одному) и параметры сценария."""
+    await _authenticate_admin(request)
+    from config import (
+        CLOSED_CHANNEL_ID, SUBSCRIPTION_GATE_ENABLED, SUBSCRIPTION_INTRO_PRICE_STARS, SUBSCRIPTION_RENEWAL_PRICE_STARS,
+        SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL, SUBSCRIPTION_TRIAL_DAYS,
+    )
+    global_on, messages = _trial_catalog()
+    return web.json_response({
+        "enabled": global_on, "messages": messages,
+        "config": {"trial_days": SUBSCRIPTION_TRIAL_DAYS, "intro_price_stars": SUBSCRIPTION_INTRO_PRICE_STARS,
+                   "renewal_price_stars": SUBSCRIPTION_RENEWAL_PRICE_STARS, "streak_needed": SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL,
+                   "channel_configured": bool(CLOSED_CHANNEL_ID), "gate_enabled": bool(SUBSCRIPTION_GATE_ENABLED)},
+    })
+
+
+@routes.post("/api/admin/trial/toggle")
+async def admin_trial_toggle_route(request):
+    """body: {"key": "*" | ключ сообщения, "enabled": true|false} — включить/выключить сообщения триала."""
+    await _authenticate_admin(request)
+    import trial_messages
+    from db import trial as trial_db
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    key = str(body.get("key") or "")
+    if key != trial_db.ALL and key not in trial_messages.BY_KEY:
+        return web.json_response({"error": "unknown_message"}, status=400)
+    trial_db.set_message_enabled(key, bool(body.get("enabled")))
+    global_on, messages = _trial_catalog()
+    return web.json_response({"ok": True, "enabled": global_on, "messages": messages})
+
+
+@routes.get("/api/admin/user/{telegram_id}/trial")
+async def admin_user_trial_get_route(request):
+    await _authenticate_admin(request)
+    state = _trial_state(int(request.match_info["telegram_id"]))
+    if state is None:
+        return web.json_response({"error": "user_not_found"}, status=404)
+    return web.json_response(state)
+
+
+@routes.post("/api/admin/user/{telegram_id}/trial")
+async def admin_user_trial_action_route(request):
+    """Проверка триала с тестового аккаунта. body: {"action": ...}
+      shift {day}      — «машина времени»: сегодня у аккаунта (в режиме «trial») день N;
+      reset            — обнулить старт: триал с дня 1, забыть отправленные сообщения и тестовую оплату (reset_onboarding — и онбординг);
+      send {key, to}   — отправить сообщение каталога: to «me» (превью админу) или «user» (человеку, как будто пришло по расписанию);
+      pay_test         — тестовая оплата: тот же путь, что у настоящего платежа (сообщение после оплаты, ссылка в канал), без Stars;
+      unpay            — стереть тестовую оплату и «платил раньше»."""
+    admin_id = await _authenticate_admin(request)
+    telegram_id = int(request.match_info["telegram_id"])
+    import trial_messages
+    from db import trial as trial_db
+    from db.access import shift_trial_day
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    if get_user(telegram_id) is None:
+        return web.json_response({"error": "user_not_found"}, status=404)
+    action = (body.get("action") or "").strip()
+    bot = request.app.get("bot")
+    info = trial_db.snapshot(telegram_id)
+    in_trial = info is not None and info["mode"] == "trial"
+    result = {}
+
+    if action == "shift":
+        outcome = shift_trial_day(telegram_id, body.get("day"), admin_id)
+        if "error" in outcome:
+            return web.json_response(outcome, status=TRIAL_ERRORS.get(outcome["error"], 400))
+    elif action in ("reset", "unpay", "pay_test"):
+        if not in_trial:
+            return web.json_response({"error": "not_in_trial"}, status=409)
+        if action == "reset":
+            start_trial_mode(telegram_id, admin_id, restart=True)
+            trial_db.clear_trial_messages(telegram_id)
+            trial_db.clear_test_payment(telegram_id)
+            if body.get("reset_onboarding"):
+                reset_onboarding(telegram_id)
+        elif action == "unpay":
+            trial_db.clear_test_payment(telegram_id)
+        else:
+            if bot is None:
+                return web.json_response({"error": "bot_unavailable"}, status=503)
+            from subscription_flow import complete_subscription_payment
+            from keyboards import trial_keyboard
+            text, snap, link = await complete_subscription_payment(bot, telegram_id)
+            try:
+                await bot.send_message(telegram_id, text, reply_markup=trial_keyboard(("open",), snap["price_stars"]))
+                result["delivered"] = True
+            except Exception:
+                logger.warning("Не удалось отправить текст после тест-оплаты %s", telegram_id)
+                result["delivered"] = False
+            result["text"] = text
+    elif action == "send":
+        key, target = str(body.get("key") or ""), body.get("to") or "me"
+        message = trial_messages.BY_KEY.get(key)
+        if message is None or target not in ("me", "user"):
+            return web.json_response({"error": "invalid_message"}, status=400)
+        if target == "user" and message.action:
+            return web.json_response({"error": "not_for_user"}, status=400)
+        if bot is None:
+            return web.json_response({"error": "bot_unavailable"}, status=503)
+        from subscription_scheduler import build_message
+        text, keyboard = build_message(key, info)
+        if target == "me":
+            from html import escape as html_escape
+            who = html_escape(info["name"] or str(telegram_id))
+            text = f"🧪 <b>Превью</b> · {who} · день {info['day']} · {info['phase']}\n\n{text}"
+        try:
+            await bot.send_message(admin_id if target == "me" else telegram_id, text, reply_markup=keyboard)
+        except Exception as exc:
+            return web.json_response({"error": "send_failed", "detail": str(exc)[:200]}, status=502)
+        result["sent_to"] = target
+    else:
+        return web.json_response({"error": "invalid_action"}, status=400)
+
+    return web.json_response({"ok": True, **result, **(_trial_state(telegram_id) or {}), "access": get_access(telegram_id)})
 
 
 @routes.get("/api/admin/flags")

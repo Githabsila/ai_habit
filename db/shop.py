@@ -174,6 +174,33 @@ def mark_payment_processed(charge_id, user_id, payload, amount):
     conn.close()
 
 
+def get_payment(charge_id):
+    """Платёж Stars по номеру операции Telegram (telegram_payment_charge_id) или None."""
+    conn = connect()
+    try:
+        return conn.execute("SELECT * FROM stars_payments WHERE charge_id=?", (charge_id,)).fetchone()
+    finally:
+        conn.close()
+
+
+def list_user_payments(user_id, limit=10):
+    """Последние платежи человека (новые первыми) — для возврата и карточки в админке."""
+    conn = connect()
+    try:
+        return conn.execute("SELECT * FROM stars_payments WHERE user_id=? ORDER BY created_at DESC, rowid DESC LIMIT ?", (user_id, int(limit))).fetchall()
+    finally:
+        conn.close()
+
+
+def mark_payment_refunded(charge_id):
+    conn = connect()
+    try:
+        conn.execute("UPDATE stars_payments SET refunded_at=CURRENT_TIMESTAMP WHERE charge_id=?", (charge_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def log_stars_purchase(user_id, item_id):
     """Покупки за Telegram Stars списываются не через buy_shop_item (та
     функция тратит Adam Coin), поэтому для дневного лимита их нужно

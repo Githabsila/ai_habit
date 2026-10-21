@@ -1,106 +1,95 @@
 """
-Пром 13: проактивные напоминания триала → подписки.
+Доставка сообщений триала (каталог и тексты — trial_messages.py, состояние человека — db/trial.py).
 
-Выключено по умолчанию — если SUBSCRIPTION_GATE_ENABLED=False, эти
-сообщения всё ещё информационные (напоминают, что покупка открывает
-закрытый канал), но никого не блокируют (см. middlewares/access_control.py
-и db/subscription.py bot_access_allowed).
+Раз в минуту проходит по людям, у которых идёт СЦЕНАРИЙ триала (режим «trial» у аккаунта или общий гейт подписки; у тестировщиков со
+свободным или временным доступом триал-сообщений нет), и шлёт то, что подходит им по дню триала, местному времени и отметкам.
 
-Не пытается покрыть дословно каждый из сценариев исходного ТЗ — только
-содержательно разные состояния. Тексты — adam_messages.py, там же их
-проще всего переформулировать.
+Защита от спама: сообщение можно выключить в админке (все сразу или по одному), не больше трёх сообщений триала в день, не в тихие часы
+и не человеку, выключившему напоминания (ссылка в закрытый канал — исключение: человек за неё заплатил); от повторов защищает
+claim_notification (повторный тик в то же окно ничего не отправит); при ошибке отправки claim откатывается и следующий тик повторит.
+
+Выключено по умолчанию на уровне гейта (SUBSCRIPTION_GATE_ENABLED=false): без режима «trial» у аккаунта сообщений нет.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from db import (
     get_all_users, get_timezone, get_settings,
-    claim_notification, release_notification, notification_scope, in_time_window,
-    get_trial_day, is_in_trial, has_active_subscription, get_subscription_status,
+    claim_notification, release_notification, notification_scope,
 )
-from adam_messages import (
-    format_trial_day2_nudge, format_trial_last_day_banner, format_trial_channel_progress_nudge,
-)
-from keyboards import subscription_buy_keyboard
+from db.settings import in_quiet_hours
 from db.access import trial_scenario_for_user
+from db import trial as trial_db
+from db.subscription import try_grant_channel_access
+from keyboards import trial_keyboard
+import trial_messages
 
 logger = logging.getLogger("subscription_scheduler")
 
-# В какой локальный час пользователя слать дневное напоминание триала.
-TRIAL_REMINDER_HOUR = 12
+# Не больше стольких сообщений триала человеку за местный день (не считая ссылки в закрытый канал).
+DAILY_CAP = 3
+
+
+def build_message(key, snap, link=None):
+    """(текст, клавиатура) сообщения триала для данного состояния человека — и для рассылки, и для «отправить» из админки."""
+    message = trial_messages.BY_KEY[key]
+    text = trial_messages.render(key, snap, link=link)
+    return text, trial_keyboard(message.buttons, snap["price_stars"])
 
 
 async def run_trial_reminders(bot):
-    """Раз в день (в TRIAL_REMINDER_HOUR по локальному времени пользователя)
-    отправляет ОДНО сообщение, релевантное текущему состоянию триала/подписки."""
+    """Один проход по людям в сценарии триала."""
     users = get_all_users(include_blocked=False)
+    scope = notification_scope(bot)
     sent = 0
 
     for user in users:
         telegram_id = user["telegram_id"]
-
-        # Сообщения об оплате и триале — только тем, кто идёт по сценарию триала (режим «триал» у аккаунта или общий гейт подписки).
-        # Тестировщики со свободным или временным доступом их не получают: раньше «Второй день триала» и «Завтра бот закроется»
-        # уходили всем подряд, хотя гейт выключен.
         if not trial_scenario_for_user(user):
             continue
 
-        settings = get_settings(telegram_id)
-        if not settings or settings["reminders"] == 0:
-            continue
-
         try:
-            now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
-        except Exception:
-            continue
-        # Окно допуска, не "== ровно эта минута" — от повторов защищает
-        # claim_notification ниже, а не точность попадания в тик планировщика.
-        if not in_time_window(now_local, hour=TRIAL_REMINDER_HOUR, minute=0):
-            continue
-
-        try:
-            status = get_subscription_status(telegram_id)
-            day = status["trial_day"]
-            if day is None:
+            settings = get_settings(telegram_id)
+            if not settings:
                 continue
-
-            text = None
-            keyboard = None
-
-            if status["has_paid"]:
-                # Уже оплатил — единственное, что имеет смысл напоминать:
-                # прогресс к доступу в закрытый канал, и только пока он ещё
-                # не выдан.
-                if not status["channel_granted"] and not status["channel_eligible"]:
-                    text = format_trial_channel_progress_nudge(
-                        status["streak"], status["streak_needed_for_channel"]
-                    )
-            elif day == 2:
-                text = format_trial_day2_nudge(status["streak"])
-            elif day == status["trial_days_total"]:
-                # Последний бесплатный день.
-                text = format_trial_last_day_banner(status["price_stars"])
-                keyboard = subscription_buy_keyboard(status["price_stars"])
-            else:
-                continue
-
-            if not text:
-                continue
-
-            day_key = now_local.date().isoformat()
-            scope = notification_scope(bot)
-            if not claim_notification(telegram_id, day_key, "trial_reminder", scope):
-                continue
-
             try:
-                await bot.send_message(telegram_id, text, reply_markup=keyboard)
+                now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
             except Exception:
-                release_notification(telegram_id, day_key, "trial_reminder", scope)
-                raise
-            sent += 1
+                continue
+            snap = trial_db.snapshot(telegram_id, now_local.astimezone(timezone.utc))
+            due = trial_messages.due_messages(snap)
+            if not due:
+                continue
+            reminders_off = settings["reminders"] == 0
+            quiet = in_quiet_hours(settings, now_local)
+            sent_today = trial_db.sent_today_count(telegram_id, snap["local_date"])
+
+            for message in due:
+                if not trial_db.message_enabled(message.key):
+                    continue
+                if message.action != "channel_link" and (reminders_off or quiet or sent_today >= DAILY_CAP):
+                    continue
+                kind = f"trial:{message.key}"
+                if not claim_notification(telegram_id, snap["local_date"], kind, scope):
+                    continue
+                try:
+                    link = None
+                    if message.action == "channel_link":
+                        link = await try_grant_channel_access(bot, telegram_id)
+                        if not link:
+                            release_notification(telegram_id, snap["local_date"], kind, scope)
+                            continue
+                    text, keyboard = build_message(message.key, snap, link=link)
+                    await bot.send_message(telegram_id, text, reply_markup=keyboard)
+                except Exception:
+                    release_notification(telegram_id, snap["local_date"], kind, scope)
+                    raise
+                sent += 1
+                if message.action != "channel_link":
+                    sent_today += 1
         except Exception:
-            logger.exception("Ошибка триал-напоминания для %s", telegram_id)
+            logger.exception("Ошибка сообщения триала для %s", telegram_id)
 
     if sent:
-        logger.info("Напоминания триала/подписки: отправлено %s", sent)
+        logger.info("Сообщения триала/подписки: отправлено %s", sent)

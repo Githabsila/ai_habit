@@ -71,12 +71,11 @@ class AccessControlMiddleware(BaseMiddleware):
             )
             keyboard = None
         else:
-            text = (
-                "⏳ <b>Пробный период закончился.</b>\n\n"
-                f"Чтобы продолжить пользоваться ботом и мини-приложением, оформи доступ "
-                f"за <b>{status['price_stars']} ⭐</b> (Telegram Stars)."
-            )
-            keyboard = subscription_buy_keyboard(status["price_stars"])
+            from db import trial as trial_db
+            import trial_messages
+            snap = trial_db.snapshot(user_id)
+            text = trial_messages.locked_text(snap)
+            keyboard = subscription_buy_keyboard(snap["price_stars"])
         try:
             if isinstance(event, CallbackQuery):
                 await event.answer()

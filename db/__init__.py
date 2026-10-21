@@ -251,7 +251,7 @@ from .shop import (
     get_item_owner_ids,
     get_shop_item, set_cosmetic, add_ai_bonus_answers, get_ai_quota, consume_ai_answer,
     count_purchases_today, has_reached_daily_limit, log_stars_purchase,
-    is_payment_processed, mark_payment_processed,
+    is_payment_processed, mark_payment_processed, get_payment, list_user_payments, mark_payment_refunded,
 )
 
 from .onboarding import (
@@ -313,14 +313,14 @@ from .pair_quests import (
 
 from .subscription import (
     get_trial_day, is_in_trial, has_active_subscription, has_ever_paid,
-    get_subscription_price_stars, record_subscription_payment,
+    get_subscription_price_stars, record_subscription_payment, revoke_subscription,
     gate_applies_to, bot_access_allowed, get_subscription_status,
     mark_channel_access_granted, try_grant_channel_access,
 )
 
 from .access import (
     get_access, public_access, grant_access, gift_days, set_unlimited, start_trial_mode, get_access_log, access_overview,
-    trial_scenario_active, trial_scenario_for_user, ACCESS_MODES,
+    trial_scenario_active, trial_scenario_for_user, ACCESS_MODES, shift_trial_day,
 )
 
 from .analytics import (
@@ -435,7 +435,7 @@ __all__ = [
     "get_home_layout", "update_home_habits_first", "update_home_plan_hidden",
     "get_handle", "is_handle_taken", "update_handle", "update_display_name", "normalize_display_name", "DISPLAY_NAME_MAX", "generate_unique_handle", "normalize_handle", "HANDLE_RE",
     "count_purchases_today", "has_reached_daily_limit", "log_stars_purchase",
-    "is_payment_processed", "mark_payment_processed",
+    "is_payment_processed", "mark_payment_processed", "get_payment", "list_user_payments", "mark_payment_refunded",
     "get_access_status", "set_access_status", "reject_user", "get_pending_users",
     "get_users_pending_since", "get_access_status_counts",
     "save_survey_answers", "save_survey_analysis", "get_survey", "get_survey_tags",
@@ -459,7 +459,7 @@ __all__ = [
     "pair_on_day_completed", "settle_pair_quests", "get_active_pair_quests", "pair_last_day_reminder", "pair_users_due_for_new_quest", "pair_eve_reminder", "pair_pending_partner_events", "pair_partner_done_text",
     "PAIR_GOAL", "PAIR_WINDOW_DAYS", "PAIR_REWARD_COINS", "PAIR_REWARD_DIAMONDS", "PAIR_MONTH_POINTS",
     "get_trial_day", "is_in_trial", "has_active_subscription", "has_ever_paid",
-    "get_subscription_price_stars", "record_subscription_payment",
+    "get_subscription_price_stars", "record_subscription_payment", "revoke_subscription",
     "gate_applies_to", "bot_access_allowed", "get_subscription_status",
     "mark_channel_access_granted", "try_grant_channel_access",
     "get_access", "public_access", "grant_access", "gift_days", "set_unlimited", "start_trial_mode", "get_access_log",

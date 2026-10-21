@@ -54,12 +54,11 @@ def _field(user, name):
 
 
 def trial_window_end(user):
-    """Когда кончается триал в режиме 'trial' (начало суток UTC через TRIAL_DAYS дней от trial_started_at), иначе None."""
-    from config import SUBSCRIPTION_TRIAL_DAYS
-    started = _field(user, "trial_started_at")
-    if _row_mode(user) != MODE_TRIAL or started is None:
+    """Когда кончается триал в режиме 'trial' (местная полночь человека после TRIAL_DAYS дней от trial_started_at; в UTC без tzinfo), иначе None."""
+    from .trial import window_end_utc
+    if user is None or _row_mode(user) != MODE_TRIAL:
         return None
-    return datetime.combine(started.date() + timedelta(days=SUBSCRIPTION_TRIAL_DAYS), datetime.min.time())
+    return window_end_utc(user)
 
 
 def free_end(user):
@@ -251,6 +250,33 @@ def start_trial_mode(user_id, admin_id=None, restart=False):
         return {"access_mode": MODE_TRIAL, "trial_started_at": _iso(_now()), "access_until": None}
 
     return _apply(user_id, admin_id, "trial_restart" if restart else "trial_on", None, change)
+
+
+def shift_trial_day(user_id, day, admin_id=None):
+    """Для проверки триала: сдвинуть старт так, чтобы СЕГОДНЯ у аккаунта был день N (1…10) — «машина времени» вместо ожидания трёх суток.
+    Только для аккаунтов в режиме «trial». Отметки привычек и серия не трогаются."""
+    from datetime import time as _time
+    from zoneinfo import ZoneInfo
+    from .streak import get_timezone
+    try:
+        day = int(day)
+    except (TypeError, ValueError):
+        return {"error": "invalid_day"}
+    if day < 1 or day > 10:
+        return {"error": "invalid_day"}
+
+    def change(user, conn):
+        if _row_mode(user) != MODE_TRIAL:
+            return {"error": "not_in_trial"}
+        try:
+            tz = ZoneInfo(get_timezone(user_id))
+        except Exception:
+            tz = ZoneInfo("UTC")
+        today = datetime.now(timezone.utc).astimezone(tz).date()
+        start_local = datetime.combine(today - timedelta(days=day - 1), _time(8, 0), tzinfo=tz)
+        return {"trial_started_at": _iso(start_local.astimezone(timezone.utc).replace(tzinfo=None))}
+
+    return _apply(user_id, admin_id, "trial_shift", day, change)
 
 
 def get_access_log(user_id, limit=15):

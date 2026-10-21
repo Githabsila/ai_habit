@@ -222,7 +222,7 @@ FEATURES = (
     Feature(
         "payments", "Подписка и оплата", "money", "2026-01-01",
         bot=("cb:buy_subscription", "cb:buy_premium", "cb:premium_info", "cb:gift_premium_start", "cb:gift_premium_to_#",
-             "cb:gift_premium_confirm_#", "msg:successful_payment"),
+             "cb:gift_premium_confirm_#", "msg:successful_payment", "cmd:/paysupport", "cmd:/terms", "cmd:/refund"),
         note="Нажатия на оплату и сами платежи",
     ),
     # ------------------------------------------------------------------ профиль и настройки

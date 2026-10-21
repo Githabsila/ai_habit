@@ -77,6 +77,8 @@ SUBSCRIPTION_RENEWAL_PRICE_STARS = int(os.getenv("SUBSCRIPTION_RENEWAL_PRICE_STA
 # Сколько ДНЕЙ УДАРНОГО РЕЖИМА подряд нужно набрать, чтобы получить доступ
 # в закрытый канал (после того как подписка оплачена).
 SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL = int(os.getenv("SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL", "2"))
+# Куда писать по вопросам оплаты и возвратов (/paysupport, требование Telegram для ботов с платежами); тот же адрес указан в /terms.
+SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "egormatancev12@gmail.com")
 # ID закрытого Telegram-канала (бот должен быть в нём админом с правом
 # приглашать пользователей) — пока не задан, выдача доступа просто
 # пропускается без ошибки.

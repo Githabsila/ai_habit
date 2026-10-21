@@ -688,6 +688,15 @@ def create_tables():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_access_log_user ON access_log(user_id, id)")
 
+    # Тумблеры сообщений триала (db/trial.py): ключ '*' — все сразу, иначе ключ сообщения из trial_messages.py; нет строки — включено.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS trial_message_settings(
+        key TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     # ---------------- Путь человека (db/tracking.py) ----------------
     # user_events — значимые шаги: регистрация, шаги анкеты и онбординга, «пропустить», первая привычка/задача, сообщения Адаму.
     # Клики не пишутся по одному: последние действия сессии лежат в app_sessions.last_actions («после чего вышел»).
@@ -1783,6 +1792,9 @@ def create_tables():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+    # Возврат Stars (handlers/payments.py::/refund, Telegram refundStarPayment): когда платёж вернули человеку.
+    if "refunded_at" not in {row[1] for row in cursor.execute("PRAGMA table_info(stars_payments)").fetchall()}:
+        cursor.execute("ALTER TABLE stars_payments ADD COLUMN refunded_at TIMESTAMP")
 
     # ---------------- «Что нового» (changelog внутри Mini App) ----------------
     # Раньше об обновлениях узнавали только по факту (или никак) — теперь

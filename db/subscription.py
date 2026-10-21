@@ -27,18 +27,10 @@ def _parse_dt(value):
 
 
 def get_trial_day(user_id):
-    """1 в день регистрации, 2 на следующий день, и т.д. Считаем от
-    users.created_at (UTC); у аккаунта в режиме «сценарий триала» (db/access.py) — от users.trial_started_at."""
-    user = get_user(user_id)
-    if not user:
-        return None
-    started = None
-    if "access_mode" in user.keys() and user["access_mode"] == "trial":
-        started = _parse_dt(user["trial_started_at"] if "trial_started_at" in user.keys() else None)
-    created = started or _parse_dt(user["created_at"] if "created_at" in user.keys() else None)
-    if not created:
-        return 1
-    return max(1, (datetime.now(timezone.utc).date() - created.date()).days + 1)
+    """1 в день старта, 2 на следующий день, и т.д. Считаем от users.created_at; у аккаунта в режиме «сценарий триала» (db/access.py) —
+    от users.trial_started_at. Дни — по местному календарю человека (db/trial.py::trial_day)."""
+    from .trial import trial_day
+    return trial_day(user_id)
 
 
 def is_in_trial(user_id):
@@ -63,9 +55,9 @@ def has_ever_paid(user_id):
 
 
 def get_subscription_price_stars(user_id):
-    """Первая оплата — по вводной цене (1.99$), продление — полная (5.99$)."""
-    from config import SUBSCRIPTION_INTRO_PRICE_STARS, SUBSCRIPTION_RENEWAL_PRICE_STARS
-    return SUBSCRIPTION_RENEWAL_PRICE_STARS if has_ever_paid(user_id) else SUBSCRIPTION_INTRO_PRICE_STARS
+    """Первая оплата — по вводной цене (1.99$), но только до дня после триала включительно (ТЗ владельца: на 5-й день уже 5.99$); продление — полная."""
+    from .trial import price_stars
+    return price_stars(user_id)
 
 
 def record_subscription_payment(user_id, months=1):
@@ -90,6 +82,16 @@ def record_subscription_payment(user_id, months=1):
     conn.commit()
     conn.close()
     return new_until
+
+
+def revoke_subscription(user_id):
+    """После возврата Stars: оплаченный срок и ссылка в канал снимаются (отметка «платил раньше» остаётся — решение по цене за админом)."""
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET subscription_paid_until=NULL WHERE telegram_id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def gate_applies_to(user_id):

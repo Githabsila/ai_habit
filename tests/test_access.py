@@ -216,7 +216,7 @@ async def test_trial_and_payment_messages_go_only_to_accounts_in_the_trial_scena
     await sub_sched.run_trial_reminders(bot)
     sent_to = {call.args[0] for call in bot.send_message.call_args_list}
     assert sent_to == {trial_user}, "про триал и оплату пишем только тому, у кого включён сценарий триала"
-    assert "Второй день триала" in bot.send_message.call_args_list[0].args[1]
+    assert "сегодня второй день" in bot.send_message.call_args_list[0].args[1].lower()      # день 2, отметки нет — цель на два дня подряд
 
 
 # ---------------------------------------------------------------------------------------------------------------- приложение
