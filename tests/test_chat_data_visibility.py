@@ -58,6 +58,12 @@ async def test_a_cached_answer_is_not_served_after_the_habits_changed(client, ui
     import webapp.routes_ai_miniapp as route_mod
     _person(uid)
     add_habit(uid, "Ежедневный шаг к цели", planned_time="23:00")
+    # Награда за квест «Поговори сегодня с Адамом» (п.14) выдаётся при первом сообщении и меняет «Adam Coin» в данных человека — а они входят
+    # в отпечаток кэша. Выдаём её заранее, чтобы монеты не менялись между двумя одинаковыми вопросами.
+    from db import add_ai_message
+    from db.quests import get_daily_quests
+    add_ai_message(uid, "user", "привет")
+    get_daily_quests(uid)
     monkeypatch.setattr(route_mod, "try_handle_habit_intent", lambda *a, **k: None)
     monkeypatch.setattr(route_mod, "_looks_like_habit_action", lambda *a, **k: False)
     monkeypatch.setattr(route_mod, "_is_throttled", lambda *a, **k: None)

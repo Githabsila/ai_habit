@@ -572,6 +572,11 @@ function AiChat() {
         }
         if (data.quota)
             setQuota(data.quota);
+        // «Поговори сегодня с Адамом» (и «Выполни 2 привычки» командой в чате): сервер выдал награду сам — говорим об этом тостом.
+        if (data.quest_events && data.quest_events.length) {
+            const coins = data.quest_events.reduce((sum, q) => sum + (Number(q.reward) || 0), 0);
+            setTimeout(() => showToast('🗺️ Квест «' + data.quest_events[0].title + '» выполнен · +' + coins + ' Adam Coin', 3800), 700);
+        }
         setMessages(p => p.some(m => String(m.id) === String(data.message_id)) ? p : [...base(p), { id: data.message_id, role: 'assistant', text: data.answer, time: formatTime(), isCrisis: data.is_crisis, habit: data.suggested_habit, canRate: true, sourcePrompt: text, isNew: true }]);
         vibrate('light');
     };
@@ -820,9 +825,9 @@ function AiChat() {
         cancelVoiceForSend();
         sendText(input);
     };
-    const showToast = (text) => {
+    const showToast = (text, ms = 1500) => {
         setToast(text);
-        setTimeout(() => setToast(''), 1500);
+        setTimeout(() => setToast(''), ms);
     };
     // Бэкенд (/api/ai/feedback, webapp/routes_ai_miniapp.py) был полностью
     // готов, но ни одна кнопка в интерфейсе его не вызывала — 👍/👎 нигде

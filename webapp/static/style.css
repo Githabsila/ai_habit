@@ -14971,6 +14971,29 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .rating-podium-card__stats{margin-top:10px}
 
 /* =========================================================
+   Квесты дня (app.js::openQuestsWindow, п.14): три квеста с полосками, у плана — две части-чипа, у Адама — кружок/галочка. Полоска заполняется
+   на глазах, галочка выскакивает, балл «+1» летит в месячную полосу. Только width/transform/opacity и конечные переходы, без размытия и вечных циклов.
+   ========================================================= */
+.daily-quest[data-go]{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.daily-quest[data-go]:active{transform:scale(.985)}
+.daily-quest__bar-fill{transition:width .7s cubic-bezier(.22,.8,.25,1) !important}
+.daily-quest__hint{display:block;margin:-2px 0 7px;font-size:11px;line-height:1.35;color:var(--text-muted,#9D9DB3)}
+.daily-quest__parts{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.daily-quest__part{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-style:normal;font-size:10.5px;font-weight:700;line-height:1.3;
+  color:var(--text-muted,#9D9DB3);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);transition:background-color .35s ease,color .35s ease,border-color .35s ease}
+.daily-quest__part.is-on{color:#6BE39A;background:rgba(74,222,128,.14);border-color:rgba(74,222,128,.34)}
+.daily-quest__side{flex:0 0 auto;min-width:34px;display:grid;place-items:center}
+.daily-quest__ring{display:block;width:22px;height:22px;box-sizing:border-box;border-radius:50%;border:2px solid rgba(255,255,255,.22)}
+.daily-quest__done{transition:transform .4s cubic-bezier(.2,1.6,.4,1),opacity .2s ease}
+.daily-quest__done.is-pop{transform:scale(.2);opacity:0}
+.daily-quest.is-claimed .daily-quest__title{color:#BFF5D2}
+.quest-point{position:fixed;z-index:10250;pointer-events:none;padding:3px 8px;border-radius:999px;font:900 12px/1 'Space Grotesk',sans-serif;font-style:normal;
+  color:#3a2600;background:#FFD54F;box-shadow:0 4px 12px rgba(255,190,44,.4)}
+.month-card__bar-fill{transition:width .8s cubic-bezier(.22,.8,.25,1)}
+.month-card__count{display:inline-block;transition:transform .3s cubic-bezier(.2,1.6,.4,1)}
+.month-card__count.is-bump{transform:scale(1.22)}
+
+/* =========================================================
    Окно «Сундук» (открытие сундука месяца и парного задания): сундук появляется, его нужно тапнуть три раза (каждый тап — удар,
    шкала и свечение растут), потом сундук потряхивает, пока идёт запрос, крышка откидывается, вылетают искры и появляются награды.
    Только transform/opacity и конечные анимации — без размытия, без CSS-фильтров и вечных циклов (слабые Android WebView).

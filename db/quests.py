@@ -1,177 +1,167 @@
 """
-Roadmap #12 — ежедневные микро-квесты, отдельно от обычных привычек:
-короткие, разные каждый день, с небольшой наградой в Adam Coin. В отличие
-от daily_tasks.py (та система — фиксированные 2 задачи "выполнить
-привычку"/"получить 20 монет", показывается всегда одинаково), квесты
-каждый день другие и опираются на РЕАЛЬНОЕ состояние дня (привычки,
-категории, время выполнения), а не на отдельный прогресс-счётчик,
-который нужно было бы вручную двигать при каждом действии.
+Квесты дня (п.14 владельца, 21.10): три постоянных квеста, которые связывают три возможности приложения — привычки, план дня и Адама.
+Человек пришёл отметить привычку, видит следующий понятный шаг и постепенно осваивает остальное:
 
-Прогресс считается "на лету" при каждом чтении (get_daily_quests) — в
-БД (таблица daily_quests, см. db/core.py) хранится только факт "этот
-квест на этот день уже забран" (claimed), сами квесты не хранятся как
-состояние, только как история наград.
+  • two_habits — «Выполни 2 привычки»: две разные привычки, выполненные сегодня (создание привычки выполнением не считается);
+    прогресс 0/2 → 1/2 → 2/2. Если привычка у человека одна, квест всё равно остаётся на две — он видит, что можно добавить вторую.
+  • plan_day — «Заполни план дня»: на сегодня сохранены главная задача и хотя бы одна второстепенная (две части, 0/2 → 2/2). Выполнять сами
+    задачи не нужно — поощряем именно планирование; больше двух задач баллов не добавляют.
+  • talk_adam — «Поговори сегодня с Адамом»: человек отправил Адаму хотя бы одно сообщение за сегодняшний (местный) день — в приложении или в
+    боте. Просто открыть чат мало. Сообщения, которые Адам написал первым, не считаются.
+
+Прогресс считается «на лету» по реальному состоянию дня, поэтому, если человек уже поговорил с Адамом утром, квест отмечен сразу — порядок
+шагов не важен. Награда выдаётся САМА в момент выполнения (раньше была кнопка «Забрать»): +reward Adam Coin и +1 очко в «Задания месяца»
+(db/month_quests.py считает забранные записи daily_quests). В базе лежит только факт «этот квест на этот день выполнен» (claimed), и он
+«липкий»: удалили привычку или задачу после выполнения — квест остаётся выполненным. Прежние квесты (before_noon, all_done, priority_habit,
+two_categories, no_skip) из выдачи убраны; их выполненные записи по-прежнему идут в очки месяца.
+
+Каждый вызов get_daily_quests сам выдаёт награды за только что выполненные квесты и помечает их just_completed — ответ, в котором это
+пришло, и есть момент для окна «Квесты дня» (приложение сравнивает с прошлым состоянием).
 """
-import hashlib
-import random
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from .core import connect
 
 QUEST_DEFINITIONS = {
-    "two_habits": {"emoji": "✌️", "title": "Выполни 2 привычки сегодня", "target": 2, "reward": 5},
-    "before_noon": {"emoji": "🌅", "title": "Отметь привычку до полудня", "target": 1, "reward": 5},
-    "all_done": {"emoji": "🎯", "title": "Закрой все привычки на сегодня", "target": 1, "reward": 8},
-    "priority_habit": {"emoji": "⭐", "title": "Выполни важную привычку", "target": 1, "reward": 5},
-    "two_categories": {"emoji": "🌈", "title": "Привычки из 2 разных категорий", "target": 1, "reward": 6},
-    "no_skip": {"emoji": "💪", "title": "Ни одного пропуска сегодня", "target": 1, "reward": 6},
+    "two_habits": {"emoji": "✌️", "title": "Выполни 2 привычки", "target": 2, "reward": 5},
+    "plan_day": {"emoji": "📝", "title": "Заполни план дня", "target": 2, "reward": 5},
+    "talk_adam": {"emoji": "💬", "title": "Поговори сегодня с Адамом", "target": 1, "reward": 5},
 }
 QUEST_KEYS = list(QUEST_DEFINITIONS.keys())
-QUESTS_PER_DAY = 3
+QUESTS_PER_DAY = len(QUEST_KEYS)
+
+# Квесты прошлой схемы (по три случайных из шести): в выдаче их больше нет, а забранные записи продолжают считаться в очках месяца.
+LEGACY_QUEST_KEYS = ("before_noon", "all_done", "priority_habit", "two_categories", "no_skip")
+
+PLAN_PARTS = ("Главная задача", "Второстепенная")
 
 
-# Квесты, которые по смыслу почти одно и то же: в один день берём не больше одного из группы (п.7 владельца, 20.10).
-# «Закрой все привычки» и «Ни одного пропуска» засчитываются одним и тем же (всё закрыто, без пропусков) и стояли рядом;
-# «Привычки из 2 категорий» требует тех же двух отметок, что и «Выполни 2 привычки».
-OVERLAPPING_QUESTS = (
-    ("all_done", "no_skip"),
-    ("two_habits", "two_categories"),
-)
+def _habits_progress(habits):
+    return min(sum(1 for h in habits if h["completed"]), QUEST_DEFINITIONS["two_habits"]["target"])
 
 
-def quests_overlap(first, second):
-    return any(first in group and second in group for group in OVERLAPPING_QUESTS)
+def _plan_state(user_id):
+    """(id плана, [есть главная, есть второстепенная]) — тот же «план дня», что человек видит на Главной."""
+    from .daily_plan import get_daily_plan
+
+    plan = get_daily_plan(user_id)
+    return plan["id"], [bool((plan["main_goal"] or "").strip()), bool(plan["tasks"])]
 
 
-def _pick_quests_for_day(user_id, day):
-    """Детерминированный выбор 3 из 6 квестов на конкретный день — тот же
-    пользователь в тот же день всегда видит один и тот же набор при
-    повторных запросах, без необходимости хранить выбор в БД.
-    Квесты одинакового смысла (OVERLAPPING_QUESTS) вместе не попадаются: берём по порядку перемешанного списка и
-    пропускаем тот, что повторяет уже выбранный; без пересечений набор остаётся прежним."""
-    seed = int(hashlib.md5(f"{user_id}:{day}".encode("utf-8")).hexdigest(), 16)
-    keys = QUEST_KEYS[:]
-    random.Random(seed).shuffle(keys)
-    picked = []
-    for key in keys:
-        if any(quests_overlap(key, other) for other in picked):
-            continue
-        picked.append(key)
-        if len(picked) == QUESTS_PER_DAY:
-            break
-    for key in keys:          # запас: если групп станет больше, чем свободных квестов, добираем из оставшихся
-        if len(picked) == QUESTS_PER_DAY:
-            break
-        if key not in picked:
-            picked.append(key)
-    return picked
+def _wrote_to_adam_today(user_id, today):
+    """Было ли у человека сегодня (по его местному дню) хотя бы одно сообщение Адаму: ai_messages, роль user."""
+    from .streak import get_timezone
 
-
-def _quest_progress(user_id, day, habits, key):
-    completed_habits = [h for h in habits if h["completed"]]
-    if key == "two_habits":
-        return min(len(completed_habits), 2)
-    if key == "all_done":
-        return 1 if (habits and len(completed_habits) == len(habits)) else 0
-    if key == "priority_habit":
-        has = any(h["completed"] and ("priority" in h.keys() and h["priority"] == 2) for h in habits)
-        return 1 if has else 0
-    if key == "two_categories":
-        cats = {h["category"] for h in completed_habits if "category" in h.keys() and h["category"]}
-        return 1 if len(cats) >= 2 else 0
-    if key == "no_skip":
-        has_skipped = any("skip_reason" in h.keys() and h["skip_reason"] for h in habits)
-        return 1 if (habits and not has_skipped and len(completed_habits) == len(habits)) else 0
-    if key == "before_noon":
-        conn = connect()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT completed_at FROM habit_completion_events WHERE user_id=? AND date(completed_at)=?",
-            (user_id, day),
-        )
-        rows = cursor.fetchall()
+    try:
+        tz = ZoneInfo(get_timezone(user_id))
+    except Exception:
+        tz = timezone.utc
+    start = datetime.combine(today, time.min, tzinfo=tz).astimezone(timezone.utc)
+    end = (datetime.combine(today, time.min, tzinfo=tz) + timedelta(days=1)).astimezone(timezone.utc)
+    fmt = "%Y-%m-%d %H:%M:%S"
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM ai_messages WHERE user_id=? AND role='user' AND created_at >= ? AND created_at < ? LIMIT 1",
+            (user_id, start.strftime(fmt), end.strftime(fmt)),
+        ).fetchone()
+    finally:
         conn.close()
-        from datetime import datetime, timezone
-        from zoneinfo import ZoneInfo
-        from .streak import get_timezone
+    return row is not None
+
+
+def _award(user_id, day, key, definition, progress, ref=None):
+    """Записать выполненный квест и выдать награду. True — выдано именно сейчас (запись создана этим вызовом)."""
+    from .users import add_xp
+
+    conn = connect()
+    try:
+        cursor = conn.execute(
+            "INSERT OR IGNORE INTO daily_quests(user_id, day, quest_key, title, target, progress, reward_coins, claimed, ref) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)",
+            (user_id, day, key, definition["title"], definition["target"], progress, definition["reward"], ref),
+        )
+        created = cursor.rowcount == 1
+        conn.commit()
+    finally:
+        conn.close()
+    if created:
+        add_xp(user_id, definition["reward"])
         try:
-            tz = ZoneInfo(get_timezone(user_id))
+            from .tracking import track_server
+            track_server(user_id, "quest_done", step=key, meta={"coins": definition["reward"]})
         except Exception:
-            tz = timezone.utc
-        for row in rows:
-            try:
-                dt = datetime.fromisoformat(str(row["completed_at"])).replace(tzinfo=timezone.utc).astimezone(tz)
-            except ValueError:
-                continue
-            if dt.hour < 12:
-                return 1
-        return 0
-    return 0
+            pass
+    return created
 
 
 def get_daily_quests(user_id):
-    """Список из QUESTS_PER_DAY квестов на сегодня с прогрессом/статусом —
-    используется и для отображения, и для проверки claim_daily_quest."""
+    """Три квеста на сегодня с прогрессом. Выполненные, но ещё не записанные квесты записываются здесь же (награда выдаётся сама), и у
+    них стоит just_completed. completed — «липкий»: однажды выполненный квест остаётся выполненным до конца дня."""
     from .streak import local_today
-    day = str(local_today(user_id))
-    keys = _pick_quests_for_day(user_id, day)
+
+    today = local_today(user_id)
+    day = str(today)
 
     conn = connect()
-    cursor = conn.cursor()
-    cursor.execute("SELECT completed, priority, category, skip_reason FROM habits WHERE user_id=?", (user_id,))
-    habits = cursor.fetchall()
-    cursor.execute(
-        "SELECT quest_key FROM daily_quests WHERE user_id=? AND day=? AND claimed=1", (user_id, day)
-    )
-    claimed_keys = {row["quest_key"] for row in cursor.fetchall()}
-    conn.close()
+    try:
+        habits = conn.execute("SELECT completed FROM habits WHERE user_id=?", (user_id,)).fetchall()
+        rows = conn.execute(
+            f"SELECT quest_key, day, ref FROM daily_quests WHERE user_id=? AND claimed=1 AND quest_key IN ({','.join('?' for _ in QUEST_KEYS)})",
+            (user_id, *QUEST_KEYS),
+        ).fetchall()
+    finally:
+        conn.close()
+    claimed_today = {r["quest_key"] for r in rows if r["day"] == day}
+    # План, на который квест уже засчитан в другой день, повторно не считается: между местной полуночью и сменой дня плана (db/daily_plan.py)
+    # на Главной ещё вчерашний план — «заполнен» он не за сегодня.
+    used_plan_refs = {r["ref"] for r in rows if r["quest_key"] == "plan_day" and r["day"] != day and r["ref"]}
 
     result = []
-    for key in keys:
+    for key in QUEST_KEYS:
         definition = QUEST_DEFINITIONS[key]
-        progress = _quest_progress(user_id, day, habits, key)
-        result.append({
+        target = definition["target"]
+        parts = None
+        ref = None
+        if key == "two_habits":
+            progress = _habits_progress(habits)
+        elif key == "plan_day":
+            plan_id, done = _plan_state(user_id)
+            ref = str(plan_id)
+            parts = [{"label": label, "done": bool(flag and ref not in used_plan_refs)} for label, flag in zip(PLAN_PARTS, done)]
+            progress = sum(1 for part in parts if part["done"])
+        else:
+            progress = 1 if _wrote_to_adam_today(user_id, today) else 0
+        claimed = key in claimed_today
+        just_completed = False
+        if not claimed and progress >= target:
+            just_completed = _award(user_id, day, key, definition, progress, ref)
+            claimed = True
+        if claimed:
+            progress = target
+            if parts is not None:
+                parts = [{"label": part["label"], "done": True} for part in parts]
+        item = {
             "key": key,
             "emoji": definition["emoji"],
             "title": definition["title"],
-            "target": definition["target"],
+            "target": target,
             "progress": progress,
             "reward": definition["reward"],
-            "completed": progress >= definition["target"],
-            "claimed": key in claimed_keys,
-        })
+            "completed": claimed or progress >= target,
+            "claimed": claimed,
+            "just_completed": just_completed,
+        }
+        if parts is not None:
+            item["parts"] = parts
+        result.append(item)
     return result
 
 
 def claim_daily_quest(user_id, quest_key):
-    """Забирает награду за выполненный квест. Возвращает количество монет
-    или None, если квест не найден/не выполнен/уже забран."""
-    from .streak import local_today
-    from .users import add_xp
-
+    """Совместимость со старым приложением (кнопка «Забрать»): награды теперь выдаются сами, поэтому забирать нечего — всегда None."""
     if quest_key not in QUEST_DEFINITIONS:
         return None
-    day = str(local_today(user_id))
-    quests = get_daily_quests(user_id)
-    quest = next((q for q in quests if q["key"] == quest_key), None)
-    if not quest or not quest["completed"] or quest["claimed"]:
-        return None
-
-    conn = connect()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id FROM daily_quests WHERE user_id=? AND day=? AND quest_key=?",
-        (user_id, day, quest_key),
-    )
-    if cursor.fetchone():
-        conn.close()
-        return None
-    reward = quest["reward"]
-    cursor.execute(
-        "INSERT INTO daily_quests(user_id, day, quest_key, title, target, progress, reward_coins, claimed) "
-        "VALUES (?,?,?,?,?,?,?,1)",
-        (user_id, day, quest_key, quest["title"], quest["target"], quest["progress"], reward),
-    )
-    conn.commit()
-    conn.close()
-    add_xp(user_id, reward)
-    return reward
+    get_daily_quests(user_id)
+    return None

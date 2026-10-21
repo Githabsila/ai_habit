@@ -565,6 +565,10 @@
           }
           knownLevel = newLevel;
           renderAll();
+          // Квесты дня: завёл привычку, сохранил план — ответ /api/bootstrap уже содержит выполненное (сервер выдаёт награду сам). Есть прошлый
+          // снимок — показываем изменение окном; первый заход — только тост про то, что сделано без приложения (сообщение Адаму в боте и т.п.).
+          if (previousState?.daily_quests) announceQuestChange(previousState.daily_quests, previousState.month_quests);
+          else announceCaughtUpQuests(state.daily_quests);
           return state;
         } catch (err) {
           lastError = err;
@@ -661,43 +665,22 @@
   // "Забрать" у выполненных. Список живёт внутри модалки (#dailyQuestsOverlay,
   // открывается по кнопке #dailyQuestsBtn в "Сегодня") — карточка на весь
   // экран убрана с Главной по просьбе пользователя (перегружала экран).
+  // Три постоянных квеста (db/quests.py, п.14): «Выполни 2 привычки», «Заполни план дня», «Поговори сегодня с Адамом». Награда выдаётся сама в
+  // момент выполнения (кнопки «Забрать» больше нет), поэтому подсветка кнопки «Квесты» — только про сундук месяца. Строки рисует
+  // questRowHtml; окно с анимацией заполнения полосок — openQuestsWindow (ниже, рядом с initDailyQuestActions).
   function renderDailyQuests() {
     const list = document.getElementById("dailyQuestsList");
     const btn = document.getElementById("dailyQuestsBtn");
     if (!list) return;
     const quests = Array.isArray(state.daily_quests) ? state.daily_quests : [];
-    // Просьба пользователя: квесты формируются заранее и всегда видны
-    // (progress 0/x), даже без единой привычки — непонятно, почему цифры
-    // не двигаются. Явно объясняем причину вместо голого списка нулей.
-    const noHabitsHint = document.getElementById("dailyQuestsNoHabitsHint");
-    if (noHabitsHint) noHabitsHint.hidden = (state.habits || []).length > 0;
     if (btn) {
       btn.hidden = quests.length === 0;
-      // Награду можно забрать хотя бы у одного квеста — подсвечиваем
-      // кнопку ДО открытия, чтобы было заметно, что там что-то ждёт
-      // (просьба пользователя: "чтобы бросалось в глаза").
-      const claimable = quests.some(q => q.completed && !q.claimed) || (state.month_quests?.claimable > 0);
-      btn.classList.toggle("has-claimable", claimable);
+      btn.classList.toggle("has-claimable", (state.month_quests?.claimable || 0) > 0);
     }
     renderMonthCard();
-    list.innerHTML = quests.map(q => {
-      const pct = Math.min(100, Math.round(100 * q.progress / q.target));
-      const stateClass = q.claimed ? "is-claimed" : (q.completed ? "is-ready" : "");
-      return `
-      <li class="daily-quest ${stateClass}">
-        <span class="daily-quest__emoji">${q.emoji}</span>
-        <span class="daily-quest__body">
-          <span class="daily-quest__title">${escapeHtml(q.title)}</span>
-          <span class="daily-quest__bar"><span class="daily-quest__bar-fill" style="width:${pct}%"></span></span>
-        </span>
-        ${q.claimed
-          ? `<span class="daily-quest__done">${ICON_CHECK}</span>`
-          : q.completed
-            ? `<button type="button" class="daily-quest__claim" data-quest="${q.key}">+${q.reward} ${ADAM_COIN_ICON}</button>`
-            : `<span class="daily-quest__progress">${q.progress}/${q.target}</span>`
-        }
-      </li>`;
-    }).join("");
+    // Пока идёт показ изменения (полоски заполняются на глазах), список не пересобираем — он дорисует себя сам.
+    if (questsAnim) return;
+    list.innerHTML = quests.map((q) => questRowHtml(q, q, (state.habits || []).length)).join("");
   }
 
   // «Задания месяца» (db/month_quests.py): прогресс по уже забранным
@@ -708,9 +691,9 @@
     return parts.join(" ");
   }
 
-  function renderMonthCard() {
+  function renderMonthCard(month) {
     const card = document.getElementById("monthCard");
-    const mq = state?.month_quests;
+    const mq = month || state?.month_quests;
     if (!card) return;
     if (!mq) { card.hidden = true; return; }
     card.hidden = false;
@@ -742,9 +725,12 @@
     }
     if (hint) {
       const daysLeft = Number(mq.days_left);
+      const upcoming = mq.chests.find((ch) => !ch.reached);
       hint.textContent = nextChest
         ? `Сундук готов! Открой его до конца месяца (осталось ${daysLeft} дн.).`
-        : `Выполняй ежедневные задания — сундук за каждые 15. Сундуки открываются до конца месяца (осталось ${daysLeft} дн.).`;
+        : upcoming
+          ? `До ближайшего сундука — ${upcoming.at - Math.min(mq.points, upcoming.at)}. Каждое выполненное дело из списка выше — один балл. Сундуки открываются до конца месяца (осталось ${daysLeft} дн.).`
+          : `Все сундуки месяца собраны — отличная работа (осталось ${daysLeft} дн.).`;
     }
   }
 
@@ -760,10 +746,7 @@
     }
     renderMonthCard();
     const btn = document.getElementById("dailyQuestsBtn");
-    if (btn) {
-      const dailyClaimable = (state.daily_quests || []).some((q) => q.completed && !q.claimed);
-      btn.classList.toggle("has-claimable", dailyClaimable || next.claimable > 0);
-    }
+    if (btn) btn.classList.toggle("has-claimable", next.claimable > 0);
   }
 
   // Аватар-наставник ADAM вместо питомца-птенца (эмодзи 🥚→🐣→🐥→🦅). Картинка
@@ -5285,6 +5268,8 @@ function applyActionPatch(result) {
       }
     }
   }
+  const questsBefore = state.daily_quests;                                    // для окна «Квесты дня»: что было до этого действия
+  const monthBefore = state.month_quests ? JSON.parse(JSON.stringify(state.month_quests)) : null;
   if (result.daily_quests) state.daily_quests = result.daily_quests;
   if (result.streak) state.streak = result.streak;
   if (result.month_quests) applyMonthQuests(result.month_quests);
@@ -5298,7 +5283,10 @@ function applyActionPatch(result) {
   renderTodayFocus();
   renderStreak();
   renderBoosterBanner();
-  if (result.daily_quests) renderDailyQuests();
+  if (result.daily_quests) {
+    renderDailyQuests();
+    announceQuestChange(questsBefore, monthBefore);
+  }
   if (result.hero) {
     renderHeroWidget();
     announceHeroGrowth(previousHero, result.hero);
@@ -5631,45 +5619,301 @@ function initDailyQuestActions() {
       btn.disabled = false;
     }
   });
-  list.addEventListener("click", async (e) => {
-    const btn = e.target.closest(".daily-quest__claim");
-    if (!btn) return;
-    const questKey = btn.dataset.quest;
-    btn.disabled = true;
-    try {
-      const result = await api(`/api/quests/${questKey}/claim`, { method: "POST" });
-      haptic("medium");
-      showToast(`+${result.reward} Adam Coin`, "praise");
-      applyActionPatch(result);
-    } catch (err) {
-      showToast(friendlyError(err), "error");
-      btn.disabled = false;
-    }
+  // Тап по невыполненному квесту ведёт к его следующему шагу: к привычкам, к плану дня или в чат с Адамом.
+  list.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-go]");
+    if (row) goToQuestStep(row.dataset.go);
   });
-
-  // Тот же приём открытия/закрытия, что и у остальных модалок-шторок
-  // (см. openFreezeSheet выше) — requestAnimationFrame для плавного входа,
-  // hidden выставляется с задержкой под длительность анимации закрытия.
-  const overlay = document.getElementById("dailyQuestsOverlay");
-  const closeQuestsOverlay = () => {
-    if (!overlay) return;
-    haptic("light");
-    overlay.classList.remove("is-open");
-    overlay.setAttribute("aria-hidden", "true");
-    // Держим overlay в DOM до окончания transform/opacity transition,
-    // чтобы закрытие не обрывалось последним кадром.
-    setTimeout(() => { overlay.hidden = true; }, 430);
-  };
-  const openQuestsOverlay = () => {
-    if (!overlay) return;
-    overlay.hidden = false;
-    requestAnimationFrame(() => overlay.classList.add("is-open"));
-    overlay.setAttribute("aria-hidden", "false");
-    haptic("light");
-  };
-  document.getElementById("dailyQuestsBtn")?.addEventListener("click", openQuestsOverlay);
+  list.addEventListener("keydown", (e) => {
+    const row = e.target.closest("[data-go]");
+    if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); goToQuestStep(row.dataset.go); }
+  });
+  document.getElementById("dailyQuestsBtn")?.addEventListener("click", () => { trk("quests_window_open"); openQuestsOverlay(); });
   document.getElementById("dailyQuestsClose")?.addEventListener("click", closeQuestsOverlay);
   document.getElementById("dailyQuestsBackdrop")?.addEventListener("click", closeQuestsOverlay);
+}
+
+// ===================== КВЕСТЫ ДНЯ: три квеста и окно с анимацией (db/quests.py, п.14 владельца) =====================
+// Идея — как ежедневные задания в Duolingo: человек пришёл отметить привычку и сразу видит следующий понятный шаг. После первой привычки окно
+// само показывает, как полоска «Выполни 2 привычки» заполняется с 0/2 до 1/2; после второй — полоска доходит до конца, мягкая вибрация,
+// появляется галочка, и заработанный балл перелетает в месячную полосу («Задания месяца»). Так же окно открывается, когда выполнен квест про
+// план дня. Квест про Адама выполняется в чате: окно при следующем входе уже отмечает его, а в чате появляется тост. Награду сервер выдаёт сам
+// (just_completed у квеста), окно только показывает изменение: сравнивает состояние до и после. Эффекты — transform/opacity/width и конечные
+// анимации, без фильтров и вечных циклов. demo — сцена из админки (SIM_SCENES): ничего не читает из state и не пишет.
+const QUEST_FILL_MS = 700;
+let questsAnim = null;               // { timers, toMonth, demo } пока идёт показ изменения; renderDailyQuests тогда список не трогает
+let questsWindowTimer = null;        // ждём, пока закроются другие окна (праздник серии, уровень и т.п.)
+let questsPending = null;            // { before, monthBefore, after, monthAfter } — окно, которое ещё не открылось
+let questsOverlayHideTimer = null;
+
+function questPct(q, shown) {
+  if (q.target <= 1) return shown.completed ? 100 : 0;
+  return Math.min(100, Math.round(100 * shown.progress / q.target));
+}
+
+function questHint(q, shown, habitsCount) {
+  if (shown.completed) return "";
+  if (q.key === "two_habits") {
+    if (habitsCount === 0) return "Для начала добавь первую и отметь её";
+    if (habitsCount === 1) return "Добавь вторую — и полоска дойдёт до конца";
+    return "";
+  }
+  if (q.key === "talk_adam") return "Расскажи, как идёт день, — отвечу и помогу разобраться";
+  return "";
+}
+
+function questSideHtml(q, shown) {
+  if (shown.completed) return `<span class="daily-quest__done">${ICON_CHECK}</span>`;
+  if (q.key === "talk_adam") return '<span class="daily-quest__ring" aria-hidden="true"></span>';
+  return `<span class="daily-quest__progress">${shown.progress}/${q.target}</span>`;
+}
+
+function questPartsHtml(q, shown) {
+  if (!Array.isArray(q.parts)) return "";
+  return `<span class="daily-quest__parts">${q.parts.map((part, i) => {
+    const on = !!(shown.parts?.[i]?.done ?? part.done);
+    return `<i class="daily-quest__part${on ? " is-on" : ""}">${escapeHtml(part.label)}</i>`;
+  }).join("")}</span>`;
+}
+
+// q — квест (как сейчас), shown — то, что показываем в этот момент (при анимации — прошлое состояние).
+function questRowHtml(q, shown, habitsCount) {
+  const hint = questHint(q, shown, habitsCount);
+  const bar = q.key === "talk_adam" ? "" : `<span class="daily-quest__bar"><span class="daily-quest__bar-fill" style="width:${questPct(q, shown)}%"></span></span>`;
+  return `
+    <li class="daily-quest${shown.completed ? " is-claimed" : ""}" data-quest="${q.key}"${shown.completed ? "" : ` data-go="${q.key}" role="button" tabindex="0"`}>
+      <span class="daily-quest__emoji">${q.emoji}</span>
+      <span class="daily-quest__body">
+        <span class="daily-quest__title">${escapeHtml(q.title)}</span>
+        ${questPartsHtml(q, shown)}
+        ${hint ? `<small class="daily-quest__hint">${escapeHtml(hint)}</small>` : ""}
+        ${bar}
+      </span>
+      <span class="daily-quest__side">${questSideHtml(q, shown)}</span>
+    </li>`;
+}
+
+// Что изменилось между двумя состояниями квестов: habitsMoved — прибавилось по «2 привычки»; done — ключи квестов, ставших выполненными.
+function diffQuests(before, after) {
+  const prev = new Map((before || []).map((q) => [q.key, q]));
+  let habitsMoved = false;
+  const done = [];
+  for (const q of after || []) {
+    const p = prev.get(q.key);
+    if (!p) continue;
+    if (q.key === "two_habits" && q.progress > p.progress) habitsMoved = true;
+    if (q.completed && !p.completed) done.push(q.key);
+  }
+  return { habitsMoved, done };
+}
+
+// После действия (отметка привычки, сохранение плана): если для квестов что-то сдвинулось — показать окно. Просто частичный прогресс плана
+// (сохранена только главная задача) окно не открывает: лишний шум.
+function announceQuestChange(before, monthBefore) {
+  if (!before || labMode || simMode) return;
+  const after = state?.daily_quests;
+  const diff = diffQuests(before, after);
+  if (!diff.habitsMoved && !diff.done.length) return;
+  const payload = { before: questsPending?.before || before, monthBefore: questsPending?.monthBefore || monthBefore, after, monthAfter: state?.month_quests || null };
+  questsPending = payload;
+  scheduleQuestsWindow(payload);
+}
+
+// Первый заход за сессию: что выполнено без приложения (сообщение Адаму в боте и т.п.) — одним тостом, окно не открываем.
+function announceCaughtUpQuests(quests) {
+  const fresh = (quests || []).filter((q) => q.just_completed);
+  if (!fresh.length || labMode || simMode) return;
+  const coins = fresh.reduce((sum, q) => sum + (Number(q.reward) || 0), 0);
+  const text = fresh.length === 1 ? `Квест «${fresh[0].title}» выполнен` : "Квесты дня выполнены";
+  setTimeout(() => showToast(`🗺️ ${text} · +${coins} Adam Coin`, "praise", 3800), 1800);
+}
+
+function scheduleQuestsWindow(payload) {
+  const overlay = document.getElementById("dailyQuestsOverlay");
+  if (overlay && !overlay.hidden && !questsAnim) {
+    questsPending = null;
+    openQuestsWindow(payload);                      // окно уже открыто — просто показываем изменение прямо в нём
+    return;
+  }
+  clearInterval(questsWindowTimer);
+  const startedAt = Date.now();
+  let quietTicks = 0;
+  questsWindowTimer = setInterval(() => {
+    if (Date.now() - startedAt > 60000) {
+      clearInterval(questsWindowTimer);
+      questsWindowTimer = null;
+      questsPending = null;
+      return;
+    }
+    if (celebrationOverlayOpen() || document.hidden) { quietTicks = 0; return; }
+    quietTicks += 1;
+    if (quietTicks < 2) return;
+    clearInterval(questsWindowTimer);
+    questsWindowTimer = null;
+    const ready = questsPending;
+    questsPending = null;
+    if (!ready) return;
+    trk("quests_window_auto");
+    openQuestsWindow(ready);
+  }, 400);
+}
+
+function openQuestsOverlay() {
+  const overlay = document.getElementById("dailyQuestsOverlay");
+  if (!overlay) return;
+  clearTimeout(questsOverlayHideTimer);
+  overlay.hidden = false;
+  void overlay.offsetWidth;                  // перерасчёт стилей до класса: переход входа проигрывается и без requestAnimationFrame (в фоне он не идёт)
+  overlay.classList.add("is-open");
+  overlay.setAttribute("aria-hidden", "false");
+  haptic("light");
+}
+
+function closeQuestsOverlay() {
+  const overlay = document.getElementById("dailyQuestsOverlay");
+  if (!overlay) return;
+  const demo = !!questsAnim?.demo;
+  finishQuestsAnim();
+  haptic("light");
+  overlay.classList.remove("is-open");
+  overlay.setAttribute("aria-hidden", "true");
+  // Держим overlay в DOM до конца transition закрытия; новое открытие эту отсрочку отменяет (clearTimeout в openQuestsOverlay).
+  clearTimeout(questsOverlayHideTimer);
+  questsOverlayHideTimer = setTimeout(() => { overlay.hidden = true; }, 430);
+  if (demo) renderDailyQuests();
+}
+
+function finishQuestsAnim() {
+  if (!questsAnim) return;
+  questsAnim.timers.forEach(clearTimeout);
+  const { toMonth, demo } = questsAnim;
+  questsAnim = null;
+  document.querySelectorAll(".quest-point").forEach((el) => el.remove());
+  if (toMonth) renderMonthCard(toMonth);
+  if (!demo) renderDailyQuests();
+}
+
+// Показать окно «Квесты дня». before/monthBefore — состояние ДО (с него полоски начинают заполняться), after/monthAfter — ПОСЛЕ (по умолчанию —
+// текущее из state). Без before окно просто открывается с текущим состоянием.
+function openQuestsWindow({ before = null, monthBefore = null, after = null, monthAfter = null, habitsCount = null, demo = false } = {}) {
+  const overlay = document.getElementById("dailyQuestsOverlay");
+  const list = document.getElementById("dailyQuestsList");
+  if (!overlay || !list) return false;
+  const toQuests = after || state?.daily_quests || [];
+  const toMonth = monthAfter || state?.month_quests || null;
+  const habits = habitsCount === null ? (state?.habits || []).length : habitsCount;
+  finishQuestsAnim();
+  hideProductHint();
+  const fromByKey = new Map((before || []).map((q) => [q.key, q]));
+  questsAnim = { timers: [], toMonth, demo };
+  list.innerHTML = toQuests.map((q) => questRowHtml(q, fromByKey.get(q.key) || q, habits)).join("");
+  renderMonthCard(monthBefore || toMonth);
+  openQuestsOverlay();
+  questsAnim.timers.push(setTimeout(() => playQuestsChange(toQuests, fromByKey, monthBefore, toMonth, habits), overlay.classList.contains("is-open") ? 250 : 650));
+  return true;
+}
+
+function playQuestsChange(toQuests, fromByKey, monthBefore, toMonth, habits) {
+  const anim = questsAnim;
+  const list = document.getElementById("dailyQuestsList");
+  if (!anim || !list) return;
+  let moved = 0;
+  let finishAt = 600;
+  toQuests.forEach((q) => {
+    const from = fromByKey.get(q.key) || q;
+    const li = list.querySelector(`[data-quest="${q.key}"]`);
+    const changed = q.progress !== from.progress || q.completed !== from.completed;
+    if (!li || !changed) return;
+    const fill = li.querySelector(".daily-quest__bar-fill");
+    if (fill) fill.style.width = `${questPct(q, q)}%`;
+    (q.parts || []).forEach((part, i) => li.querySelectorAll(".daily-quest__part")[i]?.classList.toggle("is-on", !!part.done));
+    const progress = li.querySelector(".daily-quest__progress");
+    if (progress) progress.textContent = `${q.progress}/${q.target}`;
+    if (q.completed && !from.completed) {
+      const delay = QUEST_FILL_MS + 120 + moved * 900;
+      anim.timers.push(setTimeout(() => completeQuestRow(li, q, monthBefore, toMonth), delay));
+      finishAt = Math.max(finishAt, delay + 1300);
+    } else {
+      finishAt = Math.max(finishAt, QUEST_FILL_MS + 200);
+    }
+    moved += 1;
+  });
+  if (moved) haptic("light");
+  anim.timers.push(setTimeout(() => { if (questsAnim === anim) finishQuestsAnim(); }, finishAt));
+}
+
+// Квест закрылся: галочка выскакивает, вибрация, балл летит в месячную полосу.
+function completeQuestRow(li, q, monthBefore, toMonth) {
+  if (!questsAnim) return;
+  li.classList.add("is-claimed");
+  li.removeAttribute("data-go");
+  li.removeAttribute("role");
+  li.removeAttribute("tabindex");
+  li.querySelector(".daily-quest__hint")?.remove();
+  const side = li.querySelector(".daily-quest__side");
+  if (side) side.innerHTML = `<span class="daily-quest__done is-pop">${ICON_CHECK}</span>`;
+  const check = side?.querySelector(".daily-quest__done");
+  void check?.offsetWidth;
+  check?.classList.remove("is-pop");
+  haptic("success");
+  const bar = document.querySelector("#monthCardTrack .month-card__bar-fill");
+  const anim = questsAnim;
+  flyQuestPoint(check || li, bar, () => {
+    if (questsAnim !== anim) return;
+    if (bar && toMonth) {
+      bar.style.width = `${Math.min(100, Math.round(100 * toMonth.points / toMonth.goal))}%`;
+      const count = document.getElementById("monthCardCount");
+      if (count) {
+        count.textContent = `${Math.min(toMonth.points, toMonth.goal)} / ${toMonth.goal}`;
+        count.classList.add("is-bump");
+        anim.timers.push(setTimeout(() => count.classList.remove("is-bump"), 420));
+      }
+      haptic("light");
+    }
+  });
+}
+
+// Балл «+1» вылетает из галочки квеста и долетает до конца месячной полосы. Web Animations — конечная, только transform/opacity.
+function flyQuestPoint(fromEl, toEl, onArrive) {
+  if (!fromEl || !toEl || typeof fromEl.animate !== "function") { onArrive(); return; }
+  const a = fromEl.getBoundingClientRect();
+  const b = toEl.getBoundingClientRect();
+  const dot = document.createElement("i");
+  dot.className = "quest-point";
+  dot.textContent = "+1";
+  dot.style.left = `${a.left + a.width / 2}px`;
+  dot.style.top = `${a.top + a.height / 2}px`;
+  document.body.appendChild(dot);
+  const dx = b.left + b.width - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  const flight = dot.animate(
+    [
+      { transform: "translate(-50%, -50%) scale(.6)", opacity: 0 },
+      { transform: "translate(-50%, -50%) scale(1.15)", opacity: 1, offset: 0.18 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(.7)`, opacity: 0.95 },
+    ],
+    { duration: 780, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" },
+  );
+  flight.onfinish = () => { dot.remove(); onArrive(); };
+  flight.oncancel = () => dot.remove();
+}
+
+// Тап по невыполненному квесту — к его следующему шагу.
+function goToQuestStep(key) {
+  if (questsAnim?.demo) return;
+  trk("quests_go", key);
+  closeQuestsOverlay();
+  setTimeout(() => {
+    if (key === "talk_adam") { document.getElementById("aiCoachBtn")?.click(); return; }
+    if (key === "plan_day") {
+      const target = document.getElementById("mainGoalInput") || document.getElementById("planList");
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      try { target?.focus({ preventScroll: true }); } catch (_) { /* без фокуса достаточно прокрутки */ }
+      return;
+    }
+    if ((state?.habits || []).length < 2) openAddCollapse("addHabitCollapse");
+    document.getElementById("habitList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 460);
 }
 
 function initHabitActions() {
@@ -8996,6 +9240,25 @@ const SIM_INBOX = (() => {
 const SIM_FRIEND = { telegram_id: 0, first_name: "Мария", avatar_id: "default", frame_id: "default", streak: 14 };
 const SIM_RESCUE_FRIEND = { telegram_id: 0, first_name: "Мария", avatar_id: "default", frame_id: "default", streak: 0, lost_streak: 12 };
 
+// Демо-данные для сцен «Квесты дня» (названия — те же, что в db/quests.py; тест следит).
+const simQuestHabits = (progress) => ({ key: "two_habits", emoji: "✌️", title: "Выполни 2 привычки", target: 2, progress, reward: 5, completed: progress >= 2, claimed: progress >= 2, just_completed: false });
+const simQuestPlan = (main, secondary) => {
+  const parts = [{ label: "Главная задача", done: main }, { label: "Второстепенная", done: secondary }];
+  const progress = parts.filter((part) => part.done).length;
+  return { key: "plan_day", emoji: "📝", title: "Заполни план дня", target: 2, progress, reward: 5, completed: progress >= 2, claimed: progress >= 2, just_completed: false, parts };
+};
+const simQuestAdam = (done) => ({ key: "talk_adam", emoji: "💬", title: "Поговори сегодня с Адамом", target: 1, progress: done ? 1 : 0, reward: 5, completed: done, claimed: done, just_completed: false });
+const simMonth = (points) => ({
+  month_key: "2026-10", title: "Задания октября", points, goal: 60, days_left: 9,
+  claimable: [15, 30, 45, 60].filter((at) => points >= at).length,
+  chests: [
+    { at: 15, coins: 25, diamonds: 0, final: false, reached: points >= 15, claimed: false },
+    { at: 30, coins: 50, diamonds: 1, final: false, reached: points >= 30, claimed: false },
+    { at: 45, coins: 75, diamonds: 1, final: false, reached: points >= 45, claimed: false },
+    { at: 60, coins: 150, diamonds: 1, final: true, reached: points >= 60, claimed: false },
+  ],
+});
+
 const SIM_SCENES = {
   chest_month: () => openChestReveal({
     eyebrow: "СУНДУК МЕСЯЦА", caption: "30 из 60 заданий",
@@ -9023,6 +9286,21 @@ const SIM_SCENES = {
   freeze_help_sent: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 440, sent: true }),
   rescue_help: () => openRescueHelp({ sim: true, friend: SIM_RESCUE_FRIEND }),
   rescue_help_sent: () => openRescueHelp({ sim: true, friend: SIM_RESCUE_FRIEND, sent: true, restored: 13 }),
+  quests_first: () => openQuestsWindow({
+    demo: true, habitsCount: 1, monthBefore: simMonth(14), monthAfter: simMonth(14),
+    before: [simQuestHabits(0), simQuestPlan(false, false), simQuestAdam(false)],
+    after: [simQuestHabits(1), simQuestPlan(true, false), simQuestAdam(false)],
+  }),
+  quests_done: () => openQuestsWindow({
+    demo: true, habitsCount: 2, monthBefore: simMonth(14), monthAfter: simMonth(15),
+    before: [simQuestHabits(1), simQuestPlan(true, false), simQuestAdam(true)],
+    after: [simQuestHabits(2), simQuestPlan(true, false), simQuestAdam(true)],
+  }),
+  quests_all: () => openQuestsWindow({
+    demo: true, habitsCount: 2, monthBefore: simMonth(29), monthAfter: simMonth(30),
+    before: [simQuestHabits(2), simQuestPlan(true, false), simQuestAdam(true)],
+    after: [simQuestHabits(2), simQuestPlan(true, true), simQuestAdam(true)],
+  }),
   haptic_triple: () => {
     haptic("triple");
     showToast("📳 Тройная долгая вибрация — так ощущается сложное достижение", "success", 3600);
@@ -9058,6 +9336,7 @@ function playSimScene() {
   closeTrialPaywall();                      // окна триала от прошлой сцены не должны перекрывать следующую
   closeTrialSheet();
   closeRescueHelp(true);                    // и «Серию можно спасти»: повтор той же сцены заново запускает анимацию значка
+  if (document.getElementById("dailyQuestsOverlay")?.classList.contains("is-open")) closeQuestsOverlay();   // окно «Квесты дня» от прошлой сцены
   const item = simMode?.list[simMode.index];
   const run = item && SIM_SCENES[item.key];
   if (!run) return;

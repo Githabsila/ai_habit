@@ -250,6 +250,17 @@ async def ai_chat_miniapp(request):
     return web.json_response(job.payload, status=job.status)
 
 
+def _quest_events(user_id):
+    """Квесты дня, ставшие выполненными из-за этого сообщения (db/quests.py выдаёт награду сам): [{key, title, reward}] — чат покажет тост.
+    Сообщение Адаму — это квест «Поговори сегодня с Адамом»; команда «отметь привычку» в чате может закрыть и «Выполни 2 привычки»."""
+    try:
+        from db.quests import get_daily_quests
+        return [{"key": q["key"], "title": q["title"], "reward": q["reward"]} for q in get_daily_quests(user_id) if q["just_completed"]]
+    except Exception:
+        logger.exception("Не удалось проверить квесты дня после сообщения")
+        return []
+
+
 HABIT_LIMIT = 10          # столько привычек можно завести (db/habits.py); при полном списке кнопку «Добавить» не показываем
 
 
@@ -301,6 +312,7 @@ async def _answer_chat_inner(user_id: int, pro: bool, message_text: str):
             "suggested_habit": None,
             "message_id": message_id,
             "quota": get_ai_quota(user_id, pro),
+            "quest_events": _quest_events(user_id),
         }
 
     # ИИ для человека отключён админом или исчерпан его дневной лимит токенов (db/ai_usage.py) — отвечаем по-человечески, без ошибки.
@@ -411,6 +423,7 @@ async def _answer_chat_inner(user_id: int, pro: bool, message_text: str):
         "suggested_habit": suggested_habit,
         "message_id": message_id,
         "quota": get_ai_quota(user_id, pro),
+        "quest_events": _quest_events(user_id),
     }
 
 

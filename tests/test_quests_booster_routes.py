@@ -33,14 +33,8 @@ async def test_claim_quest_route_rejects_unfinished(client, uid):
     assert r2.status == 400
 
 
-async def test_claim_quest_route_awards_after_completion(client, uid, monkeypatch):
-    # Квесты дня выбираются детерминированно по (user_id, день) из 6
-    # возможных — не все 3 обязательно satisfiable двумя обычными
-    # привычками (например "before_noon" зависит от времени суток), так
-    # что фиксируем набор явно, чтобы тест не был случайно нестабильным.
-    import db.quests as quests_module
-    monkeypatch.setattr(quests_module, "_pick_quests_for_day", lambda user_id, day: ["two_habits", "all_done", "priority_habit"])
-
+async def test_a_finished_quest_pays_out_by_itself_and_the_claim_route_has_nothing_left(client, uid):
+    """П.14: награда за квест выдаётся сама в момент выполнения (раньше была кнопка «Забрать»)."""
     add_user(uid, "u", "Test")
     headers = await _headers(uid)
     ra = await client.post("/api/habits", headers=headers, json={"title": "Habit A"})
@@ -52,18 +46,11 @@ async def test_claim_quest_route_awards_after_completion(client, uid, monkeypatc
 
     r = await client.get("/api/quests", headers=headers)
     body = await r.json()
-    claimable = next((q for q in body["quests"] if q["completed"] and not q["claimed"]), None)
-    assert claimable is not None
+    habits_quest = next(q for q in body["quests"] if q["key"] == "two_habits")
+    assert habits_quest["completed"] and habits_quest["claimed"], "награда уже выдана"
 
-    r2 = await client.post(f"/api/quests/{claimable['key']}/claim", headers=headers)
-    assert r2.status == 200
-    data = await r2.json()
-    assert data["reward"] == claimable["reward"]
-    # claim_daily_quest начисляет XP — уровень мог измениться, поэтому
-    # ответ должен нести user/daily_quests целиком (app.js::applyActionPatch
-    # патчит точечно вместо await loadBootstrap() за всем bootstrap).
-    assert data["user"]["telegram_id"] == uid
-    assert any(q["key"] == claimable["key"] and q["claimed"] for q in data["daily_quests"])
+    r2 = await client.post(f"/api/quests/{habits_quest['key']}/claim", headers=headers)
+    assert r2.status == 400 and (await r2.json())["error"] == "quest_not_claimable", "забирать больше нечего"
 
 
 async def test_stars_invoice_route_accepts_booster_item(client, uid, monkeypatch):

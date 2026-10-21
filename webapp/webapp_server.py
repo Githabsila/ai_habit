@@ -1389,7 +1389,8 @@ async def complete_habit_route(request):
         "ok": True,
         "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
         "habit": _shape_habit(get_habit(habit_id), telegram_id),
-        "daily_quests": get_daily_quests(telegram_id),
+        "daily_quests": get_daily_quests(telegram_id),          # сам выдаёт награды за только что выполненные квесты (db/quests.py)
+        "month_quests": get_month_quests(telegram_id),         # очки месяца: окно «Квесты дня» показывает, как балл долетает до полосы
         "progress": get_progress(telegram_id),
         "streak": streak,
         "streak_event": event,
@@ -1484,7 +1485,8 @@ async def habit_progress_route(request):
         "target_count": result["target_count"],
         "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
         "habit": _shape_habit(get_habit(habit_id), telegram_id),
-        "daily_quests": get_daily_quests(telegram_id),
+        "daily_quests": get_daily_quests(telegram_id),          # сам выдаёт награды за только что выполненные квесты (db/quests.py)
+        "month_quests": get_month_quests(telegram_id),         # очки месяца: окно «Квесты дня» показывает, как балл долетает до полосы
         "progress": get_progress(telegram_id),
         "streak": streak,
         "streak_event": event,

@@ -31,10 +31,7 @@ def test_daily_quests_stable_across_calls_same_day(uid):
     assert first == second
 
 
-def test_two_habits_quest_progresses_with_completions(uid, monkeypatch):
-    import db.quests as quests_module
-    monkeypatch.setattr(quests_module, "_pick_quests_for_day", lambda user_id, day: ["two_habits", "all_done", "priority_habit"])
-
+def test_two_habits_quest_progresses_with_completions(uid):
     add_user(uid, "u", "Test")
     add_habit(uid, "A")
     add_habit(uid, "B")
@@ -57,32 +54,24 @@ def test_two_habits_quest_progresses_with_completions(uid, monkeypatch):
     assert two_habits["completed"] is True
 
 
-def test_claim_daily_quest_awards_coins_once(uid, monkeypatch):
-    # Фиксируем набор квестов дня явно — не все 6 возможных квестов
-    # satisfiable двумя обычными привычками (например "before_noon"
-    # зависит от времени суток), иначе тест был бы скрыто нестабильным
-    # в зависимости от того, какие 3 из 6 выпали этому uid сегодня.
-    import db.quests as quests_module
-    monkeypatch.setattr(quests_module, "_pick_quests_for_day", lambda user_id, day: ["two_habits", "all_done", "priority_habit"])
-
+def test_a_finished_quest_pays_out_once_by_itself(uid):
+    """П.14: награда выдаётся сама при первом чтении после выполнения и больше не повторяется; «Забрать» (claim_daily_quest) — совместимость."""
     add_user(uid, "u", "Test")
     add_habit(uid, "A")
     add_habit(uid, "B")
     for h in get_habits(uid):
         complete_habit(h["id"])
 
-    quests = get_daily_quests(uid)
-    completed_quest = next((q for q in quests if q["completed"] and not q["claimed"]), None)
-    assert completed_quest is not None
-
     before = get_user(uid)["xp"]
-    reward = claim_daily_quest(uid, completed_quest["key"])
-    assert reward == completed_quest["reward"]
-    assert get_user(uid)["xp"] == before + reward
+    paid = next(q for q in get_daily_quests(uid) if q["key"] == "two_habits")
+    assert paid["completed"] and paid["claimed"] and paid["just_completed"]
+    after_first = get_user(uid)["xp"]
+    assert after_first == before + paid["reward"]
 
-    # Повторный claim того же квеста в тот же день — ничего не даёт.
-    again = claim_daily_quest(uid, completed_quest["key"])
-    assert again is None
+    again = next(q for q in get_daily_quests(uid) if q["key"] == "two_habits")
+    assert again["completed"] and not again["just_completed"], "второй раз — уже не «только что»"
+    assert get_user(uid)["xp"] == after_first, "повторное чтение ничего не добавляет"
+    assert claim_daily_quest(uid, "two_habits") is None
 
 
 def test_claim_unfinished_quest_returns_none(uid):

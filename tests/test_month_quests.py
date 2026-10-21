@@ -235,15 +235,17 @@ async def test_claim_chest_route(client, uid):
     assert r.status == 400 and (await r.json())["error"] == "invalid_chest"
 
 
-async def test_claiming_a_daily_quest_returns_the_month_card(client, uid):
-    from db import add_habit, complete_habit, get_daily_quests
+async def test_a_finished_daily_quest_adds_one_month_point_by_itself(client, uid):
+    """П.14: награда за квест выдаётся сама, поэтому очко месяца появляется в тот же момент — без «Забрать»."""
+    from db import add_habit, complete_habit
     me = _user(uid)
     for title in ("Одна", "Две"):
         complete_habit(add_habit(me, title))
-    quest = next(q for q in get_daily_quests(me) if q["completed"] and not q["claimed"])
-    r = await client.post(f"/api/quests/{quest['key']}/claim", headers=_headers(me))
+    r = await client.get("/api/quests", headers=_headers(me))
     assert r.status == 200
-    assert (await r.json())["month_quests"]["points"] == 1
+    body = await r.json()
+    assert next(q for q in body["quests"] if q["key"] == "two_habits")["claimed"] is True
+    assert body["month_quests"]["points"] == 1
 
 
 # ---------------------------------------------------------------------------

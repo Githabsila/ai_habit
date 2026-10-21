@@ -1317,6 +1317,11 @@ def create_tables():
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_daily_quests_user_day ON daily_quests(user_id, day)"
     )
+    # ref — на что засчитан квест: у «Заполни план дня» это id плана, чтобы вчерашний план, который на Главной ещё виден после местной
+    # полуночи, не засчитывался за новый день повторно (db/quests.py).
+    cursor.execute("PRAGMA table_info(daily_quests)")
+    if "ref" not in {row[1] for row in cursor.fetchall()}:
+        cursor.execute("ALTER TABLE daily_quests ADD COLUMN ref TEXT")
 
     # ---------------- Roadmap #19: реакции/стикеры поддержки другу ----------------
     cursor.execute("""
