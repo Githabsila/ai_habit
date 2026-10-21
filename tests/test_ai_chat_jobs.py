@@ -334,4 +334,4 @@ def test_returning_adds_the_users_bubble_only_when_it_is_missing_and_never_twice
 def test_new_dialog_drops_the_waiting_request_and_the_page_loads_the_new_script():
     clear = COACH_JS[COACH_JS.index("const startNewDialog = () => {"):][:600]
     assert "clearPendingChat()" in clear and "deliveredRef.current.add(waiting.rid)" in clear and "setLoading(false)" in clear
-    assert "ai_coach.js?v=20261020_PLANS_V54" in COACH_HTML
+    assert "ai_coach.js?v=20261021_COMPOSE_V55" in COACH_HTML

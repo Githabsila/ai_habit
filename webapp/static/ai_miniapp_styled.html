@@ -880,7 +880,7 @@ body{
 
    <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
    <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-   <script src="/static/ai_coach.js?v=20261020_PLANS_V54"></script>
+   <script src="/static/ai_coach.js?v=20261021_COMPOSE_V55"></script>
 </body>
 </html>
 <style>
@@ -2043,4 +2043,10 @@ body:after{
 .rate-btn{
   transition-timing-function:cubic-bezier(.4,0,.2,1) !important;
 }
+</style>
+<style>
+/* Стрелка «к последнему сообщению» стоит над полем ввода: ai_coach.js считает --scroll-down-bottom по верху .input-area, поэтому растущий
+   набираемый текст её не перекрывает; пока поле в фокусе, стрелки нет вовсе (21.10). Должен идти после остальных правил кнопки. */
+.scroll-down-btn{bottom:var(--scroll-down-bottom,62px)!important}
+@media(max-width:560px){.scroll-down-btn{bottom:var(--scroll-down-bottom,60px)!important}}
 </style>

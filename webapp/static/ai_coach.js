@@ -6,6 +6,18 @@ try {
 const tg = window.Telegram.WebApp;
 // Иконки «✦» и «×» в квадратиках — рисованные SVG (у текстовых символов у каждого шрифта свои поля, и они сидели не по
 // центру). Размер и цвет — из CSS страницы (.ui-icon), форма симметрична относительно центра viewBox.
+// Стрелка «к последнему сообщению» (.scroll-down-btn): жалоба 21.10 — когда человек начинал писать и не спускался вниз, она висела на
+// одном месте и перекрывала растущее поле ввода. Теперь: пока поле в фокусе (человек пишет) стрелки нет, а когда она видна, стоит
+// ровно над полем ввода при любой его высоте (scrollDownBottom → CSS-переменная --scroll-down-bottom).
+const SCROLL_DOWN_MIN_BOTTOM = 62;
+const SCROLL_DOWN_GAP = 12;
+function scrollDownBottom(viewportHeight, composerTop) {
+    if (!(viewportHeight > 0) || !(composerTop > 0)) return SCROLL_DOWN_MIN_BOTTOM;
+    return Math.max(SCROLL_DOWN_MIN_BOTTOM, Math.round(viewportHeight - composerTop + SCROLL_DOWN_GAP));
+}
+function scrollDownVisible(farFromBottom, composerFocused) {
+    return !!farFromBottom && !composerFocused;
+}
 const SPARK_SVG = '<svg class="ui-icon ui-icon--fill" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2c.7 5.6 4.4 9.3 10 10-5.6.7-9.3 4.4-10 10-.7-5.6-4.4-9.3-10-10 5.6-.7 9.3-4.4 10-10Z" fill="currentColor"/></svg>';
 const ARROW_SVG = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CHEVRON_SVG = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -370,6 +382,8 @@ function AiChat() {
     const [toast, setToast] = useState('');
     const [online, setOnline] = useState(navigator.onLine);
     const [showScrollDown, setShowScrollDown] = useState(false);
+    const [composerFocused, setComposerFocused] = useState(false);   // человек пишет: стрелка не нужна
+    const inputAreaRef = useRef(null);
     // Адам «печатает» своё первое сообщение дня (см. greetFromAdam ниже).
     const [greeting, setGreeting] = useState(false);
     const messagesEnd = useRef(null);
@@ -420,6 +434,23 @@ function AiChat() {
         const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
         setShowScrollDown(distance > 90);
     };
+    // Стрелка стоит над полем ввода: высота поля растёт вместе с текстом (до 132px) — пересчитываем при вводе, фокусе и смене размера.
+    useEffect(() => {
+        const place = () => {
+            const area = inputAreaRef.current;
+            const top = area ? area.getBoundingClientRect().top : 0;
+            document.documentElement.style.setProperty('--scroll-down-bottom', scrollDownBottom(window.innerHeight, top) + 'px');
+        };
+        place();
+        const raf = requestAnimationFrame(place);
+        const timer = setTimeout(place, 260);       // клавиатура закрывается не мгновенно
+        window.addEventListener('resize', place, { passive: true });
+        return () => {
+            cancelAnimationFrame(raf);
+            clearTimeout(timer);
+            window.removeEventListener('resize', place);
+        };
+    }, [input, composerFocused, showScrollDown, showTools]);
     const scrollToAbsoluteBottom = (behavior = 'auto') => {
         // Жалоба пользователя: стрелочка/зарезервированное под неё место
         // "зависало" внизу даже когда чат реально был докручен до конца, и
@@ -1080,7 +1111,7 @@ function AiChat() {
                             React.createElement("i", null),
                             React.createElement("i", null))))),
             React.createElement("div", { ref: messagesEnd }))),
-        showScrollDown && React.createElement("button", {
+        scrollDownVisible(showScrollDown, composerFocused) && React.createElement("button", {
             type: "button",
             className: "scroll-down-btn",
             onClick: () => { scrollToAbsoluteBottom('smooth'); vibrate('light'); },
@@ -1091,11 +1122,11 @@ function AiChat() {
             "\u23F3 \u041F\u043E\u0434\u043E\u0436\u0434\u0438 ",
             throttle,
             " \u0441\u0435\u043A."),
-        React.createElement("div", { className: "input-area" },
+        React.createElement("div", { className: "input-area", ref: inputAreaRef },
             React.createElement("div", { className: "input-row composer-row" },
                 React.createElement("div", { className: "composer-glow" }),
                 React.createElement("div", { className: "input-wrapper" },
-                    React.createElement("textarea", { ref: textareaRef, maxLength: 6000, value: input, enterKeyHint: "send", onChange: e => {
+                    React.createElement("textarea", { ref: textareaRef, maxLength: 6000, value: input, enterKeyHint: "send", onFocus: () => setComposerFocused(true), onBlur: () => setComposerFocused(false), onChange: e => {
                             // \u041D\u0430 \u0447\u0430\u0441\u0442\u0438 \u043C\u043E\u0431\u0438\u043B\u044C\u043D\u044B\u0445 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440 (Gboard/Samsung Keyboard \u0438 \u0442.\u0434.)
                             // \u0442\u0430\u043F \u043F\u043E \u043A\u043D\u043E\u043F\u043A\u0435 "return" \u043D\u0430 \u044D\u043A\u0440\u0430\u043D\u043D\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440\u0435 \u043D\u0435 \u0434\u043E\u043B\u0435\u0442\u0430\u0435\u0442
                             // \u0434\u043E onKeyDown \u043A\u0430\u043A \u043D\u043E\u0440\u043C\u0430\u043B\u044C\u043D\u043E\u0435 \u0441\u043E\u0431\u044B\u0442\u0438\u0435 Enter \u2014 \u0432\u043C\u0435\u0441\u0442\u043E \u044D\u0442\u043E\u0433\u043E

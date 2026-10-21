@@ -279,7 +279,7 @@ def test_every_conversation_starter_in_the_chat_page_lands_in_a_sensible_scenari
 
 def test_chat_page_script_version_was_bumped_for_the_new_intro():
     html = (STATIC / "ai_miniapp_styled.html").read_text(encoding="utf-8")
-    assert "ai_coach.js?v=20261020_PLANS_V54" in html
+    assert "ai_coach.js?v=20261021_COMPOSE_V55" in html
 
 
 # ---------------------------------------------------------------------------------------------------------------- окно в приложении

@@ -108,7 +108,7 @@ def test_sparkle_diamond_is_an_svg_in_the_shop_and_the_chat():
     assert 'dangerouslySetInnerHTML: { __html: showTools ? X_SVG : SPARK_SVG }' in COACH_JS
     assert 'className: "icon-btn__glyph", dangerouslySetInnerHTML: { __html: SPARK_SVG }' in COACH_JS
     assert ".chat-toolbar-orb .ui-icon" in COACH_HTML and ".quick-toggle-icon .ui-icon" in COACH_HTML
-    assert "ai_coach.js?v=20261020_PLANS_V54" in COACH_HTML
+    assert "ai_coach.js?v=20261021_COMPOSE_V55" in COACH_HTML
 
 
 def test_chat_arrows_and_chevron_are_svg_too():
