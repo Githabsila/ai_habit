@@ -413,6 +413,9 @@ def create_tables():
         cursor.execute("UPDATE habits SET assigned_at = created_at WHERE assigned_at IS NULL")
     if "reminder_sent" not in habits_columns:
         cursor.execute("ALTER TABLE habits ADD COLUMN reminder_sent INTEGER DEFAULT 0")
+    # Ручной порядок привычек (db/habits.py::move_habit): пусто — порядок по умолчанию (новые сверху), число — место в списке.
+    if "sort_order" not in habits_columns:
+        cursor.execute("ALTER TABLE habits ADD COLUMN sort_order INTEGER")
     if "planned_time" not in habits_columns:
         cursor.execute("ALTER TABLE habits ADD COLUMN planned_time TEXT")
     if "time_window_minutes" not in habits_columns:

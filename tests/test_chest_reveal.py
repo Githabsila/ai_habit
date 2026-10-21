@@ -69,7 +69,7 @@ def test_chest_window_markup_is_a_hidden_dialog_with_all_parts():
 
 
 def test_script_and_style_versions_follow_the_release():
-    assert "style.css?v=20261021_VOICE2_V71" in INDEX and "app.js?v=20261021_VOICE2_V82" in INDEX
+    assert "style.css?v=20261021_ORDER_V72" in INDEX and "app.js?v=20261021_ORDER_V83" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- скрипт

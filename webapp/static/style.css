@@ -14831,6 +14831,11 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
   flex:0 0 auto;height:46px;padding:0 14px;border-radius:14px;border:1px solid rgba(255,255,255,.08);
   background:rgba(255,255,255,.04);color:#C5CBD8;font:700 12px 'Space Grotesk',sans-serif;cursor:pointer;
 }
+.habit-edit-order{display:flex;gap:8px}
+.habit-edit-order__btn{flex:1 1 0;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:#C5CBD8;font:700 12px 'Space Grotesk',sans-serif;cursor:pointer}
+.habit-edit-order__btn:disabled{opacity:.4;cursor:default}
+.habit-edit-order__hint{display:block;margin-top:6px;font-size:11px;color:#9EA8BD}
+:root[data-mode="light"] .habit-edit-order__btn{background:rgba(0,0,0,.035);border-color:rgba(0,0,0,.1);color:#3A3550}
 :root[data-mode="light"] .habit-edit-label{color:#6B6585}
 :root[data-mode="light"] .habit-edit-input,
 :root[data-mode="light"] .habit-edit-timebox{background:rgba(0,0,0,.035);border-color:rgba(0,0,0,.1);color:#1C1730}

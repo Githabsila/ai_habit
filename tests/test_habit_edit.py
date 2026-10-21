@@ -144,7 +144,7 @@ def test_saving_sends_one_habit_and_only_when_something_changed():
 
 def test_the_simulation_opens_the_real_window_on_a_demo_habit():
     assert "habit_edit: () => openHabitEdit(0, { habit: HABIT_EDIT_SIM, sim: true })," in APP_JS
-    assert re.search(r'const HABIT_EDIT_SIM = \{ id: 0, title: "[^"]+", category: "study", priority: 2, planned_time: "21:30" \};', APP_JS)
+    assert re.search(r'const HABIT_EDIT_SIM = \{ id: 0, title: "[^"]+", category: "study", priority: 2, planned_time: "21:30", place: 3, total: 5 \};', APP_JS)
 
 
 def test_the_window_text_does_not_repeat_itself():

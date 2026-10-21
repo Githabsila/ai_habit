@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261021_VOICE2_V71">
+<link rel="stylesheet" href="/static/style.css?v=20261021_ORDER_V72">
 </head>
 <body>
 
@@ -985,6 +985,15 @@ class="habit-add-form__submit">
       </button>
     </div>
     <div class="habit-edit-field">
+      <div class="habit-edit-label" id="habitEditOrderLabel">Место в списке</div>
+      <div class="habit-edit-order" role="group" aria-labelledby="habitEditOrderLabel">
+        <button type="button" class="habit-edit-order__btn" id="habitEditUp">Выше</button>
+        <button type="button" class="habit-edit-order__btn" id="habitEditDown">Ниже</button>
+        <button type="button" class="habit-edit-order__btn" id="habitEditTop">В начало</button>
+      </div>
+      <small class="habit-edit-order__hint" id="habitEditOrderHint"></small>
+    </div>
+    <div class="habit-edit-field">
       <label class="habit-edit-label" for="habitEditTime">Напоминание</label>
       <div class="habit-edit-timerow">
         <span class="habit-edit-timebox"><span aria-hidden="true">⏰</span><input type="time" id="habitEditTime" aria-label="Время напоминания"></span>
@@ -1706,7 +1715,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261021_VOICE2_V82"></script>
+<script type="module" src="/static/app.js?v=20261021_ORDER_V83"></script>
 
 </body>
 </html>

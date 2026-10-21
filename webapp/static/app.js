@@ -7765,7 +7765,7 @@ function initTrial() {
 // Привычек может быть много, а поменять нужно одну: в раскрытой строке (✏️) у каждой привычки есть кнопка «Изменить» — окно
 // с названием, категорией, важностью (⭐) и временем напоминания. Сохраняет PUT /api/habits/{id} только для этой привычки,
 // остальные не трогает. Симуляция habit_edit (админка → «Окна и анимации») открывает то же окно на демо-привычке и ничего не сохраняет.
-const HABIT_EDIT_SIM = { id: 0, title: "Читать 20 минут", category: "study", priority: 2, planned_time: "21:30" };
+const HABIT_EDIT_SIM = { id: 0, title: "Читать 20 минут", category: "study", priority: 2, planned_time: "21:30", place: 3, total: 5 };
 let habitEdit = null;
 
 function renderHabitEditCategories() {
@@ -7787,6 +7787,47 @@ function renderHabitEditPriority() {
   if (star) star.textContent = on ? "★" : "☆";
 }
 
+// Место в списке: «Выше / Ниже / В начало» двигают ТОЛЬКО эту привычку (POST /api/habits/{id}/move), остальные сохраняют порядок. Двигается сразу,
+// без «Сохранить»; список на Главной перестраивается по ответу сервера. В симуляции порядок меняется только в окне.
+function renderHabitEditOrder() {
+  const s = habitEdit;
+  if (!s) return;
+  const hint = document.getElementById("habitEditOrderHint");
+  const alone = s.total < 2;
+  if (hint) hint.textContent = alone ? "Привычка одна — двигать нечего" : `Сейчас ${s.place} из ${s.total}`;
+  const set = (id, disabled) => { const btn = document.getElementById(id); if (btn) btn.disabled = disabled; };
+  set("habitEditUp", alone || s.place <= 1);
+  set("habitEditTop", alone || s.place <= 1);
+  set("habitEditDown", alone || s.place >= s.total);
+}
+
+function applyHabitOrder(order) {
+  const rank = new Map(order.map((id, index) => [id, index]));
+  state.habits = [...(state.habits || [])].sort((a, b) => (rank.has(a.id) ? rank.get(a.id) : 1e9) - (rank.has(b.id) ? rank.get(b.id) : 1e9));
+  renderHabits();
+}
+
+async function moveHabitEdit(to) {
+  const s = habitEdit;
+  if (!s || s.busy) return;
+  const target = { up: Math.max(1, s.place - 1), down: Math.min(s.total, s.place + 1), top: 1 }[to];
+  if (!target || target === s.place) return;
+  if (s.sim) { s.place = target; haptic("light"); renderHabitEditOrder(); return; }
+  s.busy = true;
+  try {
+    const res = await api(`/api/habits/${s.id}/move`, { method: "POST", body: JSON.stringify({ to }) });
+    s.place = res.place;
+    applyHabitOrder(res.order);
+    haptic("light");
+    trk("habit_moved", to, null);
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+  } finally {
+    s.busy = false;
+    renderHabitEditOrder();
+  }
+}
+
 function openHabitEdit(habitId, { habit = null, sim = false } = {}) {
   const sheet = document.getElementById("habitEditSheet");
   if (!sheet || habitEdit) return false;
@@ -7794,8 +7835,13 @@ function openHabitEdit(habitId, { habit = null, sim = false } = {}) {
   if (!h) return false;
   const category = h.category && HABIT_CATEGORY_META[h.category] ? h.category : "";
   const priority = h.priority === 2 ? 2 : 1;
-  habitEdit = { id: h.id, sim, busy: false, category, priority, original: { title: h.title, category, priority, time: h.planned_time || "" } };
+  // Место в списке: у настоящей привычки — по текущему порядку на экране, у демо — из данных сцены.
+  const list = (state.habits || []).filter((x) => !pendingDeleteHabitIds.has(x.id));
+  const place = sim ? (h.place || 1) : Math.max(1, list.findIndex((x) => x.id === h.id) + 1);
+  const total = sim ? (h.total || 1) : Math.max(1, list.length);
+  habitEdit = { id: h.id, sim, busy: false, category, priority, place, total, original: { title: h.title, category, priority, time: h.planned_time || "" } };
   hideProductHint();
+  renderHabitEditOrder();
   document.getElementById("habitEditTitle").value = h.title || "";
   document.getElementById("habitEditTime").value = h.planned_time || "";
   document.getElementById("habitEditSave").disabled = false;
@@ -7866,6 +7912,9 @@ function initHabitEdit() {
   document.getElementById("habitEditBackdrop")?.addEventListener("click", closeHabitEdit);
   document.getElementById("habitEditCancel")?.addEventListener("click", () => { haptic("light"); closeHabitEdit(); });
   document.getElementById("habitEditSave")?.addEventListener("click", saveHabitEdit);
+  document.getElementById("habitEditUp")?.addEventListener("click", () => moveHabitEdit("up"));
+  document.getElementById("habitEditDown")?.addEventListener("click", () => moveHabitEdit("down"));
+  document.getElementById("habitEditTop")?.addEventListener("click", () => moveHabitEdit("top"));
   document.getElementById("habitEditTitle")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveHabitEdit(); } });
   document.getElementById("habitEditCats")?.addEventListener("click", (e) => {
     const chip = e.target.closest("[data-hec]");

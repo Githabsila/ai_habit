@@ -208,12 +208,40 @@ def add_habit(user_id, title, planned_time=None, time_window_minutes=60, categor
 
 
 def get_habits(user_id):
+    """Привычки человека в порядке списка: сначала те, у кого нет ручного места (новые — сверху, как всегда), затем расставленные вручную
+    по sort_order (db/habits.py::move_habit). Пока человек ничего не двигал, порядок прежний — по id от новых к старым."""
     conn = connect()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM habits WHERE user_id=? ORDER BY id DESC", (user_id,))
+    cursor.execute(
+        "SELECT * FROM habits WHERE user_id=? ORDER BY (sort_order IS NULL) DESC, sort_order ASC, id DESC", (user_id,))
     habits = cursor.fetchall()
     conn.close()
     return habits
+
+
+MOVES = ("up", "down", "top", "bottom")
+
+
+def move_habit(user_id, habit_id, to):
+    """Сдвинуть одну привычку в списке: «up» на место выше, «down» ниже, «top» в начало, «bottom» в конец. Остальные сохраняют порядок.
+    Возвращает новый порядок (список id) или None, если привычки нет у этого человека; неизвестное направление — ValueError.
+    Расставляет места ВСЕМ привычкам человека (1…N), поэтому порядок после этого не зависит от того, когда они были созданы."""
+    if to not in MOVES:
+        raise ValueError("invalid_move")
+    order = [h["id"] for h in get_habits(user_id)]
+    if habit_id not in order:
+        return None
+    index = order.index(habit_id)
+    target = {"up": max(0, index - 1), "down": min(len(order) - 1, index + 1), "top": 0, "bottom": len(order) - 1}[to]
+    if target != index:
+        order.insert(target, order.pop(index))
+        conn = connect()
+        try:
+            conn.executemany("UPDATE habits SET sort_order=? WHERE id=? AND user_id=?", [(place, hid, user_id) for place, hid in enumerate(order, start=1)])
+            conn.commit()
+        finally:
+            conn.close()
+    return order
 
 
 def get_habit(habit_id):

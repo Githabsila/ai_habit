@@ -159,6 +159,7 @@ from .settings import (
 from .habits import (
     add_habit,
     get_habits,
+    move_habit,
     get_habit,
     edit_habit,
     delete_habit,
@@ -405,7 +406,7 @@ __all__ = [
     "toggle_reminder_category", "reminder_category_enabled", "REMINDER_CATEGORIES", "REMINDER_CATEGORY_LABELS",
     "set_quiet_hours", "clear_quiet_hours", "in_quiet_hours",
     "update_ai_style", "get_ai_style",
-    "add_habit", "get_habits", "get_habit", "edit_habit", "delete_habit",
+    "add_habit", "get_habits", "move_habit", "get_habit", "edit_habit", "delete_habit",
     "reset_habits", "update_streak", "complete_habit", "get_progress",
     "get_incomplete_habits", "log_daily_habits", "get_weekly_habit_breakdown", "get_monthly_habit_breakdown",
     "get_habits_needing_reminder", "mark_habit_reminder_sent",

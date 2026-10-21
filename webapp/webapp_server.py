@@ -1542,6 +1542,29 @@ async def habit_notes_route(request):
     })
 
 
+@routes.post("/api/habits/{habit_id}/move")
+async def move_habit_route(request):
+    """Ручной порядок привычек: body {"to": "up" | "down" | "top" | "bottom"} — сдвинуть ОДНУ привычку, остальные сохраняют порядок.
+    Возвращает новый порядок (id) и место этой привычки (с 1)."""
+    telegram_id, _ = await _authenticate(request)
+    habit_id = int(request.match_info["habit_id"])
+    _owned_habit_or_404(habit_id, telegram_id)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    from db import move_habit
+    try:
+        order = move_habit(telegram_id, habit_id, body.get("to"))
+    except ValueError:
+        return web.json_response({"error": "invalid_move"}, status=400)
+    if order is None:
+        raise web.HTTPNotFound()
+    from db.tracking import track_server
+    track_server(telegram_id, "habit_moved", step=str(body.get("to")), meta={"place": order.index(habit_id) + 1, "total": len(order)})
+    return web.json_response({"ok": True, "order": order, "place": order.index(habit_id) + 1})
+
+
 @routes.delete("/api/habits/{habit_id}")
 async def delete_habit_route(request):
     telegram_id, _ = await _authenticate(request)
