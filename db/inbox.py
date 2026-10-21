@@ -158,7 +158,7 @@ def _adam(conn, user_id, since):
         (user_id, since, PER_SOURCE_LIMIT),
     ).fetchall()
     return [
-        _item(f"adam:{r['id']}", "adam", "adam_checkin", r["created_at"], "💬", "Адам написал тебе", _short(r["message"]), action={"type": "chat"})
+        _item(f"adam:{r['id']}", "adam", "adam_checkin", r["created_at"], "💬", "Я написал тебе", _short(r["message"]), action={"type": "chat"})
         for r in rows
     ]
 
@@ -172,21 +172,21 @@ def _system(conn, user_id, since):
     ).fetchall():
         if r["status"] == "freeze":
             kept = int(r["streak_after"] or 0)
-            items.append(_item(f"streak:{r['day']}:freeze", "system", "streak_freeze", r["created_at"], "❄️", "День сохранён заморозкой",
+            items.append(_item(f"streak:{r['day']}:freeze", "system", "streak_freeze", r["created_at"], "❄️", "Я сохранил твой день заморозкой",
                                f"Серия {kept} дн. осталась с тобой" if kept else "Серия осталась с тобой", action={"type": "home"}))
         else:
             items.append(_item(f"streak:{r['day']}:missed", "system", "streak_lost", r["created_at"], "🔥", "Серия прервалась",
-                               "Начни заново сегодня — первый день самый важный", action={"type": "home"}))
+                               "Начнём заново сегодня — первый день самый важный", action={"type": "home"}))
     for r in conn.execute(
         "SELECT id, milestone, status, frame, created_at FROM streak_rewards WHERE user_id=? AND created_at>=? ORDER BY id DESC LIMIT ?",
         (user_id, since, PER_SOURCE_LIMIT),
     ).fetchall():
         items.append(_item(f"reward:{r['id']}", "system", "streak_status", r["created_at"], "🏅", f"Новый статус «{r['status']}»",
-                           f"Серия {int(r['milestone'])} дн. — открыта рамка «{r['frame']}»", action={"type": "profile_self"}))
+                           f"Серия {int(r['milestone'])} дн. — открыл для тебя рамку «{r['frame']}»", action={"type": "profile_self"}))
     for r in conn.execute(
         "SELECT id, title, body, created_at FROM changelog_entries WHERE created_at>=? ORDER BY id DESC LIMIT 5", (since,)
     ).fetchall():
-        items.append(_item(f"changelog:{r['id']}", "system", "whats_new", r["created_at"], "✨", f"Что нового: {r['title']}", _short(r["body"])))
+        items.append(_item(f"changelog:{r['id']}", "system", "whats_new", r["created_at"], "✨", f"Новое от меня: {r['title']}", _short(r["body"])))
     for r in conn.execute(
         "SELECT id, invitee_id, inviter_coins, paid_at FROM referral_invites WHERE inviter_id=? AND status='paid' AND paid_at>=? "
         "ORDER BY id DESC LIMIT ?",
@@ -200,9 +200,12 @@ def _system(conn, user_id, since):
         (user_id, since),
     ).fetchall():
         items.append(_item(f"referral_bonus:{r['id']}", "system", "referral_bonus", r["paid_at"], "🎁",
-                           f"Бонус за вход по приглашению: +{int(r['invitee_coins'] or 0)} Adam Coin"))
+                           f"Дарю бонус за вход по приглашению: +{int(r['invitee_coins'] or 0)} Adam Coin"))
     return items
 
+
+# Записи этих разделов без отправителя-человека — слова Адама: «Я написал тебе», «Я сохранил твой день заморозкой».
+VOICE_CATEGORIES = ("adam", "system")
 
 # Источник = функция (соединение, человек, «не раньше») → список записей одного или нескольких разделов.
 SOURCES = (_gifts, _support_and_nudges, _follows, _pair_quests, _adam, _system)
@@ -285,6 +288,7 @@ def _decorate(items, actors, seen_at):
             "id": it["id"], "cat": it["cat"], "kind": it["kind"], "at": it["at"], "icon": it["icon"],
             "title": it["title"].replace("{name}", name), "text": it["text"], "actor": actor,
             "action": action if action.get("type") != "profile" or actor else {},
+            "voice": not actor and it["cat"] in VOICE_CATEGORIES,       # пишет Адам от первого лица — в приложении рядом его аватарка
             "unread": it["at"] > seen_at,
         })
     return out

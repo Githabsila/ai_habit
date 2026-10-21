@@ -961,7 +961,7 @@
     if (!previous || !current) return;
     if (!(Number(current.band) > Number(previous.band))) return;
     setTimeout(() => {
-      showToast(`✨ ADAM стал сильнее: «${current.title}»`, "praise", 4000);
+      showToast(`✨ Я стал сильнее: «${current.title}»`, "praise", 4000);
     }, 1200);
   }
 
@@ -1673,10 +1673,10 @@
   // Короткие честные описания результата — выведены из смысла самих
   // вопросов выше, без придуманных внешних характеристик.
   const ARCHETYPE_BLURBS = {
-    strategist: "Ты любишь чёткий план — и это сила. ADAM будет помогать раскладывать большие цели на понятные шаги.",
-    marathoner: "Для тебя главное — не прерывать серию. ADAM будет держать твой ритм и напоминать вовремя.",
-    sprinter: "Тебя заряжают короткие мощные рывки. ADAM будет подкидывать вызовы и быстрые победы.",
-    explorer: "Тебе интересно пробовать новое. ADAM поможет находить свежие привычки и не заскучать.",
+    strategist: "Ты любишь чёткий план — и это сила. Я буду помогать раскладывать большие цели на понятные шаги.",
+    marathoner: "Для тебя главное — не прерывать серию. Я буду держать твой ритм и напоминать вовремя.",
+    sprinter: "Тебя заряжают короткие мощные рывки. Я буду подкидывать вызовы и быстрые победы.",
+    explorer: "Тебе интересно пробовать новое. Я помогу находить свежие привычки и не заскучать.",
   };
 
   // ===================== СТАРТОВЫЙ КВИЗ + ВОРОНКА (ВОЗРАСТ/ЦЕЛЬ/АРХЕТИП/ОТЗЫВЫ/РЕФЕРАЛ/ПОДПИСКА) =====================
@@ -1787,11 +1787,11 @@
   function renderStartQuizWelcomeStep(options) {
     if (!options) return;
     options.innerHTML = `
-      <p class="start-quiz-welcome__lead">Это ADAM — приложение, где привычки и задачи на день собраны в одном месте. Несколько коротких вопросов — и я подстрою его под тебя.</p>
+      <p class="start-quiz-welcome__lead">Я — Адам. Здесь привычки и задачи на день собраны в одном месте. Несколько коротких вопросов — и я подстрою всё под тебя.</p>
       ${startQuizCardsHtml([
         ["✅", "Привычки и задачи дня", "Отмечаются одним нажатием — всё главное на одном экране."],
         ["🔥", "Серия и статусы", "Чем дольше серия, тем выше статус и ярче рамка."],
-        [UI_SPARK, "Адам в чате", "ИИ-наставник подскажет, как спланировать день и не сорваться."],
+        [UI_SPARK, "Я в чате", "Подскажу, как спланировать день и не сорваться."],
       ])}`;
   }
 
@@ -2390,8 +2390,8 @@
   const APP_TOUR_STEPS = [
     {
       icon: "👋",
-      title: "Это ADAM",
-      text: "Система для привычек, задач и планирования дня.",
+      title: "Я — ADAM",
+      text: "Помогаю с привычками, задачами и планированием дня.",
     },
     {
       icon: "🎯",
@@ -2599,9 +2599,9 @@
     6: { target: '.tab-bar__item[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.', icon: '🏆' },
     7: { target: '.tab-bar__item[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь.', icon: '👤' },
     8: { target: '#openShopBtn', title: 'ADAM Store', text: 'Алмазы, Premium и улучшения для ADAM — здесь же можно вознаградить себя.', icon: '🛍️' },
-    9: { target: '#openStatsBtn', title: 'Прогресс и достижения', text: 'Цели, статистика, награды и AI-анализ твоего прогресса — всё в одном месте.', icon: '📊' },
+    9: { target: '#openStatsBtn', title: 'Прогресс и достижения', text: 'Цели, статистика, награды и мой разбор твоего прогресса — всё в одном месте.', icon: '📊' },
     10: { target: '#openSettingsBtn', title: 'Настройки', text: 'Напоминания, приватность, данные и всё остальное — одной кнопкой.', icon: '⚙️' },
-    11: { target: '#aiCoachBtn', title: 'ADAM — твой личный ИИ-наставник', text: 'Планирует день, разбирает проблемы, следит за прогрессом и просто поддержит разговор. Напиши хотя бы пару сообщений — и сразу увидишь, чем он полезен.', icon: '✦' },
+    11: { target: '#aiCoachBtn', title: 'Я — твой личный наставник', text: 'Планирую день, разбираю проблемы, слежу за прогрессом и просто поддержу разговор. Напиши хотя бы пару сообщений — и сразу увидишь, чем я полезен.', icon: '✦' },
   };
   // Вкладка, на которой живёт цель каждого шага — нужно, чтобы кнопки
   // "Назад"/"Далее" внутри подсказки (просьба пользователя: "переходить
@@ -3035,7 +3035,7 @@
     target.classList.add('product-onboarding-target');
     document.getElementById('productOnboardingHintTitle').textContent = step.title;
     const iconEl = document.getElementById('productOnboardingHintIcon');
-    if (iconEl) iconEl.textContent = step.icon || '💡';
+    if (iconEl) { iconEl.innerHTML = adamVoiceHtml("lg", step.icon || "💡"); iconEl.classList.add("is-voice"); }
     // Просьба пользователя: возможность переходить между шагами подсказок
     // самому, а не только вперёд по мере выполнения действий.
     const actions = document.getElementById('productOnboardingHintActions');
@@ -3375,9 +3375,9 @@
     const text = name
       ? `${name}, у меня к тебе вопрос — загляни в чат 👋`
       : 'У меня к тебе вопрос — загляни в чат 👋';
-    document.getElementById('productOnboardingHintTitle').textContent = 'Новое сообщение от Адама';
+    document.getElementById('productOnboardingHintTitle').textContent = 'Я написал тебе в чат';
     const iconEl = document.getElementById('productOnboardingHintIcon');
-    if (iconEl) iconEl.textContent = '💬';
+    if (iconEl) { iconEl.innerHTML = adamVoiceHtml("lg", "💬"); iconEl.classList.add("is-voice"); }
     // Не шаг тура — счётчик «Шаг N из 10» тут был бы враньём.
     const stepEl = document.getElementById('productOnboardingHintStep');
     if (stepEl) stepEl.hidden = true;
@@ -3756,6 +3756,11 @@
   let toastShownAt = 0;
   let toastIsPraise = false;      // показывается обычная похвала (монеты) — её можно сократить, если за ней идёт следующая
 
+  // Монеты и счётчики («+10 Adam Coin», «2/3») — не сообщения от Адама: у них аватарки нет (остальные тосты — с ней, см. «ГОЛОС АДАМА»).
+  function toastHasVoice(message) {
+    return !/^\s*[+\d]/.test(String(message || ""));
+  }
+
   function showToast(message, kind, duration, action) {
     toastQueue.push({ message, kind, duration, action });
     if (!toastActive) { _drainToastQueue(); return; }
@@ -3779,7 +3784,7 @@
     toastActive = true;
     const { message, kind, duration, action } = next;
     const el = document.getElementById("toast");
-    el.className = "toast is-visible" + (kind ? " is-" + kind : "");
+    el.className = "toast is-visible" + (kind ? " is-" + kind : "") + (toastHasVoice(message) ? " has-voice" : "");
     clearTimeout(toastTimer);
     if (action && action.label) {
       el.innerHTML = "";
@@ -4106,7 +4111,7 @@
         // ✕ — отдельная, закрывает подсказку на сегодня и чат не открывает.
         strugglingBanner.innerHTML = `
           <button type="button" class="struggling-habit-banner__open" aria-label="Обсудить с ADAM">
-            <span class="struggling-habit-banner__icon">🤖</span>
+            <span class="struggling-habit-banner__icon">${adamVoiceHtml("sm")}</span>
             <span class="struggling-habit-banner__text">«${escapeHtml(top.title)}» не получается ${top.missed} из последних дней — Может уменьшим нагрузку или обсудим решение 📩 ?</span>
           </button>
           <button type="button" class="struggling-habit-banner__close" aria-label="Закрыть">${ICON_X}</button>
@@ -4215,7 +4220,7 @@
       // нет своего planned_time (иначе она и так уже видна как чип ⏰).
       const suggestBtn = h.suggested_time && !isHabitTimeSuggestionDismissed(h.id)
         ? `<span class="habit-item__suggest-wrap">
-             <button class="habit-item__suggest-time" data-action="accept-suggested-time" data-time="${h.suggested_time}" title="AI заметил: обычно ты делаешь это в это время">🤖 ${h.suggested_time}?</button>
+             <button class="habit-item__suggest-time" data-action="accept-suggested-time" data-time="${h.suggested_time}" title="Я заметил: обычно ты делаешь это в это время">${adamVoiceHtml("xs")}${h.suggested_time}?</button>
              <button type="button" class="habit-item__suggest-dismiss" data-action="dismiss-suggested-time" aria-label="Не предлагать это время" title="Не предлагать">${ICON_X}</button>
            </span>`
         : "";
@@ -6566,7 +6571,7 @@ function initPlanActions() {
         invalid_init_data: "Telegram не передал данные авторизации. Закрой Mini App и открой его снова.",
         request_failed: "Не удалось связаться с сервером. Проверь соединение и попробуй ещё раз.",
         not_admin: "Доступно только администраторам",
-        bot_unavailable: "Бот временно недоступен, попробуй позже",
+        bot_unavailable: "Сейчас не могу отправить — попробуй чуть позже",
         rate_limited: "Слишком много запросов подряд — подожди пару секунд и попробуй ещё раз",
         already_reacted_today: "Сегодня ты уже поддержал этого игрока — можно снова завтра",
         invalid_reaction: "Не получилось отправить поддержку",
@@ -7043,7 +7048,7 @@ function friendRowHtml(f, { viewerDone = true } = {}) {
   if (f.state === "can_remind") {
     action = `<button type="button" class="friend-row__btn" data-nudge="${id}"${viewerDone ? "" : " disabled"}>Напомнить</button>`;
   } else if (f.state === "reminded") {
-    action = `<span class="friend-row__tag friend-row__tag--sent">Напомнили ✓</span>`;
+    action = `<span class="friend-row__tag friend-row__tag--sent">Напомнил ✓</span>`;
   } else if (f.state === "done") {
     action = `<span class="friend-row__tag">✓ Отмечено</span>`;
   }
@@ -7157,7 +7162,7 @@ async function nudgeFriend(friendId, button) {
   try {
     await api(`/api/friends/${friendId}/nudge`, { method: "POST" });
     haptic("medium");
-    showToast("Напоминание отправлено 👋", "success");
+    showToast("Напомнил другу 👋", "success");
     setFriendState(friendId, "reminded");
   } catch (err) {
     const code = err?.data?.error;
@@ -7277,6 +7282,7 @@ function closeRemindSheet() {
   haptic("light");
   sheet.classList.remove("is-open");
   sheet.setAttribute("aria-hidden", "true");
+  remindSheetDemo = false;
   setTimeout(() => { sheet.hidden = true; }, 230);
 }
 
@@ -7320,7 +7326,9 @@ function initFriendsActions() {
 
   document.getElementById("remindFriendsList")?.addEventListener("click", async (e) => {
     const nudgeBtn = e.target.closest("[data-nudge]");
-    if (nudgeBtn) await nudgeFriend(Number(nudgeBtn.dataset.nudge), nudgeBtn);
+    if (!nudgeBtn) return;
+    if (remindSheetDemo) { showToast("🧪 Демо: напоминание не отправляется", "success", 1800); return; }
+    await nudgeFriend(Number(nudgeBtn.dataset.nudge), nudgeBtn);
   });
   document.getElementById("remindFriendsClose")?.addEventListener("click", closeRemindSheet);
   document.getElementById("remindFriendsBackdrop")?.addEventListener("click", closeRemindSheet);
@@ -7335,9 +7343,9 @@ function initFriendsActions() {
 let inboxState = null;          // { items, categories, tab, demo }
 let inboxPollTimer = null;
 const INBOX_EMPTY = {
-  all: "Здесь появятся подарки, сообщения Адама и новости от друзей и подписчиков.",
-  system: "Про серию, заморозки и новости ADAM напишем сюда.",
-  adam: "Когда Адам напишет сам, его сообщение будет здесь.",
+  all: "Здесь появятся подарки, мои сообщения и новости от друзей и подписчиков.",
+  system: "Про серию, заморозки и новости напишу сюда.",
+  adam: "Когда я напишу сам, сообщение будет здесь.",
   friends: "Поддержка, напоминания и парные задания с друзьями — здесь.",
   followers: "Новые подписчики появятся здесь.",
   gifts: "Подарки от друзей и администратора будут здесь.",
@@ -7374,6 +7382,7 @@ function inboxItemHtml(it) {
   const when = inboxWhen(it.at);
   const lead = it.actor
     ? `<span class="friend-row__avatar inbox-item__avatar ${avatarFrameClass(it.actor)}">${avatarInner(it.actor)}<i class="inbox-item__kind">${it.icon}</i></span>`
+    : it.voice ? `<span class="inbox-item__voice">${adamVoiceHtml("md", it.icon)}</span>`
     : `<span class="inbox-item__icon">${it.icon}</span>`;
   const action = it.action?.type ? ` data-inbox-action="${escapeHtml(it.action.type)}"${it.action.id ? ` data-inbox-id="${Number(it.action.id)}"` : ""}` : "";
   return `
@@ -7501,6 +7510,33 @@ function initInbox() {
   clearInterval(inboxPollTimer);
   inboxPollTimer = setInterval(refreshInboxBadge, 120000);
   setTimeout(refreshInboxBadge, 3000);
+}
+
+// ===================== ГОЛОС АДАМА =====================
+// Все сообщения приложения говорят от первого лица Адама («я напомню», «я написал»), а не от третьего лица или от «бота». Рядом с
+// такими сообщениями — маленькая аватарка Адама с тонким кольцом: в тостах (вместо цветной точки), в окнах-сообщениях, подсказках,
+// плашках и в «Уведомлениях». adamVoiceHtml(размер, наклейка): xs 16 · sm 24 · md 38 · lg 46 px; наклейка — маленький эмодзи у угла.
+const ADAM_VOICE_SRC = "/static/assets/adam-avatar-96.webp";
+function adamVoiceHtml(size = "sm", sticker = "") {
+  return `<span class="adam-voice adam-voice--${size}" aria-hidden="true"><img src="${ADAM_VOICE_SRC}" alt="" decoding="async">${sticker ? `<i class="adam-voice__sticker">${sticker}</i>` : ""}</span>`;
+}
+// Демо для симуляции «Напомнить друзьям»: те же строки, но «Напомнить» ничего не отправляет.
+let remindSheetDemo = false;
+const SIM_REMIND_FRIENDS = [
+  { telegram_id: 1, first_name: "Мария", handle: "maria", streak: 42, state: "can_remind", avatar_id: "default", frame_id: "default" },
+  { telegram_id: 2, first_name: "Денис", handle: "denis", streak: 9, state: "can_remind", avatar_id: "default", frame_id: "default" },
+];
+function openRemindSheetDemo(friends) {
+  remindSheetDemo = true;
+  remindSheetFriends = friends.map((f) => ({ ...f }));
+  openRemindSheet();
+}
+// Три уведомления подряд (успех, ошибка, похвала) — как выглядит аватарка в тостах; монетный тост «+10» — без неё.
+function showVoiceToastsDemo() {
+  showToast("Привычка обновлена", "success", 2200);
+  showToast("Сейчас не могу отправить — попробуй чуть позже", "error", 2400);
+  showToast("Себя можно похвалить! 🎉", "praise", 2400);
+  showToast("+10 Adam Coin", "praise", 2000);
 }
 
 // ===================== ИЗМЕНЕНИЕ ПРИВЫЧКИ =====================
@@ -8174,7 +8210,7 @@ function pairAddViewHtml() {
   return `
     <li class="pair-option" data-pair-act="invite-link" role="button" tabindex="0">
       <span class="pair-option__icon" aria-hidden="true">✈️</span>
-      <span class="pair-option__text"><b>Отправить ссылку в Telegram</b><small>Друг откроет бота и сразу станет твоим другом${rewardNote}</small></span>
+      <span class="pair-option__text"><b>Отправить ссылку в Telegram</b><small>Друг откроет меня в Telegram и сразу станет твоим другом${rewardNote}</small></span>
       ${PAIR_ICON_NEXT}
     </li>
     <li class="pair-option" data-pair-act="pick-people" role="button" tabindex="0">
@@ -8441,7 +8477,7 @@ async function pairNudge(friendId, button) {
   try {
     await api(`/api/friends/${friendId}/nudge`, { method: "POST" });
     haptic("medium");
-    showToast("Напоминание отправлено 👋", "success");
+    showToast("Напомнил другу 👋", "success");
     setPairPartnerState("reminded");
     setFriendState(friendId, "reminded");
   } catch (err) {
@@ -8527,13 +8563,13 @@ const SIM_INBOX = (() => {
   const ago = (minutes) => new Date(Date.now() - minutes * 60000).toISOString().slice(0, 19).replace("T", " ");
   const items = [
     { id: "s1", cat: "gifts", kind: "gift_freeze", at: ago(12), icon: "❄️", title: "Мария подарил(а) тебе заморозку серии", text: "", actor: who(1, "Мария"), action: { type: "gifts" }, unread: true },
-    { id: "s2", cat: "adam", kind: "adam_checkin", at: ago(55), icon: "💬", title: "Адам написал тебе", text: "Заметил, что вторая привычка ещё ждёт. Начнём с пяти минут?", actor: null, action: { type: "chat" }, unread: true },
+    { id: "s2", cat: "adam", kind: "adam_checkin", at: ago(55), icon: "💬", title: "Я написал тебе", text: "Заметил, что вторая привычка ещё ждёт. Начнём с пяти минут?", voice: true, actor: null, action: { type: "chat" }, unread: true },
     { id: "s3", cat: "followers", kind: "follower_new", at: ago(95), icon: "➕", title: "Денис подписался(ась) на тебя", text: "", actor: who(2, "Денис"), action: { type: "profile", id: 2 }, unread: true },
     { id: "s4", cat: "friends", kind: "friend_support", at: ago(240), icon: "💌", title: "Анна поддержал(а) тебя 👍", text: "", actor: who(3, "Анна"), action: { type: "profile", id: 3 }, unread: false },
     { id: "s5", cat: "friends", kind: "pair_invite", at: ago(300), icon: "🤝", title: "Олег зовёт тебя в парное задание", text: "Прими приглашение на Главной", actor: who(4, "Олег"), action: { type: "pair" }, unread: false },
-    { id: "s6", cat: "system", kind: "streak_freeze", at: ago(1200), icon: "❄️", title: "День сохранён заморозкой", text: "Серия 14 дн. осталась с тобой", actor: null, action: { type: "home" }, unread: false },
+    { id: "s6", cat: "system", kind: "streak_freeze", at: ago(1200), icon: "❄️", title: "Я сохранил твой день заморозкой", text: "Серия 14 дн. осталась с тобой", voice: true, actor: null, action: { type: "home" }, unread: false },
     { id: "s7", cat: "gifts", kind: "gift_diamonds", at: ago(1560), icon: "💎", title: "Мария подарил(а) тебе 3 💎", text: "", actor: who(1, "Мария"), action: { type: "gifts" }, unread: false },
-    { id: "s8", cat: "system", kind: "whats_new", at: ago(3000), icon: "✨", title: "Что нового: Знакомство с Адамом", text: "Теперь Адам узнаёт тебя и подбирает метод планирования дня.", actor: null, action: {}, unread: false },
+    { id: "s8", cat: "system", kind: "whats_new", at: ago(3000), icon: "✨", title: "Новое от меня: Знакомство", text: "Теперь я узнаю тебя и подбираю метод планирования дня.", voice: true, actor: null, action: {}, unread: false },
     { id: "s9", cat: "friends", kind: "friend_added", at: ago(4200), icon: "🤝", title: "Денис теперь в друзьях", text: "Вы подписаны друг на друга", actor: who(2, "Денис"), action: { type: "profile", id: 2 }, unread: false },
   ];
   const labels = [["all", "Все"], ["system", "Системные"], ["adam", "Адам"], ["friends", "Друзья"], ["followers", "Подписчики"], ["gifts", "Подарки"]];
@@ -8560,6 +8596,8 @@ const SIM_SCENES = {
   adam_intro_result: () => openAdamIntro({ sim: true, jump: true, demo: { focus: "study", struggle: "start", energy: "morning", span: "s25", hours: "h2", talk: "month" } }),
   inbox: () => openInbox({ demo: SIM_INBOX }),
   habit_edit: () => openHabitEdit(0, { habit: HABIT_EDIT_SIM, sim: true }),
+  remind_friends: () => openRemindSheetDemo(SIM_REMIND_FRIENDS),
+  adam_voice: () => showVoiceToastsDemo(),
   freeze_help: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 640 }),
   freeze_help_sent: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 440, sent: true }),
   haptic_triple: () => {

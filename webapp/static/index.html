@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261020_HEDIT_V68">
+<link rel="stylesheet" href="/static/style.css?v=20261021_VOICE_V69">
 </head>
 <body>
 
@@ -487,7 +487,7 @@ class="habit-add-form__submit">
 <!-- Прогресс и достижения (раньше жили внутри Настроек): второй пункт после ADAM Store. -->
 <button type="button" class="profile-nav-card" id="openStatsBtn">
   <span class="profile-nav-card__icon">📊</span>
-  <span class="profile-nav-card__text"><b>Прогресс и достижения</b><small>Статистика, цели, награды и AI-анализ</small></span>
+  <span class="profile-nav-card__text"><b>Прогресс и достижения</b><small>Статистика, цели, награды и мой разбор</small></span>
   <span class="profile-nav-card__chevron">›</span>
 </button>
 
@@ -705,7 +705,7 @@ class="habit-add-form__submit">
   <p class="theme-picker__hint">Мягкий отклик на кнопки, вкладки и награды. Настройка действует только на этом устройстве.</p>
 
   <div class="settings-row">
-    <span>🎭 Стиль AI-наставника</span>
+    <span>🎭 Как я с тобой говорю</span>
   </div>
   <div class="ai-style-picker" id="aiStylePicker">
     <button type="button" class="ai-style-btn" data-style="soft">🌿 Мягкий</button>
@@ -845,7 +845,7 @@ class="habit-add-form__submit">
   </label>
   <button type="button" class="data-support-btn" id="notificationHistoryBtn">
     <span class="data-support-btn__icon">🔔</span>
-    <span class="data-support-btn__text"><b>История уведомлений</b><small>Что и когда бот тебе отправлял</small></span>
+    <span class="data-support-btn__text"><b>История уведомлений</b><small>Что и когда я тебе отправлял</small></span>
   </button>
   <div class="notification-history" id="notificationHistoryBox" hidden></div>
   <button type="button" class="data-support-btn" id="openFeedbackBtn">
@@ -975,7 +975,7 @@ class="habit-add-form__submit">
   <div class="feedback-sheet__backdrop" id="changelogBackdrop"></div>
   <section class="feedback-card" role="dialog" aria-modal="true" aria-labelledby="changelogTitle">
     <div class="freeze-purchase-card__handle"></div>
-    <div class="feedback-card__icon">✨</div>
+    <div class="feedback-card__icon is-voice"><span class="adam-voice adam-voice--lg" aria-hidden="true"><img src="/static/assets/adam-avatar-96.webp" alt="" decoding="async"><i class="adam-voice__sticker">✨</i></span></div>
     <h3 id="changelogTitle">Что нового</h3>
     <div class="changelog-list" id="changelogList"></div>
     <div class="feedback-actions">
@@ -993,9 +993,9 @@ class="habit-add-form__submit">
   <div class="feedback-sheet__backdrop" id="remindFriendsBackdrop"></div>
   <section class="feedback-card remind-friends-card" role="dialog" aria-modal="true" aria-labelledby="remindFriendsTitle">
     <div class="freeze-purchase-card__handle"></div>
-    <div class="feedback-card__icon">👋</div>
+    <div class="feedback-card__icon is-voice"><span class="adam-voice adam-voice--lg" aria-hidden="true"><img src="/static/assets/adam-avatar-96.webp" alt="" decoding="async"><i class="adam-voice__sticker">👋</i></span></div>
     <h3 id="remindFriendsTitle">Напомнить друзьям</h3>
-    <p>У тебя сегодня уже есть отметка, а у этих друзей пока нет. Одно нажатие — и бот напомнит им.</p>
+    <p>У тебя сегодня уже есть отметка, а у этих друзей пока нет. Одно нажатие — и я напомню им.</p>
     <ul class="friends-list" id="remindFriendsList"></ul>
     <div class="feedback-actions feedback-actions--single">
       <button type="button" class="freeze-purchase-back" id="remindFriendsClose">Не сейчас</button>
@@ -1663,7 +1663,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261020_HEDIT_V79"></script>
+<script type="module" src="/static/app.js?v=20261021_VOICE_V80"></script>
 
 </body>
 </html>

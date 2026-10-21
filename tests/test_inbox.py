@@ -169,7 +169,8 @@ def test_adam_messages_are_shown_with_a_short_preview(uid):
         conn.close()
     items = inbox.get_feed(me)["items"]
     assert len(items) == 1, "пропущенные окна в ленту не попадают"
-    assert items[0]["cat"] == "adam" and items[0]["title"] == "Адам написал тебе" and items[0]["action"] == {"type": "chat"}
+    assert items[0]["cat"] == "adam" and items[0]["title"] == "Я написал тебе" and items[0]["action"] == {"type": "chat"}
+    assert items[0]["voice"] is True, "сообщение Адама — с его аватаркой"
     assert items[0]["text"].startswith("Заметил, что вторая привычка") and len(items[0]["text"]) <= inbox.PREVIEW_CHARS and items[0]["text"].endswith("…")
 
 
@@ -187,9 +188,18 @@ def test_system_events_cover_the_streak_news_and_invites(uid):
     assert {"streak_freeze", "streak_lost", "streak_status", "whats_new", "referral_paid"} <= kinds
     assert "completed" not in kinds and all(it["cat"] == "system" for it in feed["items"])
     titles = _titles(feed)
-    assert "День сохранён заморозкой" in titles and "Серия прервалась" in titles and "Новый статус «Старт»" in titles
+    # системные записи — слова Адама от первого лица («Я сохранил твой день заморозкой»), рядом с ними в приложении его аватарка
+    assert "Я сохранил твой день заморозкой" in titles and "Серия прервалась" in titles and "Новый статус «Старт»" in titles
     assert next(it for it in feed["items"] if it["kind"] == "streak_freeze")["text"] == "Серия 14 дн. осталась с тобой"
-    assert "Что нового: Знакомство с Адамом" in titles and "Мария пришёл(ла) по твоему приглашению: +100 Adam Coin" in titles
+    assert next(it for it in feed["items"] if it["kind"] == "streak_lost")["text"].startswith("Начнём заново сегодня")
+    assert "открыл для тебя рамку «Первая искра»" in next(it for it in feed["items"] if it["kind"] == "streak_status")["text"]
+    assert "Новое от меня: Знакомство с Адамом" in titles and "Мария пришёл(ла) по твоему приглашению: +100 Adam Coin" in titles
+    voiced = {it["kind"]: it["voice"] for it in feed["items"]}
+    assert voiced["streak_freeze"] and voiced["streak_lost"] and voiced["streak_status"] and voiced["whats_new"]
+    assert not voiced["referral_paid"], "здесь отправитель — друг, а не Адам: у записи его собственная аватарка"
+    for it in feed["items"]:
+        for third_person in ("Адам написал", "День сохранён", "Что нового:", "ADAM"):
+            assert third_person not in it["title"] and third_person not in it["text"].replace("Знакомство с Адамом", ""), it
 
 
 def test_every_tab_has_something_to_show_when_every_source_has_news(uid):

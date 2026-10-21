@@ -14844,6 +14844,42 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 :root[data-mode="light"] .habit-edit-priority__text small{color:#6B6585}
 
 /* =========================================================
+   Голос Адама (app.js::adamVoiceHtml): маленькая аватарка у сообщений от Адама — тонкое кольцо без свечения, без размытия и без
+   анимаций. В тостах она стоит вместо цветной точки (цвет вида — в кольце), в окнах и подсказках — у заголовка, в «Уведомлениях» — слева.
+   ========================================================= */
+.adam-voice{
+  position:relative;display:inline-grid;place-items:center;flex:0 0 auto;border-radius:50%;
+  background:#0b0b14;box-shadow:0 0 0 1px rgba(167,139,250,.55),0 0 0 3px rgba(167,139,250,.10);
+}
+.adam-voice img{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.adam-voice--xs{width:16px;height:16px;box-shadow:0 0 0 1px rgba(167,139,250,.5)}
+.adam-voice--sm{width:24px;height:24px}
+.adam-voice--md{width:38px;height:38px}
+.adam-voice--lg{width:46px;height:46px}
+.adam-voice__sticker{
+  position:absolute;right:-5px;bottom:-4px;width:18px;height:18px;border-radius:50%;
+  display:grid;place-items:center;font-style:normal;font-size:10.5px;line-height:1;
+  background:#1a1a2a;box-shadow:0 0 0 1.5px #0f0f18;
+}
+.adam-voice--xs .adam-voice__sticker,.adam-voice--sm .adam-voice__sticker{display:none}
+.toast.has-voice::before,
+.toast.has-voice.is-error::before,
+.toast.has-voice.is-success::before,
+.toast.has-voice.is-praise::before{
+  width:24px;height:24px;border-radius:50%;
+  background:#0b0b14 url(/static/assets/adam-avatar-96.webp) center/cover no-repeat;
+  box-shadow:0 0 0 1.5px rgba(167,139,250,.6);
+}
+.toast.has-voice.is-error::before{box-shadow:0 0 0 1.5px rgba(239,68,68,.85)}
+.toast.has-voice.is-success::before{box-shadow:0 0 0 1.5px rgba(34,197,94,.8)}
+.toast.has-voice.is-praise::before{box-shadow:0 0 0 1.5px rgba(255,184,64,.9)}
+.feedback-card__icon.is-voice{width:auto;height:auto;background:none;border:none;border-radius:0;margin-bottom:12px}
+.product-onboarding-hint__icon.is-voice{width:46px;height:46px;min-width:46px;border:none;background:none;box-shadow:none;border-radius:0}
+.struggling-habit-banner__icon .adam-voice{display:block}
+.habit-item__suggest-time .adam-voice{margin-right:5px;vertical-align:-3px}
+.inbox-item__voice{flex:0 0 auto;width:42px;height:42px;display:grid;place-items:center}
+
+/* =========================================================
    Окно «Сундук» (открытие сундука месяца и парного задания): сундук появляется, его нужно тапнуть три раза (каждый тап — удар,
    шкала и свечение растут), потом сундук потряхивает, пока идёт запрос, крышка откидывается, вылетают искры и появляются награды.
    Только transform/opacity и конечные анимации — без размытия, без CSS-фильтров и вечных циклов (слабые Android WebView).
