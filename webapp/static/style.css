@@ -9147,7 +9147,7 @@ body{
   position:relative;
   z-index:2;
 }
-.today-focus__quests-icon{font-size:20px;line-height:1;filter:drop-shadow(0 2px 5px rgba(255,190,70,.28))}
+.today-focus__quests-icon{font-size:20px;line-height:1;text-shadow:0 2px 5px rgba(255,190,70,.28)}
 .today-focus__quests-label{
   font-family:'Space Grotesk',sans-serif;
   font-size:11px;
@@ -10877,7 +10877,7 @@ body{
     linear-gradient(145deg,#6a4d1e,#33240f);
   box-shadow:0 7px 18px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.14),0 0 0 1px rgba(255,201,65,.07);
 }
-.today-focus__quests-icon{font-size:22px;filter:drop-shadow(0 2px 5px rgba(255,195,60,.35))}
+.today-focus__quests-icon{font-size:22px;text-shadow:0 2px 5px rgba(255,195,60,.35)}
 .today-focus__quests-label{font-size:12px;letter-spacing:.01em;color:#FFF5CF}
 .today-focus__quests-btn::after{border-radius:15px}
 .today-focus__quests-btn.has-claimable{animation:adamQuestPulse 1.7s ease-in-out infinite}
@@ -11186,16 +11186,16 @@ body{
     inset 0 1px rgba(255,255,255,.30),
     inset 0 -2px 5px rgba(0,0,0,.30),
     0 0 0 1px rgba(255,203,60,.08)!important;
-  position:relative!important;overflow:hidden!important;
-  transition:transform .18s var(--wow-ease),filter .18s ease!important;
+  /* 21.10 (скрин владельца): на телефоне кнопка рисовалась золотой плашкой БЕЗ значка и подписи. Причина — на одной маленькой кнопке сразу:
+     обрезка по скруглению (overflow:hidden = слой с маской), бегущий блик ::after, подпрыгивание с пульсом тени и тени-фильтры на значке и подписи.
+     Теперь кнопка обычная: без обрезки, без блика, без подпрыгивания и без фильтров; о награде по-прежнему говорит бегущая золотая рамка
+     (двигается только фон, отдельных слоёв не создаёт), тень значка — text-shadow. */
+  position:relative!important;overflow:visible!important;
+  transition:transform .18s var(--wow-ease)!important;
 }
-.today-focus__quests-btn::after{
-  content:""!important;position:absolute!important;inset:2px!important;border-radius:15px!important;pointer-events:none!important;
-  background:linear-gradient(115deg,transparent 0 34%,rgba(255,255,255,.55) 50%,transparent 64% 100%)!important;
-  transform:translateX(-120%)!important;animation:questShine 2.6s ease-in-out infinite!important;
-}
-.today-focus__quests-btn.has-claimable{animation:questAttention 1.55s ease-in-out infinite,questBtnBorderShine 3s linear infinite!important;}
-.today-focus__quests-icon{font-size:23px!important;position:relative!important;z-index:2!important;filter:drop-shadow(0 2px 7px rgba(255,204,66,.42))!important;}
+.today-focus__quests-btn::after{content:none!important;display:none!important}
+.today-focus__quests-btn.has-claimable{animation:questBtnBorderShine 3s linear infinite!important;}
+.today-focus__quests-icon{font-size:23px!important;position:relative!important;z-index:2!important;text-shadow:0 2px 7px rgba(255,204,66,.42)!important;}
 .today-focus__quests-label{position:relative!important;z-index:2!important;font-size:12px!important;font-weight:900!important;color:#fff4c9!important;}
 @keyframes questShine{0%,48%{transform:translateX(-120%)}72%,100%{transform:translateX(120%)}}
 @keyframes questAttention{0%,100%{transform:translateY(0);box-shadow:0 9px 22px rgba(0,0,0,.30),0 0 0 0 rgba(255,210,75,.30),inset 0 1px rgba(255,255,255,.17)}50%{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.35),0 0 0 7px rgba(255,210,75,0),inset 0 1px rgba(255,255,255,.21)}}
@@ -12717,7 +12717,7 @@ body.onboarding-scroll-lock{
     align-items: center !important;
     justify-content: center !important;
     gap: 6px !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     color: #fff7d0 !important;
   }
   .today-focus__quests-btn > *{
@@ -14958,6 +14958,17 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .rescue-help-skip{color:#FFB547}
 .rescue-help-card[data-state="sent"] .rescue-help-badge{color:#FF9F43;background:#3a2208;border-color:#B8661B}
 .rescue-help-card[data-state="sent"] .rescue-help-crack{display:none}
+
+/* =========================================================
+   Подиум рейтинга (три верхние карточки): строка «В ударе N дн.» повторяла число рядом с 🔥 и убрана (app.js::getStatus), на её месте — воздух
+   между строками: место, имя, ник, лига и ранг теперь не слипаются (по паре миллиметров на каждый зазор). Только отступы.
+   ========================================================= */
+.rating-podium-card__rank{margin-top:9px}
+.rating-podium-card__name{margin-top:6px}
+.rating-podium-card__handle{margin-top:3px !important}
+.rating-podium-card__league{margin-top:5px}
+.rating-podium-card__evo{margin-top:6px}
+.rating-podium-card__stats{margin-top:10px}
 
 /* =========================================================
    Окно «Сундук» (открытие сундука месяца и парного задания): сундук появляется, его нужно тапнуть три раза (каждый тап — удар,

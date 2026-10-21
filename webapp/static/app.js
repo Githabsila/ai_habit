@@ -4641,6 +4641,9 @@
       const reward = (ss.rewards || [])[0];
       let status = ss.temp_status || (reward ? reward.status : "");
       if (/^Огонь\s+/i.test(status)) status = status.replace(/^Огонь/i, "В ударе");
+      // «В ударе N дн.» дублирует число серии, которое и так стоит рядом с 🔥 (на подиуме и в списке) — строку не показываем; название вехи
+      // («Закалка» и т.п.) остаётся.
+      if (/^В ударе(\s+\d+\s+дн\.?)?$/i.test(status.trim())) status = "";
       return {ss, reward, status};
     };
     const medal = ["🥇", "🥈", "🥉"];
