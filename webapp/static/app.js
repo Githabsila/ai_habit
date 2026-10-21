@@ -680,7 +680,7 @@
     renderMonthCard();
     // Пока идёт показ изменения (полоски заполняются на глазах), список не пересобираем — он дорисует себя сам.
     if (questsAnim) return;
-    list.innerHTML = quests.map((q) => questRowHtml(q, q, (state.habits || []).length)).join("");
+    list.innerHTML = quests.map((q) => questRowHtml(q, q, (state.habits || []).length, questsPlanReady())).join("");
   }
 
   // «Задания месяца» (db/month_quests.py): прогресс по уже забранным
@@ -5628,7 +5628,7 @@ function initDailyQuestActions() {
     const row = e.target.closest("[data-go]");
     if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); goToQuestStep(row.dataset.go); }
   });
-  document.getElementById("dailyQuestsBtn")?.addEventListener("click", () => { trk("quests_window_open"); openQuestsOverlay(); });
+  document.getElementById("dailyQuestsBtn")?.addEventListener("click", openQuestsFromButton);
   document.getElementById("dailyQuestsClose")?.addEventListener("click", closeQuestsOverlay);
   document.getElementById("dailyQuestsBackdrop")?.addEventListener("click", closeQuestsOverlay);
 }
@@ -5645,21 +5645,30 @@ let questsAnim = null;               // { timers, toMonth, demo } пока ид�
 let questsWindowTimer = null;        // ждём, пока закроются другие окна (праздник серии, уровень и т.п.)
 let questsPending = null;            // { before, monthBefore, after, monthAfter } — окно, которое ещё не открылось
 let questsOverlayHideTimer = null;
+const QUESTS_PLAN_DELAY_MS = 120000;  // окно про план — через две минуты после последней правки плана
+let questsPlanHold = null;            // { before, monthBefore, after, monthAfter } — квест про план выполнен, окно ждёт
+let questsPlanTimer = null;
 
 function questPct(q, shown) {
   if (q.target <= 1) return shown.completed ? 100 : 0;
   return Math.min(100, Math.round(100 * shown.progress / q.target));
 }
 
-function questHint(q, shown, habitsCount) {
+function questHint(q, shown, habitsCount, planReady) {
   if (shown.completed) return "";
   if (q.key === "two_habits") {
     if (habitsCount === 0) return "Для начала добавь первую и отметь её";
     if (habitsCount === 1) return "Добавь вторую — и полоска дойдёт до конца";
     return "";
   }
-  if (q.key === "talk_adam") return "Расскажи, как идёт день, — отвечу и помогу разобраться";
+  if (q.key === "talk_adam") return planReady ? "Всё записано — попроси разложить дела по времени" : "Расскажи, как идёт день, — отвечу и помогу разобраться";
   return "";
+}
+
+// План дня заполнен (главная + хотя бы одна второстепенная): Адаму есть с чем работать — тап по его квесту сразу просит разложить дела по времени.
+function questsPlanReady() {
+  const plan = state?.daily_plan;
+  return !!(plan && String(plan.main_goal || "").trim() && (plan.tasks || []).length);
 }
 
 function questSideHtml(q, shown) {
@@ -5677,8 +5686,8 @@ function questPartsHtml(q, shown) {
 }
 
 // q — квест (как сейчас), shown — то, что показываем в этот момент (при анимации — прошлое состояние).
-function questRowHtml(q, shown, habitsCount) {
-  const hint = questHint(q, shown, habitsCount);
+function questRowHtml(q, shown, habitsCount, planReady) {
+  const hint = questHint(q, shown, habitsCount, planReady);
   const bar = q.key === "talk_adam" ? "" : `<span class="daily-quest__bar"><span class="daily-quest__bar-fill" style="width:${questPct(q, shown)}%"></span></span>`;
   return `
     <li class="daily-quest${shown.completed ? " is-claimed" : ""}" data-quest="${q.key}"${shown.completed ? "" : ` data-go="${q.key}" role="button" tabindex="0"`}>
@@ -5714,9 +5723,61 @@ function announceQuestChange(before, monthBefore) {
   const after = state?.daily_quests;
   const diff = diffQuests(before, after);
   if (!diff.habitsMoved && !diff.done.length) return;
-  const payload = { before: questsPending?.before || before, monthBefore: questsPending?.monthBefore || monthBefore, after, monthAfter: state?.month_quests || null };
+  const waiting = questsPlanHold;
+  // Выполнился ТОЛЬКО квест про план: человек ещё может записывать задачи, не перебиваем — окно через две минуты после последней правки.
+  if (!diff.habitsMoved && diff.done.length === 1 && diff.done[0] === "plan_day") {
+    questsPlanHold = { before: waiting?.before || before, monthBefore: waiting?.monthBefore || monthBefore, after, monthAfter: state?.month_quests || null };
+    restartPlanHold();
+    return;
+  }
+  // Всё остальное — сразу; если квест про план ждал своих двух минут, показываем его в этом же окне, а таймер снимаем.
+  const payload = {
+    before: questsPending?.before || waiting?.before || before,
+    monthBefore: questsPending?.monthBefore || waiting?.monthBefore || monthBefore,
+    after, monthAfter: state?.month_quests || null,
+  };
+  clearPlanHold();
   questsPending = payload;
   scheduleQuestsWindow(payload);
+}
+
+// Квест «Заполни план дня» уже выполнен и сохранён (награда и балл у человека, даже если он закроет приложение), а окно с этим откладывается:
+// две минуты от ПОСЛЕДНЕЙ правки плана (каждая новая правка отсчитывает заново); откроет квесты сам раньше — покажем результат сразу.
+function restartPlanHold() {
+  clearTimeout(questsPlanTimer);
+  questsPlanTimer = setTimeout(firePlanHold, QUESTS_PLAN_DELAY_MS);
+}
+
+function clearPlanHold() {
+  clearTimeout(questsPlanTimer);
+  questsPlanTimer = null;
+  questsPlanHold = null;
+}
+
+function firePlanHold() {
+  const held = questsPlanHold;
+  clearPlanHold();
+  if (!held) return;
+  const payload = { ...held, after: state?.daily_quests || held.after, monthAfter: state?.month_quests || held.monthAfter };
+  questsPending = payload;
+  scheduleQuestsWindow(payload);
+}
+
+// Любая правка плана (главная задача, добавить/изменить/удалить задачу): если окно ждёт, отсчёт идёт заново.
+function notePlanEdited() {
+  if (questsPlanHold) restartPlanHold();
+}
+
+// Кнопка «Квесты» в «Сегодня»: если окно про план ещё ждёт своих двух минут — показываем результат сразу, второго окна по таймеру уже не будет.
+function openQuestsFromButton() {
+  trk("quests_window_open");
+  const held = questsPlanHold;
+  if (held) {
+    clearPlanHold();
+    openQuestsWindow({ ...held, after: state?.daily_quests || held.after, monthAfter: state?.month_quests || held.monthAfter });
+    return;
+  }
+  openQuestsOverlay();
 }
 
 // Первый заход за сессию: что выполнено без приложения (сообщение Адаму в боте и т.п.) — одним тостом, окно не открываем.
@@ -5788,25 +5849,26 @@ function finishQuestsAnim() {
   questsAnim.timers.forEach(clearTimeout);
   const { toMonth, demo } = questsAnim;
   questsAnim = null;
-  document.querySelectorAll(".quest-point").forEach((el) => el.remove());
+  document.querySelectorAll(".quest-point, .month-card__plus").forEach((el) => el.remove());
   if (toMonth) renderMonthCard(toMonth);
   if (!demo) renderDailyQuests();
 }
 
 // Показать окно «Квесты дня». before/monthBefore — состояние ДО (с него полоски начинают заполняться), after/monthAfter — ПОСЛЕ (по умолчанию —
 // текущее из state). Без before окно просто открывается с текущим состоянием.
-function openQuestsWindow({ before = null, monthBefore = null, after = null, monthAfter = null, habitsCount = null, demo = false } = {}) {
+function openQuestsWindow({ before = null, monthBefore = null, after = null, monthAfter = null, habitsCount = null, planReady = null, demo = false } = {}) {
   const overlay = document.getElementById("dailyQuestsOverlay");
   const list = document.getElementById("dailyQuestsList");
   if (!overlay || !list) return false;
   const toQuests = after || state?.daily_quests || [];
   const toMonth = monthAfter || state?.month_quests || null;
   const habits = habitsCount === null ? (state?.habits || []).length : habitsCount;
+  const ready = planReady === null ? questsPlanReady() : planReady;
   finishQuestsAnim();
   hideProductHint();
   const fromByKey = new Map((before || []).map((q) => [q.key, q]));
   questsAnim = { timers: [], toMonth, demo };
-  list.innerHTML = toQuests.map((q) => questRowHtml(q, fromByKey.get(q.key) || q, habits)).join("");
+  list.innerHTML = toQuests.map((q) => questRowHtml(q, fromByKey.get(q.key) || q, habits, ready)).join("");
   renderMonthCard(monthBefore || toMonth);
   openQuestsOverlay();
   questsAnim.timers.push(setTimeout(() => playQuestsChange(toQuests, fromByKey, monthBefore, toMonth, habits), overlay.classList.contains("is-open") ? 250 : 650));
@@ -5832,7 +5894,7 @@ function playQuestsChange(toQuests, fromByKey, monthBefore, toMonth, habits) {
     if (q.completed && !from.completed) {
       const delay = QUEST_FILL_MS + 120 + moved * 900;
       anim.timers.push(setTimeout(() => completeQuestRow(li, q, monthBefore, toMonth), delay));
-      finishAt = Math.max(finishAt, delay + 1300);
+      finishAt = Math.max(finishAt, delay + 2600);        // галочка → полёт балла (≈0,8 с) → «+1» у счёта (1,5 с)
     } else {
       finishAt = Math.max(finishAt, QUEST_FILL_MS + 200);
     }
@@ -5867,6 +5929,15 @@ function completeQuestRow(li, q, monthBefore, toMonth) {
         count.textContent = `${Math.min(toMonth.points, toMonth.goal)} / ${toMonth.goal}`;
         count.classList.add("is-bump");
         anim.timers.push(setTimeout(() => count.classList.remove("is-bump"), 420));
+        // «+1» всплывает у счёта: видно, какое именно действие продвинуло шкалу
+        const head = count.parentElement;
+        const plus = document.createElement("i");
+        plus.className = "month-card__plus";
+        plus.textContent = "+1";
+        head?.appendChild(plus);
+        void plus.offsetWidth;
+        plus.classList.add("is-on");
+        anim.timers.push(setTimeout(() => plus.remove(), 1500));
       }
       haptic("light");
     }
@@ -5894,8 +5965,17 @@ function flyQuestPoint(fromEl, toEl, onArrive) {
     ],
     { duration: 780, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" },
   );
-  flight.onfinish = () => { dot.remove(); onArrive(); };
-  flight.oncancel = () => dot.remove();
+  // Страховка: если у WebView анимация не идёт (фон, экономия энергии), балл всё равно «долетает» по таймеру — счёт и «+1» не теряются.
+  let landed = false;
+  const land = () => {
+    if (landed) return;
+    landed = true;
+    dot.remove();
+    onArrive();
+  };
+  flight.onfinish = land;
+  flight.oncancel = () => { landed = true; dot.remove(); };
+  setTimeout(land, 780 + 250);
 }
 
 // Тап по невыполненному квесту — к его следующему шагу.
@@ -5904,7 +5984,11 @@ function goToQuestStep(key) {
   trk("quests_go", key);
   closeQuestsOverlay();
   setTimeout(() => {
-    if (key === "talk_adam") { document.getElementById("aiCoachBtn")?.click(); return; }
+    if (key === "talk_adam") {
+      if (questsPlanReady()) window.location.href = "/coach?intro=plans&t=schedule";   // план записан — Адам сразу раскладывает дела по времени
+      else document.getElementById("aiCoachBtn")?.click();
+      return;
+    }
     if (key === "plan_day") {
       const target = document.getElementById("mainGoalInput") || document.getElementById("planList");
       target?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -6370,6 +6454,7 @@ function initPlanActions() {
       delete mainInput.dataset.editingValue;
       haptic("light");
       await loadBootstrap();
+      notePlanEdited();
       if (isFirstMainGoal) onOnboardingMainGoalSaved();
     } catch (err) {
       showToast(friendlyError(err), "error");
@@ -6388,6 +6473,7 @@ function initPlanActions() {
         document.getElementById("mainGoalInput").value = "";
         haptic("light");
         await loadBootstrap();
+        notePlanEdited();
         document.getElementById("mainGoalInput").focus();
       }
     } catch (err) {
@@ -6423,6 +6509,7 @@ function initPlanActions() {
         } else {
           await loadBootstrap();
         }
+        notePlanEdited();
         return;
       }
 
@@ -6433,6 +6520,7 @@ function initPlanActions() {
       resetPlanTaskEditor();
       haptic("light");
       await loadBootstrap();
+      notePlanEdited();
     } catch (err) {
       showToast(friendlyError(err), "error");
     }
@@ -6466,6 +6554,7 @@ function initPlanActions() {
           await api(`/api/plan/task/${taskId}`, { method: "DELETE" });
           if (String(taskInput.dataset.editingTaskId) === String(taskId)) resetPlanTaskEditor();
           await loadBootstrap();
+          notePlanEdited();
         }
       } catch (err) {
         showToast(friendlyError(err), "error");
@@ -9286,8 +9375,13 @@ const SIM_SCENES = {
   freeze_help_sent: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 440, sent: true }),
   rescue_help: () => openRescueHelp({ sim: true, friend: SIM_RESCUE_FRIEND }),
   rescue_help_sent: () => openRescueHelp({ sim: true, friend: SIM_RESCUE_FRIEND, sent: true, restored: 13 }),
+  quests_plan: () => openQuestsWindow({
+    demo: true, habitsCount: 2, planReady: true, monthBefore: simMonth(21), monthAfter: simMonth(22),
+    before: [simQuestHabits(2), simQuestPlan(true, false), simQuestAdam(false)],
+    after: [simQuestHabits(2), simQuestPlan(true, true), simQuestAdam(false)],
+  }),
   quests_first: () => openQuestsWindow({
-    demo: true, habitsCount: 1, monthBefore: simMonth(14), monthAfter: simMonth(14),
+    demo: true, habitsCount: 1, planReady: false, monthBefore: simMonth(14), monthAfter: simMonth(14),
     before: [simQuestHabits(0), simQuestPlan(false, false), simQuestAdam(false)],
     after: [simQuestHabits(1), simQuestPlan(true, false), simQuestAdam(false)],
   }),

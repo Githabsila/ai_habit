@@ -268,10 +268,10 @@ def test_goal_conversations_get_their_own_scenario():
 
 
 def test_every_conversation_starter_in_the_chat_page_lands_in_a_sensible_scenario():
-    block = COACH_JS[COACH_JS.index("params.get('intro') === 'plans'"):][:900]
+    block = COACH_JS[COACH_JS.index("params.get('intro') === 'plans'"):][:1100]
     starters = dict(re.findall(r"(\w+): '([^']+)'", block))
-    assert set(starters) == {"month", "year", "today", "look"}
-    expected = {"month": "goals", "year": "goals", "today": "plan", "look": "next_step"}
+    assert set(starters) == {"month", "year", "today", "schedule", "look"}      # schedule — квест «Поговори сегодня с Адамом» (п.14)
+    expected = {"month": "goals", "year": "goals", "today": "plan", "schedule": "plan", "look": "next_step"}
     for key, text in starters.items():
         assert expected[key] in cb.detect_scenarios(text), (key, text)
     assert "sendText(" in block and "history.replaceState" in block and "sentOnboardingIntroRef.current = true;" in block
@@ -279,7 +279,7 @@ def test_every_conversation_starter_in_the_chat_page_lands_in_a_sensible_scenari
 
 def test_chat_page_script_version_was_bumped_for_the_new_intro():
     html = (STATIC / "ai_miniapp_styled.html").read_text(encoding="utf-8")
-    assert "ai_coach.js?v=20261021_COMPOSE_V56" in html
+    assert "ai_coach.js?v=20261021_COMPOSE_V57" in html
 
 
 # ---------------------------------------------------------------------------------------------------------------- окно в приложении

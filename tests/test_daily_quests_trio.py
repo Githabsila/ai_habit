@@ -353,7 +353,7 @@ def test_the_script_compares_before_and_after_and_has_no_claim_button_any_more()
 def test_the_window_opens_after_the_first_habit_and_waits_for_the_other_windows():
     announce = APP_JS[APP_JS.index("function announceQuestChange("):][:900]
     assert "if (!diff.habitsMoved && !diff.done.length) return;" in announce, "частичный прогресс плана окно не открывает"
-    assert "questsPending?.before || before" in announce, "быстрые отметки подряд показываются одним окном от самого первого состояния"
+    assert "questsPending?.before || waiting?.before || before" in announce, "быстрые отметки подряд показываются одним окном от самого первого состояния"
     schedule = APP_JS[APP_JS.index("function scheduleQuestsWindow("):][:1500]
     assert "celebrationOverlayOpen() || document.hidden" in schedule and "quietTicks < 2" in schedule and 'trk("quests_window_auto")' in schedule
 
@@ -378,13 +378,13 @@ def test_tapping_an_unfinished_quest_leads_to_its_next_step():
 def test_the_simulation_scenes_use_the_same_titles_as_the_server_and_are_registered():
     from db.sim_lab import SCENES
     keys = [row[0] for row in SCENES]
-    for key in ("quests_first", "quests_done", "quests_all"):
+    for key in ("quests_first", "quests_done", "quests_all", "quests_plan"):
         assert key in keys, key
     for key, definition in quests_db.QUEST_DEFINITIONS.items():
         assert f'title: "{definition["title"]}"' in APP_JS, key
     block = APP_JS[APP_JS.index("const SIM_SCENES = {"):]
     block = block[:block.index("\n};\n")]
-    assert block.count("openQuestsWindow({") == 3
+    assert block.count("openQuestsWindow({") == 4
     for forbidden in ("api(", "fetch(", "applyActionPatch", "bootstrap", "claim"):
         assert forbidden not in block, forbidden
     assert "closeQuestsOverlay();" in APP_JS[APP_JS.index("function playSimScene()"):][:700]
@@ -392,8 +392,10 @@ def test_the_simulation_scenes_use_the_same_titles_as_the_server_and_are_registe
 
 def test_hints_and_chips_do_not_repeat_the_words_of_the_window_title():
     title = re.search(r'id="dailyQuestsModalTitle">([^<]+)<', INDEX).group(1)
-    hints = re.findall(r'return "([^"]+)";', APP_JS[APP_JS.index("function questHint("):][:700])
-    assert len(hints) == 3
+    body = APP_JS[APP_JS.index("function questHint("):]
+    body = body[:body.index("\n}\n")]
+    hints = re.findall(r'"([^"]*[А-Яа-я][^"]*)"', body)
+    assert len(hints) == 4
     for hint in hints:
         assert not shared(title, hint), hint
     assert not shared(title, "Главная задача", "Второстепенная")
@@ -439,7 +441,7 @@ const out = {
   moved: diffQuests(rows.before, rows.after),
   none: diffQuests(null, rows.after),
   pct: [questPct({ target: 2 }, { progress: 1, completed: false }), questPct({ target: 2 }, { progress: 2, completed: true }), questPct({ target: 1 }, { progress: 0, completed: false }), questPct({ target: 1 }, { progress: 1, completed: true })],
-  hints: [questHint({ key: "two_habits" }, { completed: false }, 0), questHint({ key: "two_habits" }, { completed: false }, 1), questHint({ key: "two_habits" }, { completed: false }, 3), questHint({ key: "two_habits" }, { completed: true }, 1), questHint({ key: "talk_adam" }, { completed: false }, 1), questHint({ key: "plan_day" }, { completed: false }, 1)],
+  hints: [questHint({ key: "two_habits" }, { completed: false }, 0), questHint({ key: "two_habits" }, { completed: false }, 1), questHint({ key: "two_habits" }, { completed: false }, 3), questHint({ key: "two_habits" }, { completed: true }, 1), questHint({ key: "talk_adam" }, { completed: false }, 1, false), questHint({ key: "plan_day" }, { completed: false }, 1), questHint({ key: "talk_adam" }, { completed: false }, 2, true)],
 };
 process.stdout.write(JSON.stringify(out));
 """ % (_function("function questPct("), _function("function questHint("), _function("function diffQuests("))
@@ -456,3 +458,150 @@ process.stdout.write(JSON.stringify(out));
     assert out["pct"] == [50, 100, 0, 100]
     assert out["hints"][0] == "Для начала добавь первую и отметь её" and out["hints"][1] == "Добавь вторую — и полоска дойдёт до конца"
     assert out["hints"][2] == "" and out["hints"][3] == "" and out["hints"][4].startswith("Расскажи, как идёт день") and out["hints"][5] == ""
+    assert out["hints"][6] == "Всё записано — попроси разложить дела по времени", "план записан — Адам зовёт раскладывать дела по времени"
+
+
+# ---------------------------------------------------------------------------------------------------------------- остаток ТЗ п.14
+
+def _node_function(header):
+    start = APP_JS.index(header)
+    return APP_JS[start:APP_JS.index("\n}\n", start) + 3]
+
+
+@pytest.mark.skipif(NODE is None, reason="нужен Node")
+def test_the_plan_quest_window_waits_two_minutes_after_the_last_edit():
+    """ТЗ п.5: квест про план выполнен и сохранён сразу, а окно с этим — через две минуты после ПОСЛЕДНЕЙ правки (каждая правка — отсчёт заново)."""
+    functions = "\n".join(_node_function(h) for h in (
+        "function diffQuests(", "function announceQuestChange(", "function restartPlanHold(", "function clearPlanHold(", "function firePlanHold(",
+        "function notePlanEdited(", "function openQuestsFromButton("))
+    script = r"""
+let timers = []; let now = 0; let nextId = 1;
+function setTimeout(fn, ms) { const id = nextId++; timers.push({ id, at: now + ms, fn }); return id; }
+function clearTimeout(id) { timers = timers.filter((t) => t.id !== id); }
+function advance(ms) {
+  const target = now + ms;
+  for (;;) {
+    const due = timers.filter((t) => t.at <= target).sort((a, b) => a.at - b.at)[0];
+    if (!due) break;
+    timers = timers.filter((t) => t !== due); now = due.at; due.fn();
+  }
+  now = target;
+}
+const QUESTS_PLAN_DELAY_MS = 120000;
+let labMode = false, simMode = false, state = {}, questsPending = null, questsPlanHold = null, questsPlanTimer = null;
+const scheduled = [], opened = [];
+function scheduleQuestsWindow(payload) { scheduled.push(payload); }
+function openQuestsWindow(payload) { opened.push(payload); }
+function openQuestsOverlay() { opened.push("plain"); }
+function trk() {}
+%s
+const q = (key, progress, completed) => ({ key, progress, completed });
+const habits1 = q("two_habits", 1, false), habits2 = q("two_habits", 2, true), adam = q("talk_adam", 0, false);
+const planHalf = q("plan_day", 1, false), planDone = q("plan_day", 2, true);
+const out = {};
+
+// 1. квест про план выполнился один: окно держим
+state = { daily_quests: [habits2, planDone, adam], month_quests: { points: 6 } };
+announceQuestChange([habits2, planHalf, adam], { points: 5 });
+out.held = { scheduled: scheduled.length, hold: !!questsPlanHold };
+advance(119000); out.at119 = scheduled.length;
+// 2. правка на 119-й секунде — отсчёт заново
+notePlanEdited(); advance(119000); out.afterEdit = scheduled.length;
+advance(1500); out.afterTwoMinutes = scheduled.length;
+out.payload = { beforePlan: scheduled[0].before[1].progress, monthBefore: scheduled[0].monthBefore.points, afterPlan: scheduled[0].after[1].progress, hold: !!questsPlanHold };
+
+// 3. правка без ожидающего окна ничего не заводит
+notePlanEdited(); advance(300000); out.idleEdit = scheduled.length;
+
+// 4. окно ждёт, а человек отметил привычку: всё показываем сразу одним окном от самого раннего состояния, таймер снят
+scheduled.length = 0;
+state = { daily_quests: [habits1, planDone, adam], month_quests: { points: 6 } };
+announceQuestChange([habits1, planHalf, adam], { points: 5 });
+state = { daily_quests: [habits2, planDone, adam], month_quests: { points: 7 } };
+announceQuestChange([habits1, planDone, adam], { points: 6 });
+out.merged = { scheduled: scheduled.length, beforePlan: scheduled[0].before[1].progress, monthBefore: scheduled[0].monthBefore.points, hold: !!questsPlanHold };
+advance(300000); out.noSecondWindow = scheduled.length;
+
+// 5. человек открыл квесты сам раньше двух минут: результат сразу, второго окна по таймеру нет
+scheduled.length = 0;
+state = { daily_quests: [habits2, planDone, adam], month_quests: { points: 8 } };
+announceQuestChange([habits2, planHalf, adam], { points: 7 });
+advance(30000); openQuestsFromButton();
+out.manual = { opened: opened.length, before: opened[opened.length - 1].before[1].progress, after: opened[opened.length - 1].after[1].progress, hold: !!questsPlanHold };
+advance(300000); out.noTimerWindow = scheduled.length;
+
+// 6. без ожидающего окна кнопка просто открывает окно
+opened.length = 0; openQuestsFromButton(); out.plain = opened.slice();
+process.stdout.write(JSON.stringify(out));
+""" % functions
+    result = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30, encoding="utf-8")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["held"] == {"scheduled": 0, "hold": True}, "сразу окно не показываем: человек может ещё записывать задачи"
+    assert out["at119"] == 0
+    assert out["afterEdit"] == 0, "правка на 119-й секунде отодвинула показ ещё на две минуты"
+    assert out["afterTwoMinutes"] == 1
+    assert out["payload"] == {"beforePlan": 1, "monthBefore": 5, "afterPlan": 2, "hold": False}, "окно показывает, как квест про план завершается"
+    assert out["idleEdit"] == 1
+    assert out["merged"] == {"scheduled": 1, "beforePlan": 1, "monthBefore": 5, "hold": False}
+    assert out["noSecondWindow"] == 1
+    assert out["manual"] == {"opened": 1, "before": 1, "after": 2, "hold": False}
+    assert out["noTimerWindow"] == 0
+    assert out["plain"] == ["plain"]
+
+
+def test_the_two_minutes_are_stored_but_the_quest_itself_is_saved_at_once(uid):
+    """ТЗ п.5: сама выдача не ждёт таймера — закрыл приложение, и квест с баллом уже у человека."""
+    _person(uid)
+    before = get_month_quests(uid)["points"]
+    set_daily_main_goal(uid, "Главное")
+    add_daily_task(uid, "Вторая")
+    quest = _quest(uid, "plan_day")
+    assert quest["claimed"] and quest["completed"]
+    assert get_month_quests(uid)["points"] == before + 1
+    assert "const QUESTS_PLAN_DELAY_MS = 120000;" in APP_JS
+
+
+def test_every_plan_edit_restarts_the_wait():
+    start = APP_JS.index("mainConfirm.addEventListener(\"click\"")
+    handlers = APP_JS[start:start + 5200]
+    assert handlers.count("notePlanEdited();") >= 4, "главная, удаление главной, добавление/правка и удаление задачи"
+    assert "async function" not in handlers[:0]
+    assert 'document.getElementById("dailyQuestsBtn")?.addEventListener("click", openQuestsFromButton);' in APP_JS
+
+
+def test_the_month_scale_shows_a_plus_one_next_to_the_counter():
+    done = APP_JS[APP_JS.index("function completeQuestRow("):][:2600]
+    assert 'plus.className = "month-card__plus"' in done and 'plus.textContent = "+1"' in done and 'plus.classList.add("is-on")' in done
+    css = CSS[CSS.index("Квесты дня (app.js::openQuestsWindow"):CSS.index("Окно «Сундук» (открытие сундука месяца")]
+    assert ".month-card__plus{" in css and ".month-card__plus.is-on{" in css and ".daily-quest[data-go]::after{" in css
+    for forbidden in ("filter", "infinite", "animation"):
+        assert forbidden not in css, forbidden
+
+
+def test_with_the_plan_written_the_adam_quest_asks_him_to_lay_the_day_out_by_time():
+    go = APP_JS[APP_JS.index("function goToQuestStep("):][:1500]
+    assert 'window.location.href = "/coach?intro=plans&t=schedule"' in go and "questsPlanReady()" in go
+    ready = APP_JS[APP_JS.index("function questsPlanReady("):][:300]
+    assert "main_goal" in ready and "tasks" in ready
+    coach = (STATIC / "ai_coach.js").read_text(encoding="utf-8")
+    starter = re.search(r"schedule: '([^']+)'", coach).group(1)
+    assert "распределить" in starter and "по времени" in starter and "привычки" in starter
+    from webapp.services import chat_brain
+    assert chat_brain.detect_scenarios(starter) == ["plan"], "стартовая фраза узнаётся как просьба о расписании"
+
+
+@pytest.mark.parametrize("text", [
+    "помоги распределить задачи по времени", "Помоги распределить мои задачи на сегодня по времени: учти привычки, работу и отдых.",
+    "что мне сегодня реально успеть", "разложи мои дела на день", "составь расписание на вечер", "успею ли я всё сегодня",
+])
+def test_adam_recognises_the_requests_to_lay_the_day_out(text):
+    from webapp.services import chat_brain
+    assert "plan" in chat_brain.detect_scenarios(text), text
+
+
+def test_the_schedule_scenario_uses_the_data_and_asks_only_for_what_is_missing():
+    from webapp.services import chat_brain
+    note = chat_brain.GUIDE["plan"]
+    for needle in ("НЕ проси переписывать задачи", "временными окнами", "время привычек", "отдых", "ОДИН короткий вопрос", "предварительный вариант дай сразу"):
+        assert needle in note, needle

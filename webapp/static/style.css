@@ -14992,6 +14992,11 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .month-card__bar-fill{transition:width .8s cubic-bezier(.22,.8,.25,1)}
 .month-card__count{display:inline-block;transition:transform .3s cubic-bezier(.2,1.6,.4,1)}
 .month-card__count.is-bump{transform:scale(1.22)}
+.month-card__head{position:relative}
+.month-card__plus{position:absolute;right:0;top:-4px;padding:2px 8px;border-radius:999px;font:900 12px/1.2 'Space Grotesk',sans-serif;font-style:normal;color:#3a2600;background:#FFD54F;
+  box-shadow:0 4px 12px rgba(255,190,44,.35);opacity:0;transform:translateY(8px) scale(.8);transition:transform .45s cubic-bezier(.2,1.5,.4,1),opacity .3s ease;pointer-events:none}
+.month-card__plus.is-on{opacity:1;transform:translateY(-14px) scale(1)}
+.daily-quest[data-go]::after{content:"›";flex:0 0 auto;margin-left:2px;font-size:22px;line-height:1;color:var(--text-muted,#9D9DB3)}
 
 /* =========================================================
    Окно «Сундук» (открытие сундука месяца и парного задания): сундук появляется, его нужно тапнуть три раза (каждый тап — удар,
