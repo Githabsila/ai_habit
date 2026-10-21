@@ -25,7 +25,7 @@ async def show_achievements(callback: CallbackQuery):
 
         await callback.message.edit_text(
             "🏆 <b>Достижения</b>\n\n"
-            "Пока пусто — выполняйте привычки и заходите почаще, "
+            "Пока пусто — выполняй привычки и заходи почаще, "
             "здесь появятся первые награды.",
             parse_mode="HTML",
             reply_markup=achievements_keyboard()

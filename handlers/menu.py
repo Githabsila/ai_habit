@@ -20,7 +20,7 @@ async def habits(callback: CallbackQuery):
         """
 🎯 Управление привычками
 
-Выберите действие:
+Выбери действие:
 """,
         reply_markup=habits_keyboard()
     )

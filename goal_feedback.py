@@ -41,7 +41,7 @@ async def run_goal_feedback(bot):
             if feedback:
                 await bot.send_message(
                     chat_id=user_id,
-                    text=f"🧠 <b>Разбор недели по вашей цели</b>\n\n{feedback}",
+                    text=f"🧠 <b>Мой разбор недели по твоей цели</b>\n\n{feedback}",
                     parse_mode="HTML"
                 )
                 sent += 1

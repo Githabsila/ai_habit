@@ -62,7 +62,7 @@ async def add_habit_start(callback: CallbackQuery, state: FSMContext):
     await state.set_state(HabitState.title)
 
     await callback.message.edit_text(
-        "✍️ Введите название новой привычки:"
+        "✍️ Напиши название новой привычки:"
     )
 
     await callback.answer()
@@ -138,9 +138,9 @@ async def my_habits(callback: CallbackQuery):
 
         await callback.message.edit_text(
             """
-📭 У вас пока нет привычек.
+📭 У тебя пока нет привычек.
 
-Нажмите
+Нажми
 <b>➕ Добавить привычку</b>
 """,
             parse_mode="HTML",
@@ -192,7 +192,7 @@ async def edit_habit_start(callback: CallbackQuery, state: FSMContext):
     await state.set_state(HabitState.edit_title)
 
     await callback.message.answer(
-        "✏️ Введите новое название привычки:"
+        "✏️ Напиши новое название привычки:"
     )
 
     await callback.answer()

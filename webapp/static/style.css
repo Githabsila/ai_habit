@@ -14878,6 +14878,7 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .struggling-habit-banner__icon .adam-voice{display:block}
 .habit-item__suggest-time .adam-voice{margin-right:5px;vertical-align:-3px}
 .inbox-item__voice{flex:0 0 auto;width:42px;height:42px;display:grid;place-items:center}
+.streak-celebration__message .adam-voice{margin-right:8px;vertical-align:-7px}
 
 /* =========================================================
    Триал (app.js::renderTrialCard / openTrialSheet / showTrialPaywall): карточка на Главной, окно «Мой пробный период» и блокирующее окно

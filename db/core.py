@@ -628,8 +628,8 @@ def create_tables():
             (4, "🧑‍🚀 Аватар: ADAM", "Аватар профиля", 250),
             (5, "🪐 Рамка: Neon", "Рамка аватара", 200),
             (6, "✨ Рамка: Gold", "Рамка аватара", 350),
-            (20, "💬 +5 ответов ADAM", "5 дополнительных ответов ADAM к вашему текущему лимиту", 100),
-            (21, "💬 +20 ответов ADAM", "20 дополнительных ответов ADAM к вашему текущему лимиту", 300),
+            (20, "💬 +5 ответов ADAM", "5 дополнительных ответов ADAM к твоему текущему лимиту", 100),
+            (21, "💬 +20 ответов ADAM", "20 дополнительных ответов ADAM к твоему текущему лимиту", 300),
         ])
 
     # ---------------- AI QUOTA ----------------
@@ -864,8 +864,11 @@ def create_tables():
     cursor.execute("UPDATE shop_items SET item_type='frame', payload='neon' WHERE id=5 AND item_type='cosmetic' AND COALESCE(payload,'')=''")
     cursor.execute("UPDATE shop_items SET item_type='frame', payload='gold' WHERE id=6 AND item_type='cosmetic' AND COALESCE(payload,'')=''")
     cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (7,'👑 Рамка: Double Gold','Платная премиальная рамка с двойной позолотой и подсветкой',299,'frame_stars','paid_double_gold',0)")
-    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (20,'💬 +5 ответов ADAM','5 дополнительных ответов ADAM к вашему текущему лимиту',100,'answer_pack','5',1)")
-    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (21,'💬 +20 ответов ADAM','20 дополнительных ответов ADAM к вашему текущему лимиту',300,'answer_pack','20',1)")
+    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (20,'💬 +5 ответов ADAM','5 дополнительных ответов ADAM к твоему текущему лимиту',100,'answer_pack','5',1)")
+    cursor.execute("INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable) VALUES (21,'💬 +20 ответов ADAM','20 дополнительных ответов ADAM к твоему текущему лимиту',300,'answer_pack','20',1)")
+
+    # Голос Адама (21.10): описания товаров говорят «ты», а не «вы» — у уже созданных баз заменяем.
+    cursor.execute("UPDATE shop_items SET description=REPLACE(description, 'к вашему текущему лимиту', 'к твоему текущему лимиту') WHERE description LIKE '%к вашему текущему лимиту%'")
 
     # Пром 9: пересборка экономики AI-запросов — обычный пакет за Adam Coin
     # даёт +10 (было +5), и оба пакета за монеты теперь ограничены одной
@@ -876,7 +879,7 @@ def create_tables():
     cursor.execute("""
         UPDATE shop_items
         SET name='💬 +10 ответов ADAM',
-            description='10 дополнительных ответов ADAM к вашему текущему лимиту',
+            description='10 дополнительных ответов ADAM к твоему текущему лимиту',
             payload='10', item_type='answer_pack', repeatable=1
         WHERE id=20
     """)

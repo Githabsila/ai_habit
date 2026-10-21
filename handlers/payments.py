@@ -37,7 +37,7 @@ class GiftState(StatesGroup):
 PREMIUM_PERKS_TEXT = (
     "💎 <b>Project ADAM Premium</b>\n\n"
     "Что даёт:\n"
-    "🧠 Еженедельный AI-разбор цели — честная сверка того, что вы написали "
+    "🧠 Мой еженедельный разбор твоей цели — честная сверка того, что записано "
     "в анкете, с реальным прогрессом\n"
     "🚀 Доступ открывается сразу, без очереди на модерацию\n"
     "⭐ Метка Premium в рейтинге и профиле\n\n"
@@ -68,7 +68,7 @@ async def buy_premium(callback: CallbackQuery):
 
     await callback.message.answer_invoice(
         title="Project ADAM Premium",
-        description="Еженедельный AI-разбор цели, доступ без очереди, метка Premium.",
+        description="Мой еженедельный разбор твоей цели, доступ без очереди, метка Premium.",
         payload=f"premium_{callback.from_user.id}",
         provider_token="",  # для Stars всегда пусто
         currency="XTR",
@@ -122,7 +122,7 @@ async def _offer_gift_invoice(message_target, recipient_id: int, giver_id: int):
     recipient = get_user(recipient_id)
     if not recipient:
         await message_target.answer(
-            "Этот пользователь ещё не запускал ADAM — попроси его сначала написать /start боту, "
+            "Этот пользователь ещё не заходил ко мне — попроси его сначала написать мне /start, "
             "а потом попробуй подарить снова."
         )
         return
@@ -166,7 +166,7 @@ async def gift_premium_confirm(callback: CallbackQuery):
     recipient_id = int(callback.data.removeprefix("gift_premium_confirm_"))
     await callback.message.answer_invoice(
         title="Project ADAM Premium — подарок",
-        description="Подарок другу: еженедельный AI-разбор цели, доступ без очереди, метка Premium.",
+        description="Подарок другу: мой еженедельный разбор цели, доступ без очереди, метка Premium.",
         payload=f"gift_premium:{recipient_id}:{callback.from_user.id}",
         provider_token="",
         currency="XTR",
@@ -338,7 +338,7 @@ async def successful_payment(message: Message):
             await message.bot.send_message(
                 recipient_id,
                 f"🎁 {_display_name(giver)} подарил(а) тебе Premium в Project ADAM! "
-                "Доступны еженедельный AI-разбор цели, доступ без очереди и метка Premium.",
+                "Теперь тебе доступны мой еженедельный разбор цели, доступ без очереди и метка Premium.",
             )
         except Exception:
             pass  # получатель мог заблокировать бота — сама выдача уже прошла, это не критично
@@ -360,8 +360,8 @@ async def successful_payment(message: Message):
 
     give_premium_admin(message.from_user.id)
     await message.answer(
-        "✅ Спасибо! Premium активирован — доступны еженедельный AI-разбор "
-        "цели и остальные плюшки.",
+        "✅ Спасибо! Premium активирован — доступны мой еженедельный разбор "
+        "твоей цели и остальные плюшки.",
         reply_markup=back_menu_keyboard()
     )
 

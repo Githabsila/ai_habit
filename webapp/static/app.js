@@ -1522,9 +1522,11 @@
     // event.reward — только у симуляции (SIM_SCENES.streak_status); настоящий статус берётся из наград серии
     const reward = event.reward || (state.streak?.rewards || []).find(r => Number(r.milestone) === Number(event.streak));
     if (message) {
-      message.textContent = reward
-        ? `🏆 Новый статус «${reward.status}» — открыта рамка «${reward.frame}». ${event.message || ""}`
+      // Слова под заголовком — слова Адама: маленькая аватарка слева, а новый статус — от первого лица.
+      const words = reward
+        ? `🏆 Новый статус «${reward.status}» — открыл для тебя рамку «${reward.frame}». ${event.message || ""}`
         : (event.message || "Отличный ход.");
+      message.innerHTML = `${adamVoiceHtml("sm")}${escapeHtml(words)}`;
     }
     if (seven) {
       // event.last7 — только у симуляции (SIM_SCENES.streak): настоящее событие недели с собой не несёт
@@ -8790,7 +8792,7 @@ const SIM_INBOX = (() => {
     { id: "s6", cat: "system", kind: "streak_freeze", at: ago(1200), icon: "❄️", title: "Я сохранил твой день заморозкой", text: "Серия 14 дн. осталась с тобой", voice: true, actor: null, action: { type: "home" }, unread: false },
     { id: "s7", cat: "gifts", kind: "gift_diamonds", at: ago(1560), icon: "💎", title: "Мария подарил(а) тебе 3 💎", text: "", actor: who(1, "Мария"), action: { type: "gifts" }, unread: false },
     { id: "s8", cat: "system", kind: "whats_new", at: ago(3000), icon: "✨", title: "Новое от меня: Знакомство", text: "Теперь я узнаю тебя и подбираю метод планирования дня.", voice: true, actor: null, action: {}, unread: false },
-    { id: "s9", cat: "friends", kind: "friend_added", at: ago(4200), icon: "🤝", title: "Денис теперь в друзьях", text: "Вы подписаны друг на друга", actor: who(2, "Денис"), action: { type: "profile", id: 2 }, unread: false },
+    { id: "s9", cat: "friends", kind: "friend_added", at: ago(4200), icon: "🤝", title: "Денис теперь в друзьях", text: "Подписаны друг на друга", actor: who(2, "Денис"), action: { type: "profile", id: 2 }, unread: false },
   ];
   const labels = [["all", "Все"], ["system", "Системные"], ["adam", "Адам"], ["friends", "Друзья"], ["followers", "Подписчики"], ["gifts", "Подарки"]];
   const categories = labels.map(([key, label]) => ({ key, label, unread: items.filter((it) => it.unread && (key === "all" || it.cat === key)).length }));
@@ -8979,7 +8981,7 @@ const EVO_ICONS = {
   apex: '<path d="M.8 14.2L6 4.8l2.4 3.8 1.9-2.6 4.9 8.2z"/>',
   legend: '<path d="M1 12.8L.6 4.2l3.9 3.4L8 2.4l3.5 5.2 3.9-3.4-.4 8.6z"/>',
 };
-const EVOLUTION_REVEAL_TEXT = "Эта форма ADAM теперь с тобой навсегда — даже срыв серии её не отнимет. Друзья увидят твой ранг.";
+const EVOLUTION_REVEAL_TEXT = "Эта моя форма теперь с тобой навсегда — даже срыв серии её не отнимет. Друзья увидят твой ранг.";
 
 function evoLadder() { return state?.hero?.evolution?.ladder || []; }
 

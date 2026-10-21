@@ -28,9 +28,9 @@ async def shop(callback: CallbackQuery):
         f"""
 🛒 <b>Магазин наград</b>
 
-⭐ Ваш Adam Coin: <b>{user["xp"]}</b>
+⭐ Твои Adam Coin: <b>{user["xp"]}</b>
 
-Выберите награду:
+Выбери награду:
 """,
         parse_mode="HTML",
         reply_markup=shop_keyboard(items)

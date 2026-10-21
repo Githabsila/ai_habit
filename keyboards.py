@@ -542,7 +542,7 @@ def progress_keyboard():
 
             [
                 InlineKeyboardButton(
-                    text="🤖 AI-анализ прогресса",
+                    text="🤖 Разобрать мой прогресс",
                     callback_data="progress_ai_analysis"
                 )
             ],

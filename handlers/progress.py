@@ -43,7 +43,7 @@ async def progress(callback: CallbackQuery):
         )
 
     text = f"""
-📊 <b>Ваш прогресс</b>
+📊 <b>Твой прогресс</b>
 
 ⭐ Adam Coin:
 {progress["xp"]}
@@ -133,5 +133,5 @@ async def progress_ai_analysis(callback: CallbackQuery):
         text,
         parse_mode="HTML",
         reply_markup=back_menu_keyboard(),
-        header="🤖 <b>AI-анализ прогресса</b>",
+        header="🤖 <b>Мой разбор твоего прогресса</b>",
     )

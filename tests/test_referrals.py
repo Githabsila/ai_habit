@@ -397,7 +397,7 @@ def test_mailing_steps_are_every_two_days_in_the_first_week():
 def test_the_first_message_follows_the_owners_wording(uid):
     plan = _plan(_mail_user(uid))
     assert plan["send"] and plan["step"] == 0 and plan["used"] == 0
-    assert "Наше приложение интереснее использовать вместе с друзьями" in plan["text"]
+    assert "Со мной интереснее, когда рядом друзья" in plan["text"]
     assert "100 Адам коинов сразу" in plan["text"] and "первых двух" in plan["text"]
 
 
@@ -502,7 +502,7 @@ async def test_run_sends_each_step_once_with_a_working_share_button(uid, monkeyp
     bot = _bot()
     await rm.run_referral_mailing(bot)
     calls = _sent_to(bot, user)
-    assert len(calls) == 1 and "Наше приложение интереснее" in calls[0].args[1]
+    assert len(calls) == 1 and "Со мной интереснее" in calls[0].args[1]
     button = calls[0].kwargs["reply_markup"].inline_keyboard[0][0]
     assert button.text == rm.BUTTON_TEXT
     query = parse_qs(urlparse(button.url).query)

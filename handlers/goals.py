@@ -16,8 +16,8 @@ async def show_milestones(callback: CallbackQuery):
 
     if not survey or not milestones:
         await callback.message.edit_text(
-            "🧭 Вехи появятся здесь после того, как вы пройдёте анкету и "
-            "получите доступ — они подбираются автоматически под вашу цель.",
+            "🧭 Вехи появятся здесь после анкеты и открытия доступа — "
+            "я подбираю их автоматически под твою цель.",
             reply_markup=back_menu_keyboard()
         )
         await callback.answer()
@@ -26,9 +26,9 @@ async def show_milestones(callback: CallbackQuery):
     done_count = sum(1 for m in milestones if m["done"])
 
     text = (
-        f"🧭 <b>Ваша цель</b>\n{survey['bot_goal']}\n\n"
+        f"🧭 <b>Твоя цель</b>\n{survey['bot_goal']}\n\n"
         f"<b>Вехи</b> ({done_count}/{len(milestones)}):\n"
-        "Нажмите на веху, чтобы отметить выполненной."
+        "Нажми на веху, чтобы отметить выполненной."
     )
 
     await callback.message.edit_text(
@@ -50,9 +50,9 @@ async def toggle(callback: CallbackQuery):
     done_count = sum(1 for m in milestones if m["done"])
 
     text = (
-        f"🧭 <b>Ваша цель</b>\n{survey['bot_goal']}\n\n"
+        f"🧭 <b>Твоя цель</b>\n{survey['bot_goal']}\n\n"
         f"<b>Вехи</b> ({done_count}/{len(milestones)}):\n"
-        "Нажмите на веху, чтобы отметить выполненной."
+        "Нажми на веху, чтобы отметить выполненной."
     )
 
     await callback.message.edit_text(

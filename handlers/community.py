@@ -61,7 +61,7 @@ async def find_match(callback: CallbackQuery):
         await callback.message.edit_text(
             "🔎 <b>Найти единомышленника</b>\n\n"
             "Пока никого не нашлось с похожими интересами — "
-            "попробуйте позже, сообщество растёт каждый день.",
+            "загляни позже: сообщество растёт каждый день.",
             parse_mode="HTML",
             reply_markup=community_keyboard()
         )
@@ -103,7 +103,7 @@ async def invite_friend(callback: CallbackQuery):
 
     await callback.message.edit_text(
         "🤝 <b>Пригласить друга</b>\n\n"
-        f"Отправьте другу вашу персональную ссылку — {offer}\n\n"
+        f"Отправь другу свою персональную ссылку — {offer}\n\n"
         f"<code>{link}</code>",
         parse_mode="HTML",
         reply_markup=community_keyboard()
@@ -123,7 +123,7 @@ async def my_referrals(callback: CallbackQuery):
 
     await callback.message.edit_text(
         "👥 <b>Мои приглашения</b>\n\n"
-        f"Вы пригласили: <b>{count}</b> чел.",
+        f"Приглашено друзей: <b>{count}</b>.",
         parse_mode="HTML",
         reply_markup=community_keyboard()
     )
@@ -189,7 +189,7 @@ async def start_challenge(callback: CallbackQuery):
 
     await callback.message.edit_text(
         "🏁 <b>Недельный челлендж</b>\n\n"
-        "Выберите, с кем из приглашённых друзей начать 7-дневный челлендж — "
+        "Выбери, с кем из приглашённых друзей начать 7-дневный челлендж — "
         "у кого больше активных дней к концу недели, тот победил:",
         parse_mode="HTML",
         reply_markup=challenge_partner_keyboard(referred),
@@ -205,9 +205,9 @@ async def challenge_with(callback: CallbackQuery):
     ok, error = create_challenge(user_id, partner_id)
     if not ok:
         text = (
-            "У вас уже есть активный челлендж — посмотрите прогресс в "
+            "У тебя уже есть активный челлендж — посмотри прогресс в "
             "«🏁 Недельный челлендж»." if error == "already_active"
-            else "Что-то пошло не так, попробуйте ещё раз."
+            else "Что-то пошло не так, попробуй ещё раз."
         )
         await callback.message.edit_text(text, reply_markup=community_keyboard())
         await callback.answer()

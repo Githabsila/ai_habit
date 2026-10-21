@@ -65,9 +65,6 @@ def _render_everything():
             out.append(("perfect", n, m.format_perfect_habit_streak_message(n)))
         for diamonds in range(1, 26):
             out.append(("month_reward", diamonds, m.format_month_end_reward_message(30, 500, diamonds)))
-        for streak in range(0, 3):
-            for needed in (1, 2, 5):
-                out.append(("trial_channel", needed, m.format_trial_channel_progress_nudge(streak, needed)))
         out.append(("all_done", 0, m.format_all_tasks_done_message()))
         out.append(("first_main", 0, m.format_first_plan_action_message("главная задача")))
         out.append(("first_task", 0, m.format_first_plan_action_message("задача")))
@@ -78,10 +75,6 @@ def _render_everything():
         out.append(("week_end_done", 0, m.format_week_end_message(True)))
         out.append(("week_end", 0, m.format_week_end_message(False)))
         out.append(("morning", 0, m.format_morning_greeting_message()))
-    for streak in range(0, 3):
-        out.append(("trial_day2", streak, m.format_trial_day2_nudge(streak)))
-    out.append(("trial_last", 0, m.format_trial_last_day_banner(153)))
-    out.append(("trial_locked", 0, m.format_trial_locked_message(153)))
     return out
 
 

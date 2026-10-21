@@ -137,3 +137,12 @@ def test_the_simulations_show_the_remind_window_and_the_toasts_without_sending_a
     assert handler.index("if (remindSheetDemo)") < handler.index("await nudgeFriend("), "в демо «Напомнить» ничего не отправляет"
     close = APP_JS[APP_JS.index("function closeRemindSheet()"):][:420]
     assert "remindSheetDemo = false;" in close
+
+
+def test_celebration_screens_speak_for_adam():
+    """Слова под заголовком праздника серии — слова Адама: аватарка слева, новый статус от первого лица; эволюция — «моя форма»."""
+    block = APP_JS[APP_JS.index("function openStreakCelebration(event) {"):][:1400]
+    assert 'message.innerHTML = `${adamVoiceHtml("sm")}${escapeHtml(words)}`;' in block
+    assert "открыл для тебя рамку «${reward.frame}»" in block and "открыта рамка" not in block
+    assert "Эта моя форма теперь с тобой навсегда" in APP_JS and "Эта форма ADAM" not in APP_JS
+    assert ".streak-celebration__message .adam-voice{" in CSS

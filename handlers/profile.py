@@ -19,7 +19,7 @@ async def profile(callback: CallbackQuery):
 
     if not user:
         await callback.answer(
-            "❌ Профиль не найден. Нажмите /start",
+            "❌ Профиль не найден. Нажми /start",
             show_alert=True
         )
         return
@@ -45,7 +45,7 @@ async def profile(callback: CallbackQuery):
 
     await callback.message.edit_text(
         f"""
-👤 <b>Ваш профиль</b>
+👤 <b>Твой профиль</b>
 
 📝 Имя:
 {user["first_name"]}

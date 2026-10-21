@@ -83,9 +83,9 @@ async def daily_bonus(callback: CallbackQuery):
     claimed = claim_daily_bonus(user_id)
 
     if claimed:
-        text = "🎁 Бонус получен! +20 Adam Coin.\n\nВозвращайтесь завтра за новым."
+        text = "🎁 Бонус получен! +20 Adam Coin.\n\nВозвращайся завтра за новым."
     else:
-        text = "🎁 Вы уже забирали бонус сегодня.\n\nЗаходите завтра!"
+        text = "🎁 Бонус сегодня уже у тебя.\n\nЗаходи завтра!"
 
     await callback.message.edit_text(
         text,

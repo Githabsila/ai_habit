@@ -118,7 +118,7 @@ def _follows(conn, user_id, since):
         if r["back_at"]:
             at = max(_ts(r["created_at"]), _ts(r["back_at"]))
             items.append(_item(f"friend:{r['follower_id']}", "friends", "friend_added", at, "🤝",
-                               "{name} теперь в друзьях", "Вы подписаны друг на друга", actor_id=r["follower_id"], action={"type": "profile"}))
+                               "{name} теперь в друзьях", "Подписаны друг на друга", actor_id=r["follower_id"], action={"type": "profile"}))
         else:
             items.append(_item(f"follow:{r['follower_id']}", "followers", "follower_new", r["created_at"], "➕",
                                "{name} подписался(ась) на тебя", actor_id=r["follower_id"], action={"type": "profile"}))
@@ -147,7 +147,7 @@ def _pair_quests(conn, user_id, since):
                                "Парное задание с {name} выполнено", "Открой сундук на Главной", partner, action))
         if r["status"] == "expired" and r["finished_at"]:
             items.append(_item(f"pair:{r['id']}:expired", "friends", "pair_expired", r["finished_at"], "⌛",
-                               "Парное задание с {name} закончилось", "Не хватило привычек — попробуйте ещё раз", partner, action))
+                               "Парное задание с {name} закончилось", "Не хватило привычек — попробуй ещё раз", partner, action))
     return items
 
 

@@ -179,14 +179,14 @@ def _schedule_memory_update(user_id: int):
 async def ai_start(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AiState.chatting)
     text = """
-🤖 <b>AI-наставник</b>
+🤖 <b>Я здесь</b>
 
-Просто напишите мне сообщение — я отвечу как персональный
-коуч по привычкам и продуктивности.
+Просто напиши мне сообщение — я отвечу как личный
+наставник по привычкам и продуктивности.
 
 Стиль общения можно поменять в ⚙️ Настройках.
 
-Чтобы выйти, нажмите «Главное меню».
+Чтобы выйти, нажми «Главное меню».
 """
     try:
         await callback.message.edit_text(

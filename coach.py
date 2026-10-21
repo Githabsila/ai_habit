@@ -784,7 +784,7 @@ def _format_breakdown_text(breakdown) -> str:
     return "\n".join(lines)
 
 
-def _fallback_habit_feedback(breakdown, period_phrase="на этой неделе", heading="AI-разбор недели по привычкам") -> str:
+def _fallback_habit_feedback(breakdown, period_phrase="на этой неделе", heading="Мой разбор недели по привычкам") -> str:
     """Шаблонный запасной вариант, если OpenAI недоступен — берём привычку
     с наибольшим числом пропусков и даём общий, но конкретный совет.
     period_phrase/heading параметризуют текст под неделю или месяц
@@ -843,7 +843,7 @@ async def run_weekly_habit_analysis(bot):
                 ai_text = await generate_weekly_habit_feedback(breakdown_text, style)
 
             if ai_text:
-                text = "📊 <b>AI-разбор недели по привычкам</b>\n\n" + ai_text
+                text = "📊 <b>Мой разбор твоей недели по привычкам</b>\n\n" + ai_text
             else:
                 text = _fallback_habit_feedback(breakdown)
 
@@ -891,10 +891,10 @@ async def run_monthly_habit_analysis(bot):
                 ai_text = await generate_monthly_habit_feedback(breakdown_text, style)
 
             if ai_text:
-                text = "📊 <b>AI-разбор месяца по привычкам</b>\n\n" + ai_text
+                text = "📊 <b>Мой разбор твоего месяца по привычкам</b>\n\n" + ai_text
             else:
                 text = _fallback_habit_feedback(
-                    breakdown, period_phrase="за этот месяц", heading="AI-разбор месяца по привычкам"
+                    breakdown, period_phrase="за этот месяц", heading="Мой разбор месяца по привычкам"
                 )
 
             await bot.send_message(telegram_id, text, parse_mode="HTML")

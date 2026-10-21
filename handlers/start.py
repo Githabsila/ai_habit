@@ -127,7 +127,7 @@ async def start(message: Message, state: FSMContext):
 
     if user and user["banned"] == 1:
         await message.answer(
-            "🚫 Ваш аккаунт заблокирован администрацией."
+            "🚫 Твой аккаунт заблокирован администрацией."
         )
         return
 
@@ -155,18 +155,16 @@ async def start(message: Message, state: FSMContext):
     # Приветственное сообщение
     await message.answer(
         """
-👋 Добро пожаловать!
-
-Это Project ADAM.
+👋 Добро пожаловать! Я — ADAM.
 
 Вместе мы будем:
 
 - 🎯 Развивать привычки
-- 🤖 Общаться с ИИ
-- 📈 Отслеживать прогресс
+- 💬 Говорить о твоих планах и целях
+- 📈 Следить за прогрессом
 - 👥 Искать единомышленников
 
-Всё это — в приложении. Откройте его кнопкой ниже 👇
+Всё это — в приложении. Открой его кнопкой ниже 👇
         """,
         reply_markup=welcome_menu(is_admin=message.from_user.id in ADMIN_IDS)
     )
