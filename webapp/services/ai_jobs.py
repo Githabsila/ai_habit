@@ -70,7 +70,7 @@ class ChatJobs:
         except asyncio.TimeoutError:
             logger.error("ответ ADAM не уложился в %s с", JOB_TIMEOUT_SECONDS)
             job.status = 504
-            job.payload = {"error": "ai_timeout", "message": "ADAM слишком долго думал над ответом. Попробуй ещё раз."}
+            job.payload = {"error": "ai_timeout", "message": "Я слишком долго думал над ответом. Отправь сообщение ещё раз."}
         except asyncio.CancelledError:
             job.status, job.payload = 499, {"error": "cancelled", "message": "Диалог был очищен."}
             job.finished_at = time.monotonic()
@@ -78,7 +78,7 @@ class ChatJobs:
         except Exception:
             logger.exception("ответ ADAM: необработанная ошибка задачи")
             job.status = 500
-            job.payload = {"error": "ai_error", "message": "Не получилось сформировать ответ. Попробуй ещё раз через минуту."}
+            job.payload = {"error": "ai_error", "message": "Я не смог собрать ответ. Отправь сообщение ещё раз."}
         job.finished_at = time.monotonic()
 
     def cancel(self, user_id: int):

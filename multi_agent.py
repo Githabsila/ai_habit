@@ -44,7 +44,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-from openai import AsyncOpenAI
+from openai import APIConnectionError, AsyncOpenAI
 
 # Берём ключ из того же config.py, что уже использует остальной проект
 # (там он уже подгружен из .env) — так исчезает риск рассинхронизации
@@ -64,6 +64,14 @@ MAX_SUBTASKS = 3          # было 4 — меньше подзадач = ме�
 NUM_DEBATERS = 2          # было 3 — меньше "спорщиков" = меньше токенов на дебаты
 MAX_CONCURRENT_CALLS = 4  # ограничение параллельных запросов к OpenAI (защита от рейт-лимита)
 MAX_RETRIES = 1           # автоповтор при ошибке 429, вместо падения с текстом ошибки
+
+# OpenAI: повторы делаем сами, а не скрытыми повторами SDK (было 3 попытки по 15 с — на длинный запрос с большим ответом
+# 15 с иногда не хватало, и человек получал «Не получилось сформировать ответ»). У каждой попытки теперь свой срок по размеру
+# ответа, все попытки вместе укладываются в OPENAI_TOTAL_BUDGET (общий срок задачи ответа — 180 с, см. webapp/services/ai_jobs.py).
+OPENAI_ATTEMPTS = 3
+OPENAI_ATTEMPT_MAX_TIMEOUT = 40.0
+OPENAI_TOTAL_BUDGET = 100.0
+OPENAI_MAX_OUTPUT_TOKENS = 4000    # потолок, до которого поднимаем лимит ответа, если модель потратила его на размышления
 
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
 
@@ -413,6 +421,27 @@ def _extract_wait_seconds(error_text: str, default: float = 2.0) -> float:
     return default
 
 
+class _EmptyAnswer(RuntimeError):
+    """Модель ответила пустым текстом — бывает разово, повтор обычно помогает."""
+
+
+class _OutOfBudget(_EmptyAnswer):
+    """Весь лимит ответа ушёл на «размышления», текста нет: повторяем с лимитом побольше."""
+
+
+def _openai_attempt_timeout(max_tokens: int) -> float:
+    """Срок одной попытки: ответ на ~1500 токенов генерируется дольше, чем классификатор на 10 — общие 15 с им не хватало."""
+    return min(OPENAI_ATTEMPT_MAX_TIMEOUT, max(OPENAI_TIMEOUT, 15.0 + max_tokens / 40))
+
+
+def _is_retryable_ai_error(exc: Exception) -> bool:
+    """Временный сбой (срок вышел, обрыв связи, 408/409/429/5xx, пустой ответ) — стоит повторить. Неверный ключ, 400 и т.п. — нет."""
+    if isinstance(exc, (_EmptyAnswer, APIConnectionError, asyncio.TimeoutError)):    # APITimeoutError — потомок APIConnectionError
+        return True
+    status = getattr(exc, "status_code", None)
+    return isinstance(status, int) and (status in (408, 409, 425, 429) or status >= 500)
+
+
 _MD_BOLD_ITALIC = re.compile(r"(\*\*\*|\*\*|___|__)(.+?)\1", re.DOTALL)
 _MD_HEADER = re.compile(r"(?m)^#{1,6}\s*")
 _MD_CODE_FENCE = re.compile(r"```[a-zA-Z0-9]*\n?|```")
@@ -672,35 +701,40 @@ async def _ask(
             logger.warning("Groq continuation failed: %s", e)
             return _trim_to_last_sentence(partial)
 
-    async def _openai_call():
+    async def _openai_call(call_model, budget, timeout):
         client = _get_openai_client()
         if client is None:
             raise RuntimeError("OPENAI_API_KEY не настроен")
+        # Свой срок попытки и без скрытых повторов SDK — повторяем мы сами (см. цикл ниже).
+        if hasattr(client, "with_options"):
+            client = client.with_options(timeout=timeout, max_retries=0)
         response = await client.responses.create(
-            model=model,
+            model=call_model,
             instructions=system,
             input=user,
-            max_output_tokens=max_tokens,
+            max_output_tokens=budget,
         )
-        _log_usage(response, "openai", model)
+        _log_usage(response, "openai", call_model)
         text = _strip_markdown((response.output_text or "").strip())
         status = getattr(response, "status", None)
         if status == "incomplete":
             details = getattr(response, "incomplete_details", None)
             reason = getattr(details, "reason", None) if details else None
-            if reason == "max_output_tokens" and text:
+            if reason == "max_output_tokens":
+                if not text:
+                    raise _OutOfBudget("лимит ответа ушёл на размышления, текста нет")
                 if allow_continuation:
-                    text = await _continue_openai(client, system, user, text, max_tokens)
+                    text = await _continue_openai(client, call_model, system, user, text, budget)
                 else:
                     text = _trim_to_last_sentence(text)
         if not text:
-            raise RuntimeError("OpenAI вернул пустой ответ")
+            raise _EmptyAnswer("OpenAI вернул пустой ответ")
         return text
 
-    async def _continue_openai(client, system, user, partial, max_tokens):
+    async def _continue_openai(client, call_model, system, user, partial, max_tokens):
         try:
             response = await client.responses.create(
-                model=model,
+                model=call_model,
                 instructions=system,
                 input=[
                     {"role": "user", "content": user},
@@ -709,7 +743,7 @@ async def _ask(
                 ],
                 max_output_tokens=max_tokens,
             )
-            _log_usage(response, "openai", model)
+            _log_usage(response, "openai", call_model)
             cont = _strip_markdown((response.output_text or "").strip())
             if not cont:
                 return _trim_to_last_sentence(partial)
@@ -748,16 +782,30 @@ async def _ask(
 
         # Резервный канал — только если он реально настроен.
         if OPENAI_API_KEY:
-            started = time.perf_counter()
-            try:
-                result = _renumber_numbered_lists(await _openai_call())
-                logger.info("AI response %.2fs via OpenAI fallback", time.perf_counter() - started)
-                return result
-            except Exception as e:
-                last_error = e
-                logger.error("OpenAI fallback failed after %.2fs: %s", time.perf_counter() - started, e)
+            call_model, budget = model, max_tokens
+            began = time.perf_counter()
+            for attempt in range(OPENAI_ATTEMPTS):
+                started = time.perf_counter()
+                left = OPENAI_TOTAL_BUDGET - (started - began)
+                if attempt and left < 8:
+                    break                                   # общий срок вышел — лучше честная ошибка, чем ещё минута ожидания
+                try:
+                    result = _renumber_numbered_lists(await _openai_call(call_model, budget, min(_openai_attempt_timeout(budget), max(left, 8.0))))
+                    logger.info("AI response %.2fs via OpenAI fallback%s", time.perf_counter() - started, f" (attempt {attempt + 1})" if attempt else "")
+                    return result
+                except Exception as e:
+                    last_error = e
+                    logger.error("OpenAI attempt %s/%s failed after %.2fs (%s, model=%s, max_tokens=%s): %s", attempt + 1, OPENAI_ATTEMPTS,
+                                 time.perf_counter() - started, type(e).__name__, call_model, budget, e)
+                    if not _is_retryable_ai_error(e) or attempt == OPENAI_ATTEMPTS - 1:
+                        break
+                    if isinstance(e, _OutOfBudget):
+                        budget = min(OPENAI_MAX_OUTPUT_TOKENS, max(budget * 2, budget + 800))       # дать место и размышлениям, и самому ответу
+                    elif call_model != FAST_MODEL:
+                        call_model = FAST_MODEL                                                     # тяжёлая модель не успела — повторяем быстрой
+                    await asyncio.sleep(min(2.0, _extract_wait_seconds(str(e), 0.8)))
 
-        raise RuntimeError(f"AI временно недоступен: {last_error}")
+        raise RuntimeError(f"AI временно недоступен: {type(last_error).__name__}: {last_error}")
 
 
 def _combine_notes(*notes: str) -> str:

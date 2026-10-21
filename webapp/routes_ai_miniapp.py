@@ -377,7 +377,7 @@ async def _answer_chat_inner(user_id: int, pro: bool, message_text: str):
             log_error("ai_pipeline", e, user_id)
             return 500, {
                 "error": "ai_error",
-                "message": "Не получилось сформировать ответ. Попробуй ещё раз через минуту."
+                "message": "Я не смог собрать ответ. Отправь сообщение ещё раз."
             }
 
         if complexity == "просто" and not is_crisis:
