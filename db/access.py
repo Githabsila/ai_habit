@@ -130,7 +130,12 @@ def public_access(user_id):
     info = get_access(user_id)
     if info is None:
         return {"mode": MODE_OPEN, "paywall": False, "allowed": True}
-    return {key: info[key] for key in ("mode", "paywall", "allowed", "days_left", "free_active")}
+    result = {key: info[key] for key in ("mode", "paywall", "allowed", "days_left", "free_active")}
+    if info["paywall"]:
+        # Аккаунту в сценарии триала приложение показывает карточку и окна триала: день, цена сегодня, серия, условие канала (db/trial.py).
+        from .trial import public_trial
+        result["trial"] = public_trial(user_id)
+    return result
 
 
 # ---------------------------------------------------------------------------------------------------------------- изменения

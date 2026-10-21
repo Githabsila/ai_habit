@@ -14293,7 +14293,7 @@ html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !
 @keyframes pqChest{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(-8deg) scale(1.12)}75%{transform:rotate(8deg) scale(1.12)}}
 
 /* Лаборатория (только админ): панель с переключением демо-состояний над нижней навигацией (app.js::renderLabBar) */
-.lab-bar{position:fixed;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:9400;display:flex;align-items:center;gap:8px;padding:8px;border-radius:18px;background:rgba(18,14,32,.96);border:1px solid rgba(255,213,79,.45);box-shadow:0 12px 30px rgba(0,0,0,.5)}
+.lab-bar{position:fixed;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:10300;display:flex;align-items:center;gap:8px;padding:8px;border-radius:18px;background:rgba(18,14,32,.96);border:1px solid rgba(255,213,79,.45);box-shadow:0 12px 30px rgba(0,0,0,.5)}
 .lab-bar__text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:center}
 .lab-bar__text b{font:800 12px 'Space Grotesk',sans-serif;color:#FFD54F}
 .lab-bar__text small{font-size:11.5px;color:#EAE5FA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -14878,6 +14878,59 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .struggling-habit-banner__icon .adam-voice{display:block}
 .habit-item__suggest-time .adam-voice{margin-right:5px;vertical-align:-3px}
 .inbox-item__voice{flex:0 0 auto;width:42px;height:42px;display:grid;place-items:center}
+
+/* =========================================================
+   Триал (app.js::renderTrialCard / openTrialSheet / showTrialPaywall): карточка на Главной, окно «Мой пробный период» и блокирующее окно
+   «Пробный период закончился». Только transform/opacity и спокойные переходы, без размытия и без бесконечных движений.
+   ========================================================= */
+.trial-card{
+  display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;margin:0 0 12px;padding:11px 14px;border-radius:18px;
+  text-align:left;cursor:pointer;color:inherit;font:inherit;
+  border:1px solid rgba(167,139,250,.34);background:linear-gradient(135deg,rgba(139,108,255,.22),rgba(255,176,104,.10));
+}
+.trial-card[hidden]{display:none}
+.trial-card:active{transform:scale(.99)}
+.trial-card__voice{flex:0 0 auto;display:grid;place-items:center}
+.trial-card__body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.trial-card__title{font:800 14px 'Space Grotesk',sans-serif;color:#F4F7FF}
+.trial-card__sub{font-size:11.5px;line-height:1.4;color:#B8B4C8}
+.trial-card__days{flex:0 0 auto;display:flex;gap:5px}
+.trial-dot{display:block;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.18)}
+.trial-dot.is-done{background:#3EE0A8}
+.trial-dot.is-now{background:#FFD76A;box-shadow:0 0 0 3px rgba(255,215,106,.24)}
+.trial-sheet__card{max-height:calc(100% - 24px);overflow-y:auto}
+.trial-days{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:2px 0 12px}
+.trial-day{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035)}
+.trial-day b{font:800 13px 'Space Grotesk',sans-serif;color:#F4F7FF}
+.trial-day small{font-size:10.5px;color:#9EA8BD}
+.trial-day.is-done{border-color:rgba(62,224,168,.4);background:rgba(62,224,168,.08)}
+.trial-day.is-now{border-color:rgba(255,215,106,.55);background:rgba(255,215,106,.10)}
+.trial-rule,.trial-offer{margin:0 0 12px;padding:12px 14px;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);text-align:left}
+.trial-rule b,.trial-offer b{display:block;font:800 14px 'Space Grotesk',sans-serif;color:#F4F7FF}
+.trial-rule small,.trial-offer small{display:block;margin-top:3px;font-size:11.5px;line-height:1.45;color:#B8B4C8}
+.trial-rule__bar{display:block;height:6px;margin-top:9px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden}
+.trial-rule__bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#8e70ff,#FFD76A);transition:width .4s ease}
+.trial-offer{border-color:rgba(255,215,106,.34);background:linear-gradient(135deg,rgba(255,215,106,.10),rgba(139,108,255,.10))}
+.trial-offer__tag{display:inline-block;margin:0 0 6px;padding:3px 9px;border-radius:99px;font:800 10.5px 'Space Grotesk',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#1c1730;background:#FFD76A}
+.trial-paywall{position:fixed;inset:0;z-index:10080;display:flex;align-items:center;justify-content:center;padding:20px 16px;overflow-y:auto;background:#07050d}
+.trial-paywall[hidden]{display:none}
+.trial-paywall__card{width:min(420px,100%);text-align:center}
+.trial-paywall__voice{display:grid;place-items:center;margin:0 auto 14px}
+.trial-paywall__card h2{margin:0 0 8px;font:800 24px 'Space Grotesk',sans-serif;color:#F4F7FF}
+.trial-paywall__lead{margin:0 0 16px;font-size:13.5px;line-height:1.5;color:#B8B4C8}
+.trial-paywall__perks{list-style:none;margin:0 0 18px;padding:0;text-align:left}
+.trial-paywall__perks li{position:relative;margin:0 0 8px;padding-left:22px;font-size:13px;line-height:1.45;color:#D7D3E6}
+.trial-paywall__perks li::before{content:"✓";position:absolute;left:0;top:0;color:#3EE0A8;font-weight:800}
+.trial-paywall__pay{width:100%;height:52px;border:none;border-radius:16px;cursor:pointer;font:800 15px 'Space Grotesk',sans-serif;color:#fff;background:linear-gradient(135deg,#8e70ff,#6847dc)}
+.trial-paywall__pay:disabled{opacity:.55}
+.trial-paywall__demo-close{width:100%;height:42px;margin-top:8px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:none;color:#C5CBD8;font:700 13px 'Space Grotesk',sans-serif;cursor:pointer}
+.trial-paywall__demo-close[hidden]{display:none}
+.trial-paywall__note{margin:12px 4px 0;font-size:11px;line-height:1.5;color:#8f8aa3}
+:root[data-mode="light"] .trial-card__title,:root[data-mode="light"] .trial-day b,:root[data-mode="light"] .trial-rule b,:root[data-mode="light"] .trial-offer b{color:#1C1730}
+:root[data-mode="light"] .trial-card__sub,:root[data-mode="light"] .trial-day small,:root[data-mode="light"] .trial-rule small,:root[data-mode="light"] .trial-offer small{color:#5B5570}
+:root[data-mode="light"] .trial-paywall{background:#F6F3FC}
+:root[data-mode="light"] .trial-paywall__card h2{color:#1C1730}
+:root[data-mode="light"] .trial-paywall__lead,:root[data-mode="light"] .trial-paywall__perks li{color:#3A3550}
 
 /* =========================================================
    Окно «Сундук» (открытие сундука месяца и парного задания): сундук появляется, его нужно тапнуть три раза (каждый тап — удар,

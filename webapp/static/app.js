@@ -520,6 +520,7 @@
         const err = new Error(code);
         err.data = Object.assign({}, data, { error: code });
         err.status = res.status;
+        if (res.status === 403 && code === "trial_expired") showTrialPaywall(data?.trial);
         throw err;
       }
       return data;
@@ -1063,6 +1064,7 @@
     renderHabits();
     renderPlan();
     renderTodayFocus();
+    renderTrialCard();
     renderStreak();
     renderBoosterBanner();
     renderDailyQuests();
@@ -7213,7 +7215,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "inboxOverlay", "habitEditSheet",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "inboxOverlay", "habitEditSheet", "trialSheet", "trialPaywallOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -7537,6 +7539,224 @@ function showVoiceToastsDemo() {
   showToast("Сейчас не могу отправить — попробуй чуть позже", "error", 2400);
   showToast("Себя можно похвалить! 🎉", "praise", 2400);
   showToast("+10 Adam Coin", "praise", 2000);
+}
+
+// ===================== ТРИАЛ (db/trial.py, trial_messages.py) =====================
+// Пробный период виден в приложении так же, как в сообщениях Адама: карточка на Главной (только у аккаунтов в сценарии триала —
+// state.access.paywall), окно «Мой пробный период» по тапу (дни, цель на два дня подряд для закрытого канала, цена) и блокирующее окно
+// «Пробный период закончился» с оплатой Stars. Данные — публичный снимок db/trial.py::public_trial (state.access.trial или err.data.trial
+// у закрытого аккаунта). Оплата: POST /api/subscription/invoice → Telegram.WebApp.openInvoice; доступ открывает бот (successful_payment).
+// Симуляции (админка → «Окна и анимации»): trial_card, trial_sheet, trial_paywall_intro, trial_paywall_full — на демо-данных, оплата не открывается.
+const SIM_TRIAL = {
+  scenario: true, day: 2, days_total: 3, phase: "day2", paid: false, intro_active: true, price_stars: 153, intro_price_stars: 153,
+  renewal_price_stars: 461, intro_usd: "$1.99", renewal_usd: "$5.99", streak: 1, needed: 2, marked_today: false, marked_yesterday: true,
+  channel_configured: true, channel_granted: false, channel_eligible: false,
+};
+const SIM_TRIAL_INTRO_EXPIRED = { ...SIM_TRIAL, day: 4, phase: "expired_intro", streak: 2, marked_today: false, marked_yesterday: true, channel_eligible: true };
+const SIM_TRIAL_FULL_EXPIRED = { ...SIM_TRIAL, day: 6, phase: "expired_full", intro_active: false, price_stars: 461, streak: 0, marked_yesterday: false, channel_eligible: false };
+let trialSheetData = null;        // снимок, который показывает окно «Мой пробный период»
+let trialDemo = false;            // симуляция: «Оформить» ничего не открывает
+let trialPayBusy = false;
+let trialPaywallTracked = false;
+
+function trialDays(n) {
+  return `${n} ${pluralRu(n, "день", "дня", "дней")}`;
+}
+
+function trialDayDots(t) {
+  let html = "";
+  for (let n = 1; n <= t.days_total; n += 1) {
+    const cls = t.paid || n < t.day ? "is-done" : (n === t.day ? "is-now" : "");
+    html += `<i class="trial-dot ${cls}"></i>`;
+  }
+  return html;
+}
+
+// Что написано на карточке Главной: день триала и цель на сегодня (те же смыслы, что в сообщениях триала).
+function trialCardText(t) {
+  const left = Math.max(1, t.needed - t.streak);
+  if (t.paid) return { title: "Pro активен", sub: `До закрытого канала — ${trialDays(left)} ударного режима` };
+  if (t.phase === "day3") return { title: "Последний день пробного периода", sub: `Завтра доступ закроется — особая цена ${t.price_stars} ⭐` };
+  const title = `Пробный период · день ${t.day}/${t.days_total}`;
+  if (t.channel_eligible) return { title, sub: "Два дня подряд уже есть — канал откроется после оплаты" };
+  if (t.marked_today) return { title, sub: "Сегодня отмечено — завтра отметь привычку ещё раз" };
+  if (t.marked_yesterday) return { title, sub: "Отметь привычку — и два дня подряд будут твоими" };
+  return { title, sub: "Цель — два дня подряд: они открывают путь в закрытый канал" };
+}
+
+function renderTrialCard() {
+  const card = document.getElementById("trialCard");
+  if (!card) return;
+  const t = state?.access?.paywall ? state.access.trial : null;
+  const hide = !t || !t.scenario || String(t.phase).startsWith("expired") || (t.paid && (t.channel_granted || !t.channel_configured));
+  if (hide) { card.hidden = true; return; }
+  const text = trialCardText(t);
+  document.getElementById("trialCardVoice").innerHTML = adamVoiceHtml("md");
+  document.getElementById("trialCardTitle").textContent = text.title;
+  document.getElementById("trialCardSub").textContent = text.sub;
+  document.getElementById("trialCardDays").innerHTML = trialDayDots(t);
+  card.hidden = false;
+}
+
+function trialPayLabel(t) {
+  return `Оформить за ${t.price_stars} ⭐`;
+}
+
+function renderTrialSheet(t) {
+  document.getElementById("trialSheetVoice").innerHTML = adamVoiceHtml("lg", "⏳");
+  document.getElementById("trialSheetDays").innerHTML = Array.from({ length: t.days_total }, (_, index) => {
+    const n = index + 1;
+    const cls = t.paid || n < t.day ? "is-done" : (n === t.day ? "is-now" : "");
+    const note = t.paid || n < t.day ? "позади" : (n === t.day ? "сегодня" : "впереди");
+    return `<span class="trial-day ${cls}"><b>День ${n}</b><small>${note}</small></span>`;
+  }).join("");
+  const pct = Math.min(100, Math.round((Math.min(t.streak, t.needed) / Math.max(1, t.needed)) * 100));
+  const rule = t.channel_eligible
+    ? "Условие выполнено: два дня подряд у тебя уже есть."
+    : `Открывается за ${trialDays(t.needed)} ударного режима подряд — у тебя ${t.streak} из ${t.needed}.`;
+  document.getElementById("trialSheetRule").innerHTML =
+    `<b>Закрытый канал</b><small>${escapeHtml(rule)}</small><span class="trial-rule__bar"><i style="width:${pct}%"></i></span>`;
+  const offer = document.getElementById("trialSheetOffer");
+  const pay = document.getElementById("trialSheetPay");
+  const later = document.getElementById("trialSheetLater");
+  if (t.paid) {
+    offer.innerHTML = "<b>Pro активен</b><small>Спасибо, что остаёшься со мной.</small>";
+    pay.hidden = true;
+    later.textContent = "Хорошо";
+  } else {
+    const sub = t.intro_active ? `≈ ${t.intro_usd} за первый месяц по особой цене, дальше ${t.renewal_usd}.` : `≈ ${t.renewal_usd} за месяц доступа.`;
+    offer.innerHTML = `<b>Pro-доступ · ${t.price_stars} ⭐</b><small>${escapeHtml(sub)}</small>`;
+    pay.hidden = false;
+    pay.textContent = trialPayLabel(t);
+    later.textContent = "Позже";
+  }
+}
+
+function openTrialSheet({ demo = null } = {}) {
+  const sheet = document.getElementById("trialSheet");
+  const t = demo || (state?.access?.paywall ? state.access.trial : null);
+  if (!sheet || !t || !sheet.hidden) return false;
+  trialSheetData = t;
+  trialDemo = !!demo;
+  hideProductHint();
+  renderTrialSheet(t);
+  sheet.hidden = false;
+  sheet.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => sheet.classList.add("is-open"));
+  haptic("light");
+  if (!demo) trk("trial_sheet_open", t.phase, null);
+  return true;
+}
+
+function closeTrialSheet() {
+  const sheet = document.getElementById("trialSheet");
+  if (!sheet || sheet.hidden) return;
+  sheet.classList.remove("is-open");
+  sheet.setAttribute("aria-hidden", "true");
+  setTimeout(() => { if (!sheet.classList.contains("is-open")) sheet.hidden = true; }, 230);
+}
+
+// Деньги за доступ: счёт Stars → окно Telegram. «paid» — ждём, пока бот запишет платёж (successful_payment приходит отдельным апдейтом).
+async function waitForTrialAccess() {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      const res = await api("/api/trial");
+      if (res?.allowed) return true;
+    } catch (_) { /* повторим */ }
+    await new Promise((resolve) => setTimeout(resolve, 900));
+  }
+  return false;
+}
+
+async function payTrial(source) {
+  if (trialPayBusy) return;
+  if (trialDemo) { showToast("🧪 Демо: оплата не открывается", "success", 1800); return; }
+  const buttons = [document.getElementById("trialSheetPay"), document.getElementById("trialPaywallPay")].filter(Boolean);
+  const setBusy = (busy) => { trialPayBusy = busy; buttons.forEach((b) => { b.disabled = busy; }); };
+  setBusy(true);
+  haptic("medium");
+  trk("trial_pay_tap", source, null);
+  try {
+    const invoice = await api("/api/subscription/invoice", { method: "POST" });
+    if (!tg?.openInvoice) throw new Error("telegram_payment_unavailable");
+    tg.openInvoice(invoice.invoice_url, async (status) => {
+      if (status !== "paid") {
+        setBusy(false);
+        if (status === "failed") showToast("Оплата не прошла — попробуй ещё раз", "error");
+        return;
+      }
+      trk("trial_paid", source, null);
+      haptic("success");
+      if (await waitForTrialAccess()) {
+        closeTrialPaywall();
+        closeTrialSheet();
+        showToast("Доступ продлён ✅ Спасибо, что остаёшься со мной", "praise", 4200);
+        if (state?.user) { try { await loadBootstrap(); } catch (_) { /* карточка обновится при следующем заходе */ } } else { location.reload(); }
+      } else {
+        showToast("Платёж получен — доступ откроется через минуту", "success", 4200);
+      }
+      setBusy(false);
+    });
+  } catch (err) {
+    setBusy(false);
+    showToast(friendlyError(err), "error");
+  }
+}
+
+function showTrialPaywall(t, { demo = false } = {}) {
+  const overlay = document.getElementById("trialPaywallOverlay");
+  if (!overlay) return;
+  if (!t) {                                         // сервер не прислал снимок — спрашиваем отдельным запросом (он доступен и закрытому аккаунту)
+    api("/api/trial").then((res) => { if (res?.trial) showTrialPaywall(res.trial, { demo }); }).catch(() => {});
+    return;
+  }
+  trialDemo = demo;
+  closeTrialSheet();
+  document.getElementById("trialPaywallVoice").innerHTML = adamVoiceHtml("lg", "🔒");
+  document.getElementById("trialPaywallLead").textContent = t.channel_eligible
+    ? `Твой ударный режим — ${trialDays(t.streak)} подряд — сохранился. Вернись ко мне, пока он не пропал.`
+    : "Ударный режим начнётся, как только ты вернёшься.";
+  const offer = t.intro_active
+    ? `<span class="trial-offer__tag">Последний день скидки</span><b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.intro_usd} за первый месяц, завтра — ${t.renewal_price_stars} ⭐ (${t.renewal_usd})`)}</small>`
+    : `<b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.renewal_usd} за месяц доступа`)}</small>`;
+  document.getElementById("trialPaywallOffer").innerHTML = offer;
+  const pay = document.getElementById("trialPaywallPay");
+  pay.textContent = trialPayLabel(t);
+  pay.disabled = false;
+  document.getElementById("trialPaywallClose").hidden = !demo;
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  const loading = document.getElementById("loadingOverlay");
+  if (loading) loading.hidden = true;
+  const banner = document.getElementById("bootRetryBanner");
+  if (banner) banner.hidden = true;
+  if (!demo && !trialPaywallTracked) { trialPaywallTracked = true; trk("trial_paywall_shown", t.phase, null); }
+}
+
+function closeTrialPaywall() {
+  const overlay = document.getElementById("trialPaywallOverlay");
+  if (!overlay) return;
+  overlay.hidden = true;
+  overlay.setAttribute("aria-hidden", "true");
+  trialDemo = false;
+}
+
+// Симуляция «карточка на Главной»: подставляем демо-снимок в состояние (только в памяти страницы) и рисуем карточку.
+function showTrialCardDemo(t) {
+  closeTrialPaywall();
+  closeTrialSheet();
+  state.access = { ...(state.access || {}), paywall: true, trial: t };
+  renderTrialCard();
+  document.getElementById("trialCard")?.scrollIntoView({ block: "center" });
+}
+
+function initTrial() {
+  document.getElementById("trialCard")?.addEventListener("click", () => { haptic("light"); openTrialSheet(); });
+  document.getElementById("trialSheetBackdrop")?.addEventListener("click", closeTrialSheet);
+  document.getElementById("trialSheetLater")?.addEventListener("click", () => { haptic("light"); closeTrialSheet(); });
+  document.getElementById("trialSheetPay")?.addEventListener("click", () => payTrial("sheet"));
+  document.getElementById("trialPaywallPay")?.addEventListener("click", () => payTrial("paywall"));
+  document.getElementById("trialPaywallClose")?.addEventListener("click", () => { haptic("light"); closeTrialPaywall(); });
 }
 
 // ===================== ИЗМЕНЕНИЕ ПРИВЫЧКИ =====================
@@ -8596,6 +8816,10 @@ const SIM_SCENES = {
   adam_intro_result: () => openAdamIntro({ sim: true, jump: true, demo: { focus: "study", struggle: "start", energy: "morning", span: "s25", hours: "h2", talk: "month" } }),
   inbox: () => openInbox({ demo: SIM_INBOX }),
   habit_edit: () => openHabitEdit(0, { habit: HABIT_EDIT_SIM, sim: true }),
+  trial_card: () => showTrialCardDemo(SIM_TRIAL),
+  trial_sheet: () => { closeTrialPaywall(); closeTrialSheet(); setTimeout(() => openTrialSheet({ demo: SIM_TRIAL }), 260); },
+  trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),
+  trial_paywall_full: () => showTrialPaywall(SIM_TRIAL_FULL_EXPIRED, { demo: true }),
   remind_friends: () => openRemindSheetDemo(SIM_REMIND_FRIENDS),
   adam_voice: () => showVoiceToastsDemo(),
   freeze_help: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 640 }),
@@ -8632,6 +8856,8 @@ async function initSimMode() {
 }
 
 function playSimScene() {
+  closeTrialPaywall();                      // окна триала от прошлой сцены не должны перекрывать следующую
+  closeTrialSheet();
   const item = simMode?.list[simMode.index];
   const run = item && SIM_SCENES[item.key];
   if (!run) return;
@@ -10900,6 +11126,7 @@ async function boot() {
             initFreezeHelp();
             initInbox();
             initHabitEdit();
+            initTrial();
             initAppTour();
             initHandleIntro();
             initSelfRewardActions();
@@ -10967,6 +11194,7 @@ async function boot() {
         setTimeout(() => syncTimezone(), 0);
     } catch (err) {
         console.error("boot() failed:", err);
+        if (err?.data?.error === "trial_expired") return;      // пробный период закончился: окно оплаты уже открыто (api() выше)
         // Улучшение #60: если ПЕРВЫЙ bootstrap так и не смог загрузиться
         // (state всё ещё пуст — значит рендерить вообще нечего), обычный
         // toast — тупик: он исчезнет через пару секунд, а пользователь

@@ -16,8 +16,12 @@ import trial_messages
 
 async def complete_subscription_payment(bot, user_id, months=1):
     """Продлевает подписку и собирает сообщение после оплаты. Возвращает (текст, состояние триала, ссылка в канал или None)."""
+    before = trial_db.snapshot(user_id)                           # цена и день на момент оплаты — для учёта
     until = record_subscription_payment(user_id, months=months)
     snap = trial_db.snapshot(user_id)
+    from db.tracking import track_server
+    track_server(user_id, "subscription_paid", step=before["phase"] if before else None,
+                 meta={"day": snap["day"], "price": before["price_stars"] if before else None, "streak": snap["streak"]})
     link = None
     if snap["channel_eligible"] and snap["channel_configured"]:
         try:

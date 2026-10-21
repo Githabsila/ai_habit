@@ -166,7 +166,9 @@ def _check_rate_limit(telegram_id):
     return True
 
 
-async def _authenticate(request):
+async def _authenticate(request, allow_locked=False):
+    """Проверка Telegram initData, бана, одобрения и гейта триала → подписка. allow_locked=True — маршруты, которые должны работать и у
+    аккаунта с закрытым доступом (статус триала и счёт на оплату: иначе человек не сможет оплатить)."""
     init_data = _extract_init_data(request)
     tg_user = validate_init_data(init_data, BOT_TOKEN)
     if tg_user is None:
@@ -223,14 +225,17 @@ async def _authenticate(request):
     # (config.SUBSCRIPTION_GATE_ENABLED) и даже включённый не трогает
     # пользователей, зарегистрированных до SUBSCRIPTION_GATE_CUTOVER —
     # см. db/subscription.py bot_access_allowed/gate_applies_to.
-    if not is_admin and not bot_access_allowed(telegram_id):
+    if not is_admin and not allow_locked and not bot_access_allowed(telegram_id):
         status = get_subscription_status(telegram_id)
         timed = status.get("access_mode") == "timed"
+        from db.trial import public_trial
         raise web.HTTPForbidden(
             text=json.dumps({
                 "error": "access_expired" if timed else "trial_expired",
                 "message": "Тестовый доступ закончился" if timed else "Пробный период закончился",
                 "subscription": status,
+                # снимок триала: окно «Пробный период закончился» в приложении рисуется из него (цена сегодня, серия), без лишнего запроса
+                "trial": None if timed else public_trial(telegram_id),
             }),
             content_type="application/json",
         )
@@ -951,6 +956,45 @@ async def inbox_seen_route(request):
     telegram_id, _ = await _authenticate(request)
     inbox_db.mark_seen(telegram_id)
     return web.json_response({"ok": True})
+
+
+@routes.get("/api/trial")
+async def trial_status_route(request):
+    """Статус триала для окон приложения. Работает и у аккаунта с закрытым доступом (allow_locked): окно оплаты должно видеть цену."""
+    telegram_id, _ = await _authenticate(request, allow_locked=True)
+    from db.trial import public_trial
+    return web.json_response({"trial": public_trial(telegram_id), "allowed": bot_access_allowed(telegram_id)})
+
+
+@routes.post("/api/subscription/invoice")
+async def subscription_invoice_route(request):
+    """Счёт на оплату доступа Stars (ADAM Pro на месяц): сумма — по сценарию триала (скидка до дня 4, дальше полная). Только аккаунтам в
+    сценарии триала; закрытому аккаунту тоже можно — иначе он не сможет оплатить."""
+    telegram_id, _ = await _authenticate(request, allow_locked=True)
+    from db.trial import snapshot
+    snap = snapshot(telegram_id)
+    if snap is None or not snap["scenario"]:
+        return web.json_response({"error": "not_available"}, status=403)
+    if snap["paid"]:
+        return web.json_response({"error": "already_paid"}, status=400)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "payment_unavailable"}, status=503)
+    from aiogram.types import LabeledPrice
+    description = ("Первый месяц по особой цене: доступ к приложению и ко мне на 30 дней. Закрытый канал открывается после двух дней "
+                   "ударного режима подряд." if snap["intro_active"] else
+                   "Доступ к приложению и ко мне на 30 дней. Закрытый канал — после двух дней ударного режима подряд.")
+    link = await bot.create_invoice_link(
+        title="ADAM Pro — доступ на месяц",
+        description=description,
+        payload=f"subscription:{telegram_id}",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice(label="Доступ на месяц", amount=int(snap["price_stars"]))],
+    )
+    from db.tracking import track_server
+    track_server(telegram_id, "subscription_invoice", step=snap["phase"], meta={"price": snap["price_stars"], "day": snap["day"]})
+    return web.json_response({"ok": True, "invoice_url": link, "price_stars": snap["price_stars"]})
 
 
 @routes.get("/api/changelog/unseen")
