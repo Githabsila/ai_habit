@@ -4228,6 +4228,7 @@
       const isExpanded = expandedHabitActionIds.has(h.id);
       const rowActions = isExpanded
         ? `
+        <button class="habit-item__edit" data-action="edit" aria-label="Изменить привычку">${ICON_EDIT}</button>
         <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
         ${noteBtn}
         <button class="habit-item__del" data-action="delete" aria-label="Удалить">${ICON_X}</button>`
@@ -5759,6 +5760,11 @@ function initHabitActions() {
       return;
     }
 
+    if (action === "edit") {
+      openHabitEdit(habitId);
+      return;
+    }
+
     if (action === "edit-time") {
       // Превращаем чип "⏰ HH:MM" во встроенный нативный time-picker —
       // без модалок, изменение сохраняется сразу по выбору времени.
@@ -7202,7 +7208,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "inboxOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "inboxOverlay", "habitEditSheet",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -7495,6 +7501,132 @@ function initInbox() {
   clearInterval(inboxPollTimer);
   inboxPollTimer = setInterval(refreshInboxBadge, 120000);
   setTimeout(refreshInboxBadge, 3000);
+}
+
+// ===================== ИЗМЕНЕНИЕ ПРИВЫЧКИ =====================
+// Привычек может быть много, а поменять нужно одну: в раскрытой строке (✏️) у каждой привычки есть кнопка «Изменить» — окно
+// с названием, категорией, важностью (⭐) и временем напоминания. Сохраняет PUT /api/habits/{id} только для этой привычки,
+// остальные не трогает. Симуляция habit_edit (админка → «Окна и анимации») открывает то же окно на демо-привычке и ничего не сохраняет.
+const HABIT_EDIT_SIM = { id: 0, title: "Читать 20 минут", category: "study", priority: 2, planned_time: "21:30" };
+let habitEdit = null;
+
+function renderHabitEditCategories() {
+  const box = document.getElementById("habitEditCats");
+  if (!box || !habitEdit) return;
+  const chip = (value, label) =>
+    `<button type="button" class="habit-edit-chip${habitEdit.category === value ? " is-active" : ""}" role="radio" aria-checked="${habitEdit.category === value}" data-hec="${value}">${label}</button>`;
+  box.innerHTML = chip("", "Нет") +
+    Object.entries(HABIT_CATEGORY_META).map(([key, meta]) => chip(key, `${meta.emoji} ${meta.label}`)).join("");
+}
+
+function renderHabitEditPriority() {
+  const btn = document.getElementById("habitEditPriority");
+  if (!btn || !habitEdit) return;
+  const on = habitEdit.priority === 2;
+  btn.classList.toggle("is-on", on);
+  btn.setAttribute("aria-pressed", String(on));
+  const star = document.getElementById("habitEditStar");
+  if (star) star.textContent = on ? "★" : "☆";
+}
+
+function openHabitEdit(habitId, { habit = null, sim = false } = {}) {
+  const sheet = document.getElementById("habitEditSheet");
+  if (!sheet || habitEdit) return false;
+  const h = habit || (state.habits || []).find((x) => x.id === habitId);
+  if (!h) return false;
+  const category = h.category && HABIT_CATEGORY_META[h.category] ? h.category : "";
+  const priority = h.priority === 2 ? 2 : 1;
+  habitEdit = { id: h.id, sim, busy: false, category, priority, original: { title: h.title, category, priority, time: h.planned_time || "" } };
+  hideProductHint();
+  document.getElementById("habitEditTitle").value = h.title || "";
+  document.getElementById("habitEditTime").value = h.planned_time || "";
+  document.getElementById("habitEditSave").disabled = false;
+  renderHabitEditCategories();
+  renderHabitEditPriority();
+  sheet.hidden = false;
+  sheet.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => sheet.classList.add("is-open"));
+  haptic("light");
+  if (!sim) trk("habit_edit_open", null, null);
+  return true;
+}
+
+function closeHabitEdit() {
+  const sheet = document.getElementById("habitEditSheet");
+  if (!sheet || !habitEdit) return;
+  habitEdit = null;
+  sheet.classList.remove("is-open");
+  sheet.setAttribute("aria-hidden", "true");
+  setTimeout(() => { if (!habitEdit) sheet.hidden = true; }, 230);
+}
+
+async function saveHabitEdit() {
+  const s = habitEdit;
+  if (!s || s.busy) return;
+  const titleInput = document.getElementById("habitEditTitle");
+  const title = (titleInput.value || "").replace(/\s+/g, " ").trim();
+  if (title.length < 2) {
+    showToast("Название — минимум 2 символа", "error");
+    titleInput.focus();
+    return;
+  }
+  const time = document.getElementById("habitEditTime").value || "";
+  const changed = [];
+  if (title !== s.original.title) changed.push("title");
+  if (s.category !== s.original.category) changed.push("category");
+  if (s.priority !== s.original.priority) changed.push("priority");
+  if (time !== s.original.time) changed.push("time");
+  if (!changed.length) { closeHabitEdit(); return; }
+  if (s.sim) {
+    showToast("Так выглядит сохранение — в симуляции ничего не меняется", "success", 3200);
+    closeHabitEdit();
+    return;
+  }
+  const saveBtn = document.getElementById("habitEditSave");
+  s.busy = true;
+  saveBtn.disabled = true;
+  try {
+    await api(`/api/habits/${s.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ title, category: s.category, priority: s.priority, planned_time: time }),
+    });
+    trk("habit_edit_save", null, { fields: changed.join(",") });
+    haptic("success");
+    showToast("Привычка обновлена", "success");
+    closeHabitEdit();
+    await loadBootstrap();
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+    s.busy = false;
+    saveBtn.disabled = false;
+  }
+}
+
+function initHabitEdit() {
+  const sheet = document.getElementById("habitEditSheet");
+  if (!sheet) return;
+  document.getElementById("habitEditBackdrop")?.addEventListener("click", closeHabitEdit);
+  document.getElementById("habitEditCancel")?.addEventListener("click", () => { haptic("light"); closeHabitEdit(); });
+  document.getElementById("habitEditSave")?.addEventListener("click", saveHabitEdit);
+  document.getElementById("habitEditTitle")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveHabitEdit(); } });
+  document.getElementById("habitEditCats")?.addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-hec]");
+    if (!chip || !habitEdit) return;
+    habitEdit.category = chip.dataset.hec;
+    haptic("light");
+    renderHabitEditCategories();
+  });
+  document.getElementById("habitEditPriority")?.addEventListener("click", () => {
+    if (!habitEdit) return;
+    habitEdit.priority = habitEdit.priority === 2 ? 1 : 2;
+    haptic("light");
+    renderHabitEditPriority();
+  });
+  document.getElementById("habitEditTimeClear")?.addEventListener("click", () => {
+    document.getElementById("habitEditTime").value = "";
+    haptic("light");
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && habitEdit) closeHabitEdit(); });
 }
 
 // ===================== ЗАМОРОЗКА ДРУГУ (взаимопомощь, как в Duolingo) =====================
@@ -8427,6 +8559,7 @@ const SIM_SCENES = {
   adam_intro: () => openAdamIntro({ sim: true }),
   adam_intro_result: () => openAdamIntro({ sim: true, jump: true, demo: { focus: "study", struggle: "start", energy: "morning", span: "s25", hours: "h2", talk: "month" } }),
   inbox: () => openInbox({ demo: SIM_INBOX }),
+  habit_edit: () => openHabitEdit(0, { habit: HABIT_EDIT_SIM, sim: true }),
   freeze_help: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 640 }),
   freeze_help_sent: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 440, sent: true }),
   haptic_triple: () => {
@@ -10728,6 +10861,7 @@ async function boot() {
             initAdamIntro();
             initFreezeHelp();
             initInbox();
+            initHabitEdit();
             initAppTour();
             initHandleIntro();
             initSelfRewardActions();

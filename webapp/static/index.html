@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261020_INBOX_V67">
+<link rel="stylesheet" href="/static/style.css?v=20261020_HEDIT_V68">
 </head>
 <body>
 
@@ -920,6 +920,41 @@ class="habit-add-form__submit">
      привязывалась к низу длинной панели вкладки, а не к экрану, поэтому
      приходилось листать страницу вниз, чтобы её увидеть. Все остальные
      fixed-оверлеи уже жили здесь, вне #app — теперь и эта тоже. -->
+<!-- Изменение привычки: название, категория, важность, время. Открывается кнопкой ✎ в раскрытой строке привычки
+     (app.js::openHabitEdit), сохраняет PUT /api/habits/{id}. -->
+<div class="feedback-sheet habit-edit-sheet" id="habitEditSheet" hidden aria-hidden="true">
+  <div class="feedback-sheet__backdrop" id="habitEditBackdrop"></div>
+  <section class="feedback-card habit-edit-card" role="dialog" aria-modal="true" aria-labelledby="habitEditHeading">
+    <div class="freeze-purchase-card__handle"></div>
+    <h3 id="habitEditHeading">Изменить привычку</h3>
+    <div class="habit-edit-field">
+      <label class="habit-edit-label" for="habitEditTitle">Название</label>
+      <input type="text" id="habitEditTitle" class="habit-edit-input" maxlength="50" autocomplete="off" placeholder="Например: Читать 20 минут">
+    </div>
+    <div class="habit-edit-field">
+      <div class="habit-edit-label" id="habitEditCatsLabel">Категория</div>
+      <div class="habit-edit-chips" id="habitEditCats" role="radiogroup" aria-labelledby="habitEditCatsLabel"></div>
+    </div>
+    <div class="habit-edit-field">
+      <button type="button" class="habit-edit-priority" id="habitEditPriority" aria-pressed="false">
+        <span class="habit-edit-priority__star" id="habitEditStar" aria-hidden="true">☆</span>
+        <span class="habit-edit-priority__text"><b>Важная</b><small>приносит больше Adam Coin</small></span>
+      </button>
+    </div>
+    <div class="habit-edit-field">
+      <label class="habit-edit-label" for="habitEditTime">Напоминание</label>
+      <div class="habit-edit-timerow">
+        <span class="habit-edit-timebox"><span aria-hidden="true">⏰</span><input type="time" id="habitEditTime" aria-label="Время напоминания"></span>
+        <button type="button" class="habit-edit-clear" id="habitEditTimeClear">Убрать</button>
+      </div>
+    </div>
+    <div class="feedback-actions">
+      <button type="button" class="freeze-purchase-back" id="habitEditCancel">Отмена</button>
+      <button type="button" class="feedback-send-btn" id="habitEditSave">Сохранить</button>
+    </div>
+  </section>
+</div>
+
 <div class="feedback-sheet" id="feedbackSheet" hidden aria-hidden="true">
   <div class="feedback-sheet__backdrop" id="feedbackBackdrop"></div>
   <section class="feedback-card" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
@@ -1628,7 +1663,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261020_COPY_V78"></script>
+<script type="module" src="/static/app.js?v=20261020_HEDIT_V79"></script>
 
 </body>
 </html>

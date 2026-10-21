@@ -1183,6 +1183,7 @@ async def rename_habit(request):
     except ValueError:
         return web.json_response({"error": "invalid_time"}, status=400)
     category = body.get("category") if "category" in body else None
+    clear_category = "category" in body and category in (None, "")      # «Без категории» в окне изменения привычки
     if category is not None and category not in HABIT_CATEGORIES:
         category = None
     priority = body.get("priority") if "priority" in body else None
@@ -1191,6 +1192,13 @@ async def rename_habit(request):
     # снял галочку "напоминать"), поэтому колонку планового времени
     # обновляем отдельным явным запросом, а не через edit_habit().
     edit_habit(habit_id, new_title, category=category, priority=priority)
+    if clear_category:
+        # edit_habit(category=None) через COALESCE значило бы «не менять» — снимаем категорию отдельным запросом, как и время.
+        from db.core import connect
+        conn = connect()
+        conn.execute("UPDATE habits SET category=NULL WHERE id=?", (habit_id,))
+        conn.commit()
+        conn.close()
     if "planned_time" in body:
         from db.core import connect
         conn = connect()

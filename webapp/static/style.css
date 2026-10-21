@@ -14785,6 +14785,65 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 @media(max-width:380px){.freeze-help-title{font-size:23px}.freeze-help-stage,.freeze-help-avatar{width:150px;height:150px}}
 
 /* =========================================================
+   Изменение привычки (app.js::openHabitEdit): нижнее окно на основе .feedback-sheet / .feedback-card — название, категория,
+   важность, время. Кнопка ✎ в раскрытой строке привычки. Только transform/opacity, без размытия и бесконечных анимаций.
+   ========================================================= */
+.habit-item__edit{
+  flex:0 0 auto;width:34px;height:34px;display:grid;place-items:center;
+  border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);
+  color:var(--text-muted,#9C97AE);cursor:pointer;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .2s ease;
+}
+.habit-item__edit svg{width:16px;height:16px}
+.habit-item__edit:active{transform:scale(.9)}
+.habit-edit-card{max-height:calc(100% - 24px);overflow-y:auto;padding-top:14px}
+.habit-edit-card h3{margin:0 0 14px}
+.habit-edit-field{margin:0 0 12px}
+.habit-edit-label{display:block;margin:0 0 6px;font:700 10.5px 'Space Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#9EA8BD}
+.habit-edit-input{
+  width:100%;height:46px;padding:0 14px;box-sizing:border-box;border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);color:#fff;font-size:15px;
+}
+.habit-edit-input:focus{outline:1px solid var(--violet,#8b6cff)}
+.habit-edit-chips{display:flex;flex-wrap:wrap;gap:7px}
+.habit-edit-chip{
+  height:34px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);color:#C5CBD8;font:700 12px 'Space Grotesk',sans-serif;cursor:pointer;
+}
+.habit-edit-chip.is-active{background:rgba(139,108,255,.22);border-color:rgba(167,139,250,.55);color:#fff}
+.habit-edit-priority{
+  width:100%;min-height:50px;padding:8px 14px;border-radius:14px;display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);color:#C5CBD8;
+}
+.habit-edit-priority__star{font-size:22px;line-height:1;color:#9EA8BD}
+.habit-edit-priority__text{display:flex;flex-direction:column;gap:2px}
+.habit-edit-priority__text b{font:800 14px 'Space Grotesk',sans-serif;color:#F4F7FF}
+.habit-edit-priority__text small{font-size:11px;color:#9EA8BD}
+.habit-edit-priority.is-on{background:rgba(240,180,41,.13);border-color:rgba(240,180,41,.4)}
+.habit-edit-priority.is-on .habit-edit-priority__star{color:#FFD76A}
+.habit-edit-timerow{display:flex;gap:9px;align-items:center}
+.habit-edit-timebox{
+  flex:1 1 auto;height:46px;padding:0 14px;display:flex;align-items:center;gap:10px;box-sizing:border-box;border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);
+}
+.habit-edit-timebox input{flex:1 1 auto;min-width:0;background:none;border:none;color:#fff;font-size:15px;outline:none}
+.habit-edit-clear{
+  flex:0 0 auto;height:46px;padding:0 14px;border-radius:14px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);color:#C5CBD8;font:700 12px 'Space Grotesk',sans-serif;cursor:pointer;
+}
+:root[data-mode="light"] .habit-edit-label{color:#6B6585}
+:root[data-mode="light"] .habit-edit-input,
+:root[data-mode="light"] .habit-edit-timebox{background:rgba(0,0,0,.035);border-color:rgba(0,0,0,.1);color:#1C1730}
+:root[data-mode="light"] .habit-edit-input,
+:root[data-mode="light"] .habit-edit-timebox input{color:#1C1730}
+:root[data-mode="light"] .habit-edit-chip,
+:root[data-mode="light"] .habit-edit-clear,
+:root[data-mode="light"] .habit-edit-priority{background:rgba(0,0,0,.035);border-color:rgba(0,0,0,.1);color:#3A3550}
+:root[data-mode="light"] .habit-edit-chip.is-active{background:rgba(139,108,255,.18);border-color:rgba(139,108,255,.55);color:#1C1730}
+:root[data-mode="light"] .habit-edit-priority__text b{color:#1C1730}
+:root[data-mode="light"] .habit-edit-priority__text small{color:#6B6585}
+
+/* =========================================================
    Окно «Сундук» (открытие сундука месяца и парного задания): сундук появляется, его нужно тапнуть три раза (каждый тап — удар,
    шкала и свечение растут), потом сундук потряхивает, пока идёт запрос, крышка откидывается, вылетают искры и появляются награды.
    Только transform/opacity и конечные анимации — без размытия, без CSS-фильтров и вечных циклов (слабые Android WebView).

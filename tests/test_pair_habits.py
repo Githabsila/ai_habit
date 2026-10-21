@@ -230,7 +230,12 @@ def test_legacy_quest_view_has_the_same_shape(uid):
 # ПУШИ И НАПОМИНАНИЯ
 # ---------------------------------------------------------------------------
 
-def test_partner_push_after_a_mark_and_final_flag_for_the_last_habit(uid):
+def test_partner_push_after_a_mark_and_final_flag_for_the_last_habit(uid, monkeypatch):
+    # Напоминание напарнику разрешено только в дневные часы получателя (db.friends.NUDGE_HOUR_FROM…TO): без этого тест краснел
+    # по утрам и ночью. Фиксируем «сейчас» в три часа дня, дата и пояс остаются настоящими.
+    import db.friends as friends_module
+    real_local_now = friends_module._local_now
+    monkeypatch.setattr(friends_module, "_local_now", lambda user_id: real_local_now(user_id).replace(hour=15, minute=0))
     a, b, quest_id = _quest(uid)
     _mark(a, quest_id, [2, 0, 1])
     events = pair_on_day_completed(a)
