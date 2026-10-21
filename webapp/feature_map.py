@@ -204,6 +204,14 @@ FEATURES = (
         note="Алмазы, косметика и заморозка серии; окно «Надо помочь другу» и серая заморозка у друга в рейтинге",
     ),
     Feature(
+        "rescue", "Спасение серии друга", "social", "2026-10-21",
+        screens=("rescueHelp",),
+        clicks=("friend-rescue*", "rescueHelp*", "rescue-help-*"),
+        events=("rescue_help_shown", "rescue_help_open", "rescue_sent"),
+        api=("POST /api/users/{telegram_id}/rescue", "GET /api/rescue-help"),
+        note="Серия друга погасла, но её ещё можно вернуть: окно «Восстановить бесплатно», значок у друга в рейтинге, пуш друзьям; раз в месяц на спасателя",
+    ),
+    Feature(
         "invites", "Приглашения и реферальные ссылки", "growth", "2026-01-01",
         events=("referral_joined", "referral_rejected", "referral_paid", "referral_activated", "referral_revoked", "referral_mail"),
         api=("GET /api/share-link",),

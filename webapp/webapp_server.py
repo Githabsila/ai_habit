@@ -103,6 +103,7 @@ from db import ai_usage
 from db import adam_profile as adam_profile_db
 from db import inbox as inbox_db
 from db.gifts import freeze_help_candidates, FREEZE_GIFT_PRICE
+from db.rescue import rescue_candidates as rescue_help_candidates, rescue_streak
 from db.tracking import ingest as ingest_track
 from db import usage as usage_db
 from db.traffic import attribute_from_init_data
@@ -2363,6 +2364,34 @@ async def freeze_help_route(request):
     """Друзья, у которых кончились заморозки (серия идёт, запас 0): окно «Надо помочь другу!» при входе в приложение. Цена подарка — price."""
     telegram_id, _ = await _authenticate(request)
     return web.json_response({"price": FREEZE_GIFT_PRICE, "friends": freeze_help_candidates(telegram_id)})
+
+
+@routes.get("/api/rescue-help")
+async def rescue_help_route(request):
+    """Друзья, у которых серия только что погасла, но её ещё можно вернуть (db/rescue.py): окно «Серию друга ещё можно спасти!» при входе.
+    Пусто, если свой спасательный раз в месяц уже потрачен."""
+    telegram_id, _ = await _authenticate(request)
+    return web.json_response({"friends": rescue_help_candidates(telegram_id)})
+
+
+@routes.post("/api/users/{telegram_id}/rescue")
+async def user_rescue_route(request):
+    """«Восстановить бесплатно»: вернуть другу погасшую серию. Правила — в db/rescue.py (только друзьям, свежий срыв, раз в месяц на
+    спасателя, раз в две недели на того, кого спасают). Другу уходит пуш."""
+    telegram_id, _ = await _authenticate(request)
+    target_id = _target_id_or_none(request)
+    if target_id is None:
+        return web.json_response({"error": "invalid_target"}, status=400)
+    result = rescue_streak(telegram_id, target_id)
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=400)
+    from db.tracking import track_server
+    track_server(telegram_id, "rescue_sent", meta={"to": target_id, "lost": result["lost_streak"]})
+    name = html.escape(_display_name(get_user(telegram_id)))
+    _spawn_background(_send_social_push(
+        request.app, target_id,
+        f"💛 <b>{name}</b> спас(ла) твою серию! 🔥 {result['streak']} дн. снова с тобой — отметь привычку сегодня, чтобы она горела дальше."))
+    return web.json_response({"ok": True, "streak": result["streak"], "lost_streak": result["lost_streak"]})
 
 
 @routes.post("/api/users/{telegram_id}/gift")

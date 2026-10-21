@@ -125,6 +125,19 @@ def _follows(conn, user_id, since):
     return items
 
 
+def _rescues(conn, user_id, since):
+    """Друг вернул мне погасшую серию (db/rescue.py)."""
+    rows = conn.execute(
+        "SELECT id, helper_id, restored_streak, created_at FROM streak_rescues WHERE owner_id=? AND created_at>=? ORDER BY id DESC LIMIT ?",
+        (user_id, since, PER_SOURCE_LIMIT),
+    ).fetchall()
+    return [
+        _item(f"rescue:{r['id']}", "friends", "friend_rescue", r["created_at"], "💛", "{name} спас(ла) твою серию",
+              f"Серия {int(r['restored_streak'] or 0)} дн. снова горит", actor_id=r["helper_id"], action={"type": "home"})
+        for r in rows
+    ]
+
+
 def _pair_quests(conn, user_id, since):
     items = []
     rows = conn.execute(
@@ -166,10 +179,12 @@ def _adam(conn, user_id, since):
 def _system(conn, user_id, since):
     items = []
     for r in conn.execute(
-        "SELECT day, status, streak_after, created_at FROM streak_days WHERE user_id=? AND status IN ('freeze','missed') AND created_at>=? "
+        "SELECT day, status, streak_after, ai_message, created_at FROM streak_days WHERE user_id=? AND status IN ('freeze','missed') AND created_at>=? "
         "ORDER BY day DESC LIMIT ?",
         (user_id, since, PER_SOURCE_LIMIT),
     ).fetchall():
+        if r["status"] == "freeze" and str(r["ai_message"] or "").startswith("💛"):
+            continue                    # день вернул друг — об этом отдельная запись «спас(ла) твою серию» (_rescues), а не «заморозка»
         if r["status"] == "freeze":
             kept = int(r["streak_after"] or 0)
             items.append(_item(f"streak:{r['day']}:freeze", "system", "streak_freeze", r["created_at"], "❄️", "Я сохранил твой день заморозкой",
@@ -208,7 +223,7 @@ def _system(conn, user_id, since):
 VOICE_CATEGORIES = ("adam", "system")
 
 # Источник = функция (соединение, человек, «не раньше») → список записей одного или нескольких разделов.
-SOURCES = (_gifts, _support_and_nudges, _follows, _pair_quests, _adam, _system)
+SOURCES = (_gifts, _support_and_nudges, _follows, _rescues, _pair_quests, _adam, _system)
 
 
 # ---------------------------------------------------------------------------------------------------------------- метка «прочитано»

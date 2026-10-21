@@ -6528,6 +6528,8 @@ function initPlanActions() {
     already_owned: "Your friend already has this",
     receiver_full: "Your friend already has the maximum number of freezes",
     receiver_limit: "Your friend already got a freeze today",
+    helper_limit: "You've already saved someone's streak this month",
+    cooldown: "This friend's streak was saved very recently",
     item_not_giftable: "This can't be sent as a gift",
     invalid_amount: "You can't gift that many diamonds",
     not_enough_coins: "Not enough Adam Coin",
@@ -6591,6 +6593,8 @@ function initPlanActions() {
         already_owned: "У друга это уже есть",
         receiver_full: "У друга уже максимум заморозок",
         receiver_limit: "Сегодня другу уже подарили заморозку",
+        helper_limit: "В этом месяце ты уже спасал(а) чью-то серию",
+        cooldown: "Этого друга уже спасали совсем недавно",
         item_not_giftable: "Такой подарок отправить нельзя",
         invalid_amount: "Столько алмазов подарить нельзя",
         not_enough_coins: "Не хватает Adam Coin",
@@ -7060,7 +7064,7 @@ function friendRowHtml(f, { viewerDone = true } = {}) {
     <li class="friend-row" data-friend-id="${id}" data-profile-id="${id}">
       <span class="friend-row__avatar ${avatarFrameClass(f)}">${avatarInner(f)}</span>
       <span class="friend-row__info">
-        ${friendNameHtml(f, "Друг", friendFreezeHtml(f))}
+        ${friendNameHtml(f, "Друг", friendRescueHtml(f) + friendFreezeHtml(f))}
         ${meta ? `<span class="friend-row__meta">${meta}</span>` : ""}
       </span>
       ${action}
@@ -7217,7 +7221,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "inboxOverlay", "habitEditSheet", "trialSheet", "trialPaywallOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "trialSheet", "trialPaywallOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -7295,6 +7299,15 @@ function initFriendsActions() {
   card?.addEventListener("click", async (e) => {
     if (e.target.closest("#friendsAddBtn")) {
       await openFriendInvite();
+      return;
+    }
+    const rescueBtn = e.target.closest("[data-rescue-help]");
+    if (rescueBtn) {
+      const friend = (friendsData?.friends || []).find((f) => Number(f.telegram_id) === Number(rescueBtn.dataset.rescueHelp));
+      if (friend?.rescue) {
+        trk("rescue_help_open");
+        openRescueHelp({ friend: { ...friend, lost_streak: Number(friend.rescue.lost_streak) || 0 } });
+      }
       return;
     }
     const freezeBtn = e.target.closest("[data-freeze-help]");
@@ -8052,6 +8065,8 @@ async function maybeShowFreezeHelp(attempt = 0) {
   if (freezeHelpPrompted || freezeHelp || labMode || simMode) return;
   const busy = !state?.user || introChainPending() || adamIntro || state?.adam_intro?.show || celebrationOverlayOpen();
   if (busy) { if (attempt < 3) setTimeout(() => maybeShowFreezeHelp(attempt + 1), 7000); return; }
+  await rescueHelpReady;                    // серию друга спасти важнее заморозки: если окно «спасти» открылось, это не показываем
+  if (rescueHelp) return;
   freezeHelpPrompted = true;
   let data;
   try { data = await api("/api/freeze-help", { timeoutMs: 8000 }); } catch (_) { return; }
@@ -8073,6 +8088,133 @@ function initFreezeHelp() {
   });
   document.getElementById("freezeHelpSkip")?.addEventListener("click", () => closeFreezeHelp());
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && freezeHelp) closeFreezeHelp(); });
+}
+
+// ===================== СПАСЕНИЕ СЕРИИ ДРУГА (db/rescue.py) =====================
+// Серия друга погасла, но её ещё можно вернуть — как «дружеский забег ещё можно спасти» в Duolingo. В карточке «Друзья» рядом с именем
+// появляется значок погасшей серии (тап — окно), то же окно один раз за сессию само показывается при входе (на одного друга не чаще раза
+// в 5 часов — это и есть «Напомнить позже»). «Восстановить бесплатно» — POST /api/users/{id}/rescue: серия возвращается сразу, другу уходит
+// пуш. Правила (только друзьям, свежий срыв, раз в месяц на спасателя, раз в две недели на того, кого спасают) считает сервер.
+// sim — симуляция из админки (SIM_SCENES): ничего не отправляется.
+const RESCUE_FLAME = (cls) =>
+  `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.5c.8 3.4-1.5 5.2-3.3 7.4C7.2 11.7 6 13.4 6 15.6a6 6 0 0 0 12 0c0-2.5-1.1-4.2-2.4-5.8-.3 1.5-1 2.4-2 2.9.4-3.6-.4-7.6-1.6-10.2z" fill="currentColor"/><path class="rescue-help-crack" d="M13.4 7.2l-2.3 3.8 2.3 1.7-2.5 4.5" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+const RESCUE_REMIND_MS = 5 * 3600 * 1000;
+let rescueHelp = null;                       // { friend, sim, step: "offer" | "sent", busy, restored }
+let rescueHelpPrompted = false;              // окно при входе — один раз за сессию
+let rescueHelpReady = Promise.resolve();     // окно «заморозка другу» ждёт, пока решится, показывать ли это
+
+// Значок рядом с именем друга, чью серию ещё можно спасти (тап — окно).
+function friendRescueHtml(f) {
+  if (!f.rescue) return "";
+  return `<button type="button" class="friend-rescue" data-rescue-help="${Number(f.telegram_id)}" aria-label="Серию друга ещё можно спасти">${RESCUE_FLAME("friend-rescue__icon")}</button>`;
+}
+
+function renderRescueHelp() {
+  const s = rescueHelp;
+  if (!s) return;
+  const name = s.friend.first_name || "Друг";
+  const lost = Number(s.friend.lost_streak) || 0;
+  document.getElementById("rescueHelpCard").dataset.state = s.step;
+  const avatar = document.getElementById("rescueHelpAvatar");
+  avatar.className = `freeze-help-avatar ${avatarFrameClass(s.friend)}`;
+  avatar.innerHTML = avatarInner(s.friend);
+  const send = document.getElementById("rescueHelpSend");
+  if (s.step === "sent") {
+    document.getElementById("rescueHelpTitle").textContent = "Серия возвращена!";
+    document.getElementById("rescueHelpSub").textContent = `🔥 ${s.restored || lost} снова горит у друга. Это сделал ты.`;
+    send.textContent = "Отлично";
+    send.disabled = false;
+  } else {
+    // неразрывный пробел: «в 12 дней» не рвётся на «в» и «12 дней» в разных строках
+    document.getElementById("rescueHelpTitle").textContent = `${name} потерял(а) серию в ${pairDaysWord(lost).replace(" ", " ")}. Но её ещё можно спасти!`;
+    document.getElementById("rescueHelpSub").textContent = "Вернуть её ты успеешь, пока не поздно. Такая помощь — раз в месяц и ничего не стоит.";
+    send.textContent = "Восстановить бесплатно";
+    send.disabled = s.busy;
+  }
+}
+
+function openRescueHelp({ friend, sim = false, sent = false, restored = 0 } = {}) {
+  const overlay = document.getElementById("rescueHelpOverlay");
+  if (!overlay || !friend) return false;
+  if (rescueHelp) {
+    if (!sim) return false;
+    rescueHelp = null;
+  }
+  rescueHelp = { friend, sim, step: sent ? "sent" : "offer", busy: false, restored: Number(restored) || 0 };
+  hideProductHint();
+  renderRescueHelp();
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  void overlay.offsetWidth;
+  overlay.classList.add("show");
+  haptic("light");
+  return true;
+}
+
+function closeRescueHelp(instant = false) {
+  if (!rescueHelp) return;
+  const overlay = document.getElementById("rescueHelpOverlay");
+  overlay.classList.remove("show");
+  overlay.setAttribute("aria-hidden", "true");
+  if (instant) overlay.hidden = true;
+  else setTimeout(() => { if (!rescueHelp) overlay.hidden = true; }, 300);
+  rescueHelp = null;
+  if (!instant) haptic("light");
+}
+
+async function doRescueHelp() {
+  const s = rescueHelp;
+  if (!s || s.busy || s.step !== "offer") return;
+  s.busy = true;
+  renderRescueHelp();
+  try {
+    if (s.sim) {
+      s.restored = Number(s.friend.lost_streak) || 0;
+    } else {
+      const res = await api(`/api/users/${Number(s.friend.telegram_id)}/rescue`, { method: "POST", body: JSON.stringify({}) });
+      s.restored = Number(res?.streak) || Number(s.friend.lost_streak) || 0;
+      const friend = (friendsData?.friends || []).find((f) => Number(f.telegram_id) === Number(s.friend.telegram_id));
+      if (friend) { delete friend.rescue; friend.streak = s.restored; renderFriendsCard(); }
+    }
+  } catch (err) {
+    s.busy = false;
+    showToast(friendlyError(err), "error");
+    if (["helper_limit", "cooldown", "not_available", "not_friends"].includes(err?.data?.error)) { closeRescueHelp(); loadFriendsCard(); }
+    else renderRescueHelp();
+    return;
+  }
+  s.busy = false;
+  s.step = "sent";
+  renderRescueHelp();
+  haptic("success");
+  playChime();
+}
+
+// Окно при входе: один запрос и одно окно за сессию, на одного друга не чаще раза в RESCUE_REMIND_MS, и только если ничто другое не открыто.
+async function maybeShowRescueHelp(attempt = 0) {
+  if (rescueHelpPrompted || rescueHelp || labMode || simMode) return;
+  const busy = !state?.user || introChainPending() || adamIntro || state?.adam_intro?.show || celebrationOverlayOpen();
+  if (busy) { if (attempt < 3) setTimeout(() => maybeShowRescueHelp(attempt + 1), 7000); return; }
+  rescueHelpPrompted = true;
+  let data;
+  try { data = await api("/api/rescue-help", { timeoutMs: 8000 }); } catch (_) { return; }
+  const now = Date.now();
+  const key = (id) => `adam_rescue_help_${id}`;
+  const friend = (data.friends || []).find((f) => { try { return now - Number(localStorage.getItem(key(f.telegram_id)) || 0) > RESCUE_REMIND_MS; } catch (_) { return true; } });
+  if (!friend || celebrationOverlayOpen()) return;
+  try { localStorage.setItem(key(friend.telegram_id), String(now)); } catch (_) { /* без памяти окно просто покажется снова в следующий раз */ }
+  trk("rescue_help_shown");
+  openRescueHelp({ friend });
+}
+
+function initRescueHelp() {
+  document.getElementById("rescueHelpSend")?.addEventListener("click", () => {
+    if (rescueHelp?.step === "sent") closeRescueHelp();
+    else doRescueHelp();
+  });
+  document.getElementById("rescueHelpSkip")?.addEventListener("click", () => closeRescueHelp());
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && rescueHelp) closeRescueHelp(); });
 }
 
 // ===================== ПАРНОЕ ЗАДАНИЕ (db/pair_quests.py) =====================
@@ -8849,6 +8991,7 @@ const SIM_INBOX = (() => {
 })();
 
 const SIM_FRIEND = { telegram_id: 0, first_name: "Мария", avatar_id: "default", frame_id: "default", streak: 14 };
+const SIM_RESCUE_FRIEND = { telegram_id: 0, first_name: "Мария", avatar_id: "default", frame_id: "default", streak: 0, lost_streak: 12 };
 
 const SIM_SCENES = {
   chest_month: () => openChestReveal({
@@ -8875,6 +9018,8 @@ const SIM_SCENES = {
   adam_voice: () => showVoiceToastsDemo(),
   freeze_help: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 640 }),
   freeze_help_sent: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 440, sent: true }),
+  rescue_help: () => openRescueHelp({ sim: true, friend: SIM_RESCUE_FRIEND }),
+  rescue_help_sent: () => openRescueHelp({ sim: true, friend: SIM_RESCUE_FRIEND, sent: true, restored: 13 }),
   haptic_triple: () => {
     haptic("triple");
     showToast("📳 Тройная долгая вибрация — так ощущается сложное достижение", "success", 3600);
@@ -8909,6 +9054,7 @@ async function initSimMode() {
 function playSimScene() {
   closeTrialPaywall();                      // окна триала от прошлой сцены не должны перекрывать следующую
   closeTrialSheet();
+  closeRescueHelp(true);                    // и «Серию можно спасти»: повтор той же сцены заново запускает анимацию значка
   const item = simMode?.list[simMode.index];
   const run = item && SIM_SCENES[item.key];
   if (!run) return;
@@ -11175,6 +11321,7 @@ async function boot() {
             initStartQuiz();
             initAdamIntro();
             initFreezeHelp();
+            initRescueHelp();
             initInbox();
             initHabitEdit();
             initTrial();
@@ -11230,6 +11377,7 @@ async function boot() {
             initLabMode();
             initSimMode();
             renderAdamIntroSettings();
+            setTimeout(() => { rescueHelpReady = maybeShowRescueHelp(); }, 4000);
             setTimeout(() => maybeShowFreezeHelp(), 5000);
         }
         if (document.getElementById("archetypeQuizBtn") && state?.user?.archetype) {

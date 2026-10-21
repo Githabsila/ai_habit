@@ -16,7 +16,7 @@ from bot_middlewares import retry_flood_control
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
 from scheduler import scheduler
-from streak_scheduler import run_streak_rollover, run_streak_risk_notifications, run_streak_reengagement_notifications, run_weekly_streak_bonus, run_personal_record_notifications, run_rank_overtaken_notifications, run_pair_quest_notifications
+from streak_scheduler import run_streak_rollover, run_streak_risk_notifications, run_streak_reengagement_notifications, run_weekly_streak_bonus, run_personal_record_notifications, run_rank_overtaken_notifications, run_pair_quest_notifications, run_rescue_notifications
 from coach import (
     run_weekly_report,
     run_weekly_habit_analysis, run_monthly_habit_analysis, run_task_reminder_check,
@@ -167,6 +167,8 @@ async def main():
     # Парное задание: засчёт цели, набранной через бота, и вечернее напоминание
     # в последний день окна (db/pair_quests.py).
     scheduler.add_job(run_pair_quest_notifications, "interval", minutes=1, args=[bot])
+    # Серия друга погасла, но её ещё можно вернуть — пуш друзьям (db/rescue.py, как «восстановить дружеский забег» в Duolingo).
+    scheduler.add_job(run_rescue_notifications, "interval", minutes=5, args=[bot], max_instances=1, coalesce=True)
     # Раздача наград топ-3 сезона 1-го числа (см. db/seasons.py::award_season_rewards)
     # была определена, но нигде не вызывалась — реальный пробел, найденный
     # попутно при работе над #40, чинится тем же коммитом.

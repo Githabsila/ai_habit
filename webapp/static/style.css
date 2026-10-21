@@ -14939,6 +14939,27 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 :root[data-mode="light"] .trial-paywall__lead,:root[data-mode="light"] .trial-paywall__perks li{color:#3A3550}
 
 /* =========================================================
+   Спасение серии друга (app.js::openRescueHelp): значок погасшей серии справа от имени друга и окно «Серию можно спасти» на основе окна
+   заморозки (.freeze-help-*): аватар с треснувшим пламенем, «Восстановить бесплатно» / «Напомнить позже». После спасения пламя целое и
+   тёплое. Движение значка и искр задаёт окно заморозки (тот же data-state), здесь только цвета: без размытия и вечных циклов.
+   ========================================================= */
+.friend-rescue{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;margin-left:6px;border-radius:50%;
+  border:1px solid rgba(255,159,67,.45);background:rgba(255,159,67,.12);color:#FF9F43;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s ease,border-color .2s ease}
+.friend-rescue:active{transform:scale(.9);border-color:rgba(255,159,67,.9)}
+.friend-rescue__icon{display:block;width:16px;height:16px}
+.rescue-help-crack{stroke:#1a202c}
+.friend-rescue .rescue-help-crack{stroke:#3a2208}
+.rescue-help-overlay{background:radial-gradient(520px 320px at 50% 38%,rgba(255,159,67,.12),transparent 62%),linear-gradient(170deg,#1c1a1f,#0c0e15)}
+.rescue-help-flame{display:block;width:44px;height:44px}
+.rescue-help-overlay .freeze-spark{background:#FFB547}
+.rescue-help-overlay .freeze-spark--w{background:#FFE6B8}
+.rescue-help-send{background:#FFB547;box-shadow:0 5px 0 #B87810;color:#3A2300}
+.rescue-help-send:active{box-shadow:0 2px 0 #B87810}
+.rescue-help-skip{color:#FFB547}
+.rescue-help-card[data-state="sent"] .rescue-help-badge{color:#FF9F43;background:#3a2208;border-color:#B8661B}
+.rescue-help-card[data-state="sent"] .rescue-help-crack{display:none}
+
+/* =========================================================
    Окно «Сундук» (открытие сундука месяца и парного задания): сундук появляется, его нужно тапнуть три раза (каждый тап — удар,
    шкала и свечение растут), потом сундук потряхивает, пока идёт запрос, крышка откидывается, вылетают искры и появляются награды.
    Только transform/opacity и конечные анимации — без размытия, без CSS-фильтров и вечных циклов (слабые Android WebView).

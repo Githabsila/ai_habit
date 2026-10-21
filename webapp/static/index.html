@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261021_ORDER_V72">
+<link rel="stylesheet" href="/static/style.css?v=20261021_RESCUE_V73">
 </head>
 <body>
 
@@ -1651,6 +1651,33 @@ class="habit-add-form__submit">
   </div>
 </div>
 
+<div class="freeze-help-overlay rescue-help-overlay" id="rescueHelpOverlay" hidden aria-hidden="true">
+  <div class="freeze-help-card rescue-help-card" id="rescueHelpCard" role="dialog" aria-modal="true" aria-labelledby="rescueHelpTitle" data-state="offer">
+    <div class="freeze-help-main">
+      <div class="freeze-help-stage">
+        <span class="freeze-help-avatar" id="rescueHelpAvatar"></span>
+        <span class="freeze-help-badge rescue-help-badge" aria-hidden="true">
+          <svg class="rescue-help-flame" viewBox="0 0 24 24" focusable="false"><path d="M12 2.5c.8 3.4-1.5 5.2-3.3 7.4C7.2 11.7 6 13.4 6 15.6a6 6 0 0 0 12 0c0-2.5-1.1-4.2-2.4-5.8-.3 1.5-1 2.4-2 2.9.4-3.6-.4-7.6-1.6-10.2z" fill="currentColor"/><path class="rescue-help-crack" d="M13.4 7.2l-2.3 3.8 2.3 1.7-2.5 4.5" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <i class="freeze-spark" style="--dx:-58px;--dy:-34px;--delay:0s"></i>
+          <i class="freeze-spark freeze-spark--w" style="--dx:-30px;--dy:-62px;--delay:.05s"></i>
+          <i class="freeze-spark" style="--dx:12px;--dy:-68px;--delay:.1s"></i>
+          <i class="freeze-spark freeze-spark--w" style="--dx:52px;--dy:-44px;--delay:.03s"></i>
+          <i class="freeze-spark" style="--dx:62px;--dy:-4px;--delay:.08s"></i>
+          <i class="freeze-spark freeze-spark--w" style="--dx:-62px;--dy:6px;--delay:.12s"></i>
+          <i class="freeze-spark" style="--dx:44px;--dy:46px;--delay:.06s"></i>
+          <i class="freeze-spark freeze-spark--w" style="--dx:-40px;--dy:48px;--delay:.02s"></i>
+        </span>
+      </div>
+      <h2 class="freeze-help-title" id="rescueHelpTitle"></h2>
+      <p class="freeze-help-sub" id="rescueHelpSub"></p>
+    </div>
+    <div class="freeze-help-actions">
+      <button class="freeze-help-send rescue-help-send" id="rescueHelpSend" type="button"></button>
+      <button class="freeze-help-skip rescue-help-skip" id="rescueHelpSkip" type="button">Напомнить позже</button>
+    </div>
+  </div>
+</div>
+
 <div class="app-tour-overlay" id="appTourOverlay" hidden aria-hidden="true">
   <div class="app-tour-card" role="dialog" aria-modal="true" aria-labelledby="appTourTitle">
     <button class="app-tour-skip" id="appTourSkip" type="button">Пропустить</button>
@@ -1715,7 +1742,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261021_ORDER_V83"></script>
+<script type="module" src="/static/app.js?v=20261021_RESCUE_V84"></script>
 
 </body>
 </html>

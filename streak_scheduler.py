@@ -756,3 +756,83 @@ async def run_pair_quest_notifications(bot):
                     release_notification(uid, day, kind, scope)
             except Exception:
                 logger.exception("Ошибка напоминания о парном задании для %s", uid)
+
+
+# ---------------------------------------------------------------------------
+# СПАСЕНИЕ СЕРИИ ДРУГА (db/rescue.py)
+# ---------------------------------------------------------------------------
+
+RESCUE_PUSH_FROM_HOUR = 10      # друзьям пишем днём по их времени: утренний и ночной пуш про чужую беду — лишний
+RESCUE_PUSH_TO_HOUR = 21
+
+
+def rescue_push_text(name, lost):
+    """Пуш другу: серия человека погасла, но её ещё можно вернуть. name уже экранировано."""
+    days = f"{lost} {plural_ru(lost, 'день', 'дня', 'дней')}"
+    return (
+        f"💔 У <b>{name}</b> погасла серия в {days}. Но её ещё можно вернуть — для тебя это бесплатно. "
+        "Открой ADAM: я покажу, как."
+    )
+
+
+def _rescue_keyboard():
+    if not WEBAPP_URL:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="💛 Спасти серию", web_app=WebAppInfo(url=WEBAPP_URL))]]
+    )
+
+
+async def _send_rescue_push(bot, scope, helper_id, owner_id, state, name):
+    """Один друг — один пуш об одном срыве, не больше одного такого пуша в день и только в дневные часы его местного времени."""
+    from db import rescue as rescue_db
+
+    settings = get_settings(helper_id)
+    if not settings or not settings["reminders"] or is_bot_blocked(helper_id):
+        return False
+    now = datetime.now(ZoneInfo(get_timezone(helper_id)))
+    if in_quiet_hours(settings, now) or not (RESCUE_PUSH_FROM_HOUR <= now.hour < RESCUE_PUSH_TO_HOUR):
+        return False
+    day = now.date().isoformat()
+    if not claim_notification(helper_id, day, "rescue_friend", scope):
+        return False
+    try:
+        await bot.send_message(
+            helper_id, rescue_push_text(name, state["lost_streak"]), parse_mode="HTML", reply_markup=_rescue_keyboard()
+        )
+    except TelegramForbiddenError:
+        release_notification(helper_id, day, "rescue_friend", scope)
+        _on_forbidden(helper_id, "rescue")
+        return False
+    except Exception:
+        release_notification(helper_id, day, "rescue_friend", scope)
+        raise
+    rescue_db.mark_push_sent(owner_id, state["broken_date"], helper_id)
+    return True
+
+
+async def run_rescue_notifications(bot):
+    """Каждые несколько минут: у кого серия погасла недавно и ещё не возвращена — сказать об этом друзьям (кому ещё не писали)."""
+    if not bot:
+        return
+    from db import rescue as rescue_db
+
+    scope = notification_scope(bot)
+    try:
+        owners = rescue_db.owners_to_announce()
+    except Exception:
+        logger.exception("Не удалось получить список срывов серии для пушей друзьям")
+        return
+    for owner_id in owners:
+        try:
+            state = rescue_db.rescue_state(owner_id)
+            if not state["available"]:
+                continue
+            name = _display(get_user(owner_id))
+            for helper_id in rescue_db.friends_to_notify(owner_id, state["broken_date"]):
+                try:
+                    await _send_rescue_push(bot, scope, helper_id, owner_id, state, name)
+                except Exception:
+                    logger.exception("Ошибка пуша о спасении серии %s → %s", owner_id, helper_id)
+        except Exception:
+            logger.exception("Ошибка проверки срыва серии для %s", owner_id)

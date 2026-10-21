@@ -700,6 +700,33 @@ def create_tables():
     )
     """)
 
+    # Спасение серии друга (db/rescue.py): одна запись на срыв (UNIQUE owner+день срыва) — кто и когда вернул серию; на ней же держатся
+    # лимиты «раз в календарный месяц у спасателя» и «не чаще раза в две недели у того, кого спасают». rescue_pushes — кому из друзей
+    # уже сообщали про этот срыв (пуш один раз на срыв).
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS streak_rescues(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_id INTEGER NOT NULL,
+        helper_id INTEGER NOT NULL,
+        lost_streak INTEGER NOT NULL,
+        restored_streak INTEGER NOT NULL,
+        broken_date TEXT NOT NULL,
+        month TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(owner_id, broken_date)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_streak_rescues_helper ON streak_rescues(helper_id, month)")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS rescue_pushes(
+        owner_id INTEGER NOT NULL,
+        broken_date TEXT NOT NULL,
+        helper_id INTEGER NOT NULL,
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(owner_id, broken_date, helper_id)
+    )
+    """)
+
     # ---------------- Путь человека (db/tracking.py) ----------------
     # user_events — значимые шаги: регистрация, шаги анкеты и онбординга, «пропустить», первая привычка/задача, сообщения Адаму.
     # Клики не пишутся по одному: последние действия сессии лежат в app_sessions.last_actions («после чего вышел»).

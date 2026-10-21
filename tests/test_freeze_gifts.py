@@ -302,7 +302,7 @@ async def test_gift_route_refuses_strangers_and_poor_senders(client, uid):
 
 def test_window_markup_is_a_hidden_dialog_with_the_duolingo_parts():
     block = INDEX[INDEX.index('id="freezeHelpOverlay"'):]
-    block = block[:block.index('id="appTourOverlay"')]
+    block = block[:block.index('id="rescueHelpOverlay"')]        # дальше — окно «Серию можно спасти» (tests/test_rescue.py)
     assert re.search(r'<div class="freeze-help-overlay" id="freezeHelpOverlay" hidden aria-hidden="true">', INDEX)
     for needle in ('role="dialog"', 'aria-modal="true"', 'id="freezeHelpBalance"', 'id="freezeHelpAvatar"', 'class="freeze-help-badge"',
                    'id="freezeHelpTitle"', 'id="freezeHelpSub"', 'id="freezeHelpSend"', 'id="freezeHelpSkip"', "Нет, спасибо"):
@@ -312,7 +312,7 @@ def test_window_markup_is_a_hidden_dialog_with_the_duolingo_parts():
 
 def test_the_gray_icon_sits_right_of_the_name_and_a_tap_opens_the_window():
     row = APP_JS[APP_JS.index("function friendRowHtml("):][:1400]
-    assert 'friendNameHtml(f, "Друг", friendFreezeHtml(f))' in row
+    assert 'friendNameHtml(f, "Друг", friendRescueHtml(f) + friendFreezeHtml(f))' in row
     name = APP_JS[APP_JS.index("function friendNameHtml("):][:520]
     assert "${chip}${extra}" in name, "значок — после имени и ранга"
     icon = APP_JS[APP_JS.index("function friendFreezeHtml("):][:1100]

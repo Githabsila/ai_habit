@@ -218,7 +218,7 @@ def _display(row, key):
     return row[key] if key in row.keys() else None
 
 
-def _friend_entry(row, state, source, freeze=None):
+def _friend_entry(row, state, source, freeze=None, rescue=None):
     from .evolution import public_level
 
     entry = {
@@ -234,22 +234,27 @@ def _friend_entry(row, state, source, freeze=None):
     }
     if freeze is not None:
         entry["freeze"] = freeze      # только у ДРУЗЕЙ (взаимная подписка): {"balance", "needs_help"} — иконка в рейтинге, db/gifts.py
+    if rescue:
+        entry["rescue"] = rescue      # серию друга можно спасти: {"lost_streak"} — значок «погасшая серия» в рейтинге, db/rescue.py
     return entry
 
 
 def get_friends_overview(user_id):
     """Для карточки «Друзья» во вкладке рейтинга."""
     from .gifts import FREEZE_GIFT_PRICE, freeze_states
+    from .rescue import rescue_states
 
     sources = get_friend_sources(user_id)
     users = _load_users(list(sources))
-    freezes = freeze_states([fid for fid, source in sources.items() if source == "friend"])
+    mutual_ids = [fid for fid, source in sources.items() if source == "friend"]
+    freezes = freeze_states(mutual_ids)
+    rescues = rescue_states(mutual_ids)
     friends = []
     for friend_id, source in sources.items():
         row = users.get(friend_id)
         if row is None or row["banned"]:
             continue
-        friends.append(_friend_entry(row, get_friend_state(user_id, friend_id, row), source, freezes.get(friend_id)))
+        friends.append(_friend_entry(row, get_friend_state(user_id, friend_id, row), source, freezes.get(friend_id), rescues.get(friend_id)))
     friends.sort(key=lambda f: (_STATE_ORDER[f["state"]], -f["streak"], f["first_name"].lower()))
     return {"friends": friends, "viewer_done": has_completed_today(user_id), "freeze_price": FREEZE_GIFT_PRICE}
 
