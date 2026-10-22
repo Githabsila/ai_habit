@@ -608,7 +608,7 @@ def quests(days=14):
     conn = connect()
     try:
         done_rows = conn.execute(
-            f"SELECT q.user_id, q.day, q.quest_key FROM daily_quests q JOIN users u ON u.telegram_id=q.user_id "
+            f"SELECT q.user_id, q.day, q.quest_key, COALESCE(q.chest_opened,0) FROM daily_quests q JOIN users u ON u.telegram_id=q.user_id "
             f"WHERE {real} AND q.day>=? AND q.quest_key IN ({marks})", (start, *QUEST_KEYS)).fetchall()
         event_rows = conn.execute(
             f"SELECT e.user_id, e.name, e.step, date(e.at) FROM user_events e JOIN users u ON u.telegram_id=e.user_id "
@@ -629,16 +629,19 @@ def quests(days=14):
 
     done_by_day = defaultdict(lambda: defaultdict(set))      # day -> quest -> {user}
     done_per_user_day = defaultdict(set)                     # (user, day) -> {quest}
-    for uid, day, key in done_rows:
+    chests_opened = defaultdict(int)                         # quest -> сколько раз открыли сундук (человеко-дней)
+    for uid, day, key, opened in done_rows:
         done_by_day[day][key].add(uid)
         done_per_user_day[(uid, day)].add(key)
+        if opened:
+            chests_opened[key] += 1
 
     per_quest = []
     for key in QUEST_KEYS:
         users = {uid for (uid, _day), keys in done_per_user_day.items() if key in keys}
         count = sum(1 for keys in done_per_user_day.values() if key in keys)
         per_quest.append({"key": key, "title": QUEST_DEFINITIONS[key]["title"], "emoji": QUEST_DEFINITIONS[key]["emoji"], "users": len(users),
-                          "completions": count, "share": _enough(len(users), len(active_users))})
+                          "completions": count, "chests_opened": chests_opened[key], "share": _enough(len(users), len(active_users))})
     any_users = {uid for (uid, _day) in done_per_user_day}
     all_three = [(uid, day) for (uid, day), keys in done_per_user_day.items() if len(keys) == len(QUEST_KEYS)]
 

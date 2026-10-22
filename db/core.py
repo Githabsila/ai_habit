@@ -1322,6 +1322,11 @@ def create_tables():
     cursor.execute("PRAGMA table_info(daily_quests)")
     if "ref" not in {row[1] for row in cursor.fetchall()}:
         cursor.execute("ALTER TABLE daily_quests ADD COLUMN ref TEXT")
+    # chest_opened — человек уже открыл сундук этого квеста (три тапа в окне «Квесты дня»). Награда выдана раньше, в момент выполнения:
+    # сундук её только показывает, поэтому флаг ни на что не влияет, кроме вида значка (db/quests.py::open_quest_chest).
+    cursor.execute("PRAGMA table_info(daily_quests)")
+    if "chest_opened" not in {row[1] for row in cursor.fetchall()}:
+        cursor.execute("ALTER TABLE daily_quests ADD COLUMN chest_opened INTEGER DEFAULT 0")
 
     # ---------------- Roadmap #19: реакции/стикеры поддержки другу ----------------
     cursor.execute("""

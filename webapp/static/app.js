@@ -681,6 +681,7 @@
     // Пока идёт показ изменения (полоски заполняются на глазах), список не пересобираем — он дорисует себя сам.
     if (questsAnim) return;
     list.innerHTML = quests.map((q) => questRowHtml(q, q, (state.habits || []).length, questsPlanReady())).join("");
+    updateQuestChestHint();
   }
 
   // «Задания месяца» (db/month_quests.py): прогресс по уже забранным
@@ -5482,7 +5483,7 @@ const CHEST_TAP_HINTS = ["Тапни 3 раза", "Ещё 2 раза", "Ещё �
 
 // request — функция, делающая запрос на открытие (вернёт ответ с reward; её зовут только после третьего тапа); onDone(result) — когда окно
 // закрыли. Ошибку запроса окно не глотает: закрывается и пробрасывает её вызывающему (там показывают тост). «Не сейчас» → null, запроса не было.
-async function openChestReveal({ eyebrow, caption = "", final = false, request, onDone }) {
+async function openChestReveal({ eyebrow, caption = "", final = false, tone = "", request, onDone }) {
   const overlay = document.getElementById("chestOverlay");
   const card = document.getElementById("chestCard");
   if (!overlay || !card || chestRevealBusy) {
@@ -5498,6 +5499,7 @@ async function openChestReveal({ eyebrow, caption = "", final = false, request, 
   const closeBtn = document.getElementById("chestClose");
   chestRevealBusy = true;
   card.classList.toggle("is-final", !!final);
+  card.dataset.tone = tone || "";          // цвет сундука квеста (wood / blue / gold), см. .chest-card[data-tone]
   card.dataset.phase = "wait";
   card.dataset.taps = "0";
   card.dataset.ready = "0";
@@ -5629,6 +5631,8 @@ function initDailyQuestActions() {
   });
   // Тап по невыполненному квесту ведёт к его следующему шагу: к привычкам, к плану дня или в чат с Адамом.
   list.addEventListener("click", (e) => {
+    const chest = e.target.closest("[data-chest]");
+    if (chest) { openQuestChest(chest.dataset.chest, chest); return; }
     const row = e.target.closest("[data-go]");
     if (row) goToQuestStep(row.dataset.go);
   });
@@ -5679,10 +5683,32 @@ function questsPlanReady() {
   return !!(plan && String(plan.main_goal || "").trim() && (plan.tasks || []).length);
 }
 
+// Сундук в конце полоски (как в Duolingo, у каждого квеста свой цвет: дерево / синий / золото). Форма — здесь, цвета — в CSS (.quest-chest--*).
+// Три состояния: закрыт и тусклый (квест не выполнен) → готов, на него можно тапнуть (выполнен) → открыт, с галочкой.
+function questChestSvg(open) {
+  const body = '<rect class="qc-body qc-line" x="4" y="17" width="36" height="19" rx="4"/>';
+  if (open) {
+    return `<svg class="quest-chest__svg" viewBox="0 0 44 38" aria-hidden="true" focusable="false">${body}` +
+      '<ellipse class="qc-glow" cx="22" cy="18" rx="15" ry="3"/>' +
+      '<path class="qc-body qc-line" d="M7 15L10 3C17 0 27 0 34 3L37 15z"/>' +
+      '<rect class="qc-band qc-line" x="12" y="17" width="5" height="19"/><rect class="qc-band qc-line" x="27" y="17" width="5" height="19"/></svg>';
+  }
+  return `<svg class="quest-chest__svg" viewBox="0 0 44 38" aria-hidden="true" focusable="false">${body}` +
+    '<path class="qc-body qc-line" d="M4 19V14C4 7 12 3 22 3s18 4 18 11v5z"/>' +
+    '<rect class="qc-band qc-line" x="12" y="4" width="5" height="32"/><rect class="qc-band qc-line" x="27" y="4" width="5" height="32"/>' +
+    '<rect class="qc-lock qc-line" x="18" y="15" width="8" height="9" rx="2"/></svg>';
+}
+
 function questSideHtml(q, shown) {
-  if (shown.completed) return `<span class="daily-quest__done">${ICON_CHECK}</span>`;
-  if (q.key === "talk_adam") return '<span class="daily-quest__ring" aria-hidden="true"></span>';
-  return `<span class="daily-quest__progress">${shown.progress}/${q.target}</span>`;
+  const kind = q.chest || shown.chest || "wood";
+  if (!shown.completed) {
+    const note = q.key === "talk_adam" ? "" : `<small class="daily-quest__progress">${shown.progress}/${q.target}</small>`;
+    return `<span class="quest-chest quest-chest--${kind} is-locked" aria-hidden="true">${questChestSvg(false)}</span>${note}`;
+  }
+  if (shown.chest_opened) {
+    return `<span class="quest-chest quest-chest--${kind} is-opened" role="img" aria-label="Сундук открыт">${questChestSvg(true)}<i class="quest-chest__tick">${ICON_CHECK}</i></span>`;
+  }
+  return `<button type="button" class="quest-chest quest-chest--${kind} is-ready" data-chest="${q.key}" aria-label="Открыть сундук: ${escapeHtml(q.title)}">${questChestSvg(false)}</button>`;
 }
 
 function questPartsHtml(q, shown) {
@@ -5878,7 +5904,9 @@ function openQuestsWindow({ before = null, monthBefore = null, after = null, mon
   questsAnim = { timers: [], toMonth, demo };
   list.innerHTML = toQuests.map((q) => questRowHtml(q, fromByKey.get(q.key) || q, habits, ready)).join("");
   renderMonthCard(monthBefore || toMonth);
+  updateQuestChestHint();
   openQuestsOverlay();
+  questsAnim.timers.push(setTimeout(inviteQuestChests, 900));
   questsAnim.timers.push(setTimeout(() => playQuestsChange(toQuests, fromByKey, monthBefore, toMonth, habits), overlay.classList.contains("is-open") ? 250 : 650));
   return true;
 }
@@ -5921,10 +5949,12 @@ function completeQuestRow(li, q, monthBefore, toMonth) {
   li.removeAttribute("tabindex");
   li.querySelector(".daily-quest__hint")?.remove();
   const side = li.querySelector(".daily-quest__side");
-  if (side) side.innerHTML = `<span class="daily-quest__done is-pop">${ICON_CHECK}</span>`;
-  const check = side?.querySelector(".daily-quest__done");
+  if (side) side.innerHTML = questSideHtml(q, { ...q, completed: true, chest_opened: false }).replace("is-ready", "is-ready is-pop");
+  const check = side?.querySelector(".quest-chest");
   void check?.offsetWidth;
   check?.classList.remove("is-pop");
+  inviteQuestChests();
+  updateQuestChestHint();
   haptic("success");
   const bar = document.querySelector("#monthCardTrack .month-card__bar-fill");
   const anim = questsAnim;
@@ -5984,6 +6014,58 @@ function flyQuestPoint(fromEl, toEl, onArrive) {
   flight.onfinish = land;
   flight.oncancel = () => { landed = true; dot.remove(); };
   setTimeout(land, 780 + 250);
+}
+
+// Готовые сундуки трижды подпрыгивают — «тапни меня». Конечная Web Animation (transform), без вечных циклов.
+function inviteQuestChests() {
+  document.querySelectorAll("#dailyQuestsList .quest-chest.is-ready").forEach((el, i) => {
+    if (typeof el.animate !== "function") return;
+    el.animate(
+      [{ transform: "translateY(0) scale(1)" }, { transform: "translateY(-5px) scale(1.1)" }, { transform: "translateY(0) scale(1)" }],
+      { duration: 560, iterations: 3, delay: i * 140, easing: "ease-in-out" },
+    );
+  });
+}
+
+// Строка под заголовком окна: есть хотя бы один готовый сундук — зовём его открыть.
+function updateQuestChestHint() {
+  const hint = document.getElementById("dailyQuestsChestHint");
+  if (hint) hint.hidden = !document.querySelector("#dailyQuestsList .quest-chest.is-ready");
+}
+
+// Тап по готовому сундуку квеста: три тапа с вибрацией, потом награда. Награду (+Adam Coin и очко месяца) сервер выдал ещё при выполнении квеста,
+// сундук её показывает и запоминает «открыт» (db/quests.py::open_quest_chest). «Не сейчас» оставляет сундук ждать. Сцена из админки ничего не пишет.
+let questChestBusy = false;
+async function openQuestChest(key, btn) {
+  if (questChestBusy || !btn) return;
+  const li = btn.closest(".daily-quest");
+  const title = li?.querySelector(".daily-quest__title")?.textContent?.trim() || "";
+  const kind = ["wood", "blue", "gold"].find((name) => btn.classList.contains(`quest-chest--${name}`)) || "wood";
+  const sim = !!simMode;
+  questChestBusy = true;
+  btn.disabled = true;
+  try {
+    const result = await openChestReveal({
+      eyebrow: "ТВОЙ СУНДУК", caption: title, tone: kind,
+      request: sim ? simReply({ reward: { coins: 5, month_points: 1 } }) : () => api(`/api/quests/${encodeURIComponent(key)}/open`, { method: "POST" }),
+      onDone: (res) => {
+        if (sim) {
+          const side = li?.querySelector(".daily-quest__side");
+          if (side) side.innerHTML = questSideHtml({ key, title, chest: kind }, { completed: true, chest_opened: true, chest: kind });
+          updateQuestChestHint();
+        } else {
+          applyActionPatch(res);
+          updateQuestChestHint();
+        }
+      },
+    });
+    if (result === null) btn.disabled = false;
+  } catch (err) {
+    btn.disabled = false;
+    showToast(friendlyError(err), "error");
+  } finally {
+    questChestBusy = false;
+  }
 }
 
 // Тап по невыполненному квесту — к его следующему шагу.
@@ -9338,13 +9420,13 @@ const SIM_FRIEND = { telegram_id: 0, first_name: "Мария", avatar_id: "defau
 const SIM_RESCUE_FRIEND = { telegram_id: 0, first_name: "Мария", avatar_id: "default", frame_id: "default", streak: 0, lost_streak: 12 };
 
 // Демо-данные для сцен «Квесты дня» (названия — те же, что в db/quests.py; тест следит).
-const simQuestHabits = (progress) => ({ key: "two_habits", emoji: "✌️", title: "Выполни 2 привычки", target: 2, progress, reward: 5, completed: progress >= 2, claimed: progress >= 2, just_completed: false });
-const simQuestPlan = (main, secondary) => {
+const simQuestHabits = (progress, opened = false) => ({ key: "two_habits", emoji: "✌️", title: "Выполни 2 привычки", target: 2, progress, reward: 5, completed: progress >= 2, claimed: progress >= 2, just_completed: false, chest: "wood", chest_opened: opened });
+const simQuestPlan = (main, secondary, opened = false) => {
   const parts = [{ label: "Главная задача", done: main }, { label: "Второстепенная", done: secondary }];
   const progress = parts.filter((part) => part.done).length;
-  return { key: "plan_day", emoji: "📝", title: "Заполни план дня", target: 2, progress, reward: 5, completed: progress >= 2, claimed: progress >= 2, just_completed: false, parts };
+  return { key: "plan_day", emoji: "📝", title: "Заполни план дня", target: 2, progress, reward: 5, completed: progress >= 2, claimed: progress >= 2, just_completed: false, parts, chest: "blue", chest_opened: opened };
 };
-const simQuestAdam = (done) => ({ key: "talk_adam", emoji: "💬", title: "Поговори сегодня с Адамом", target: 1, progress: done ? 1 : 0, reward: 5, completed: done, claimed: done, just_completed: false });
+const simQuestAdam = (done, opened = false) => ({ key: "talk_adam", emoji: "💬", title: "Поговори сегодня с Адамом", target: 1, progress: done ? 1 : 0, reward: 5, completed: done, claimed: done, just_completed: false, chest: "gold", chest_opened: opened });
 const simMonth = (points) => ({
   month_key: "2026-10", title: "Задания октября", points, goal: 60, days_left: 9,
   claimable: [15, 30, 45, 60].filter((at) => points >= at).length,
@@ -9368,6 +9450,10 @@ const SIM_SCENES = {
   chest_pair: () => openChestReveal({
     eyebrow: "СУНДУК НА ДВОИХ", caption: "За парное задание",
     request: simReply({ reward: { coins: 60, diamonds: 1, month_points: 3 } }),
+  }),
+  chest_quest: () => openChestReveal({
+    eyebrow: "ТВОЙ СУНДУК", caption: "Заполни план дня", tone: "blue",
+    request: simReply({ reward: { coins: 5, month_points: 1 } }),
   }),
   adam_intro: () => openAdamIntro({ sim: true }),
   adam_intro_result: () => openAdamIntro({ sim: true, jump: true, demo: { focus: "study", struggle: "start", energy: "morning", span: "s25", hours: "h2", talk: "month" } }),
@@ -9402,6 +9488,11 @@ const SIM_SCENES = {
     demo: true, habitsCount: 2, monthBefore: simMonth(29), monthAfter: simMonth(30),
     before: [simQuestHabits(2), simQuestPlan(true, false), simQuestAdam(true)],
     after: [simQuestHabits(2), simQuestPlan(true, true), simQuestAdam(true)],
+  }),
+  quests_chests: () => openQuestsWindow({
+    demo: true, habitsCount: 2, planReady: true, monthBefore: simMonth(29), monthAfter: simMonth(29),
+    before: [simQuestHabits(2), simQuestPlan(true, true), simQuestAdam(true, true)],
+    after: [simQuestHabits(2), simQuestPlan(true, true), simQuestAdam(true, true)],
   }),
   haptic_triple: () => {
     haptic("triple");

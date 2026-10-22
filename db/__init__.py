@@ -125,7 +125,7 @@ from .client_errors import (
     log_client_error, get_recent_client_errors, get_client_error_stats, is_opaque_client_error,
 )
 
-from .quests import get_daily_quests, claim_daily_quest, QUEST_DEFINITIONS
+from .quests import get_daily_quests, claim_daily_quest, open_quest_chest, QUEST_DEFINITIONS
 
 from .leagues import (
     get_league_tier, get_league_progress, LEAGUE_TIERS,
@@ -389,7 +389,7 @@ __all__ = [
     "get_users_by_segment", "SEGMENT_LABELS",
     "get_user_support_card",
     "log_client_error", "get_recent_client_errors", "get_client_error_stats", "is_opaque_client_error",
-    "get_daily_quests", "claim_daily_quest", "QUEST_DEFINITIONS",
+    "get_daily_quests", "claim_daily_quest", "open_quest_chest", "QUEST_DEFINITIONS",
     "get_league_tier", "get_league_progress", "LEAGUE_TIERS",
     "get_rating_league", "get_rating_league_for_viewer", "RATING_LEAGUES", "RATING_LEAGUE_MIN_STREAK",
     "set_public_profile_enabled", "get_public_profile",

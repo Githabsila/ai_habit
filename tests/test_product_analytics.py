@@ -813,3 +813,17 @@ def test_analytics_page_has_the_quests_tab_wired_to_its_endpoint():
     render = js[js.index("async function renderQuests"):][:3200]
     for needle in ("q.any_done_share", "q.go.map", "q.comeback", "q.window", "q.all_three"):
         assert needle in render, needle
+
+
+def test_quests_report_counts_the_opened_chests_per_quest(fresh):
+    people = [make_user() for _ in range(3)]
+    for uid in people:
+        active(uid, 0)
+        finish_quest(uid, 0, "two_habits")
+    conn = connect()
+    conn.execute("UPDATE daily_quests SET chest_opened=1 WHERE user_id IN (?,?) AND quest_key='two_habits'", (people[0], people[1]))
+    conn.commit()
+    conn.close()
+    by_key = {q["key"]: q for q in stats.quests(14)["quests"]}
+    assert by_key["two_habits"]["chests_opened"] == 2 and by_key["two_habits"]["completions"] == 3
+    assert by_key["plan_day"]["chests_opened"] == 0

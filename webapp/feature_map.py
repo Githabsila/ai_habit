@@ -140,7 +140,7 @@ FEATURES = (
         screens=("dailyQuests", "chest"),
         clicks=("dailyQuestsBtn", "monthCardOpen", "daily-quest__*", "chestClose"),
         events=("chest_opened", "quest_done", "quests_window_auto", "quests_window_open", "quests_go"),
-        api=("POST /api/quests/{quest_key}/claim", "POST /api/month-quests/claim", "POST /api/daily-bonus/claim"),
+        api=("POST /api/quests/{quest_key}/claim", "POST /api/quests/{quest_key}/open", "POST /api/month-quests/claim", "POST /api/daily-bonus/claim"),
         note="Три постоянных квеста — две привычки, план дня, разговор с Адамом; награда выдаётся сама, окно показывает заполнение полосок и перелёт балла в месяц",
         bot=("cb:daily", "cb:daily_bonus", "cb:refresh_daily"),
     ),

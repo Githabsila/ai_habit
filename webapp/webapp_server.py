@@ -71,7 +71,7 @@ from db import (
     increment_habit_progress, get_weekly_progress,
     add_habit_note, get_recent_habit_notes,
     MAX_TARGET_COUNT,
-    get_daily_quests, claim_daily_quest,
+    get_daily_quests, claim_daily_quest, open_quest_chest,
     get_league_tier, get_league_progress,
     is_xp_booster_active,
     set_public_profile_enabled, get_public_profile,
@@ -644,6 +644,22 @@ async def claim_quest_route(request):
         "reward": reward,
         "progress": get_progress(telegram_id),
         "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
+        "daily_quests": get_daily_quests(telegram_id),
+        "month_quests": get_month_quests(telegram_id),
+    })
+
+
+@routes.post("/api/quests/{quest_key}/open")
+async def open_quest_chest_route(request):
+    """Сундук квеста дня (три тапа в окне «Квесты дня»): награда уже выдана при выполнении, сундук её показывает и запоминает «открыт»."""
+    telegram_id, _is_admin = await _authenticate(request)
+    result = open_quest_chest(telegram_id, request.match_info["quest_key"])
+    if result is None:
+        return web.json_response({"error": "quest_not_done"}, status=400)
+    return web.json_response({
+        "ok": True,
+        "reward": result["reward"],
+        "first": result["first"],
         "daily_quests": get_daily_quests(telegram_id),
         "month_quests": get_month_quests(telegram_id),
     })

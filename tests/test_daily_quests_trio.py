@@ -362,7 +362,7 @@ def test_the_fill_the_check_and_the_flying_point_are_all_there_and_light():
     play = APP_JS[APP_JS.index("function playQuestsChange("):][:2200]
     assert "fill.style.width" in play and "QUEST_FILL_MS" in play and 'haptic("light")' in play
     done = APP_JS[APP_JS.index("function completeQuestRow("):][:2200]
-    assert 'haptic("success")' in done and "flyQuestPoint(" in done and "daily-quest__done is-pop" in done and "count.classList.add(\"is-bump\")" in done
+    assert 'haptic("success")' in done and "flyQuestPoint(" in done and '"is-ready is-pop"' in done and "inviteQuestChests()" in done and "count.classList.add(\"is-bump\")" in done
     fly = APP_JS[APP_JS.index("function flyQuestPoint("):][:1400]
     assert "fromEl.animate" in fly and "fill: \"forwards\"" in fly and "quest-point" in fly
     assert "infinite" not in fly.lower() and "Infinity" not in fly
@@ -378,13 +378,13 @@ def test_tapping_an_unfinished_quest_leads_to_its_next_step():
 def test_the_simulation_scenes_use_the_same_titles_as_the_server_and_are_registered():
     from db.sim_lab import SCENES
     keys = [row[0] for row in SCENES]
-    for key in ("quests_first", "quests_done", "quests_all", "quests_plan"):
+    for key in ("quests_first", "quests_done", "quests_all", "quests_plan", "quests_chests"):
         assert key in keys, key
     for key, definition in quests_db.QUEST_DEFINITIONS.items():
         assert f'title: "{definition["title"]}"' in APP_JS, key
     block = APP_JS[APP_JS.index("const SIM_SCENES = {"):]
     block = block[:block.index("\n};\n")]
-    assert block.count("openQuestsWindow({") == 4
+    assert block.count("openQuestsWindow({") == 5
     for forbidden in ("api(", "fetch(", "applyActionPatch", "bootstrap", "claim"):
         assert forbidden not in block, forbidden
     assert "closeQuestsOverlay();" in APP_JS[APP_JS.index("function playSimScene()"):][:700]

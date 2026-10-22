@@ -24,9 +24,9 @@ from zoneinfo import ZoneInfo
 from .core import connect
 
 QUEST_DEFINITIONS = {
-    "two_habits": {"emoji": "✌️", "title": "Выполни 2 привычки", "target": 2, "reward": 5},
-    "plan_day": {"emoji": "📝", "title": "Заполни план дня", "target": 2, "reward": 5},
-    "talk_adam": {"emoji": "💬", "title": "Поговори сегодня с Адамом", "target": 1, "reward": 5},
+    "two_habits": {"emoji": "✌️", "title": "Выполни 2 привычки", "target": 2, "reward": 5, "chest": "wood"},
+    "plan_day": {"emoji": "📝", "title": "Заполни план дня", "target": 2, "reward": 5, "chest": "blue"},
+    "talk_adam": {"emoji": "💬", "title": "Поговори сегодня с Адамом", "target": 1, "reward": 5, "chest": "gold"},
 }
 QUEST_KEYS = list(QUEST_DEFINITIONS.keys())
 QUESTS_PER_DAY = len(QUEST_KEYS)
@@ -108,12 +108,13 @@ def get_daily_quests(user_id):
     try:
         habits = conn.execute("SELECT completed FROM habits WHERE user_id=?", (user_id,)).fetchall()
         rows = conn.execute(
-            f"SELECT quest_key, day, ref FROM daily_quests WHERE user_id=? AND claimed=1 AND quest_key IN ({','.join('?' for _ in QUEST_KEYS)})",
+            f"SELECT quest_key, day, ref, chest_opened FROM daily_quests WHERE user_id=? AND claimed=1 AND quest_key IN ({','.join('?' for _ in QUEST_KEYS)})",
             (user_id, *QUEST_KEYS),
         ).fetchall()
     finally:
         conn.close()
     claimed_today = {r["quest_key"] for r in rows if r["day"] == day}
+    chest_opened_today = {r["quest_key"] for r in rows if r["day"] == day and r["chest_opened"]}
     # План, на который квест уже засчитан в другой день, повторно не считается: между местной полуночью и сменой дня плана (db/daily_plan.py)
     # на Главной ещё вчерашний план — «заполнен» он не за сегодня.
     used_plan_refs = {r["ref"] for r in rows if r["quest_key"] == "plan_day" and r["day"] != day and r["ref"]}
@@ -152,11 +153,44 @@ def get_daily_quests(user_id):
             "completed": claimed or progress >= target,
             "claimed": claimed,
             "just_completed": just_completed,
+            "chest": definition["chest"],
+            "chest_opened": claimed and key in chest_opened_today,
         }
         if parts is not None:
             item["parts"] = parts
         result.append(item)
     return result
+
+
+def open_quest_chest(user_id, quest_key):
+    """Сундук квеста: человек трижды тапнул по нему в окне. Награда (+reward Adam Coin и +1 очко месяца) выдана уже в момент выполнения — так
+    выполненный квест ничего не теряет, даже если приложение закрыли, — поэтому сундук её только показывает и запоминает, что он открыт.
+    Возвращает {"reward": {...}, "first": bool} или None, если квест сегодня не выполнен. Повторное открытие безвредно: ничего не начисляется."""
+    from .streak import local_today
+
+    definition = QUEST_DEFINITIONS.get(quest_key)
+    if definition is None:
+        return None
+    quest = next((q for q in get_daily_quests(user_id) if q["key"] == quest_key), None)
+    if not quest or not quest["completed"]:
+        return None
+    conn = connect()
+    try:
+        cursor = conn.execute(
+            "UPDATE daily_quests SET chest_opened=1 WHERE user_id=? AND day=? AND quest_key=? AND claimed=1 AND COALESCE(chest_opened,0)=0",
+            (user_id, str(local_today(user_id)), quest_key),
+        )
+        first = cursor.rowcount == 1
+        conn.commit()
+    finally:
+        conn.close()
+    if first:
+        try:
+            from .tracking import track_server
+            track_server(user_id, "chest_opened", step=f"quest_{quest_key}", meta={"coins": definition["reward"]})
+        except Exception:
+            pass
+    return {"reward": {"coins": definition["reward"], "month_points": 1}, "first": first}
 
 
 def claim_daily_quest(user_id, quest_key):

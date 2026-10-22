@@ -57,7 +57,7 @@ def test_scenes_never_talk_to_the_server():
 
 def test_chest_scenes_use_the_real_window_with_each_kind_of_reward():
     block = _scenes_block()
-    assert block.count("openChestReveal({") == 3
+    assert block.count("openChestReveal({") == 4, "месяц, главный, на двоих и сундук квеста дня"
     assert "final: true" in block and 'badge: "' in block, "главный сундук — фиолетовый, со значком"
     assert "month_points: 3" in block, "у сундука на двоих — очки месяца"
 

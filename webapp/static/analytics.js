@@ -568,7 +568,7 @@
     const colors = ["var(--s1)", "var(--s2)", "var(--s3)"];
     const names = ["Выполни 2 привычки", "Заполни план дня", "Поговори с Адамом"];
     const tiles = `<div class="grid g4" style="margin-bottom:14px">${tile("Закрыли хоть один", block(q.any_done_share), q.active_users ? num(q.any_done_users) + " из " + num(q.active_users) + " активных" : "ещё нет людей")}` +
-      q.quests.map((x) => tile(x.emoji + " " + x.title, block(x.share), num(x.users) + " чел. · " + num(x.completions) + " раз")).join("") + "</div>";
+      q.quests.map((x) => tile(x.emoji + " " + x.title, block(x.share), num(x.users) + " чел. · " + num(x.completions) + " раз · сундуков открыто " + num(x.chests_opened))).join("") + "</div>";
     const chart = vizCard("Сколько людей закрывали каждый квест по дням", "Три квеста дня: люди, у которых квест выполнен",
       lineChart(q.series.map((p) => dayShort(p.day)), q.quests.map((x, i) => ({ name: names[i], color: colors[i], values: q.series.map((p) => p[x.key]) })), { label: "Выполненные квесты по дням" }),
       simpleTable(["День"].concat(names), q.series.map((p) => [dayShort(p.day)].concat(q.quests.map((x) => p[x.key])))));
