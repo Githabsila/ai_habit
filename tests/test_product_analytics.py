@@ -547,7 +547,7 @@ def test_the_digest_carries_the_numbers_the_model_needs(fresh):
 # ---------------------------------------------------------------------------------------------------------------- доступ и страница
 
 ENDPOINTS = ("overview", "retention", "funnel", "features", "screens", "buttons", "versions", "health", "rhythm", "engagement", "quality", "signals",
-             "sources", "ai", "analyst")
+             "sources", "ai", "analyst", "quests")
 
 
 async def test_every_analytics_endpoint_is_admin_only_and_works(fresh, client, monkeypatch):
@@ -696,3 +696,120 @@ def test_the_daily_digest_gets_only_serious_signals(fresh):
     usage.flush()
     block = sched.build_analytics_block()
     assert "Аналитика заметила" in block and "Много ошибок сервера" in block and "/analytics" in block
+
+
+# ---------------------------------------------------------------------------------------------------------------- квесты дня
+
+def finish_quest(uid, offset, key):
+    conn = connect()
+    conn.execute("INSERT OR IGNORE INTO daily_quests(user_id, day, quest_key, title, target, progress, reward_coins, claimed) VALUES (?,?,?,?,?,?,?,1)",
+                 (uid, day(offset), key, key, 1, 1, 5))
+    conn.commit()
+    conn.close()
+
+
+def event(uid, offset, name, step=None):
+    conn = connect()
+    conn.execute("INSERT INTO user_events(user_id, at, name, step, surface) VALUES (?,?,?,?,?)", (uid, f"{day(offset)} 11:00:00", name, step, "app"))
+    conn.commit()
+    conn.close()
+
+
+def test_quests_report_counts_people_per_quest_and_extra_awards_do_not_inflate_it(fresh):
+    people = [make_user() for _ in range(10)]
+    for uid in people:
+        active(uid, 0)
+    for uid in people[:6]:
+        finish_quest(uid, 0, "two_habits")
+    for uid in people[:3]:
+        finish_quest(uid, 0, "plan_day")
+    for uid in people[:2]:
+        finish_quest(uid, 0, "talk_adam")
+    finish_quest(people[0], 0, "two_habits")                    # повторная запись той же пары — ничего не меняет
+    report = stats.quests(14)
+    by_key = {q["key"]: q for q in report["quests"]}
+    assert (by_key["two_habits"]["users"], by_key["plan_day"]["users"], by_key["talk_adam"]["users"]) == (6, 3, 2)
+    assert by_key["two_habits"]["share"] == {"pct": 60.0, "n": 6, "of": 10}
+    assert report["any_done_users"] == 6 and report["active_users"] == 10
+    assert report["all_three"] == {"user_days": 2, "users": 2}  # первые двое закрыли все три за день
+    assert report["series"][-1]["two_habits"] == 6 and report["series"][-1]["talk_adam"] == 2
+
+
+def test_quests_report_hides_percent_on_a_tiny_sample_and_ignores_old_quest_keys_and_staff(fresh, monkeypatch):
+    person, staff = make_user(), make_user()
+    active(person, 0)
+    active(staff, 0)
+    monkeypatch.setattr(tracking, "_admin_ids", lambda: [staff])
+    finish_quest(person, 0, "two_habits")
+    finish_quest(person, 0, "before_noon")                      # квест прошлой схемы — в отчёт не попадает
+    finish_quest(staff, 0, "two_habits")
+    report = stats.quests(14)
+    by_key = {q["key"]: q for q in report["quests"]}
+    assert by_key["two_habits"]["users"] == 1 and by_key["two_habits"]["share"]["pct"] is None   # людей мало — процента нет
+    assert report["any_done_users"] == 1 and report["active_users"] == 1
+
+
+def test_quests_report_follows_the_window_to_the_planner_and_adam(fresh):
+    people = [make_user() for _ in range(3)]
+    for uid in people:
+        active(uid, 0)
+    event(people[0], 0, "quests_window_auto")
+    event(people[1], 0, "quests_window_auto")
+    event(people[1], 0, "quests_window_open")
+    event(people[2], 0, "quests_window_open")
+    event(people[0], 0, "quests_go", "plan_day")
+    event(people[0], 0, "quests_go", "plan_day")
+    event(people[1], 0, "quests_go", "talk_adam")
+    event(people[2], 0, "quests_go", "unknown")                 # чужой шаг не ломает отчёт
+    finish_quest(people[0], 0, "plan_day")                      # перешёл к плану и закрыл его в тот же день
+    window = stats.quests(14)
+    assert (window["window"]["auto_users"], window["window"]["open_users"], window["window"]["users"]) == (2, 2, 3)
+    go = {g["key"]: g for g in window["go"]}
+    assert (go["plan_day"]["users"], go["plan_day"]["clicks"], go["plan_day"]["done_same_day"]) == (1, 2, 1)
+    assert (go["talk_adam"]["users"], go["talk_adam"]["done_same_day"]) == (1, 0)
+    assert window["went_users"] == 2
+
+
+def test_quests_report_compares_next_day_return_with_people_who_skipped_quests(fresh):
+    finishers = [make_user() for _ in range(8)]
+    skippers = [make_user() for _ in range(8)]
+    for uid in finishers:
+        active(uid, 4)                                           # день квеста — 4 дня назад
+        finish_quest(uid, 4, "two_habits")
+    for uid in skippers:
+        active(uid, 4)
+    for uid in finishers[:6]:
+        active(uid, 3)                                           # вернулись на следующий день
+    for uid in skippers[:2]:
+        active(uid, 3)
+    for uid in finishers[:7]:
+        active(uid, 2)                                           # и в ближайшие три дня
+    report = stats.quests(14)["comeback"]
+    assert report["done"]["d1"] == {"pct": 75.0, "n": 6, "of": 8}
+    # «Не закрыли» — любой день человека без квеста, а не только пропустившие: сюда же попадают дни, когда вернувшиеся заходили без квеста
+    # (8 пропустивших в день 4 + 2 их возврата + 6 и 7 дней возврата закрывших). Из них на следующий день вернулись 2 + 6.
+    assert report["not_done"]["d1"] == {"pct": 34.8, "n": 8, "of": 23}
+    assert report["done"]["d3"]["n"] == 7
+    assert report["done"]["d1"]["pct"] > report["not_done"]["d1"]["pct"]
+
+
+def test_quests_report_does_not_count_return_that_has_not_happened_yet(fresh):
+    people = [make_user() for _ in range(9)]
+    for uid in people:
+        active(uid, 0)                                           # сегодня: «вернуться на следующий день» ещё рано судить
+        finish_quest(uid, 0, "two_habits")
+    report = stats.quests(14)["comeback"]
+    assert report["done"]["d1"] == {"pct": None, "n": 0, "of": 0}
+    assert report["done"]["d3"]["of"] == 0
+
+
+def test_analytics_page_has_the_quests_tab_wired_to_its_endpoint():
+    from pathlib import Path
+    js = (Path(__file__).resolve().parent.parent / "webapp" / "static" / "analytics.js").read_text(encoding="utf-8")
+    assert '["quests", "Квесты дня"]' in js and "quests: renderQuests" in js
+    assert '"/api/analytics/quests?days="' in js.replace("'", '"') or "/api/analytics/quests?days=" in js
+    day_tabs = js[js.index("const DAYS_TABS"):][:160]
+    assert '"quests"' in day_tabs, "у вкладки должен работать выбор периода"
+    render = js[js.index("async function renderQuests"):][:3200]
+    for needle in ("q.any_done_share", "q.go.map", "q.comeback", "q.window", "q.all_three"):
+        assert needle in render, needle

@@ -95,6 +95,7 @@ routes.get("/api/analytics/health")(_simple("health", stats.health, days=7))
 routes.get("/api/analytics/rhythm")(_simple("rhythm", stats.rhythm, days=30))
 routes.get("/api/analytics/engagement")(_simple("engagement", stats.engagement, days=14))
 routes.get("/api/analytics/ai")(_simple("ai", ai_usage_db.overview, days=14))
+routes.get("/api/analytics/quests")(_simple("quests", stats.quests, days=14))
 
 
 @routes.get("/api/analytics/buttons")

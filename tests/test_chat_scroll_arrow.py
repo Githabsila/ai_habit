@@ -61,4 +61,4 @@ def test_the_last_style_rule_takes_the_height_from_the_variable():
     assert COACH_HTML.rindex("--scroll-down-bottom") > COACH_HTML.rindex("bottom:60px!important"), "переопределение идёт после старых правил с !important"
     for old in re.findall(r"\.scroll-down-btn\{[^}]*bottom:\s*(\d+)px\s*!important", COACH_HTML):
         assert old.isdigit()                                     # старые значения остаются запасными, новая переменная идёт после них
-    assert "ai_coach.js?v=20261021_COMPOSE_V57" in COACH_HTML
+    assert "ai_coach.js?v=20261021_COMPOSE_V58" in COACH_HTML

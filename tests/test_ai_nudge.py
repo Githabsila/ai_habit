@@ -227,7 +227,27 @@ def test_ai_tab_glows_and_shows_the_dot_only_when_lit():
 def test_chat_asks_the_server_for_adams_first_question_unless_an_intro_flow_is_running():
     assert "/api/ai/greet" in COACH_JS
     greet = COACH_JS[COACH_JS.index("const greetFromAdam"):][:700]
-    assert "startParams.get('intro')" in greet and "nudge') === 'demo'" in greet
+    assert "startParams.get('intro')" in greet and "nudgeParam === 'demo'" in greet
     # параметры читаются ДО maybeSendOnboardingIntro, который чистит URL
     assert COACH_JS.index("const startParams") < COACH_JS.index("const maybeSendOnboardingIntro")
     assert "ADAM печатает" in COACH_JS and "canRate: false" in COACH_JS
+
+
+def test_typing_indicator_shows_at_once_when_opened_from_the_reminder():
+    """14.2: после «Ответить Адаму» «ADAM печатает» горит с первого кадра, а не после ответа сервера (раньше ~2 с пустоты)."""
+    # приложение: вход из подсказки/значка идёт со ?nudge=1, демо — по-прежнему ?nudge=demo
+    url = APP_JS[APP_JS.index("function adamCoachUrl("):][:560]
+    assert "'/coach?nudge=demo'" in url and "'/coach?nudge=1'" in url
+    assert "nudge?.pending && nudge?.has_chatted" in url, "без подсказки — только когда сервер и правда поздоровается"
+    assert APP_JS[APP_JS.index("function goToAdamChat("):][:420].count("adamCoachUrl(true)") == 1
+    assert "adamCoachUrl()" in APP_JS[APP_JS.index('getElementById("aiCoachBtn").addEventListener'):][:520]
+    # чат: индикатор включён уже в начальном состоянии, не после await fetch
+    init = COACH_JS[COACH_JS.index("const [greeting, setGreeting]"):][:260]
+    assert "useState(() =>" in init and "get('nudge')" in init and "!q.get('intro')" in init
+    greet = COACH_JS[COACH_JS.index("const greetFromAdam"):][:1700]
+    assert "setGreeting(false);" in greet[:greet.index("setGreeting(true)")], "нет вопроса — индикатор гасим, а не держим"
+    assert "Math.max(0, 1100 - shownFor)" in greet, "минимум 1.1 с «печатает», отсчёт от открытия чата"
+    assert "if (nudgeParam)" in greet and "history.replaceState" in greet, "?nudge= чистим, чтобы перезагрузка не зажигала индикатор"
+    # страховка: завис запрос — «печатает» не горит вечно
+    guard = COACH_JS[COACH_JS.index("Страховка: если запрос приветствия завис"):][:260]
+    assert "setGreeting(false)" in guard and "20000" in guard

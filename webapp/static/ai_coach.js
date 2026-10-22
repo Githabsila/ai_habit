@@ -385,7 +385,16 @@ function AiChat() {
     const [composerFocused, setComposerFocused] = useState(false);   // человек пишет: стрелка не нужна
     const inputAreaRef = useRef(null);
     // Адам «печатает» своё первое сообщение дня (см. greetFromAdam ниже).
-    const [greeting, setGreeting] = useState(false);
+    // Пришли по «Ответить Адаму» (?nudge=1|demo): «ADAM печатает» горит с первого кадра, а не после ответа /api/ai/greet —
+    // сервер составляет вопрос пару секунд, и без этого казалось, что ничего не происходит. Нет вопроса — гасим (greetFromAdam).
+    const [greeting, setGreeting] = useState(() => { const q = new URLSearchParams(location.search); return !!q.get('nudge') && !q.get('intro'); });
+    // Страховка: если запрос приветствия завис, «печатает» не должно гореть вечно.
+    useEffect(() => {
+        if (!greeting)
+            return;
+        const t = setTimeout(() => setGreeting(false), 20000);
+        return () => clearTimeout(t);
+    }, [greeting]);
     const messagesEnd = useRef(null);
     const messagesContainerRef = useRef(null);
     const scrollRafRef = useRef(0);
@@ -729,19 +738,25 @@ function AiChat() {
             const greetFromAdam = async () => {
                 if (startParams.get('intro'))
                     return;
-                const demo = startParams.get('nudge') === 'demo';
+                const nudgeParam = startParams.get('nudge');
+                const demo = nudgeParam === 'demo';
+                const openedAt = Date.now();
                 try {
                     const res = await fetch('/api/ai/greet', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ init_data: getInitData(), demo })
                     });
-                    if (!res.ok)
+                    const g = res.ok ? (await res.json()).greeting : null;
+                    if (!g || !g.message) {
+                        setGreeting(false);                          // вопроса сегодня не будет — не держим «печатает» зря
+                        if (nudgeParam)
+                            history.replaceState(null, '', location.pathname);
                         return;
-                    const g = (await res.json()).greeting;
-                    if (!g || !g.message)
-                        return;
+                    }
                     setGreeting(true);
-                    await new Promise(resolve => setTimeout(resolve, 1100));
+                    // Минимум 1.1 с «печатает»: по «Ответить» отсчёт идёт от открытия чата, при обычном входе — от ответа сервера.
+                    const shownFor = Date.now() - (nudgeParam ? openedAt : Date.now());
+                    await new Promise(resolve => setTimeout(resolve, Math.max(0, 1100 - shownFor)));
                     setGreeting(false);
                     setMessages(p => p.some(m => String(m.id) === String(g.id)) ? p : [...p, {
                         id: g.id, role: 'assistant', text: fixBrokenText(g.message),
@@ -750,7 +765,7 @@ function AiChat() {
                     vibrate('light');
                 }
                 catch (e) { setGreeting(false); }
-                if (demo)
+                if (nudgeParam)
                     history.replaceState(null, '', location.pathname);
             };
             const afterHistory = (hasHistory) => {

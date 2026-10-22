@@ -587,6 +587,119 @@ def engagement(days=14):
             "week_one": {"eligible": eligible, "active_at_least_once": len(depth), "rows": depth_rows}}
 
 
+# ---------------------------------------------------------------------------------------------------------------- квесты дня
+
+QUEST_GO_LABELS = {"two_habits": "К привычкам", "plan_day": "К плану дня", "talk_adam": "К чату с Адамом"}
+
+
+def quests(days=14):
+    """«Квесты дня» (db/quests.py): сколько людей закрыло каждый из трёх, куда уходят из окна, возвращаются ли на следующий день.
+
+    Выполненный квест = строка в daily_quests (награда выдаётся сама в момент выполнения), поэтому «выполнили» считаем по ней, а не по событиям.
+    День квеста — местный день человека, день активности и событий — по UTC: на границе суток цифры могут разойтись на день, это оговорено в notes.
+    """
+    from .quests import QUEST_DEFINITIONS, QUEST_KEYS
+
+    days = _clamp(days, 1, 90, 14)
+    today = _today()
+    start = (today - timedelta(days=days - 1)).isoformat()
+    real = real_where()
+    marks = ",".join("?" for _ in QUEST_KEYS)
+    conn = connect()
+    try:
+        done_rows = conn.execute(
+            f"SELECT q.user_id, q.day, q.quest_key FROM daily_quests q JOIN users u ON u.telegram_id=q.user_id "
+            f"WHERE {real} AND q.day>=? AND q.quest_key IN ({marks})", (start, *QUEST_KEYS)).fetchall()
+        event_rows = conn.execute(
+            f"SELECT e.user_id, e.name, e.step, date(e.at) FROM user_events e JOIN users u ON u.telegram_id=e.user_id "
+            f"WHERE {real} AND date(e.at)>=? AND e.name IN ('quests_window_auto','quests_window_open','quests_go')", (start,)).fetchall()
+        active_rows = conn.execute(
+            f"SELECT a.user_id, a.day FROM daily_active a JOIN users u ON u.telegram_id=a.user_id WHERE {real} AND a.day>=?", (start,)).fetchall()
+        # активность на день дальше окна нужна только для «вернулся на следующий день» — берём с запасом в 3 дня
+        later_rows = conn.execute(
+            f"SELECT a.user_id, a.day FROM daily_active a JOIN users u ON u.telegram_id=a.user_id WHERE {real} AND a.day>=?",
+            ((today - timedelta(days=days + 3)).isoformat(),)).fetchall()
+    finally:
+        conn.close()
+
+    active_days = defaultdict(set)
+    for uid, day in later_rows:
+        active_days[uid].add(day)
+    active_users = {uid for uid, _day in active_rows}
+
+    done_by_day = defaultdict(lambda: defaultdict(set))      # day -> quest -> {user}
+    done_per_user_day = defaultdict(set)                     # (user, day) -> {quest}
+    for uid, day, key in done_rows:
+        done_by_day[day][key].add(uid)
+        done_per_user_day[(uid, day)].add(key)
+
+    per_quest = []
+    for key in QUEST_KEYS:
+        users = {uid for (uid, _day), keys in done_per_user_day.items() if key in keys}
+        count = sum(1 for keys in done_per_user_day.values() if key in keys)
+        per_quest.append({"key": key, "title": QUEST_DEFINITIONS[key]["title"], "emoji": QUEST_DEFINITIONS[key]["emoji"], "users": len(users),
+                          "completions": count, "share": _enough(len(users), len(active_users))})
+    any_users = {uid for (uid, _day) in done_per_user_day}
+    all_three = [(uid, day) for (uid, day), keys in done_per_user_day.items() if len(keys) == len(QUEST_KEYS)]
+
+    series = []
+    for offset in range(days):
+        day = (today - timedelta(days=days - 1 - offset)).isoformat()
+        row = {"day": day}
+        for key in QUEST_KEYS:
+            row[key] = len(done_by_day[day][key]) if day in done_by_day else 0
+        series.append(row)
+
+    window = {"auto": {"users": set(), "count": 0}, "open": {"users": set(), "count": 0}}
+    go = {key: {"users": set(), "count": 0, "done_same_day": set()} for key in QUEST_KEYS}
+    for uid, name, step, day in event_rows:
+        if name == "quests_go" and step in go:
+            go[step]["users"].add(uid)
+            go[step]["count"] += 1
+            if step in done_per_user_day.get((uid, day), ()):
+                go[step]["done_same_day"].add(uid)
+        elif name in ("quests_window_auto", "quests_window_open"):
+            slot = window["auto" if name == "quests_window_auto" else "open"]
+            slot["users"].add(uid)
+            slot["count"] += 1
+    window_users = window["auto"]["users"] | window["open"]["users"]
+    went = {uid for key in QUEST_KEYS for uid in go[key]["users"]}
+
+    # Вернулся ли человек на следующий день (и в ближайшие три): у тех, кто закрыл хотя бы один квест, и у тех, кто был активен, но не закрыл ни одного.
+    def came_back(uid, day, horizon):
+        base = _parse_day(day)
+        return any((base + timedelta(days=n)).isoformat() in active_days[uid] for n in range(1, horizon + 1)) if base else False
+
+    def returned(pairs, horizon):
+        # день возврата должен уже закончиться (по UTC), иначе вчерашние «не вернулись» — просто ещё не успели
+        eligible = [(uid, day) for uid, day in pairs if _parse_day(day) and _parse_day(day) + timedelta(days=horizon) < today]
+        return _enough(sum(1 for uid, day in eligible if came_back(uid, day, horizon)), len(eligible))
+
+    done_pairs = list(done_per_user_day.keys())
+    quiet_pairs = [(uid, day) for uid, day in set(active_rows) if (uid, day) not in done_per_user_day]
+    comeback = {"done": {"d1": returned(done_pairs, 1), "d3": returned(done_pairs, 3)},
+                "not_done": {"d1": returned(quiet_pairs, 1), "d3": returned(quiet_pairs, 3)}}
+
+    return {
+        "days": days, "active_users": len(active_users), "any_done_users": len(any_users),
+        "any_done_share": _enough(len(any_users), len(active_users)),
+        "all_three": {"user_days": len(all_three), "users": len({uid for uid, _day in all_three})},
+        "quests": per_quest, "series": series,
+        "window": {"auto_users": len(window["auto"]["users"]), "auto_count": window["auto"]["count"],
+                   "open_users": len(window["open"]["users"]), "open_count": window["open"]["count"], "users": len(window_users)},
+        "go": [{"key": key, "label": QUEST_GO_LABELS[key], "users": len(go[key]["users"]), "clicks": go[key]["count"],
+                "done_same_day": len(go[key]["done_same_day"]), "share_of_window": _enough(len(go[key]["users"] & window_users), len(window_users))}
+               for key in QUEST_KEYS],
+        "went_users": len(went),
+        "comeback": comeback,
+        "notes": [
+            "«Выполнили» — по записям квестов: награда выдаётся сама в момент выполнения. Доля — от людей, заходивших за период.",
+            "«Вернулись» — был активен на следующий день (или в ближайшие три). Это не доказывает, что причина в квестах: кто закрывает квесты, и так заходит чаще.",
+            "День квеста — местный день человека, активность и нажатия — по UTC: на границе суток цифры могут разойтись на день.",
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------------------------------------------- достоверность
 
 def quality():

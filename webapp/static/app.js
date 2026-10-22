@@ -3333,8 +3333,16 @@
     haptic('light');
     const overlay = document.getElementById('loadingOverlay');
     if (overlay) overlay.hidden = false;
-    const url = adamNudgeDemoLit ? '/coach?nudge=demo' : '/coach';
-    setTimeout(() => { window.location.href = url; }, 60);
+    setTimeout(() => { window.location.href = adamCoachUrl(true); }, 60);
+  }
+
+  // Куда ведёт вход в чат. ?nudge=1 — Адам встретит первым вопросом: чат сразу показывает «ADAM печатает»,
+  // не дожидаясь ответа сервера (иначе пару секунд казалось, что ничего не происходит). Сервер решает так же,
+  // как здесь: сегодня человек не писал, Адам не здоровался и они уже общались (db/ai_nudge.py).
+  function adamCoachUrl(fromNudgeHint = false) {
+    if (adamNudgeDemoLit) return '/coach?nudge=demo';
+    const nudge = state?.ai_nudge;
+    return (fromNudgeHint || (nudge?.pending && nudge?.has_chatted)) ? '/coach?nudge=1' : '/coach';
   }
 
   // demo — «Показать напоминание» в Настройках: показывается всегда и ничего не отмечает
@@ -11832,7 +11840,7 @@ document.getElementById("aiCoachBtn").addEventListener("click", () => {
     const overlay = document.getElementById("loadingOverlay");
     if (overlay) overlay.hidden = false;
     // небольшая пауза, чтобы браузер успел отрисовать монетку до ухода со страницы
-    setTimeout(() => { window.location.href = adamNudgeDemoLit ? "/coach?nudge=demo" : "/coach"; }, 60);
+    setTimeout(() => { window.location.href = adamCoachUrl(); }, 60);
 });
 
 // «Показать напоминание» в Настройках — как выглядит подсказка и первый вопрос Адама.

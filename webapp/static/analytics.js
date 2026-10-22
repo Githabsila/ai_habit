@@ -20,12 +20,12 @@
   const toastEl = document.getElementById("toast");
 
   const TABS = [
-    ["overview", "Обзор"], ["retention", "Удержание"], ["funnel", "Воронка"], ["features", "Функции"], ["screens", "Экраны и кнопки"],
+    ["overview", "Обзор"], ["retention", "Удержание"], ["funnel", "Воронка"], ["features", "Функции"], ["quests", "Квесты дня"], ["screens", "Экраны и кнопки"],
     ["versions", "Версии"], ["health", "Здоровье"], ["rhythm", "Ритм"], ["channels", "Каналы"], ["analyst", "ИИ-аналитик"], ["quality", "Достоверность"],
   ];
   const DAYS = [7, 14, 30, 60, 90];
   const SOURCE_TABS = ["overview", "retention", "funnel"];
-  const DAYS_TABS = ["overview", "retention", "funnel", "features", "screens", "health", "rhythm", "channels", "analyst"];
+  const DAYS_TABS = ["overview", "retention", "funnel", "features", "quests", "screens", "health", "rhythm", "channels", "analyst"];
 
   const store = {
     get(key, fallback) { try { const v = localStorage.getItem("an_" + key); return v == null ? fallback : v; } catch (e) { return fallback; } },
@@ -562,6 +562,28 @@
       `<div class="scroll-x"><table class="tbl"><thead><tr><th>Версия</th><th>Сессий</th><th>Людей</th><th>Актив. в среднем</th><th>Действий</th><th>&lt;10 с</th><th>Новичков</th><th>День 2</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }
 
+  // ---------------------------------------------------------------------------------------------------------------- квесты дня
+  async function renderQuests() {
+    const q = await get("/api/analytics/quests?days=" + S.days);
+    const colors = ["var(--s1)", "var(--s2)", "var(--s3)"];
+    const names = ["Выполни 2 привычки", "Заполни план дня", "Поговори с Адамом"];
+    const tiles = `<div class="grid g4" style="margin-bottom:14px">${tile("Закрыли хоть один", block(q.any_done_share), q.active_users ? num(q.any_done_users) + " из " + num(q.active_users) + " активных" : "ещё нет людей")}` +
+      q.quests.map((x) => tile(x.emoji + " " + x.title, block(x.share), num(x.users) + " чел. · " + num(x.completions) + " раз")).join("") + "</div>";
+    const chart = vizCard("Сколько людей закрывали каждый квест по дням", "Три квеста дня: люди, у которых квест выполнен",
+      lineChart(q.series.map((p) => dayShort(p.day)), q.quests.map((x, i) => ({ name: names[i], color: colors[i], values: q.series.map((p) => p[x.key]) })), { label: "Выполненные квесты по дням" }),
+      simpleTable(["День"].concat(names), q.series.map((p) => [dayShort(p.day)].concat(q.quests.map((x) => p[x.key])))));
+    const w = q.window;
+    const flow = `<div class="card"><div class="card-head"><div class="grow"><div class="card-title">Окно квестов и переходы</div><div class="card-sub">Кто увидел окно и куда пошёл дальше. Все три квеста за день закрывали: ${num(q.all_three.users)} чел. (${num(q.all_three.user_days)} раз)</div></div></div>` +
+      `<div class="grid g4" style="margin-bottom:10px">${tile("Окно открылось само", num(w.auto_users), num(w.auto_count) + " раз")}${tile("Открыли кнопкой", num(w.open_users), num(w.open_count) + " раз")}${tile("Перешли к шагу", num(q.went_users), "из окна — к привычкам, плану, Адаму")}</div>` +
+      `<div class="scroll-x"><table class="tbl"><thead><tr><th>Куда</th><th>Людей</th><th>Нажатий</th><th>Доля от видевших окно</th><th>Выполнили в тот же день</th></tr></thead><tbody>` +
+      q.go.map((g) => `<tr><td>${esc(g.label)}</td><td>${num(g.users)}</td><td>${num(g.clicks)}</td><td>${block(g.share_of_window)}</td><td>${num(g.done_same_day)}</td></tr>`).join("") + "</tbody></table></div></div>";
+    const c = q.comeback;
+    const row = (label, b) => `<tr><td>${esc(label)}</td><td>${block(b.d1)}<div class="muted" style="font-size:10.5px">${blockFoot(b.d1)}</div></td><td>${block(b.d3)}<div class="muted" style="font-size:10.5px">${blockFoot(b.d3)}</div></td></tr>`;
+    const back = `<div class="card"><div class="card-head"><div class="grow"><div class="card-title">Возвращаются ли на следующий день</div><div class="card-sub">Сравнение людей, закрывших хотя бы один квест, с теми, кто заходил, но не закрыл ни одного</div></div></div>` +
+      `<div class="scroll-x"><table class="tbl"><thead><tr><th>В тот день</th><th>Вернулись на следующий день</th><th>Вернулись в течение 3 дней</th></tr></thead><tbody>${row("Закрыли квест", c.done)}${row("Не закрыли ни одного", c.not_done)}</tbody></table></div></div>`;
+    return tiles + chart + flow + back + `<div class="card"><div class="card-title" style="margin-bottom:8px">Как читать</div>${q.notes.map((n) => `<div class="note">• ${esc(n)}</div>`).join("")}</div>`;
+  }
+
   // ---------------------------------------------------------------------------------------------------------------- здоровье
   async function renderHealth() {
     const h = await get("/api/analytics/health?days=" + S.days);
@@ -677,7 +699,7 @@
   }
 
   const RENDER = {
-    overview: renderOverview, retention: renderRetention, funnel: renderFunnel, features: renderFeatures, screens: renderScreens,
+    overview: renderOverview, retention: renderRetention, funnel: renderFunnel, features: renderFeatures, quests: renderQuests, screens: renderScreens,
     versions: renderVersions, health: renderHealth, rhythm: renderRhythm, channels: renderChannels, analyst: renderAnalyst, quality: renderQuality,
   };
 
