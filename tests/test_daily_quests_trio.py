@@ -372,7 +372,107 @@ def test_tapping_an_unfinished_quest_leads_to_its_next_step():
     row = APP_JS[APP_JS.index("function questRowHtml("):][:1500]
     assert 'data-go="${q.key}" role="button" tabindex="0"' in row, "у выполненного квеста перехода нет"
     go = APP_JS[APP_JS.index("function goToQuestStep("):][:1300]
-    assert '"aiCoachBtn"' in go and '"mainGoalInput"' in go and 'addHabitCollapse' in go and 'trk("quests_go", key)' in go
+    assert '"aiCoachBtn"' in go and "guideToPlanStep()" in go and 'addHabitCollapse' in go and 'trk("quests_go", key)' in go
+    plan = APP_JS[APP_JS.index("function guideToPlanStep("):][:2300]
+    assert '"mainGoalInput"' in plan and '"addPlanTaskTrigger"' in plan and '"planList"' in plan
+
+
+def test_the_plan_quest_leads_to_the_missing_part_and_lights_the_add_task_button():
+    """23.10, видео владельца: главная записана, второстепенной нет — второй тап по сундуку квеста вёл «на Главную» и никуда не прокручивал
+    (поле главной после сохранения скрыто). Теперь: нет главной → к её полю; нет второстепенной → к «Добавить задачу» с мягкой подсветкой."""
+    plan = APP_JS[APP_JS.index("function planQuestStep("):][:3000]
+    assert 'return (plan?.tasks || []).length ? "list" : "task"' in plan
+    assert 'trigger.classList.add("is-hinted")' in plan and "PLAN_HINT_MS" in plan and "clearTimeout(planHintTimer)" in plan
+    assert "api(" not in plan and "fetch(" not in plan, "подсказка ничего не сохраняет"
+    start, end = CSS.index("Подсказка «Добавить задачу» (app.js::guideToPlanStep)"), CSS.index("/* ===== Парное задание: окно «Как это работает»")
+    assert CSS.index("Окно «Сундук» (открытие сундука месяца") < start < end, "блок до «Как это работает»: в хвосте файла тесты запрещают анимации"
+    css = CSS[start:end]
+    assert ".add-collapse__trigger.is-hinted::after{" in css and "animation:planTaskHint 1.1s ease-out 2}" in css, "два кольца и стоп"
+    keyframes = re.search(r"@keyframes planTaskHint\{(.*?)\}\}", css).group(1)
+    assert "opacity" in keyframes and "transform" in keyframes and "filter" not in keyframes and "box-shadow" not in keyframes
+    assert "infinite" not in css and not re.search(r"(?<![\w-])filter\s*:", css)
+    assert ':root[data-mode="light"] .add-collapse__trigger.is-hinted{' in css, "в светлой теме свои цвета (там !important у кнопки)"
+    assert "prefers-reduced-motion" in css
+    from db.sim_lab import SCENES
+    assert "plan_hint" in [row[0] for row in SCENES] and "plan_hint: () => guideToPlanStep({ demo: true })," in APP_JS
+
+
+@pytest.mark.skipif(NODE is None, reason="нужен Node")
+def test_the_plan_step_picks_the_field_the_button_or_the_list():
+    functions = "\n".join(_node_function(h) for h in ("function planQuestStep(", "function guideToPlanStep("))
+    script = r"""
+let timers = []; let now = 0; let nextId = 1;
+function setTimeout(fn, ms) { const id = nextId++; timers.push({ id, at: now + ms, fn }); return id; }
+function clearTimeout(id) { timers = timers.filter((t) => t.id !== id); }
+function advance(ms) {
+  const target = now + ms;
+  for (;;) {
+    const due = timers.filter((t) => t.at <= target).sort((a, b) => a.at - b.at)[0];
+    if (!due) break;
+    timers = timers.filter((t) => t !== due); now = due.at; due.fn();
+  }
+  now = target;
+}
+const PLAN_HINT_MS = 2600; let planHintTimer = 0;
+let state = {}; let calls = [];
+const el = (id, hidden = false) => ({ id, hidden, offsetWidth: 1, classes: new Set(),
+  classList: { add(c) { this._o.classes.add(c); }, remove(c) { this._o.classes.delete(c); } },
+  scrollIntoView() { calls.push(id + ":scroll"); }, focus() { calls.push(id + ":focus"); } });
+let els = {};
+const fresh = (formHidden = true) => {
+  els = { mainGoalInput: el("mainGoalInput"), planList: el("planList"), addPlanTaskTrigger: el("addPlanTaskTrigger"),
+          addPlanTaskForm: el("addPlanTaskForm", formHidden), newPlanTaskInput: el("newPlanTaskInput") };
+  for (const e of Object.values(els)) e.classList._o = e;
+  calls = [];
+};
+const document = { getElementById: (id) => els[id] || null };
+function closeAddCollapse(id) { calls.push("close:" + id); els.addPlanTaskForm.hidden = true; }
+%s
+const out = {};
+const hinted = () => els.addPlanTaskTrigger.classes.has("is-hinted");
+
+// 1. главной нет — к её полю, подсветки кнопки нет
+fresh(); state = { daily_plan: { main_goal: "", tasks: [] } };
+out.step1 = planQuestStep(); guideToPlanStep(); advance(5000);
+out.main = { calls: calls.slice(), hinted: hinted() };
+
+// 2. главная есть, второстепенной нет — к кнопке; кольцо появляется, когда прокрутка дошла, и гаснет само
+fresh(); state = { daily_plan: { main_goal: "Сделать отчёт", tasks: [] } };
+out.step2 = planQuestStep(); guideToPlanStep();
+out.task = { calls: calls.slice(), at0: hinted() }; advance(319); out.task.at319 = hinted(); advance(2); out.task.at321 = hinted();
+advance(2600); out.task.end = hinted();
+
+// 3. повторный тап посреди подсветки запускает её заново и не оставляет залипшего класса
+fresh(); state = { daily_plan: { main_goal: "Сделать отчёт", tasks: [] } };
+guideToPlanStep(); advance(400); guideToPlanStep(); advance(400); out.again = hinted(); advance(400); advance(2700); out.againEnd = hinted();
+
+// 4. оба пункта записаны — просто к списку
+fresh(); state = { daily_plan: { main_goal: "Сделать отчёт", tasks: [{ text: "Позвонить" }] } };
+out.step4 = planQuestStep(); guideToPlanStep(); advance(5000);
+out.list = { calls: calls.slice(), hinted: hinted() };
+
+// 5. форма добавления уже раскрыта — сразу курсор в поле, без кольца
+fresh(false); state = { daily_plan: { main_goal: "Сделать отчёт", tasks: [] } };
+guideToPlanStep(); advance(5000);
+out.open = { calls: calls.slice(), hinted: hinted() };
+
+// 6. симуляция: ничего не читает из state, форму сворачивает и подсвечивает кнопку
+fresh(false); state = undefined;
+guideToPlanStep({ demo: true }); advance(400);
+out.demo = { calls: calls.slice(), hinted: hinted() };
+process.stdout.write(JSON.stringify(out));
+""" % functions
+    result = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30, encoding="utf-8")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["step1"] == "main" and out["main"] == {"calls": ["mainGoalInput:scroll", "mainGoalInput:focus"], "hinted": False}
+    assert out["step2"] == "task" and out["task"]["calls"] == ["addPlanTaskTrigger:scroll"]
+    assert out["task"]["at0"] is False and out["task"]["at319"] is False and out["task"]["at321"] is True, "кольцо — когда прокрутка дошла"
+    assert out["task"]["end"] is False, "подсветка гаснет сама"
+    assert out["again"] is True and out["againEnd"] is False
+    assert out["step4"] == "list" and out["list"] == {"calls": ["planList:scroll", "planList:focus"], "hinted": False}
+    assert out["open"] == {"calls": ["newPlanTaskInput:scroll", "newPlanTaskInput:focus"], "hinted": False}
+    assert out["demo"] == {"calls": ["close:addPlanTaskCollapse", "addPlanTaskTrigger:scroll"], "hinted": True}
 
 
 def test_the_simulation_scenes_use_the_same_titles_as_the_server_and_are_registered():

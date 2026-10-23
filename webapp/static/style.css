@@ -15107,6 +15107,16 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
   .chest-card[data-phase="open"] .chest-prize{animation:none;opacity:1}
 }
 
+/* Подсказка «Добавить задачу» (app.js::guideToPlanStep): тап по квесту «Заполни план дня», когда главная уже записана, а второстепенной нет.
+   Кнопка на пару секунд светлеет, и вокруг неё два раза расходится кольцо. Анимация конечная, у кольца только opacity и transform.
+   Блок лежит здесь, до «Как это работает»: тесты следят, чтобы хвост файла с парными окнами и шапкой подписок был без анимаций. */
+.add-collapse__trigger{position:relative}
+.add-collapse__trigger.is-hinted{border-style:solid;border-color:rgba(139,108,255,.7);background:rgba(139,108,255,.14);color:#E4DEFF}
+.add-collapse__trigger.is-hinted::after{content:"";position:absolute;inset:-4px;border-radius:20px;border:2px solid rgba(139,108,255,.85);opacity:0;pointer-events:none;animation:planTaskHint 1.1s ease-out 2}
+:root[data-mode="light"] .add-collapse__trigger.is-hinted{border-color:rgba(109,76,255,.75) !important;background:rgba(109,76,255,.12) !important;color:#4a2fd1}
+@keyframes planTaskHint{0%{opacity:0;transform:scale(.97)}25%{opacity:.9}100%{opacity:0;transform:scale(1.05)}}
+@media (prefers-reduced-motion: reduce){.add-collapse__trigger.is-hinted::after{animation:none;opacity:.7}}
+
 /* ===== Парное задание: окно «Как это работает» (ⓘ в шапке и тап по карточке в Рейтинге) =====
    Без фильтров, размытия и бесконечных анимаций — как и остальной хвост «диеты для отрисовки». */
 .pair-card--tappable{cursor:pointer;-webkit-tap-highlight-color:transparent}

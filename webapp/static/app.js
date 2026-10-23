@@ -6079,16 +6079,50 @@ function goToQuestStep(key) {
       else document.getElementById("aiCoachBtn")?.click();
       return;
     }
-    if (key === "plan_day") {
-      const target = document.getElementById("mainGoalInput") || document.getElementById("planList");
-      target?.scrollIntoView({ behavior: "smooth", block: "center" });
-      try { target?.focus({ preventScroll: true }); } catch (_) { /* без фокуса достаточно прокрутки */ }
-      return;
-    }
+    if (key === "plan_day") { guideToPlanStep(); return; }
     if ((state?.habits || []).length < 2) openAddCollapse("addHabitCollapse");
     document.getElementById("habitList")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 460);
 }
+
+// Квест «Заполни план дня»: куда вести, зависит от того, что уже записано. Нет главной — к её полю (mainGoalInput). Главная есть, а второстепенной
+// нет — к кнопке «Добавить задачу», она мягко подсвечивается. Раньше вели всегда к полю главной, но после сохранения оно скрыто: второй тап
+// по сундуку квеста просто возвращал на Главную и никуда не прокручивал.
+function planQuestStep() {
+  const plan = state?.daily_plan;
+  if (!String(plan?.main_goal || "").trim()) return "main";
+  return (plan?.tasks || []).length ? "list" : "task";
+}
+
+let planHintTimer = 0;
+function guideToPlanStep({ demo = false } = {}) {
+  const step = demo ? "task" : planQuestStep();
+  if (step === "task") {
+    if (demo) closeAddCollapse("addPlanTaskCollapse");        // в симуляции форма может быть раскрыта с прошлого раза — тогда кнопки не видно
+    const form = document.getElementById("addPlanTaskForm");
+    if (form && !form.hidden) {                                // форма уже раскрыта — сразу к полю, подсвечивать нечего
+      const input = document.getElementById("newPlanTaskInput");
+      input?.scrollIntoView({ behavior: "smooth", block: "center" });
+      try { input?.focus({ preventScroll: true }); } catch (_) { /* без фокуса достаточно прокрутки */ }
+      return;
+    }
+    const trigger = document.getElementById("addPlanTaskTrigger");
+    if (!trigger) return;
+    trigger.scrollIntoView({ behavior: "smooth", block: "center" });
+    clearTimeout(planHintTimer);
+    planHintTimer = setTimeout(() => {                         // кольцо — когда прокрутка уже дошла
+      trigger.classList.remove("is-hinted");
+      void trigger.offsetWidth;                                // повторный тап запускает подсветку заново
+      trigger.classList.add("is-hinted");
+      planHintTimer = setTimeout(() => trigger.classList.remove("is-hinted"), PLAN_HINT_MS);
+    }, 320);
+    return;
+  }
+  const target = step === "main" ? document.getElementById("mainGoalInput") : document.getElementById("planList");
+  target?.scrollIntoView({ behavior: "smooth", block: "center" });
+  try { target?.focus({ preventScroll: true }); } catch (_) { /* без фокуса достаточно прокрутки */ }
+}
+const PLAN_HINT_MS = 2600;                                     // два кольца по 1,1 с (style.css::planTaskHint) и немного тишины после
 
 function initHabitActions() {
   const habitList = document.getElementById("habitList");
@@ -9494,6 +9528,7 @@ const SIM_SCENES = {
     before: [simQuestHabits(2), simQuestPlan(true, true), simQuestAdam(true, true)],
     after: [simQuestHabits(2), simQuestPlan(true, true), simQuestAdam(true, true)],
   }),
+  plan_hint: () => guideToPlanStep({ demo: true }),
   haptic_triple: () => {
     haptic("triple");
     showToast("📳 Тройная долгая вибрация — так ощущается сложное достижение", "success", 3600);
