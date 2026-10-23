@@ -10,6 +10,7 @@
   const UI_SPARK = `<svg class="ui-icon ui-icon--fill" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2c.7 5.6 4.4 9.3 10 10-5.6.7-9.3 4.4-10 10-.7-5.6-4.4-9.3-10-10 5.6-.7 9.3-4.4 10-10Z" fill="currentColor"/></svg>`;
   const ICON_CHECK = uiIcon("M5 12.5l4.5 4.5L19 7", "2.6");
   const ICON_EDIT = uiIcon("M4.5 19.5h4L19.5 8.5l-4-4L4.5 15.5v4zM14 6l4 4", "2.2");
+  const ICON_CHEVRON_UP = uiIcon("M6.5 14.5l5.5-5.5 5.5 5.5", "2.6");   // «Спрятать кнопки» у раскрытой привычки
 
   // Некоторые WebView (в т.ч. Telegram на Android) успевают "доставить"
   // клик/тач, начатый ещё на предыдущей странице, уже ПОСЛЕ полной
@@ -4031,6 +4032,14 @@
   // страницы — это чисто состояние отображения, не персистентные данные).
   const expandedHabitActionIds = new Set();
   const expandedHabitTextIds = new Set();
+  let habitActionsHintId = null;     // у этой привычки под кнопками показана подсказка «дважды нажми — спрячу» (первые несколько раз)
+  let habitCollapsedAt = 0;          // когда кнопки спрятали в последний раз: двойной тап не должен тут же сработать ещё и на название
+  let armedHabitDelete = null;       // { id, at, timer } — первый тап по ✕ ждёт подтверждения
+  const HABIT_DELETE_ARM_MS = 3500;          // сколько красное «Удалить?» ждёт второго тапа
+  const HABIT_DELETE_CONFIRM_GAP_MS = 400;   // торопливый двойной тап по ✕ подтверждением не считается
+  const HABIT_ACTIONS_HINT_KEY = "adam_habit_actions_hint";
+  const HABIT_ACTIONS_HINT_TIMES = 3;
+  const HABIT_TAP_IGNORE = '[role="dialog"], .subpage-overlay, .center-modal, [class*="overlay"], [class*="sheet"], [class*="modal"], .toast';
   const HABIT_TIME_SUGGESTION_DISMISS_PREFIX = "adam_habit_time_suggestion_dismissed_";
   function isHabitTimeSuggestionDismissed(habitId) {
     try { return localStorage.getItem(HABIT_TIME_SUGGESTION_DISMISS_PREFIX + habitId) === "1"; }
@@ -4040,6 +4049,81 @@
     try { localStorage.setItem(HABIT_TIME_SUGGESTION_DISMISS_PREFIX + habitId, "1"); } catch (_) {}
     renderHabits();
     haptic("light");
+  }
+
+  // ---- Кнопки раскрытой привычки (23.10, п.4 владельца) ---------------------------------------------------------------------
+  // Раньше ✏️ раскрывала «Изменить / Время / Заметка / ✕», а спрятать их было нечем (только перезапуск приложения), и торопливый тап
+  // «закрыть» попадал по ✕. Теперь: на месте ✏️ стоит стрелка «Скрыть»; прячет и двойной тап по привычке, и тап мимо; открытой остаётся
+  // одна строка; ✕ удаляет только вторым тапом (красное «Удалить?»), а после удаления ещё есть «Отменить».
+  function takeHabitActionsHint() {
+    try {
+      const shown = Number(localStorage.getItem(HABIT_ACTIONS_HINT_KEY) || 0);
+      if (shown >= HABIT_ACTIONS_HINT_TIMES) return false;
+      localStorage.setItem(HABIT_ACTIONS_HINT_KEY, String(shown + 1));
+      return true;
+    } catch (_) { return false; }
+  }
+
+  function disarmHabitDelete() {
+    if (!armedHabitDelete) return;
+    clearTimeout(armedHabitDelete.timer);
+    const { id } = armedHabitDelete;
+    armedHabitDelete = null;
+    const btn = document.querySelector(`#habitList .habit-item[data-id="${id}"] .habit-item__del`);
+    if (!btn) return;
+    btn.classList.remove("is-armed");
+    btn.innerHTML = ICON_X;
+    btn.setAttribute("aria-label", "Удалить");
+  }
+
+  function armHabitDelete(habitId, btn) {
+    disarmHabitDelete();
+    btn.classList.add("is-armed");
+    btn.textContent = "Удалить?";
+    btn.setAttribute("aria-label", "Подтвердить удаление");
+    haptic("warning");
+    armedHabitDelete = { id: habitId, at: Date.now(), timer: setTimeout(disarmHabitDelete, HABIT_DELETE_ARM_MS) };
+    trk("habit_delete_armed", null, null);
+  }
+
+  // Что делает тап по ✕: arm — первый (показать «Удалить?»), wait — слишком скоро после первого (это дрожащий двойной тап), confirm — удалить.
+  function habitDeleteStep(habitId, now = Date.now()) {
+    if (!armedHabitDelete || armedHabitDelete.id !== habitId) return "arm";
+    return now - armedHabitDelete.at >= HABIT_DELETE_CONFIRM_GAP_MS ? "confirm" : "wait";
+  }
+
+  function openHabitActions(habitId) {
+    expandedHabitActionIds.clear();                      // открытой остаётся одна привычка: меньше кнопок, меньше путаницы
+    expandedHabitActionIds.add(habitId);
+    habitActionsHintId = takeHabitActionsHint() ? habitId : null;
+    disarmHabitDelete();
+    trk("habit_actions", "open", null);
+    renderHabits();
+  }
+
+  // ids — какие строки спрятать (по умолчанию все раскрытые), how — чем спрятали: arrow / double / outside (в учёт).
+  function collapseHabitActions(ids, how) {
+    const open = (ids || [...expandedHabitActionIds]).filter((id) => expandedHabitActionIds.has(id));
+    if (!open.length) return false;
+    open.forEach((id) => expandedHabitActionIds.delete(id));
+    habitActionsHintId = null;
+    habitCollapsedAt = Date.now();
+    disarmHabitDelete();
+    for (const id of open) {
+      if (!renderSingleHabit(id)) { renderHabits(); break; }   // подменяем только эту строку — соседние не трогаем
+    }
+    if (how !== "outside") haptic("light");
+    trk("habit_actions", how, null);
+    return true;
+  }
+
+  // Тап мимо раскрытой привычки. Вызывается ПОСЛЕ обработки самого тапа: нажатие на соседнюю привычку или кнопку не съедается.
+  function collapseOnOutsideTap(target) {
+    if (!expandedHabitActionIds.size || !target || !target.isConnected) return false;   // не в DOM — тап уже перестроил список
+    if (target.closest(HABIT_TAP_IGNORE)) return false;                                   // окна, шторки и тосты — отдельный слой
+    const row = target.closest(".habit-item");
+    const keep = row ? Number(row.dataset.id) : 0;
+    return collapseHabitActions([...expandedHabitActionIds].filter((id) => id !== keep), "outside");
   }
 
   function deleteHabitWithUndo(habitId) {
@@ -4072,6 +4156,7 @@
   }
 
   function renderHabits() {
+    if (armedHabitDelete) disarmHabitDelete();     // см. renderSingleHabit
     const list = document.getElementById("habitList");
     const habits = (state.habits || []).filter(h => !pendingDeleteHabitIds.has(h.id));
     const done = habits.filter(h => h.completed).length;
@@ -4227,12 +4312,18 @@
       const checkClass = isCounter && !h.completed ? "habit-item__check habit-item__check--counter" : "habit-item__check";
 
       const isExpanded = expandedHabitActionIds.has(h.id);
+      // Раскрытая строка: стрелка «Скрыть» на месте ✏️ (закрывается той же кнопкой, что открывала), а действия — отдельной строкой под
+      // названием, ✕ в её дальнем углу. Подсказка про двойной тап — первые несколько раз (habitActionsHintId).
       const rowActions = isExpanded
         ? `
-        <button class="habit-item__edit" data-action="edit" aria-label="Изменить привычку">${ICON_EDIT}</button>
-        <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
-        ${noteBtn}
-        <button class="habit-item__del" data-action="delete" aria-label="Удалить">${ICON_X}</button>`
+        <button class="habit-item__more is-open" data-action="toggle-actions" aria-label="Скрыть кнопки" aria-expanded="true">${ICON_CHEVRON_UP}</button>
+        <div class="habit-item__bar">
+          <button class="habit-item__edit" data-action="edit" aria-label="Изменить привычку">${ICON_EDIT}</button>
+          <button class="habit-item__time ${h.planned_time ? "is-set" : ""}" data-action="edit-time" data-time="${h.planned_time || ""}" aria-label="Своё время напоминания">${h.planned_time ? "⏰ " + h.planned_time : "⏰"}</button>
+          ${noteBtn}
+          <button class="habit-item__del" data-action="delete" aria-label="Удалить">${ICON_X}</button>
+        </div>
+        ${habitActionsHintId === h.id ? `<p class="habit-item__bar-hint">Дважды нажми на привычку — я спрячу кнопки</p>` : ""}`
         : `<button class="habit-item__more" data-action="toggle-actions" aria-label="Действия с привычкой" aria-expanded="false">✏️</button>`;
 
       return `
@@ -4250,6 +4341,7 @@
   // если нет (например, привычка отфильтрована категорией, или списка нет
   // на экране), вызывающий код сам решает, нужен ли полный renderHabits().
   function renderSingleHabit(habitId) {
+    if (armedHabitDelete) disarmHabitDelete();     // перерисовка вернёт ✕ — а «ждущее подтверждения» состояние не должно остаться невидимым
     const list = document.getElementById("habitList");
     const h = (state.habits || []).find(x => x.id === habitId);
     if (!list || !h) return false;
@@ -6215,12 +6307,8 @@ function initHabitActions() {
     const action = btn.dataset.action;
 
     if (action === "toggle-actions") {
-      if (expandedHabitActionIds.has(habitId)) {
-        expandedHabitActionIds.delete(habitId);
-      } else {
-        expandedHabitActionIds.add(habitId);
-      }
-      renderHabits();
+      if (expandedHabitActionIds.has(habitId)) collapseHabitActions([habitId], "arrow");
+      else openHabitActions(habitId);
       return;
     }
 
@@ -6320,7 +6408,10 @@ function initHabitActions() {
       } else if (action === "note") {
         openHabitNotePrompt(habitId);
       } else if (action === "delete") {
-        deleteHabitWithUndo(habitId);
+        // Первый тап по ✕ только спрашивает («Удалить?»), удаляет второй; «wait» — торопливый двойной тап, его не считаем.
+        const step = habitDeleteStep(habitId);
+        if (step === "arm") armHabitDelete(habitId, btn);
+        else if (step === "confirm") { disarmHabitDelete(); deleteHabitWithUndo(habitId); }
       }
     } catch (err) {
       if (rollbackOptimistic) rollbackOptimistic();
@@ -6346,38 +6437,48 @@ function initHabitActions() {
     haptic("light");
   };
 
-  // Полный текст раскрывается ТОЛЬКО двойным тапом именно по названию.
-  // Двойной тап по карандашу/чекбоксу/другим действиям ничего не раскрывает.
+  // Двойной тап по привычке (23.10, п.4): у привычки с раскрытыми кнопками — по любому месту строки, кроме самих кнопок, — прячет их;
+  // у свёрнутой — по названию — раскрывает полный текст, как раньше. Двойной тап по кнопкам (✓, ✕, ✎…) ничего не делает.
+  const isHabitControl = (el) => !!el.closest("button, input, select, textarea, a, label");
   habitList.addEventListener("dblclick", (e) => {
-    const titleEl = e.target.closest(".habit-item__title");
-    if (!titleEl || !habitList.contains(titleEl)) return;
-    const li = titleEl.closest(".habit-item");
-    if (!li) return;
+    if (!(e.target instanceof Element) || isHabitControl(e.target)) return;
+    const li = e.target.closest(".habit-item");
+    if (!li || !habitList.contains(li)) return;
+    if (Date.now() - habitCollapsedAt < 600) { e.preventDefault(); return; }   // кнопки только что спрятал двойной тап, второго действия не нужно
+    if (expandedHabitActionIds.has(Number(li.dataset.id))) {
+      e.preventDefault();
+      collapseHabitActions([Number(li.dataset.id)], "double");
+      return;
+    }
+    if (!e.target.closest(".habit-item__title")) return;
     e.preventDefault();
     toggleHabitFullText(li);
   });
 
   // На телефонах dblclick может не срабатывать одинаково во всех WebView,
-  // поэтому отдельно поддерживаем двойное касание самого названия.
+  // поэтому отдельно поддерживаем двойное касание: тот же ряд второй раз за 420 мс.
   habitList.addEventListener("touchend", (e) => {
-    const titleEl = e.target.closest(".habit-item__title");
-    if (!titleEl || !habitList.contains(titleEl)) {
+    const target = e.target instanceof Element ? e.target : null;
+    const li = target && !isHabitControl(target) ? target.closest(".habit-item") : null;
+    const habitId = li ? Number(li.dataset.id) : 0;
+    const reacts = !!habitId && (expandedHabitActionIds.has(habitId) || !!target.closest(".habit-item__title"));
+    if (!li || !habitList.contains(li) || !reacts) {
       lastHabitTextTap = { id: null, time: 0 };
       return;
     }
-    const li = titleEl.closest(".habit-item");
-    if (!li) return;
     const now = Date.now();
-    const habitId = Number(li.dataset.id);
-    if (!habitId) return;
     if (lastHabitTextTap.id === habitId && now - lastHabitTextTap.time < 420) {
       e.preventDefault();
       lastHabitTextTap = { id: null, time: 0 };
-      toggleHabitFullText(li);
+      if (expandedHabitActionIds.has(habitId)) collapseHabitActions([habitId], "double");
+      else toggleHabitFullText(li);
     } else {
       lastHabitTextTap = { id: habitId, time: now };
     }
   }, { passive: false });
+
+  // Тап мимо раскрытой привычки прячет её кнопки; нажатие на кнопки в окнах и шторках не в счёт (HABIT_TAP_IGNORE).
+  document.addEventListener("click", (e) => { collapseOnOutsideTap(e.target instanceof Element ? e.target : null); });
 
   addHabitForm.addEventListener("submit", async (e) => {
     e.preventDefault();

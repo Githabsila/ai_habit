@@ -70,7 +70,7 @@ FEATURES = (
         "habits", "Привычки", "core", "2026-01-01",
         clicks=("addHabitTrigger", "newHabit*", "habit-item__*", "habit-filter-chip*", "habit-template-chip*", "habit-program-card*",
                 "habit-note-form__*", "struggling-habit-banner__*", "habitEdit*", "habit-edit-*"),
-        events=("habit_form_open", "habit_added", "habit_deleted", "habit_edit_open", "habit_edit_save", "habit_moved", "habit_completed", "abuse_flagged"),
+        events=("habit_form_open", "habit_added", "habit_deleted", "habit_edit_open", "habit_edit_save", "habit_moved", "habit_actions", "habit_delete_armed", "habit_completed", "abuse_flagged"),
         api=("POST /api/habits", "PUT /api/habits/{habit_id}", "POST /api/habits/{habit_id}/move","POST /api/habits/{habit_id}/complete",
              "POST /api/habits/{habit_id}/progress", "POST /api/habits/{habit_id}/note", "DELETE /api/habits/{habit_id}"),
         bot=("cb:add_habit", "cb:complete_#", "cb:delete_#", "cb:edit_#", "cb:my_habits", "cb:habits", "cb:streak_continue"),
@@ -300,7 +300,7 @@ IGNORED_EVENTS = ("registered", "session_start", "screen", "source_attributed") 
 BUTTON_LABELS = {
     "tab-bar__item=home": "Вкладка «Главная»", "tab-bar__item=calendar": "Вкладка «Календарь»", "tab-bar__item=rating": "Вкладка «Рейтинг»",
     "tab-bar__item=profile": "Вкладка «Профиль»", "habit-item__check=complete": "Отметить привычку", "habit-item__check=progress": "Прогресс счётчика",
-    "habit-item__del=delete": "Удалить привычку", "habit-item__note=note": "Заметка к привычке", "habit-item__more=toggle-actions": "Меню привычки",
+    "habit-item__del=delete": "✕ у привычки (первый тап — «Удалить?», второй — удаление)", "habit-item__note=note": "Заметка к привычке", "habit-item__more=toggle-actions": "Меню привычки",
     "plan-icon-btn=edit": "Править задачу", "plan-icon-btn=delete": "Удалить задачу",
     "pairSheetAdd": "Союзник: «Добавить друзей»", "pair-option=invite-link": "Союзник: ссылка в Telegram",
     "pair-option=pick-people": "Союзник: активные игроки", "pair-btn=follow-person": "Союзник: подписка на игрока",
