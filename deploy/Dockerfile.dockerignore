@@ -1,0 +1,22 @@
+# Что НЕ попадает в образ (см. deploy/Dockerfile). Секреты и сама база — первыми.
+.env
+.env.*
+users.db
+users.db-wal
+users.db-shm
+*.db
+*.db.gz
+backups/*.db
+backups/*.gz
+
+.git
+.github
+.claude
+.pytest_cache
+__pycache__
+*.pyc
+
+tests
+_legacy
+logs
+*.bak_*

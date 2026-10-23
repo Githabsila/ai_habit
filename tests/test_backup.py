@@ -64,7 +64,7 @@ class _FakeBot:
         self.sent = []
         self.raise_on_send = raise_on_send
 
-    async def send_document(self, chat_id, document, caption=None):
+    async def send_document(self, chat_id, document, caption=None, **kwargs):
         if self.raise_on_send:
             raise RuntimeError("Telegram недоступен")
         self.sent.append((chat_id, document, caption))
@@ -82,10 +82,13 @@ async def test_send_offsite_backup_sends_latest_file(tmp_path):
     assert len(bot.sent) == 1
 
 
-async def test_send_offsite_backup_noop_when_no_backups_exist(tmp_path):
+async def test_send_offsite_backup_noop_when_there_is_no_database(monkeypatch, tmp_path):
+    """Копий нет и снимать нечего (базы нет): ничего не уходит и ничего не падает. Если база есть, а копий ещё нет
+    (после деплоя на пустой том), копия снимается тут же — см. tests/test_backup_offsite.py."""
     import backups.backup as backup_mod
 
     backup_mod.BACKUP_FOLDER = str(tmp_path)
+    monkeypatch.setattr(backup_mod, "DATABASE", str(tmp_path / "no_such_users.db"))
 
     bot = _FakeBot()
     await backup_mod.send_offsite_backup(bot)

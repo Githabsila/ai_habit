@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -223,11 +224,17 @@ async def main():
     # Реалтайм-алерт при всплеске ошибок — не ждём до утренней сводки.
     scheduler.add_job(run_error_spike_check, "interval", minutes=10, args=[bot])
 
-    # Раз в неделю — копия свежего бэкапа БД за пределы Railway volume
-    # (см. backups/backup.py::send_offsite_backup). Сдвинуто на воскресенье
-    # 5:00 UTC, вне пиковых job'ов и после того, как create_backup() (раз в
-    # 24ч с момента старта процесса) уже успел сделать свежий снапшот.
-    scheduler.add_job(send_offsite_backup, "cron", day_of_week="sun", hour=5, minute=0, args=[bot])
+    # Раз в сутки — свежая копия БД за пределы Railway volume, админу в Telegram
+    # (см. backups/backup.py::send_offsite_backup): 05:00 UTC, вне пиковых job'ов.
+    # Раньше уходила раз в неделю — при потере тома терялась до недели данных.
+    scheduler.add_job(send_offsite_backup, "cron", hour=5, minute=0, args=[bot], max_instances=1, coalesce=True)
+    # И через две минуты после каждого запуска процесса — но только если за последние
+    # 20 часов копия не уходила (отметка лежит на томе): после простоя или деплоя
+    # копия не ждёт утра, а серия перезапусков не засыпает админа файлами.
+    scheduler.add_job(
+        send_offsite_backup, "date", run_date=datetime.now(timezone.utc) + timedelta(minutes=2),
+        args=[bot], kwargs={"min_interval_hours": 20},
+    )
 
     scheduler.start()
     logger.info("✅ Планировщик запущен")

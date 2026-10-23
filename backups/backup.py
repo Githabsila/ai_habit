@@ -1,11 +1,15 @@
+import asyncio
+import gzip
 import logging
 import os
+import re
+import shutil
 import sqlite3
 import sys
 import threading
 import time
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger("backups")
 
@@ -24,7 +28,23 @@ from db import DATA_DIR, DB_PATH, log_error
 # редеплое точно так же, как раньше стиралась сама users.db.
 BACKUP_FOLDER = os.path.join(DATA_DIR, "backups")
 DATABASE = DB_PATH
-MAX_BACKUPS = 10
+
+# Сколько копий держим на томе. Раньше было «последние 10 файлов», а копия
+# делается при КАЖДОМ запуске процесса: за один вечер деплоев (серия
+# перезапусков) все десять становились копиями последних минут, и вчерашней
+# базы на томе уже не было. Теперь: пять самых свежих + по одной (самой
+# поздней) за каждый из последних 14 дней.
+KEEP_RECENT = 5
+KEEP_DAYS = 14
+
+# Telegram принимает документ до 50 МБ; оставляем запас.
+TELEGRAM_FILE_LIMIT = 49 * 1024 * 1024
+# Когда последний раз копия уехала в Telegram (хранится рядом с копиями, на томе:
+# переживает деплои, поэтому серия перезапусков не засыпает админа файлами).
+OFFSITE_MARKER = "offsite_last.txt"
+
+_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_.*\.db$")
+_offsite_running = False
 
 
 # =====================================
@@ -55,13 +75,52 @@ def _verify_backup(path):
         return False
 
 
+def _backup_files():
+    """Имена копий (.db с датой в начале имени), от старых к новым."""
+    if not os.path.isdir(BACKUP_FOLDER):
+        return []
+    return sorted(f for f in os.listdir(BACKUP_FOLDER) if _NAME_RE.match(f))
+
+
+def _prune_backups():
+    """Оставляет пять самых свежих копий и по одной (самой поздней) за каждый
+    из последних KEEP_DAYS дней. Чужие файлы в папке не трогает; забытые
+    временные .db.gz (упаковка для Telegram прервалась) убирает."""
+    names = _backup_files()
+    keep = set(names[-KEEP_RECENT:])
+    newest_of_day = {}
+    for name in names:                      # отсортировано: поздняя копия дня перезапишет раннюю
+        newest_of_day[name[:10]] = name
+    for day in sorted(newest_of_day)[-KEEP_DAYS:]:
+        keep.add(newest_of_day[day])
+
+    for name in names:
+        if name in keep:
+            continue
+        old = os.path.join(BACKUP_FOLDER, name)
+        try:
+            os.remove(old)
+            print(f"🗑 Удалён старый бэкап: {name}")
+        except Exception as e:
+            print(f"❌ Не удалось удалить {old}: {e}")
+
+    for name in os.listdir(BACKUP_FOLDER):
+        if name.endswith(".db.gz"):
+            try:
+                os.remove(os.path.join(BACKUP_FOLDER, name))
+            except Exception:
+                pass
+
+
 def create_backup():
+    """Делает копию базы. Возвращает путь к ней, если она создана И прошла
+    проверку целостности; иначе None (ошибка уже записана в error_log)."""
 
     os.makedirs(BACKUP_FOLDER, exist_ok=True)
 
     if not os.path.exists(DATABASE):
         print("❌ База данных не найдена.")
-        return
+        return None
 
     # имя с миллисекундами, чтобы не было совпадений
     filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f") + ".db"
@@ -93,39 +152,22 @@ def create_backup():
             log_error("backup_create", e)
         except Exception:
             pass
-        return
+        return None
 
     # Проверка восстанавливаемости сразу после создания — если бэкап битый,
     # хотим узнать об этом в тот же день, а не через полгода при попытке
     # реально восстановиться. Видна в admin_digest_scheduler.py через
     # общий error_log (🩺 Мониторинг ошибок в ежедневной сводке).
-    if not _verify_backup(destination):
+    verified = _verify_backup(destination)
+    if not verified:
         print(f"⚠️ Бэкап {filename} не прошёл проверку целостности!")
         try:
             log_error("backup_integrity", f"integrity check failed: {filename}")
         except Exception:
             pass
 
-    # Получаем только .db файлы
-    backups = sorted(
-        f for f in os.listdir(BACKUP_FOLDER)
-        if f.endswith(".db")
-    )
-
-    # Удаляем старые
-    while len(backups) > MAX_BACKUPS:
-
-        oldest = os.path.join(
-            BACKUP_FOLDER,
-            backups.pop(0)
-        )
-
-        if os.path.exists(oldest):
-            try:
-                os.remove(oldest)
-                print(f"🗑 Удалён старый бэкап: {os.path.basename(oldest)}")
-            except Exception as e:
-                print(f"❌ Не удалось удалить {oldest}: {e}")
+    _prune_backups()
+    return destination if verified else None
 
 
 # =====================================
@@ -166,33 +208,119 @@ def start_backup_scheduler():
 # РЯДОМ, на тот же Railway volume — если весь volume будет потерян целиком
 # (инцидент платформы, случайное удаление сервиса), пропадут и база, и все
 # её бэкапы одновременно. Единственная реально независимая копия — та, что
-# уехала за пределы Railway. Раз в неделю (см. main.py) отправляем свежий
-# бэкап админу в Telegram документом: бесплатно, не требует внешнего
-# хранилища, и лежит в облаке Telegram, а не на диске сервиса.
+# уехала за пределы Railway. Раз в сутки (05:00 UTC, см. main.py) и через пару
+# минут после запуска процесса, если за последние ~20 часов копия не уходила,
+# отправляем свежий снимок админу в Telegram документом, сжатым gzip:
+# бесплатно, не требует внешнего хранилища и карты, лежит в облаке Telegram.
+# Как восстановиться из такого файла — RESTORE.md и backups/restore.py.
 
-async def send_offsite_backup(bot):
+def _read_offsite_marker():
+    try:
+        with open(os.path.join(BACKUP_FOLDER, OFFSITE_MARKER), encoding="utf-8") as f:
+            return datetime.fromisoformat(f.read().strip())
+    except Exception:
+        return None
+
+
+def _write_offsite_marker():
+    try:
+        os.makedirs(BACKUP_FOLDER, exist_ok=True)
+        with open(os.path.join(BACKUP_FOLDER, OFFSITE_MARKER), "w", encoding="utf-8") as f:
+            f.write(datetime.now(timezone.utc).isoformat())
+    except Exception as e:
+        logger.warning(f"Не удалось записать отметку об оффсайт-копии: {e}")
+
+
+def _gzip_file(src, dst):
+    with open(src, "rb") as fi, gzip.open(dst, "wb", compresslevel=6) as fo:
+        shutil.copyfileobj(fi, fo)
+
+
+def _fresh_backup_path(max_age_hours=6):
+    """Копия для отправки: самая свежая, если ей меньше max_age_hours, иначе
+    снимается новая (в 05:00 «вчерашний» снимок суточного цикла уже устарел)."""
+    names = _backup_files()
+    latest = os.path.join(BACKUP_FOLDER, names[-1]) if names else None
+    if latest and time.time() - os.path.getmtime(latest) < max_age_hours * 3600:
+        return latest
+    return create_backup() or latest
+
+
+async def send_offsite_backup(bot, min_interval_hours=None):
+    """Отправляет админу сжатую копию базы. min_interval_hours — не отправлять,
+    если копия уходила недавно (для запуска после перезапуска процесса)."""
+    global _offsite_running
     from aiogram.types import FSInputFile
 
     from config import ADMIN_ID
     from db import log_error
 
-    if not os.path.exists(BACKUP_FOLDER):
+    if _offsite_running:
         return
 
-    backups = sorted(f for f in os.listdir(BACKUP_FOLDER) if f.endswith(".db"))
-    if not backups:
-        return
+    if min_interval_hours is not None:
+        last = _read_offsite_marker()
+        if last is not None:
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - last).total_seconds() < min_interval_hours * 3600:
+                return
 
-    latest = os.path.join(BACKUP_FOLDER, backups[-1])
+    _offsite_running = True
+    packed = None
     try:
+        source = await asyncio.to_thread(_fresh_backup_path)
+        if not source:
+            return
+
+        name = os.path.basename(source)
+        if not await asyncio.to_thread(_verify_backup, source):
+            try:
+                log_error("backup_offsite_integrity", f"offsite copy failed integrity check: {name}")
+            except Exception:
+                pass
+            try:
+                await bot.send_message(ADMIN_ID, f"⚠️ Копия базы {name} не прошла проверку целостности, в Telegram не отправляю.")
+            except Exception as e:
+                logger.warning(f"Не удалось предупредить админа о битой копии: {e}")
+            return
+
+        packed = source + ".gz"
+        await asyncio.to_thread(_gzip_file, source, packed)
+        size = os.path.getsize(packed)
+
+        if size > TELEGRAM_FILE_LIMIT:
+            try:
+                log_error("backup_offsite_size", f"offsite copy too big for Telegram: {size} bytes")
+            except Exception:
+                pass
+            try:
+                await bot.send_message(
+                    ADMIN_ID,
+                    f"⚠️ Копия базы ({size / 1024 / 1024:.0f} МБ после сжатия) больше лимита Telegram (50 МБ). "
+                    "Нужно внешнее хранилище, см. RESTORE.md.",
+                )
+            except Exception as e:
+                logger.warning(f"Не удалось предупредить админа о размере копии: {e}")
+            return
+
         await bot.send_document(
             chat_id=ADMIN_ID,
-            document=FSInputFile(latest),
-            caption=f"💾 Еженедельный оффсайт-бэкап базы: {backups[-1]}",
+            document=FSInputFile(packed),
+            caption=f"💾 Копия базы · {name[:10]} · {max(size / 1024 / 1024, 0.1):.1f} МБ · целостность проверена",
+            disable_notification=True,
         )
+        _write_offsite_marker()
     except Exception as e:
         logger.warning(f"Не удалось отправить оффсайт-бэкап админу: {e}")
         try:
             log_error("backup_offsite_send", e)
         except Exception:
             pass
+    finally:
+        _offsite_running = False
+        if packed:
+            try:
+                os.remove(packed)
+            except Exception:
+                pass
