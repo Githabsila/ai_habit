@@ -6,7 +6,7 @@ from db import (
     create_challenge, get_active_challenge_for_user, get_challenge_progress,
     get_user,
 )
-from keyboards import community_keyboard, back_menu_keyboard, challenge_partner_keyboard
+from keyboards import community_keyboard, challenge_partner_keyboard
 
 router = Router()
 

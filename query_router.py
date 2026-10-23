@@ -61,8 +61,7 @@ def classify_query(message: str) -> Literal["simple", "complex"]:
     
     # Count matches in each category
     complex_matches = sum(1 for kw in COMPLEX_KEYWORDS if kw in text_lower)
-    simple_matches = sum(1 for kw in SIMPLE_KEYWORDS if kw in text_lower)
-    
+
     # Rule 1: If 2+ complex keywords → use full system
     if complex_matches >= 2:
         return "complex"

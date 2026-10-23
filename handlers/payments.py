@@ -11,15 +11,27 @@ from aiogram.types import (
 
 from config import PREMIUM_PRICE_STARS, ADMIN_IDS, SUPPORT_EMAIL, WEBAPP_URL
 from db import (
-    give_premium_admin, set_cosmetic, get_shop_item, add_ai_bonus_answers, log_stars_purchase,
-    get_subscription_price_stars, record_subscription_payment, get_subscription_status,
-    try_grant_channel_access, activate_xp_booster, get_timezone, add_diamonds,
-    is_payment_processed, mark_payment_processed, log_error,
-    get_user, get_referred_users,
+    give_premium_admin,
+    set_cosmetic,
+    get_shop_item,
+    add_ai_bonus_answers,
+    log_stars_purchase,
+    get_subscription_price_stars,
+    activate_xp_booster,
+    get_timezone,
+    add_diamonds,
+    is_payment_processed,
+    mark_payment_processed,
+    log_error,
+    get_user,
+    get_referred_users,
 )
 from keyboards import (
-    premium_buy_keyboard, back_menu_keyboard, subscription_buy_keyboard, trial_keyboard,
-    gift_premium_candidates_keyboard, gift_premium_confirm_keyboard,
+    premium_buy_keyboard,
+    back_menu_keyboard,
+    trial_keyboard,
+    gift_premium_candidates_keyboard,
+    gift_premium_confirm_keyboard,
 )
 from subscription_flow import complete_subscription_payment, refund_payment
 

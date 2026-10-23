@@ -9,7 +9,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
 from keyboards import welcome_menu
-from config import ADMIN_IDS, WEBAPP_URL
+from config import ADMIN_IDS
 
 from db import (
     save_survey_answers,
@@ -25,7 +25,6 @@ from db import (
 
 from multi_agent import analyze_onboarding_survey, suggest_first_step
 from db import ai_usage
-from alerts import notify_admins
 from db.tracking import track_server
 
 router = Router()

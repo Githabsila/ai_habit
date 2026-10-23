@@ -150,7 +150,7 @@ def test_the_script_moves_only_this_habit_and_asks_the_server():
     for needle in ('"habitEditUp")?.addEventListener("click", () => moveHabitEdit("up"))', '"habitEditDown")?.addEventListener("click", () => moveHabitEdit("down"))',
                    '"habitEditTop")?.addEventListener("click", () => moveHabitEdit("top"))', "const HABIT_EDIT_SIM = {", "place: 3, total: 5 };"):
         assert needle in APP_JS, needle
-    assert "app.js?v=20261021_QUESTS_V91" in INDEX and "style.css?v=20261021_QUESTS_V81" in INDEX
+    assert "app.js?v=20261021_QUESTS_V92" in INDEX and "style.css?v=20261021_QUESTS_V82" in INDEX
 
 
 @pytest.mark.skipif(NODE is None, reason="нужен Node")

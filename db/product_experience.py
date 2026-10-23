@@ -5,7 +5,6 @@
 токенов Telegram WebApp или полного содержимого чата здесь нет.
 """
 import json
-from datetime import datetime, timezone
 
 from .core import connect
 

@@ -10,13 +10,12 @@ from db import (
     delete_habit,
     get_habits,
     complete_habit,
-    REWARD_CAPPED_TEXT,
     reward_cap_text,
     update_daily_task,
     get_user,
     consume_completion_event,
-    get_streak_status,
-    onboarding_message, mark_onboarding_seen,
+    onboarding_message,
+    mark_onboarding_seen,
 )
 
 from handlers.helpers import day_phrase

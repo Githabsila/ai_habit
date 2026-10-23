@@ -14795,6 +14795,9 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .habit-item__edit svg{width:16px;height:16px}
 .habit-item__edit:active{transform:scale(.9)}
 .habit-edit-card{max-height:calc(100% - 24px);overflow-y:auto;padding-top:14px}
+/* После появления карточка стоит без transform и подсказки will-change: поле ввода внутри композитного слоя на части Android-WebView
+   путает клавиатуру (буквы, пробелы и слова «прыгают» при наборе). Сам показ и закрытие — прежние (из translateY(28px) в none). */
+.habit-edit-sheet.is-open .habit-edit-card{transform:none;will-change:auto}
 .habit-edit-card h3{margin:0 0 14px}
 .habit-edit-field{margin:0 0 12px}
 .habit-edit-label{display:block;margin:0 0 6px;font:700 10.5px 'Space Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#9EA8BD}

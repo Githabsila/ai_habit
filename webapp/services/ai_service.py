@@ -23,7 +23,6 @@ from webapp.services.ai_utils import (
 from multi_agent import solve_task_multiagent, _renumber_numbered_lists
 from webapp.services import chat_brain
 from db import ai_usage
-from db import ai_usage
 
 
 async def chat(user_id: int, message: str, first_message: bool = False):

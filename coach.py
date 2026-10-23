@@ -16,9 +16,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.exceptions import TelegramForbiddenError
-from config import WEBAPP_URL
 
 from db import (
     get_all_users,
@@ -50,7 +48,6 @@ from db.checkpoint_style import recent_checkpoint_picks, save_checkpoint_picks, 
 from db.notification_skips import record_skip
 from adam_messages import (
     format_day_progress_message,
-    format_habit_checkpoint_message,
     compose_checkpoint_message,
     format_simple_habit_checkpoint_message,
     format_plan_task_reminder_message,

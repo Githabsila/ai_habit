@@ -1,14 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
-from db import (
-    get_user,
-    has_premium,
-    was_premium_purchased,
-    buy_shop_item,
-    give_premium,
-    get_shop_items,
-)
+from db import get_user, was_premium_purchased, buy_shop_item, give_premium, get_shop_items
 
 from keyboards import shop_keyboard
 

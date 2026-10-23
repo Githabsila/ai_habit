@@ -2779,6 +2779,7 @@
   function revealFocusedField() {
     const field = document.activeElement;
     if (!keyboardOpen || !isTextField(field)) return;
+    if (field.closest('.feedback-sheet')) return;   // нижняя шторка и так стоит над клавиатурой: страницу под ней двигать незачем, а повторные прокрутки сбивают набор
     const vh = visibleViewportHeight();
     const r = field.getBoundingClientRect();
     if (r.top >= 12 && r.bottom <= vh - 16) return; // уже на виду
@@ -2803,11 +2804,34 @@
     el.hidden = false;
   }
 
+  // Пока в поле стоит курсор, бесконечные декоративные анимации (орбиты серии, пламя, свечение чипа) стоят: они перерисовывают страницу
+  // под полем каждый кадр, и на слабых телефонах набор подтормаживает — буквы запаздывают, пробелы и слова «прыгают» (23.10, п.5 владельца).
+  // Крутилки загрузки не трогаем: они сообщают, что приложение занято.
+  const pausedDecorAnimations = new Set();
+  function setDecorAnimationsPaused(paused) {
+    try {
+      if (paused) {
+        for (const anim of document.getAnimations()) {
+          const timing = anim.effect && anim.effect.getComputedTiming ? anim.effect.getComputedTiming() : null;
+          const target = anim.effect && anim.effect.target;
+          if (!timing || timing.iterations !== Infinity || anim.playState !== 'running') continue;
+          if (target && target.closest && target.closest('.spinner, [class*="spin"], [class*="loading"], [aria-busy="true"]')) continue;
+          anim.pause();
+          pausedDecorAnimations.add(anim);
+        }
+      } else {
+        pausedDecorAnimations.forEach((anim) => { try { anim.play(); } catch (_) { /* анимацию уже сняли вместе с элементом */ } });
+        pausedDecorAnimations.clear();
+      }
+    } catch (_) { /* getAnimations нет в старых WebView — ничего не паузим */ }
+  }
+
   function setKeyboardOpen(open) {
     if (open === keyboardOpen) return;
     keyboardOpen = open;
     keyboardSawShrink = false;
     document.documentElement.classList.toggle('kb-open', open);
+    setDecorAnimationsPaused(open);
     if (!open) refreshHintLayout();
   }
 

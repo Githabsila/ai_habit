@@ -154,6 +154,7 @@ function saveStoredMessages(messages) {
 // закрытие мини-приложения), а при возврате клиент забирает итог по номеру запроса и дорисовывает ответ внизу диалога.
 const CHAT_PENDING_KEY = 'adam_chat_pending';
 const CHAT_RESULT_WAIT_MS = 190000;      // чуть дольше серверного тайм-аута ответа (180 с)
+const SLOW_REPLY_MS = 12000;             // через сколько «Формирую ответ» дополняется словами, что ответ идёт дольше обычного
 let pendingMemory = null;                // запасной вариант, если localStorage недоступен (приватный режим)
 function newRequestId() {
     try {
@@ -521,6 +522,13 @@ function AiChat() {
         };
     }, []);
     useEffect(() => { saveStoredMessages(messages); }, [messages]);
+    // Ответ идёт дольше обычного (модель занята или сеть медленная) — говорим об этом, а не молчим: ADAM дописывает его сам, даже если выйти из чата.
+    const [slowReply, setSlowReply] = useState(false);
+    useEffect(() => {
+        if (!loading) { setSlowReply(false); return undefined; }
+        const timer = setTimeout(() => setSlowReply(true), SLOW_REPLY_MS);
+        return () => clearTimeout(timer);
+    }, [loading]);
     const fetchHistoryList = useCallback(async () => {
         try {
             const res = await fetch('/api/ai/history?init_data=' + encodeURIComponent(getInitData()) + '&limit=50');
@@ -1134,7 +1142,9 @@ function AiChat() {
                         React.createElement("div", { className: "thinking-dots" },
                             React.createElement("i", null),
                             React.createElement("i", null),
-                            React.createElement("i", null))))),
+                            React.createElement("i", null)),
+                        loading && !greeting && slowReply && React.createElement("div", { className: "thinking-note", style: { marginTop: '6px', fontSize: '12px', lineHeight: 1.4, color: '#9EA8BD' } },
+                            "Отвечаю дольше обычного — можно подождать здесь или зайти позже, я допишу ответ сам")))),
             React.createElement("div", { ref: messagesEnd }))),
         scrollDownVisible(showScrollDown, composerFocused) && React.createElement("button", {
             type: "button",
