@@ -11,22 +11,7 @@ from zoneinfo import ZoneInfo
 
 from aiogram.exceptions import TelegramForbiddenError
 
-from db import (
-    get_habits,
-    get_all_users,
-    get_settings,
-    get_ai_style,
-    log_error,
-    get_timezone,
-    claim_notification,
-    release_notification,
-    notification_scope,
-    in_time_window,
-    reminder_category_enabled,
-    in_quiet_hours,
-    is_bot_blocked,
-    mark_bot_blocked,
-)
+from db import get_habits, get_all_users, get_settings, get_ai_style, get_user_profile, log_error, get_timezone, claim_notification, release_notification, notification_scope, in_time_window, reminder_category_enabled, in_quiet_hours, is_bot_blocked, mark_bot_blocked
 from multi_agent import generate_morning_message
 from db import ai_usage
 from alerts import notify_admins

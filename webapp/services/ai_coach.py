@@ -1,4 +1,8 @@
-from webapp.services.ai_utils import build_history_text, build_user_context
+from webapp.services.ai_utils import (
+    build_history_text,
+    build_user_context,
+    _cache_key,
+)
 
 from multi_agent import solve_task_multiagent
 

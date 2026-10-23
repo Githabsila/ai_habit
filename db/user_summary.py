@@ -7,6 +7,7 @@
 данные в него не попадают. Расход токенов на сводки не списывается с человека (scope без user_id, функция «summary»).
 """
 import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 
 from .core import connect

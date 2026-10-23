@@ -15,16 +15,19 @@ import json
 import logging
 import math
 from aiohttp import web
+from datetime import date
 from db import (
     add_ai_message,
     get_ai_history,
     clear_ai_history,
+    get_progress,
     get_habits,
     save_ai_feedback,
     get_ai_message_text,
     get_ai_style,
     add_habit,
     save_feedback_reason,
+    get_recent_negative_reasons,
     get_user_profile,
     update_user_profile,
     bump_profile_counter,
@@ -34,13 +37,12 @@ from db import (
     get_last_ai_message_at,
     touch_last_ai_message,
     claim_ai_first_message,
-    has_premium,
-    get_ai_quota,
-    consume_ai_answer,
+    has_premium, get_ai_quota, consume_ai_answer,
 )
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
 from datetime import datetime, timezone
 from config import AI_MAX_INPUT_CHARS, AI_LONG_COST_CHARS, AI_VERY_LONG_COST_CHARS
+import hashlib
 import asyncio
 import uuid
 
@@ -112,6 +114,7 @@ async def _update_memory(user_id: int):
         recent_history = build_history_text(user_id, limit=MEMORY_UPDATE_EVERY + 2)
         with ai_usage.scope(user_id, "memory"):
             memory = await summarize_user_memory(existing_summary, recent_history)
+        import json as _json
         from datetime import datetime as _dt, timedelta as _td
         summary = existing_summary
         followup = ""

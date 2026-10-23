@@ -19,7 +19,7 @@
   Кнопкам внутри существующего экрана ничего прописывать не нужно: они учтутся сами и попадут к функции, которой принадлежит экран.
   Хочется красивого названия кнопки на странице — добавь её в BUTTON_LABELS (необязательно).
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 
 

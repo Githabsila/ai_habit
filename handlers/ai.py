@@ -1,11 +1,18 @@
 import json
 import math
+import time
+import hashlib
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 # ✅ Импортируем общие утилиты из ai_utils (не из ai_service)
-from webapp.services.ai_utils import build_history_text, build_proactive_context
+from webapp.services.ai_utils import (
+    build_history_text,
+    build_user_context,
+    build_proactive_context,
+    _cache_key,
+)
 
 # ❌ Удалён глобальный импорт chat из ai_service
 # from webapp.services.ai_service import chat
@@ -19,20 +26,24 @@ from aiogram.exceptions import TelegramBadRequest
 from db import (
     add_ai_message,
     get_ai_message_text,
+    get_ai_history,
+    get_progress,
+    get_habits,
     save_ai_feedback,
     get_ai_style,
     add_habit,
     save_feedback_reason,
+    get_recent_negative_reasons,
     get_user_profile,
     update_user_profile,
     bump_profile_counter,
+    cache_get,
+    cache_set,
     log_error,
     get_last_ai_message_at,
     touch_last_ai_message,
     claim_ai_first_message,
-    has_premium,
-    get_ai_quota,
-    consume_ai_answer,
+    has_premium, get_ai_quota, consume_ai_answer,
 )
 
 from keyboards import (
@@ -43,7 +54,7 @@ from keyboards import (
     crisis_keyboard,
 )
 
-from multi_agent import generate_daily_tip, summarize_user_memory
+from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
 from db import ai_usage
 from config import AI_TELEGRAM_MAX_INPUT_CHARS, AI_LONG_COST_CHARS, AI_VERY_LONG_COST_CHARS
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
