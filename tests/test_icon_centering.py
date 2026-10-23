@@ -63,7 +63,7 @@ def test_pencil_is_shifted_to_the_center_and_lifted_on_the_avatar():
     pencil_old = "M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"
     pencil = "M4.5 19.5h4L19.5 8.5l-4-4L4.5 15.5v4zM14 6l4 4"
     assert pencil_old not in INDEX and pencil_old not in APP_JS
-    assert INDEX.count(pencil) == 2 and pencil in APP_JS
+    assert INDEX.count(pencil) == 1 and pencil in APP_JS, "карандаш остался только на аватарке: рядом с именем его убрали (23.10)"
     x0, x1, y0, y1 = _path_box("M4.5 19.5h4L19.5 8.5l-4-4L4.5 15.5v4z")
     assert (x0 + x1) / 2 == 12 and (y0 + y1) / 2 == 12
     assert ".streak-profile-avatar__edit svg{transform:translateY(-1px)}" in CSS
@@ -108,7 +108,7 @@ def test_sparkle_diamond_is_an_svg_in_the_shop_and_the_chat():
     assert 'dangerouslySetInnerHTML: { __html: showTools ? X_SVG : SPARK_SVG }' in COACH_JS
     assert 'className: "icon-btn__glyph", dangerouslySetInnerHTML: { __html: SPARK_SVG }' in COACH_JS
     assert ".chat-toolbar-orb .ui-icon" in COACH_HTML and ".quick-toggle-icon .ui-icon" in COACH_HTML
-    assert "ai_coach.js?v=20261021_COMPOSE_V58" in COACH_HTML
+    assert "ai_coach.js?v=20261021_COMPOSE_V59" in COACH_HTML
 
 
 def test_chat_arrows_and_chevron_are_svg_too():

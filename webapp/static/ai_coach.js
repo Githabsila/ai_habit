@@ -769,11 +769,14 @@ function AiChat() {
                     history.replaceState(null, '', location.pathname);
             };
             const afterHistory = (hasHistory) => {
+                // Прежний ожидающий запрос читаем ДО автоотправки: только что отправленное сообщение сервер ещё не принял, за итогом
+                // для него приходило «такого запроса нет» — человек сразу видел ошибку, а настоящий ответ терялся.
+                const pending = readPendingChat();
                 maybeSendOnboardingIntro(hasHistory);
                 greetFromAdam();
                 // Ушли из чата, пока ADAM отвечал: забираем его ответ и показываем внизу диалога.
-                const pending = readPendingChat();
-                if (pending)
+                const current = readPendingChat();
+                if (pending && current && current.rid === pending.rid)
                     recoverPending(pending);
             };
             if (loadStoredMessages().length) {

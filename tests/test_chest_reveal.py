@@ -69,7 +69,7 @@ def test_chest_window_markup_is_a_hidden_dialog_with_all_parts():
 
 
 def test_script_and_style_versions_follow_the_release():
-    assert "style.css?v=20261021_QUESTS_V77" in INDEX and "app.js?v=20261021_QUESTS_V89" in INDEX
+    assert "style.css?v=20261021_QUESTS_V79" in INDEX and "app.js?v=20261021_QUESTS_V89" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- скрипт
@@ -167,6 +167,25 @@ def test_chest_styles_cover_the_waiting_knocking_and_opening_phases():
     assert ".chest-card[data-phase=\"wait\"] .chest-btn{opacity:1" in css, "«Не сейчас» видна, пока ждём тапы"
     assert ".chest-stage.is-knock" in css[css.index("@media (prefers-reduced-motion: reduce)"):], "при «уменьшить движение» удары не трясут"
     assert re.search(r"chestInvite 1\.1s ease-in-out 1s 3\}", css), "подсказка-«приглашение» конечная: три раза"
+
+
+def test_the_button_does_not_flash_gold_while_the_chest_shakes_and_the_card_does_not_jump():
+    """23.10, видео владельца: после третьего тапа «Не сейчас» на 0,25 с становилась золотой «Забрать» и гасла (правило фазы wait
+    переставало действовать, а цвет переключался мгновенно), а при открытии карточка схлопывалась на 22 px (пропадала шкала и рамка)."""
+    css = _chest_css()
+    ghost = re.search(r'\.chest-card\[data-phase="wait"\] \.chest-btn,\.chest-card\[data-phase="shake"\] \.chest-btn\{([^}]*)\}', css)
+    assert ghost, "пока сундук трясётся, кнопка всё ещё «Не сейчас»: бесцветная и гаснет"
+    assert "background:transparent" in ghost.group(1) and "color:#B9B3D6" in ghost.group(1)
+    base = re.search(r"\.chest-btn\{([^}]*)\}", css).group(1)
+    assert "border:0" in base and "opacity:0" in base, "обычная (золотая) кнопка скрыта, пока не готова"
+    assert "border:" not in ghost.group(1).replace("border-radius", ""), "рамка — тенью: высота кнопки не меняется между фазами"
+    assert "inset 0 0 0 1px" in ghost.group(1)
+    assert '.chest-card[data-phase="open"] .chest-pips{visibility:hidden}' in css, "шкала держит место, карточка не схлопывается"
+    assert 'data-phase="open"] .chest-pips,' not in css and not re.search(r'\.chest-pips\{[^}]*display:none', css)
+    assert '.chest-card[data-phase="open"] .chest-hint{display:none}' in css, "подсказку заменяют награды той же высоты"
+    assert re.search(r"\.chest-hint\{[^}]*min-height:96px", css) and re.search(r"\.chest-prizes\{[^}]*min-height:96px", css)
+    # золотая «Забрать» появляется только после того, как всё показано (data-ready)
+    assert '.chest-card[data-ready="1"] .chest-btn{opacity:1' in css
 
 
 def test_chest_styles_are_light_for_weak_webviews():

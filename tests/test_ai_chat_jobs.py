@@ -313,12 +313,27 @@ def test_chat_marks_the_request_as_waiting_and_picks_the_answer_up_on_return():
     catch = send[send.index("catch (e)"):]
     assert "recoverPending(pending)" in catch and "setMessages" not in catch, "обрыв связи — не повод показывать ошибку"
     assert "finally" not in send, "«думает» снимается только когда ответ показан"
-    mount = COACH_JS[COACH_JS.index("const afterHistory = (hasHistory) => {"):][:520]
+    mount = COACH_JS[COACH_JS.index("const afterHistory = (hasHistory) => {"):][:1200]
     assert "readPendingChat()" in mount and "recoverPending(pending)" in mount
     assert "useState(() => !!readPendingChat())" in COACH_JS, "при возврате сразу «Формирую ответ», а не пустое поле ввода"
     kick = COACH_JS[COACH_JS.index("const kick = () => {"):][:420]
     assert "visibilitychange" in COACH_JS[COACH_JS.index("const kick = () => {"):][:900] and "'online'" in COACH_JS[COACH_JS.index("const kick = () => {"):][:900]
     assert "recoverPending(pending)" in kick
+
+
+def test_the_message_adam_sends_for_the_user_is_not_mistaken_for_a_lost_request():
+    """23.10: тап по квесту «Поговори с Адамом» открывает чат и сам отправляет сообщение; сразу после него чат шёл за «итогом» этого же
+    запроса, сервер его ещё не знал («unknown») — человек видел «Не удалось получить ответ ADAM», а настоящий ответ отбрасывался."""
+    mount = COACH_JS[COACH_JS.index("const afterHistory = (hasHistory) => {"):][:1200]
+    before = mount.index("const pending = readPendingChat()")
+    assert before < mount.index("maybeSendOnboardingIntro(hasHistory)"), "прежний запрос читаем до автоотправки"
+    assert mount.index("maybeSendOnboardingIntro(hasHistory)") < mount.index("const current = readPendingChat()")
+    assert "pending && current && current.rid === pending.rid" in mount, "новый (только что отправленный) запрос не «спасаем»"
+    # автоотправка действительно пишет новый ожидающий запрос, а сервер на неизвестный rid отвечает unknown — поэтому гонка настоящая
+    send = COACH_JS[COACH_JS.index("const sendText = useCallback("):][:900]
+    assert "writePendingChat(pending)" in send
+    from webapp.services.ai_jobs import ChatJobs
+    assert ChatJobs().result(1, "ещё-не-принятый-запрос") == {"status": "unknown"}
 
 
 def test_returning_adds_the_users_bubble_only_when_it_is_missing_and_never_twice():
@@ -334,4 +349,4 @@ def test_returning_adds_the_users_bubble_only_when_it_is_missing_and_never_twice
 def test_new_dialog_drops_the_waiting_request_and_the_page_loads_the_new_script():
     clear = COACH_JS[COACH_JS.index("const startNewDialog = () => {"):][:600]
     assert "clearPendingChat()" in clear and "deliveredRef.current.add(waiting.rid)" in clear and "setLoading(false)" in clear
-    assert "ai_coach.js?v=20261021_COMPOSE_V58" in COACH_HTML
+    assert "ai_coach.js?v=20261021_COMPOSE_V59" in COACH_HTML
