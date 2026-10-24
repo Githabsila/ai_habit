@@ -311,6 +311,7 @@ async def send_offsite_backup(bot, min_interval_hours=None):
             disable_notification=True,
         )
         _write_offsite_marker()
+        logger.info(f"Копия базы отправлена админу в Telegram: {name[:10]}, {max(size / 1024 / 1024, 0.1):.1f} МБ")   # по этой строке в журнале видно, что файл ушёл
     except Exception as e:
         logger.warning(f"Не удалось отправить оффсайт-бэкап админу: {e}")
         try:

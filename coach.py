@@ -245,7 +245,8 @@ async def run_task_reminder_check(bot):
             finally:
                 mark_goal_reminder_sent(plan["id"])
 
-    logger.info(f"Индивидуальные напоминания по задачам: отправлено {sent} сообщений")
+    if sent:      # задача идёт каждую минуту — «отправлено 0» засоряло журнал Railway (пять строк в минуту)
+        logger.info(f"Индивидуальные напоминания по задачам: отправлено {sent} сообщений")
 
 
 # =====================================
@@ -490,7 +491,8 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
         except Exception as e:
             log_error(kind, e, telegram_id)
 
-    logger.info(f"{label}: отправлено {sent} сообщений")
+    if sent:
+        logger.info(f"{label}: отправлено {sent} сообщений")
 
 
 async def run_habit_checkpoint_10(bot):
@@ -606,9 +608,8 @@ async def run_day_progress_check(bot):
         except Exception as e:
             log_error("day_progress_check", e, telegram_id)
 
-    logger.info(
-        f"Вечерняя сверка плана дня (19:00): отправлено {sent} сообщений"
-    )
+    if sent:
+        logger.info(f"Вечерняя сверка плана дня (19:00): отправлено {sent} сообщений")
 
 
 # Старую отдельную вечернюю сверку 22:30 намеренно не запускаем:
@@ -718,7 +719,8 @@ async def _broadcast(bot, text_fn, job_name, day_key):
             release_notification(telegram_id, day_key, job_name, scope)
             log_error(job_name, e, telegram_id)
 
-    logger.info(f"{job_name}: отправлено {sent} сообщений")
+    if sent:
+        logger.info(f"{job_name}: отправлено {sent} сообщений")
 
 
 async def run_week_start_ping(bot):

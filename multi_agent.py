@@ -41,6 +41,7 @@ import json
 import re
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -74,6 +75,16 @@ OPENAI_TOTAL_BUDGET = 100.0
 OPENAI_MAX_OUTPUT_TOKENS = 4000    # потолок, до которого поднимаем лимит ответа, если модель потратила его на размышления
 
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
+
+# Groq — основной канал, но с Railway он бывает недоступен («Connection error», 24.10 в логах каждый вызов): две попытки по ~1,4 с впустую перед
+# каждым обращением к модели, а в одном ответе их несколько. После такого отказа Groq на несколько минут пропускаем и идём сразу в OpenAI.
+# Только если OpenAI настроен: иначе Groq — единственный канал, и пропускать его нельзя.
+GROQ_COOLDOWN_SECONDS = 300
+_groq_down_until = 0.0
+
+
+def _groq_usable() -> bool:
+    return bool(GROQ_API_KEY) and (not OPENAI_API_KEY or time.monotonic() >= _groq_down_until)
 
 # Reuse HTTP connection pools between requests. Creating a new AsyncOpenAI
 # client for every stage throws away keep-alive/TLS connection reuse.
@@ -767,16 +778,23 @@ async def _ask(
 
         # Основной провайдер: короткий повтор полезнее, чем мгновенно отдавать
         # пользователю ошибку из-за единичного сетевого/429/5xx сбоя.
-        if GROQ_API_KEY:
+        global _groq_down_until
+        if _groq_usable():
             for attempt in range(MAX_RETRIES + 1):
                 started = time.perf_counter()
                 try:
                     result = _renumber_numbered_lists(await _groq_call())
                     logger.info("AI response %.2fs via Groq (attempt %s)", time.perf_counter() - started, attempt + 1)
+                    _groq_down_until = 0.0
                     return result
                 except Exception as e:
                     last_error = e
                     logger.warning("Groq attempt %s failed after %.2fs: %s", attempt + 1, time.perf_counter() - started, e)
+                    if isinstance(e, APIConnectionError) and OPENAI_API_KEY:
+                        # Связи с Groq нет — вторая попытка бесполезна; ближайшие минуты идём сразу в OpenAI.
+                        _groq_down_until = time.monotonic() + GROQ_COOLDOWN_SECONDS
+                        logger.warning("Groq недоступен (ошибка подключения): следующие %s с обращаюсь сразу к OpenAI", GROQ_COOLDOWN_SECONDS)
+                        break
                     if attempt < MAX_RETRIES:
                         await asyncio.sleep(min(1.0, _extract_wait_seconds(str(e), 0.6)))
 
