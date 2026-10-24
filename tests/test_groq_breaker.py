@@ -3,7 +3,10 @@
 шёл в OpenAI, а в одном ответе таких вызовов несколько. Теперь после ошибки подключения к Groq он пропускается на GROQ_COOLDOWN_SECONDS (если OpenAI
 настроен) — остальные ответы идут сразу в OpenAI. Без OpenAI Groq остаётся единственным каналом и пропускаться не должен.
 """
-import httpx
+try:                       # у openai 3.x свой HTTP-клиент httpx2 (его и ставит CI); обычный httpx есть не везде
+    import httpx2 as httpx
+except ImportError:        # pragma: no cover
+    import httpx
 import pytest
 from openai import APIConnectionError
 

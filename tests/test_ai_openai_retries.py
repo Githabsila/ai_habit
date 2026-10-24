@@ -5,7 +5,10 @@
 запросах длиннее 4500 символов. Теперь: срок попытки зависит от размера ответа, до трёх своих попыток, при пустом ответе лимит растёт,
 после неудачи тяжёлая модель заменяется быстрой, а ошибка в журнале называет тип сбоя.
 """
-import httpx
+try:                       # у openai 3.x свой HTTP-клиент httpx2 (его и ставит CI); обычный httpx есть не везде
+    import httpx2 as httpx
+except ImportError:        # pragma: no cover
+    import httpx
 import openai
 import pytest
 
