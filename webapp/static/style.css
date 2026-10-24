@@ -14849,6 +14849,16 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 :root[data-mode="light"] .habit-edit-priority__text b{color:#1C1730}
 :root[data-mode="light"] .habit-edit-priority__text small{color:#6B6585}
 
+/* ---------- Отмена отметки привычки (app.js::openHabitUndo): нижнее окно на основе .feedback-sheet / .feedback-card ---------- */
+.habit-undo-card{padding-top:14px}
+.habit-undo-card h3{margin:0 0 10px}
+.habit-undo-sheet.is-sim .habit-undo-card{margin-bottom:170px}
+.habit-undo-card .habit-undo-name{margin:0 0 6px;font:800 15px 'Space Grotesk',sans-serif;color:#F4F7FF;overflow-wrap:anywhere}
+.habit-undo-card .habit-undo-name:empty{display:none}
+.habit-undo-card .habit-undo-note{margin:0 0 16px;font-size:13px;line-height:1.4;color:#9EA8BD}
+:root[data-mode="light"] .habit-undo-card .habit-undo-name{color:#1C1730}
+:root[data-mode="light"] .habit-undo-card .habit-undo-note{color:#6B6585}
+
 /* =========================================================
    Голос Адама (app.js::adamVoiceHtml): маленькая аватарка у сообщений от Адама — тонкое кольцо без свечения, без размытия и без
    анимаций. В тостах она стоит вместо цветной точки (цвет вида — в кольце), в окнах и подсказках — у заголовка, в «Уведомлениях» — слева.

@@ -4179,6 +4179,113 @@
     });
   }
 
+  // ===================== ОТМЕНА ОТМЕТКИ ПРИВЫЧКИ =====================
+  // Правка владельца (24.10): нажал на галочку случайно — тапни по зелёной галочке дважды, спрошу «Убрать отметку о выполнении?».
+  // Одиночный тап подсказывает, как это сделать. Можно ли убрать, решает сервер (db/habit_undo.py): отметка сегодняшняя, не больше
+  // нескольких отмен в день, монеты за неё ещё на балансе. Симуляция: админка → «Окна и анимации» → habit_undo.
+  const HABIT_UNDO_DOUBLE_TAP_MS = 450;
+  const HABIT_UNDO_HINT_TEXT = "Нажал случайно? Тапни по галочке дважды — я уберу отметку";
+  const HABIT_UNDO_SIM = { id: 0, title: "Зарядка по утрам", completed: true };
+  let lastDoneCheckTap = { id: null, time: 0 };
+  let doneCheckHintTimer = null;
+  let habitUndo = null;
+
+  // Тап по зелёной галочке: второй за HABIT_UNDO_DOUBLE_TAP_MS открывает вопрос, одиночный через паузу подсказывает двойной тап.
+  function habitDoneCheckTap(habitId, now = Date.now()) {
+    clearTimeout(doneCheckHintTimer);
+    if (lastDoneCheckTap.id === habitId && now - lastDoneCheckTap.time <= HABIT_UNDO_DOUBLE_TAP_MS) {
+      lastDoneCheckTap = { id: null, time: 0 };
+      openHabitUndo(habitId);
+      return "double";
+    }
+    lastDoneCheckTap = { id: habitId, time: now };
+    haptic("light");
+    doneCheckHintTimer = setTimeout(() => {
+      lastDoneCheckTap = { id: null, time: 0 };
+      showToast(HABIT_UNDO_HINT_TEXT, "success", 3200);
+    }, HABIT_UNDO_DOUBLE_TAP_MS + 60);
+    return "single";
+  }
+
+  function openHabitUndo(habitId, { habit = null, sim = false } = {}) {
+    const sheet = document.getElementById("habitUndoSheet");
+    if (!sheet || habitUndo) return false;
+    const h = habit || (state.habits || []).find((x) => x.id === habitId);
+    if (!h || !h.completed) return false;
+    habitUndo = { id: h.id, sim, busy: false };
+    document.getElementById("habitUndoName").textContent = h.title || "";
+    document.getElementById("habitUndoConfirm").disabled = false;
+    sheet.classList.toggle("is-sim", !!sim);       // панель симуляции стоит внизу — окно поднимается над ней
+    sheet.hidden = false;
+    sheet.setAttribute("aria-hidden", "false");
+    requestAnimationFrame(() => sheet.classList.add("is-open"));
+    haptic("warning");
+    if (!sim) trk("habit_undo_open", null, null);
+    return true;
+  }
+
+  function closeHabitUndo() {
+    const sheet = document.getElementById("habitUndoSheet");
+    if (!sheet || !habitUndo) return;
+    habitUndo = null;
+    sheet.classList.remove("is-open");
+    sheet.setAttribute("aria-hidden", "true");
+    setTimeout(() => { if (!habitUndo) sheet.hidden = true; }, 230);
+  }
+
+  async function confirmHabitUndo() {
+    const s = habitUndo;
+    if (!s || s.busy) return;
+    if (s.sim) {
+      showToast("Так выглядит отмена — в симуляции ничего не меняется", "success", 3200);
+      closeHabitUndo();
+      return;
+    }
+    const confirmBtn = document.getElementById("habitUndoConfirm");
+    s.busy = true;
+    confirmBtn.disabled = true;
+    try {
+      const result = await api(`/api/habits/${s.id}/uncomplete`, { method: "POST" });
+      closeHabitUndo();
+      clearTimeout(bonusHintTimer);                  // подсказка «успей закрыть следующую» относилась к отметке, которой больше нет
+      bonusHintTimer = null;
+      haptic("medium");
+      applyActionPatch(result);
+      // Окна, которые ждали своей очереди после отметки, относились к ней — отмена их снимает.
+      clearInterval(questsWindowTimer);
+      questsWindowTimer = null;
+      questsPending = null;
+      const stillDone = (state.habits || []).some((h) => h.completed);
+      if (!stillDone) {
+        clearInterval(remindSheetTimer);             // «Напомнить друзьям» — только пока есть своя отметка
+        remindSheetTimer = null;
+      }
+      if (friendsData) {
+        friendsData.viewer_done = stillDone;
+        renderFriendsCard();
+      }
+      showToast(result.coins_back ? `Убрал отметку и забрал ${result.coins_back} Adam Coin обратно` : "Убрал отметку", "success", 3400);
+    } catch (err) {
+      closeHabitUndo();
+      trk("habit_undo_denied", (err && err.data && err.data.error) || "error", null);
+      showToast(friendlyError(err), "error", 4200);
+      await loadBootstrap();                         // сервер знает лучше: перерисуем привычки так, как они есть на самом деле
+    }
+  }
+
+  function initHabitUndo() {
+    if (!document.getElementById("habitUndoSheet")) return;
+    document.getElementById("habitUndoBackdrop")?.addEventListener("click", () => { if (habitUndo && !habitUndo.busy) closeHabitUndo(); });
+    document.getElementById("habitUndoKeep")?.addEventListener("click", () => {
+      if (!habitUndo || habitUndo.busy) return;
+      haptic("light");
+      if (!habitUndo.sim) trk("habit_undo_cancel", null, null);
+      closeHabitUndo();
+    });
+    document.getElementById("habitUndoConfirm")?.addEventListener("click", confirmHabitUndo);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && habitUndo && !habitUndo.busy) closeHabitUndo(); });
+  }
+
   function renderHabits() {
     if (armedHabitDelete) disarmHabitDelete();     // см. renderSingleHabit
     const list = document.getElementById("habitList");
@@ -4352,7 +4459,7 @@
 
       return `
       <li class="habit-item ${h.completed ? "is-done" : ""}" data-id="${h.id}">
-        <button class="${checkClass}" data-action="${isCounter && !h.completed ? "progress" : "complete"}" ${h.completed ? "disabled" : ""}>${checkLabel}</button>
+        <button class="${checkClass}" data-action="${h.completed ? "undo-hint" : (isCounter ? "progress" : "complete")}"${h.completed ? ' aria-label="Выполнено. Дважды нажми, чтобы убрать отметку"' : ""}>${checkLabel}</button>
         ${badges}<span class="habit-item__title ${isExpanded ? "is-expanded" : ""}" title="${escapeHtml(h.title)}">${escapeHtml(h.title)}</span>
         ${suggestBtn}
         ${rowActions}
@@ -6399,6 +6506,11 @@ function initHabitActions() {
       return;
     }
 
+    if (action === "undo-hint") {
+      habitDoneCheckTap(habitId);
+      return;
+    }
+
     // Жалоба пользователя: отклик на выполнение привычки приходит с задержкой
     // около секунды. Раньше вибрация и галочка появлялись только ПОСЛЕ ответа
     // сервера (а он в другом полушарии: сеть туда-обратно + обработка) — тап
@@ -7133,6 +7245,10 @@ function initPlanActions() {
     invalid_name: "Name must be 1 to 30 characters",
     not_for_sale: "This reward is given by the administrator",
     not_enough_xp: "Not enough Adam Coin",
+    habit_not_done: "This habit is not checked anymore",
+    undo_too_late: "I can only undo today's check-ins",
+    undo_limit: "I've already undone a few check-ins today — let's keep this one",
+    undo_coins_spent: "The coins for this check-in are already spent, so it can't be undone",
   };
 
   function friendlyError(err) {
@@ -7207,6 +7323,10 @@ function initPlanActions() {
         invalid_name: "Имя — от 1 до 30 символов",
         not_for_sale: "Эту награду выдаёт администратор",
         not_enough_xp: "Не хватает Adam Coin",
+        habit_not_done: "Эта привычка уже не отмечена",
+        undo_too_late: "Эту отметку я уже не уберу: убираю только сегодняшние",
+        undo_limit: "Сегодня я уже убирал отметки несколько раз — эту оставим",
+        undo_coins_spent: "Монеты за эту отметку уже потрачены — убрать её не получится",
     };
 
     const activeMap = currentLanguage === "en" ? ERROR_MAP_EN : map;
@@ -7806,7 +7926,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "trialSheet", "trialPaywallOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialSheet", "trialPaywallOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -9618,6 +9738,7 @@ const SIM_SCENES = {
   adam_intro_result: () => openAdamIntro({ sim: true, jump: true, demo: { focus: "study", struggle: "start", energy: "morning", span: "s25", hours: "h2", talk: "month" } }),
   inbox: () => openInbox({ demo: SIM_INBOX }),
   habit_edit: () => openHabitEdit(0, { habit: HABIT_EDIT_SIM, sim: true }),
+  habit_undo: () => { closeHabitUndo(); setTimeout(() => openHabitUndo(0, { habit: HABIT_UNDO_SIM, sim: true }), 260); },
   trial_card: () => showTrialCardDemo(SIM_TRIAL),
   trial_sheet: () => { closeTrialPaywall(); closeTrialSheet(); setTimeout(() => openTrialSheet({ demo: SIM_TRIAL }), 260); },
   trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),
@@ -11966,6 +12087,7 @@ async function boot() {
             initTabs();
             initSubpageOverlays();
             initHabitActions();
+            initHabitUndo();
             initDailyQuestActions();
             initRatingActions();
             initRatingScopeSwitch();

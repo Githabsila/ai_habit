@@ -103,6 +103,7 @@ from db import ai_usage
 from db import adam_profile as adam_profile_db
 from db import inbox as inbox_db
 from db.gifts import freeze_help_candidates, FREEZE_GIFT_PRICE
+from db.habit_undo import undo_mark as undo_habit_mark, undo_count_today
 from db.rescue import rescue_candidates as rescue_help_candidates, rescue_streak
 from db.tracking import ingest as ingest_track
 from db import usage as usage_db
@@ -1358,7 +1359,8 @@ async def complete_habit_route(request):
     streak = get_streak_status(telegram_id)
     # «+1 день ударного режима» сразу после «Красиво. Первый результат закрыт» — три сообщения
     # подряд про одно и то же: первую победу это сообщение уже покрывает.
-    if event and not first_win_sent:
+    # После отмены отметки день засчитывается заново — но пуш про «+1 день» человек уже получал, второй раз его не шлём.
+    if event and not first_win_sent and not undo_count_today(telegram_id):
         try:
             phrase = event["message"]
             _push_in_background(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{phrase}")
@@ -1427,6 +1429,34 @@ async def complete_habit_route(request):
     })
 
 
+@routes.post("/api/habits/{habit_id}/uncomplete")
+async def uncomplete_habit_route(request):
+    """Двойной тап по зелёной галочке и ответ «да» на вопрос «Убрать отметку о выполнении?» (db/habit_undo.py). Отвечает тем же набором
+    полей, что и отметка, — app.js::applyActionPatch обновит строку привычки, монеты, серию и квесты без перезагрузки экрана.
+    Ошибки — 409 с кодом: habit_not_done, undo_too_late (прошёл день или отметка старая), undo_limit, undo_coins_spent."""
+    telegram_id, is_admin = await _authenticate(request)
+    habit_id = int(request.match_info["habit_id"])
+    _owned_habit_or_404(habit_id, telegram_id)
+    result = undo_habit_mark(habit_id)
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=409)
+    return web.json_response({
+        "ok": True,
+        "undone": True,
+        "coins_back": result["coins_back"],
+        "streak_restored": result["streak_restored"],
+        "user": _shape_user(telegram_id, get_user(telegram_id), is_admin),
+        "habit": _shape_habit(get_habit(habit_id), telegram_id),
+        "daily_quests": get_daily_quests(telegram_id),
+        "month_quests": get_month_quests(telegram_id),
+        "progress": get_progress(telegram_id),
+        "streak": get_streak_status(telegram_id),
+        "pet": get_pet(telegram_id),
+        "hero": get_hero_state(telegram_id),
+        "pair_quest": _pair_quest_payload(telegram_id),
+    })
+
+
 @routes.post("/api/habits/{habit_id}/progress")
 async def habit_progress_route(request):
     """Roadmap #1 — привычка-счётчик ("выпить 4 стакана"): +1 (или body.amount)
@@ -1470,7 +1500,7 @@ async def habit_progress_route(request):
     first_win_sent = await _maybe_push_first_win(request.app, telegram_id, "habit")
     event = consume_completion_event(telegram_id)
     streak = get_streak_status(telegram_id)
-    if event and not first_win_sent:
+    if event and not first_win_sent and not undo_count_today(telegram_id):
         try:
             _push_in_background(request.app, telegram_id, f"🔥 +1 день ударного режима!\n\n{event['message']}")
         except Exception:

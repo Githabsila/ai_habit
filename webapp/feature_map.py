@@ -69,12 +69,12 @@ FEATURES = (
     Feature(
         "habits", "Привычки", "core", "2026-01-01",
         clicks=("addHabitTrigger", "newHabit*", "habit-item__*", "habit-filter-chip*", "habit-template-chip*", "habit-program-card*",
-                "habit-note-form__*", "struggling-habit-banner__*", "habitEdit*", "habit-edit-*"),
-        events=("habit_form_open", "habit_added", "habit_deleted", "habit_edit_open", "habit_edit_save", "habit_moved", "habit_actions", "habit_delete_armed", "habit_completed", "abuse_flagged"),
+                "habit-note-form__*", "struggling-habit-banner__*", "habitEdit*", "habit-edit-*", "habitUndo*", "habit-undo-*"),
+        events=("habit_form_open", "habit_added", "habit_deleted", "habit_edit_open", "habit_edit_save", "habit_moved", "habit_actions", "habit_delete_armed", "habit_completed", "habit_undo_open", "habit_undone", "habit_undo_cancel", "habit_undo_denied", "abuse_flagged"),
         api=("POST /api/habits", "PUT /api/habits/{habit_id}", "POST /api/habits/{habit_id}/move","POST /api/habits/{habit_id}/complete",
-             "POST /api/habits/{habit_id}/progress", "POST /api/habits/{habit_id}/note", "DELETE /api/habits/{habit_id}"),
+             "POST /api/habits/{habit_id}/uncomplete", "POST /api/habits/{habit_id}/progress", "POST /api/habits/{habit_id}/note", "DELETE /api/habits/{habit_id}"),
         bot=("cb:add_habit", "cb:complete_#", "cb:delete_#", "cb:edit_#", "cb:my_habits", "cb:habits", "cb:streak_continue"),
-        note="Создание, отметка, правка и удаление привычек",
+        note="Создание, отметка, отмена отметки двойным тапом по галочке, правка и удаление привычек",
     ),
     Feature(
         "daily_plan", "План дня: главная и второстепенные задачи", "core", "2026-01-01",

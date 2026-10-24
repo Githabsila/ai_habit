@@ -663,6 +663,7 @@ def complete_habit(habit_id):
         "INSERT INTO habit_completion_events(user_id, habit_id) VALUES (?, ?)",
         (user_id, habit_id),
     )
+    event_id = cursor.lastrowid        # нужен, чтобы отмена отметки (db/habit_undo.py) убрала из журнала именно эту запись
 
     cursor.execute("""
         UPDATE users SET total_completed = total_completed + 1
@@ -743,12 +744,16 @@ def complete_habit(habit_id):
     # применяем freeze или сбрасываем серию, затем считаем сегодняшний день.
     from .streak import rollover_user
     rollover_user(user_id)
-    update_streak(user_id)
+    from .habit_undo import record_mark, snapshot_streak, snapshot_tasks, tasks_completed_since
+    streak_before = snapshot_streak(user_id)          # серия до сегодняшнего дня: к ней вернёмся, если эту отметку уберут последней
+    streak_result = update_streak(user_id)
+    tasks_before = snapshot_tasks(user_id)
     add_xp(user_id, coins)
     add_statistics(user_id, completed=1, xp=coins)
     update_calendar(user_id, total_habits)
     update_daily_task(user_id, "Выполнить привычку")
     update_daily_task(user_id, "Получить 20 Adam Coin", coins)
+    task_ids, task_bonus = tasks_completed_since(user_id, tasks_before)      # награды дневных заданий, которые закрыла именно эта отметка
     check_achievements(user_id)
 
     # Roadmap #11 — виртуальный питомец кормится каждой отметкой привычки.
@@ -781,6 +786,13 @@ def complete_habit(habit_id):
     # Приглашённый друг отметился: пригласившему уходит награда, если она ждала первой отметки (db/referrals.py). Сбой отметке не мешает.
     from .referrals import on_first_mark
     on_first_mark(user_id)
+
+    # Что дала эта отметка — по этому журналу её можно будет убрать двойным тапом по галочке (db/habit_undo.py).
+    record_mark(
+        user_id=user_id, habit_id=habit_id, day=_local_day(user_id), server_day=str(date.today()), event_id=event_id, coins=coins,
+        window_before=window_until.isoformat() if window_until else None, task_ids=task_ids, task_bonus=task_bonus,
+        snapshot=streak_before, streak_counted=bool(streak_result and streak_result.get("counted")),
+    )
 
     # Roadmap #7 — цепочки привычек: "сделал А → предложи Б". Если на эту
     # привычку как на триггер настроена другая (chain_trigger_habit_id) и

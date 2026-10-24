@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261021_QUESTS_V83">
+<link rel="stylesheet" href="/static/style.css?v=20261021_QUESTS_V84">
 </head>
 <body>
 
@@ -1008,6 +1008,20 @@ class="habit-add-form__submit">
   </section>
 </div>
 
+<div class="feedback-sheet habit-undo-sheet" id="habitUndoSheet" hidden aria-hidden="true">
+  <div class="feedback-sheet__backdrop" id="habitUndoBackdrop"></div>
+  <section class="feedback-card habit-undo-card" role="dialog" aria-modal="true" aria-labelledby="habitUndoHeading">
+    <div class="freeze-purchase-card__handle"></div>
+    <h3 id="habitUndoHeading">Убрать отметку о выполнении?</h3>
+    <p class="habit-undo-name" id="habitUndoName"></p>
+    <p class="habit-undo-note">Привычка снова будет ждать тебя, а монеты за неё я заберу обратно.</p>
+    <div class="feedback-actions">
+      <button type="button" class="freeze-purchase-back" id="habitUndoKeep">Оставить</button>
+      <button type="button" class="feedback-send-btn" id="habitUndoConfirm">Да, снять</button>
+    </div>
+  </section>
+</div>
+
 <div class="feedback-sheet" id="feedbackSheet" hidden aria-hidden="true">
   <div class="feedback-sheet__backdrop" id="feedbackBackdrop"></div>
   <section class="feedback-card" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
@@ -1744,7 +1758,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261021_QUESTS_V93"></script>
+<script type="module" src="/static/app.js?v=20261021_QUESTS_V94"></script>
 
 </body>
 </html>

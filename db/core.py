@@ -1482,6 +1482,39 @@ def create_tables():
     )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_habit_churn_user_day ON habit_churn(user_id, day)")
+
+    # Отмена отметки привычки (db/habit_undo.py): что именно дала каждая отметка, чтобы откатить ровно это, и состояние серии
+    # на начало дня — к нему возвращаемся, если убрана последняя отметка дня.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS habit_marks(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        habit_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        server_day TEXT NOT NULL,
+        event_id INTEGER,
+        coins INTEGER NOT NULL DEFAULT 0,
+        task_bonus INTEGER NOT NULL DEFAULT 0,
+        task_ids TEXT,
+        window_before TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        undone_at TEXT
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_habit_marks_habit ON habit_marks(habit_id, undone_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_habit_marks_user_day ON habit_marks(user_id, day)")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS habit_streak_snapshots(
+        user_id INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        streak INTEGER NOT NULL DEFAULT 0,
+        last_completed TEXT,
+        best_streak INTEGER,
+        temp_frame TEXT,
+        temp_status TEXT,
+        PRIMARY KEY (user_id, day)
+    )
+    """)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS abuse_flags(
         id INTEGER PRIMARY KEY AUTOINCREMENT,

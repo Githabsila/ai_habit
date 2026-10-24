@@ -108,7 +108,7 @@ def test_streak_message_is_not_added_to_the_first_win_in_both_completion_routes(
     assert APP_JS and True
     src = Path(ws.__file__).read_text(encoding="utf-8")
     assert src.count("first_win_sent = await _maybe_push_first_win(request.app, telegram_id, \"habit\")") == 2
-    assert src.count("if event and not first_win_sent:") == 2
+    assert src.count("if event and not first_win_sent and not undo_count_today(telegram_id):") == 2     # и после отмены отметки пуш про серию второй раз не шлём
 
 
 # --- утреннее приветствие ----------------------------------------------------------------------

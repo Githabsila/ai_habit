@@ -118,3 +118,12 @@ def test_the_chest_window_names_the_chest_once():
             assert not shared(eyebrow, waiting, hints, caption), (eyebrow, waiting, hints, caption)
         for title in opened:
             assert not shared(eyebrow, title, "Забрать"), (eyebrow, title)
+
+
+def test_the_undo_question_says_things_once():
+    block = _block('id="habitUndoSheet"', 1100)
+    title = _tag_text(block, r'id="habitUndoHeading">([^<]+)<')
+    note = _tag_text(block, r'class="habit-undo-note">([^<]+)<')
+    keep = _tag_text(block, r'id="habitUndoKeep">([^<]+)<')
+    confirm = _tag_text(block, r'id="habitUndoConfirm">([^<]+)<')
+    assert not shared(title, note, keep, confirm), (title, note, keep, confirm)
