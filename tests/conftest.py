@@ -18,6 +18,10 @@ import tempfile
 _TEST_DATA_DIR = tempfile.mkdtemp(prefix="adam_test_db_")
 os.environ["RAILWAY_VOLUME_MOUNT_PATH"] = _TEST_DATA_DIR
 os.environ.setdefault("BOT_TOKEN", "123456:TEST_TOKEN_NOT_REAL")
+# Адрес Mini App нужен, чтобы у сообщений бота строилась кнопка «Написать мне»/«Открыть ADAM». У разработчика он лежит в .env, а в GitHub Actions
+# его нет — 4 теста Адама (test_adam_checkin, test_adam_recency) падали там с 'NoneType' has no attribute 'inline_keyboard'. Пустое значение — тоже «нет».
+if not os.environ.get("WEBAPP_URL"):
+    os.environ["WEBAPP_URL"] = "https://adam.example.test"
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + "/..")
 
