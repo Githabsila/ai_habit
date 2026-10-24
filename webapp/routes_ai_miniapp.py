@@ -40,6 +40,7 @@ from db import (
     has_premium, get_ai_quota, consume_ai_answer,
 )
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
+from db.plans import has_pro_features
 from datetime import datetime, timezone
 from config import AI_MAX_INPUT_CHARS, AI_LONG_COST_CHARS, AI_VERY_LONG_COST_CHARS
 import hashlib
@@ -212,7 +213,7 @@ async def ai_chat_miniapp(request):
     # без второго ответа, второго списания лимита и без «не так быстро» от троттлинга.
     job = ai_jobs.get(user_id, rid)
     if job is None:
-        pro = has_premium(user_id)
+        pro = has_pro_features(user_id)
 
         if len(message_text) > AI_MAX_INPUT_CHARS:
             return web.json_response({
@@ -706,5 +707,5 @@ async def ai_quota_endpoint(request):
     from webapp.auth_helpers import authenticate
     init_data = request.headers.get("X-Telegram-Init-Data", "")
     user_id, _is_admin = await authenticate(init_data)
-    pro = has_premium(user_id)
+    pro = has_pro_features(user_id)
     return web.json_response(get_ai_quota(user_id, pro))

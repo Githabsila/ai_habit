@@ -56,6 +56,7 @@ from keyboards import (
 
 from multi_agent import solve_task_multiagent, generate_daily_tip, summarize_user_memory
 from db import ai_usage
+from db.plans import has_pro_features
 from config import AI_TELEGRAM_MAX_INPUT_CHARS, AI_LONG_COST_CHARS, AI_VERY_LONG_COST_CHARS
 from habit_intents import try_handle_habit_intent, try_handle_habit_intent_ai
 from handlers.helpers import send_long_message, edit_or_split_message
@@ -271,7 +272,7 @@ async def ai_chat(message: Message, state: FSMContext):
         await message.answer(habit_reply, reply_markup=ai_keyboard())
         return
 
-    is_pro = has_premium(user_id)
+    is_pro = has_pro_features(user_id)      # единая версия Pro: лимит и метка PRO у всех, у кого есть доступ (db/plans.py)
     quota = get_ai_quota(user_id, is_pro)
     cost = 3 if len(text) > AI_VERY_LONG_COST_CHARS else 2 if len(text) > AI_LONG_COST_CHARS else 1
     if quota["remaining"] < cost:

@@ -190,13 +190,13 @@ def get_users_by_tags(tags):
 
 
 # =====================================
-# AI-ОБРАТНАЯ СВЯЗЬ ПО ЦЕЛЯМ (еженедельно, Premium)
+# AI-ОБРАТНАЯ СВЯЗЬ ПО ЦЕЛЯМ (еженедельно, входит в Pro — для всех, у кого есть доступ)
 # =====================================
 
 def get_surveys_due_for_feedback(days=7):
-    """Пользователи с заполненной анкетой, approved-статусом и Premium,
-    которым либо ещё не отправляли разбор цели, либо отправляли
-    более `days` дней назад."""
+    """Пользователи с заполненной анкетой и approved-статусом, у которых сейчас есть доступ к приложению (триал, подписка Pro или доступ
+    от админа), которым либо ещё не отправляли разбор цели, либо отправляли более `days` дней назад. Единая версия Pro (24.10): раньше
+    разбор получали только владельцы Premium, теперь он входит в Pro для всех."""
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("""
@@ -204,14 +204,14 @@ def get_surveys_due_for_feedback(days=7):
         FROM user_survey s
         JOIN users u ON u.telegram_id = s.user_id
         WHERE u.access_status='approved'
-          AND u.premium=1
           AND u.banned=0
           AND s.bot_goal IS NOT NULL AND s.bot_goal != ''
           AND (s.last_feedback_at IS NULL OR s.last_feedback_at <= datetime('now', ?))
     """, (f"-{days} days",))
     rows = cursor.fetchall()
     conn.close()
-    return rows
+    from .subscription import bot_access_allowed
+    return [row for row in rows if bot_access_allowed(row["user_id"])]   # закрытому гейтом разбор не шлём
 
 
 def mark_feedback_sent(user_id):

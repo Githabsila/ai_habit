@@ -15,6 +15,10 @@ def get_shop_items():
     items = cursor.fetchall()
 
     conn.close()
+    # Единая версия Pro (24.10): отдельный Premium не продаётся, пока не запущен более дорогой тариф (config.PREMIUM_TIER_ENABLED).
+    import config
+    if not config.PREMIUM_TIER_ENABLED:
+        items = [it for it in items if it["item_type"] != "premium"]
     return items
 
 

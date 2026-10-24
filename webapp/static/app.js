@@ -2587,7 +2587,7 @@
     5: { target: '.tab-bar__item[data-tab="calendar"]', title: 'Календарь', text: 'Здесь виден твой прогресс по дням.', icon: '📅' },
     6: { target: '.tab-bar__item[data-tab="rating"]', title: 'Рейтинг', text: 'Здесь видно твоё место среди других.', icon: '🏆' },
     7: { target: '.tab-bar__item[data-tab="profile"]', title: 'Профиль', text: 'Аватар и серия — здесь.', icon: '👤' },
-    8: { target: '#openShopBtn', title: 'ADAM Store', text: 'Алмазы, Premium и улучшения для ADAM — здесь же можно вознаградить себя.', icon: '🛍️' },
+    8: { target: '#openShopBtn', title: 'ADAM Store', text: 'Алмазы и улучшения для ADAM — здесь же можно вознаградить себя.', icon: '🛍️' },
     9: { target: '#openStatsBtn', title: 'Прогресс и достижения', text: 'Цели, статистика, награды и мой разбор твоего прогресса — всё в одном месте.', icon: '📊' },
     10: { target: '#openSettingsBtn', title: 'Настройки', text: 'Напоминания, приватность, данные и всё остальное — одной кнопкой.', icon: '⚙️' },
     11: { target: '#aiCoachBtn', title: 'Я — твой личный наставник', text: 'Планирую день, разбираю проблемы, слежу за прогрессом и просто поддержу разговор. Напиши хотя бы пару сообщений — и сразу увидишь, чем я полезен.', icon: '✦' },
@@ -3925,7 +3925,7 @@
     picker.innerHTML = frames.map(f => `
       <button class="frame-choice frame-choice--${f.id} ${current === f.id ? "is-active" : ""} ${f.available ? "" : "is-locked"}" data-frame-id="${f.id}" type="button" ${f.available ? "" : "disabled"}>
         <span class="frame-choice__preview ${f.id === "default" ? "" : "frame-" + f.id}">${avatarMarkup(state.user)}</span>
-        <span class="frame-choice__text"><b>${escapeHtml(f.title)}</b><small>${f.available ? (f.type === "achievement" ? "Награда" : f.type === "paid" ? "Premium" : "Доступна") : (f.type === "achievement" ? `Нужно ${f.id === "streak_14" ? 14 : 30} дней` : "Не куплена")}</small></span>
+        <span class="frame-choice__text"><b>${escapeHtml(f.title)}</b><small>${f.available ? (f.type === "achievement" ? "Награда" : f.type === "paid" ? "Куплена" : "Доступна") : (f.type === "achievement" ? `Нужно ${f.id === "streak_14" ? 14 : 30} дней` : "Не куплена")}</small></span>
       </button>`).join("");
     if (hint) hint.textContent = `Активна: ${frames.find(f => f.id === current)?.title || "Без рамки"}`;
   }

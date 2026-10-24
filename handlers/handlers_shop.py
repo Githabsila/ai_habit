@@ -51,6 +51,13 @@ async def buy_item(callback: CallbackQuery):
     # действие текущего premium закончится (иначе можно было бы просто
     # ждать неделю и покупать заново).
     if item_id == 1:
+        import config
+        if not config.PREMIUM_TIER_ENABLED:
+            await callback.answer(
+                "Всё, что раньше давал Premium, теперь входит в Pro — отдельно покупать не нужно.",
+                show_alert=True
+            )
+            return
         if was_premium_purchased(callback.from_user.id):
             await callback.answer(
                 "❌ Premium уже куплен.",

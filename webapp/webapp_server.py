@@ -3091,6 +3091,11 @@ async def buy_route(request):
         # Медаль выдаёт только администратор — купить её нельзя.
         return web.json_response({"error": "not_for_sale"}, status=403)
 
+    if item_type == "premium":
+        import config
+        if not config.PREMIUM_TIER_ENABLED:
+            # Единая версия Pro: всё, что давал Premium, входит в Pro для всех — отдельно не продаётся.
+            return web.json_response({"error": "not_for_sale", "message": "Это теперь входит в Pro для всех — покупать не нужно."}, status=403)
     if item_id == 1 and was_premium_purchased(telegram_id):
         return web.json_response({"error": "premium_already_purchased"}, status=400)
 

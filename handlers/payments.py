@@ -45,8 +45,24 @@ PREMIUM_PERKS_TEXT = (
 )
 
 
+# Единая версия Pro (24.10): отдельный Premium пока не продаётся — всё, что он давал, входит в Pro для всех (config.PREMIUM_TIER_ENABLED, db/plans.py).
+PREMIUM_CLOSED_TEXT = (
+    "Всё, что раньше давал Premium — мой еженедельный разбор твоей цели и другое, — теперь входит в Pro для всех. "
+    "Отдельно покупать ничего не нужно."
+)
+
+
+def premium_closed() -> bool:
+    import config
+    return not config.PREMIUM_TIER_ENABLED
+
+
+
 @router.callback_query(F.data == "premium_info")
 async def premium_info(callback: CallbackQuery):
+    if premium_closed():
+        await callback.answer(PREMIUM_CLOSED_TEXT, show_alert=True)
+        return
 
     await callback.message.edit_text(
         PREMIUM_PERKS_TEXT,
@@ -65,6 +81,9 @@ async def premium_info(callback: CallbackQuery):
 
 @router.callback_query(F.data == "buy_premium")
 async def buy_premium(callback: CallbackQuery):
+    if premium_closed():
+        await callback.answer(PREMIUM_CLOSED_TEXT, show_alert=True)
+        return
 
     await callback.message.answer_invoice(
         title="Project ADAM Premium",
@@ -93,6 +112,9 @@ def _display_name(row):
 
 @router.callback_query(F.data == "gift_premium_start")
 async def gift_premium_start(callback: CallbackQuery, state: FSMContext):
+    if premium_closed():
+        await callback.answer(PREMIUM_CLOSED_TEXT, show_alert=True)
+        return
     candidates = get_referred_users(callback.from_user.id)
 
     text = "🎁 <b>Подарить Premium другу</b>\n\n"
@@ -140,6 +162,9 @@ async def _offer_gift_invoice(message_target, recipient_id: int, giver_id: int):
 async def gift_premium_pick_candidate(callback: CallbackQuery, state: FSMContext):
     recipient_id = int(callback.data.removeprefix("gift_premium_to_"))
     await state.clear()
+    if premium_closed():
+        await callback.answer(PREMIUM_CLOSED_TEXT, show_alert=True)
+        return
     await _offer_gift_invoice(callback.message, recipient_id, callback.from_user.id)
     await callback.answer()
 
@@ -147,6 +172,9 @@ async def gift_premium_pick_candidate(callback: CallbackQuery, state: FSMContext
 @router.message(GiftState.waiting_recipient, F.forward_from)
 async def gift_premium_from_forward(message: Message, state: FSMContext):
     await state.clear()
+    if premium_closed():
+        await message.answer(PREMIUM_CLOSED_TEXT)
+        return
     await _offer_gift_invoice(message, message.forward_from.id, message.from_user.id)
 
 
@@ -164,6 +192,9 @@ async def gift_premium_no_forward(message: Message):
 @router.callback_query(F.data.startswith("gift_premium_confirm_"))
 async def gift_premium_confirm(callback: CallbackQuery):
     recipient_id = int(callback.data.removeprefix("gift_premium_confirm_"))
+    if premium_closed():
+        await callback.answer(PREMIUM_CLOSED_TEXT, show_alert=True)
+        return
     await callback.message.answer_invoice(
         title="Project ADAM Premium — подарок",
         description="Подарок другу: мой еженедельный разбор цели, доступ без очереди, метка Premium.",
