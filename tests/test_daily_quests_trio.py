@@ -589,6 +589,7 @@ function advance(ms) {
 }
 const QUESTS_PLAN_DELAY_MS = 120000;
 let labMode = false, simMode = false, state = {}, questsPending = null, questsPlanHold = null, questsPlanTimer = null;
+let questsWindowTimer = null; const clearInterval = () => {};
 const scheduled = [], opened = [];
 function scheduleQuestsWindow(payload) { scheduled.push(payload); }
 function openQuestsWindow(payload) { opened.push(payload); }
@@ -630,8 +631,8 @@ advance(30000); openQuestsFromButton();
 out.manual = { opened: opened.length, before: opened[opened.length - 1].before[1].progress, after: opened[opened.length - 1].after[1].progress, hold: !!questsPlanHold };
 advance(300000); out.noTimerWindow = scheduled.length;
 
-// 6. без ожидающего окна кнопка просто открывает окно
-opened.length = 0; openQuestsFromButton(); out.plain = opened.slice();
+// 6. без ожидающего окна кнопка просто открывает окно (заглушка scheduleQuestsWindow ожидающее окно не забирает — сбрасываем сами)
+questsPending = null; opened.length = 0; openQuestsFromButton(); out.plain = opened.slice();
 process.stdout.write(JSON.stringify(out));
 """ % functions
     result = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30, encoding="utf-8")

@@ -254,6 +254,26 @@ def mark_seen(user_id):
         conn.close()
 
 
+def get_adam_seen_at(user_id):
+    """Когда человек последний раз открывал чат с Адамом («» — ни разу)."""
+    conn = connect()
+    try:
+        row = conn.execute("SELECT adam_chat_seen_at FROM users WHERE telegram_id=?", (int(user_id),)).fetchone()
+    finally:
+        conn.close()
+    return _ts(row["adam_chat_seen_at"]) if row and row["adam_chat_seen_at"] else ""
+
+
+def mark_adam_seen(user_id):
+    """Человек открыл чат с Адамом и видит всё, что я ему писал, — сообщения Адама в центре уведомлений больше не «новые»."""
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET adam_chat_seen_at=? WHERE telegram_id=?", (_now(), int(user_id)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------------------------------------------------------- лента
 
 def _blocked_ids(conn, user_id):
@@ -291,9 +311,11 @@ def _collect(user_id, since):
     return items, actors
 
 
-def _decorate(items, actors, seen_at):
+def _decorate(items, actors, seen_at, adam_seen_at=""):
     out = []
     for it in items:
+        # Новое в разделе «Адам» — только то, что человек не видел ни в центре уведомлений, ни в самом чате с Адамом.
+        seen = max(seen_at, adam_seen_at) if it["cat"] == "adam" else seen_at
         actor = actors.get(it["actor_id"]) if it["actor_id"] else None
         name = actor["first_name"] if actor else "Друг"
         action = dict(it["action"])
@@ -304,7 +326,7 @@ def _decorate(items, actors, seen_at):
             "title": it["title"].replace("{name}", name), "text": it["text"], "actor": actor,
             "action": action if action.get("type") != "profile" or actor else {},
             "voice": not actor and it["cat"] in VOICE_CATEGORIES,       # пишет Адам от первого лица — в приложении рядом его аватарка
-            "unread": it["at"] > seen_at,
+            "unread": it["at"] > seen,
         })
     return out
 
@@ -323,7 +345,7 @@ def get_feed(user_id):
     seen_at = get_seen_at(user_id)
     items, actors = _collect(user_id, _days_ago(RECENT_DAYS))
     items.sort(key=lambda it: (it["at"], it["id"]), reverse=True)
-    feed = _decorate(items[:FEED_LIMIT], actors, seen_at)
+    feed = _decorate(items[:FEED_LIMIT], actors, seen_at, get_adam_seen_at(user_id))
     return {"items": feed, "categories": _category_counts(feed), "seen_at": seen_at}
 
 
@@ -331,6 +353,6 @@ def get_summary(user_id):
     """Только числа — для колокольчика: берём лишь то, что новее метки «прочитано» (дёшево)."""
     seen_at = get_seen_at(user_id)
     items, actors = _collect(user_id, max(seen_at, _days_ago(RECENT_DAYS)))
-    fresh = _decorate(items, actors, seen_at)
+    fresh = _decorate(items, actors, seen_at, get_adam_seen_at(user_id))
     counts = _category_counts(fresh)
     return {"unread": counts[0]["unread"], "categories": {c["key"]: c["unread"] for c in counts}}

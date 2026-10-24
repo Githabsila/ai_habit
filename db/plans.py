@@ -18,6 +18,9 @@ def has_pro_features(user_id) -> bool:
     Человек, которого закрыл гейт после триала, Pro-функций не получает (и пользоваться приложением не может)."""
     if not get_user(user_id):
         return False
+    from config import ADMIN_IDS
+    if user_id in ADMIN_IDS:
+        return True          # админ пользуется приложением всегда (webapp/auth_helpers.authenticate его не проверяет), даже на тестовом аккаунте с закончившимся триалом
     from .subscription import bot_access_allowed
     return bool(bot_access_allowed(user_id))
 

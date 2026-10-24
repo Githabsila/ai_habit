@@ -5634,6 +5634,11 @@ function compressImageToDataUrl(file) {
 // «Не сейчас» закрывает окно без запроса: сундук остаётся ждать. Данные (монеты, месяц, уровень) применяем, когда окно закрыли: левел-ап
 // не прячется под сундуком, а числа в шапке меняются на глазах. Только transform/opacity и конечные анимации (см. style.css).
 let chestRevealBusy = false;
+// 24.10: «Забрать» нажимают с запасом (кнопка оживает не сразу) — лишний тап после закрытия сундука попадал в строку квеста под ним и
+// уводил из окна «Квесты дня» на Главную. После закрытия сундука тапы по окну квестов полсекунды не считаются.
+const QUEST_STRAY_TAP_MS = 700;
+let chestClosedAt = 0;
+const questTapIsStray = () => Date.now() - chestClosedAt < QUEST_STRAY_TAP_MS;
 const CHEST_TAPS = 3;
 const CHEST_SHAKE_MS = 700;
 
@@ -5697,6 +5702,7 @@ function chestPrizeItems(reward) {
 }
 
 function hideChestOverlay(overlay) {
+  chestClosedAt = Date.now();
   overlay.classList.remove("show");
   overlay.setAttribute("aria-hidden", "true");
   setTimeout(() => { if (!chestRevealBusy) overlay.hidden = true; }, 240);
@@ -5854,6 +5860,7 @@ function initDailyQuestActions() {
   });
   // Тап по невыполненному квесту ведёт к его следующему шагу: к привычкам, к плану дня или в чат с Адамом.
   list.addEventListener("click", (e) => {
+    if (questTapIsStray()) return;
     const chest = e.target.closest("[data-chest]");
     if (chest) { openQuestChest(chest.dataset.chest, chest); return; }
     const row = e.target.closest("[data-go]");
@@ -5865,7 +5872,7 @@ function initDailyQuestActions() {
   });
   document.getElementById("dailyQuestsBtn")?.addEventListener("click", openQuestsFromButton);
   document.getElementById("dailyQuestsClose")?.addEventListener("click", closeQuestsOverlay);
-  document.getElementById("dailyQuestsBackdrop")?.addEventListener("click", closeQuestsOverlay);
+  document.getElementById("dailyQuestsBackdrop")?.addEventListener("click", () => { if (!questTapIsStray()) closeQuestsOverlay(); });
 }
 
 // ===================== КВЕСТЫ ДНЯ: три квеста и окно с анимацией (db/quests.py, п.14 владельца) =====================
@@ -6032,6 +6039,16 @@ function openQuestsFromButton() {
   if (held) {
     clearPlanHold();
     openQuestsWindow({ ...held, after: state?.daily_quests || held.after, monthAfter: state?.month_quests || held.monthAfter });
+    return;
+  }
+  // Окно после отметки привычек ещё ждёт своей очереди (идёт праздник серии и т.п.), а человек открыл квесты сам: показываем изменение
+  // прямо в этом окне. Иначе оно вдруг откроется второй раз позже — с анимацией «балл летит в месяц» поверх уже закрытого экрана.
+  if (questsPending) {
+    const ready = questsPending;
+    questsPending = null;
+    clearInterval(questsWindowTimer);
+    questsWindowTimer = null;
+    openQuestsWindow({ ...ready, after: state?.daily_quests || ready.after, monthAfter: state?.month_quests || ready.monthAfter });
     return;
   }
   openQuestsOverlay();

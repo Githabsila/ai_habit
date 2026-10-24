@@ -471,6 +471,11 @@ async def get_ai_history_miniapp(request):
     limit = int(request.rel_url.query.get("limit", "50"))
 
     user_id, _is_admin = await authenticate(init_data)
+    try:                                     # чат открыт — человек видит всё, что писал Адам: колокольчик это уже не «новое»
+        from db import inbox as inbox_db
+        inbox_db.mark_adam_seen(user_id)
+    except Exception:
+        logger.warning("Не удалось отметить чат с Адамом прочитанным (%s)", user_id, exc_info=True)
     history = get_ai_history(user_id)
 
     if not history:

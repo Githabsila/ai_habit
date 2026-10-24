@@ -72,6 +72,17 @@ def test_the_old_premium_flag_adds_nothing_while_the_expensive_tier_is_off(perso
     assert has_premium_features(person + 1) is False and user_plan(person + 1) == PLAN_PRO
 
 
+def test_an_admin_account_is_pro_even_when_its_test_trial_is_over(person, monkeypatch):
+    """Админ пользуется приложением всегда (его не проверяет вход), поэтому метка в чате не должна показывать STANDARD на тестовом админском аккаунте."""
+    add_user(person, f"p{person}", "Админ-тест")
+    monkeypatch.setattr(config, "ADMIN_IDS", [person])
+    _lock_by_gate(monkeypatch, person)
+    assert has_pro_features(person) is True and user_plan(person) == PLAN_PRO
+    add_user(person + 1, f"p{person + 1}", "Обычный")
+    _lock_by_gate(monkeypatch, person + 1)
+    assert has_pro_features(person + 1) is False, "обычного человека закрытый гейт по-прежнему не пускает"
+
+
 def test_premium_is_off_by_default():
     assert config.PREMIUM_TIER_ENABLED is False
 

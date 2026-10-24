@@ -363,3 +363,46 @@ def test_events_are_labelled_and_the_screen_belongs_to_a_feature():
     assert "inbox" in feature.screens and "inboxBtn" in feature.clicks
     for name in re.findall(r'trk\("(inbox_\w+)"', APP_JS):
         assert name in names, name
+
+
+# ---------------------------------------------------------------------------------------------------------------- открыл чат — Адам прочитан (24.10)
+
+def _adam_message(me, minutes_ago):
+    conn = connect()
+    try:
+        message_id = conn.execute("INSERT INTO ai_messages(user_id, role, message) VALUES (?, 'assistant', 'Как день?')", (me,)).lastrowid
+        conn.execute("INSERT INTO adam_checkins(user_id, day, slot, status, scenario, source, message_id, created_at) VALUES (?, 'd', ?, 'sent', 'x', 'app', ?, ?)",
+                     (me, f"slot{minutes_ago}", message_id, _ago(minutes_ago)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_opening_the_chat_with_adam_clears_his_messages_from_the_bell(uid):
+    me, friend = _me(uid), _person(uid + 1)
+    _run("UPDATE users SET inbox_seen_at=? WHERE telegram_id=?", (_ago(600), me))
+    _run("INSERT INTO follows(follower_id, followee_id, created_at) VALUES (?, ?, ?)", (friend, me, _ago(30)))
+    _adam_message(me, 20)
+    _adam_message(me, 5)
+    assert inbox.get_summary(me) == {"unread": 3, "categories": {"all": 3, "system": 0, "adam": 2, "friends": 0, "followers": 1, "gifts": 0}}
+
+    inbox.mark_adam_seen(me)
+    assert inbox.get_summary(me) == {"unread": 1, "categories": {"all": 1, "system": 0, "adam": 0, "friends": 0, "followers": 1, "gifts": 0}},         "сообщения Адама прочитаны в чате, а новый подписчик так и ждёт"
+    feed = inbox.get_feed(me)
+    assert [(it["cat"], it["unread"]) for it in feed["items"] if it["cat"] == "adam"] == [("adam", False), ("adam", False)]
+    assert [it["unread"] for it in feed["items"] if it["cat"] == "followers"] == [True]
+
+    _adam_message(me, -1)                                   # новое сообщение Адама после открытия чата снова считается новым
+    assert inbox.get_summary(me)["categories"]["adam"] == 1
+
+
+async def test_the_chat_history_request_marks_adams_messages_as_read(client, uid):
+    me = _me(uid)
+    _run("UPDATE users SET inbox_seen_at=? WHERE telegram_id=?", (_ago(600), me))
+    _adam_message(me, 3)
+    summary = await (await client.get("/api/inbox/summary", headers=_headers(me))).json()
+    assert summary["categories"]["adam"] == 1
+    response = await client.get("/api/ai/history", params={"init_data": sign_init_data(me), "limit": "50"})
+    assert response.status == 200
+    summary = await (await client.get("/api/inbox/summary", headers=_headers(me))).json()
+    assert summary == {"unread": 0, "categories": {"all": 0, "system": 0, "adam": 0, "friends": 0, "followers": 0, "gifts": 0}}

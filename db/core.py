@@ -1897,6 +1897,9 @@ def create_tables():
     # Центр уведомлений (db/inbox.py): когда человек последний раз открывал экран «Уведомления» (UTC); всё, что новее, — «новое».
     if "inbox_seen_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN inbox_seen_at TEXT")
+    # Когда человек последний раз открывал чат с Адамом (UTC): сообщения Адама старше этого — уже прочитаны, колокольчик их не считает.
+    if "adam_chat_seen_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN adam_chat_seen_at TEXT")
 
     # ---------------- Телеметрия долгих кадров (Mini App) ----------------
     # Пользователи жалуются на "лаги/чернеет при прокрутке" в Telegram
