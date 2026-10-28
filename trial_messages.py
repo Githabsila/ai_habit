@@ -63,10 +63,10 @@ def _wb(kind):
 
 
 def _price_line(snap):
-    """Цена для окна оплаты: первая покупка — по вводной цене в любой день (ТЗ §6), дальше полная; без «только сегодня»."""
+    """Цена для окна оплаты: первая покупка — по вводной цене в любой день (ТЗ §6), дальше полная; без «только сегодня». Считаем в долларах (решение владельца 28.10): звёзды — только в счёте Telegram."""
     if snap["intro_active"]:
-        return (f"Первый месяц — <b>{snap['price_stars']} ⭐</b> (≈{snap['intro_usd']}), дальше {snap['renewal_price_stars']} ⭐ (≈{snap['renewal_usd']}).")
-    return f"Месяц — <b>{snap['renewal_price_stars']} ⭐</b> (≈{snap['renewal_usd']})."
+        return f"Первый месяц — <b>{snap['intro_usd']}</b>, дальше {snap['renewal_usd']} в месяц."
+    return f"Месяц — <b>{snap['renewal_usd']}</b>."
 
 
 def locked_text(snap):

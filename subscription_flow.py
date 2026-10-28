@@ -113,7 +113,7 @@ def invoice_spec(user_id):
     с автопродлением по полной цене, если включён флаг SUBSCRIPTION_AUTORENEW_ENABLED, иначе тоже разовый счёт («продление вручную»)."""
     from config import SUBSCRIPTION_AUTORENEW_ENABLED
     snap = trial_db.snapshot(user_id)
-    if snap is None or not snap["scenario"] or snap["paid"]:
+    if snap is None or snap["paid"]:                       # платить может любой, кто захотел (решение владельца 28.10), не только тот, у кого идёт сценарий триала
         return None
     price = int(snap["price_stars"])
     renewal = snap["renewal_price_stars"]

@@ -101,8 +101,8 @@ async def test_testers_and_payers_cannot_get_an_invoice(client, uid):
     client.app["bot"] = _Bot()
     tester = _person(uid)
     resp = await client.post("/api/subscription/invoice", headers=_headers(tester))
-    assert resp.status == 403 and (await resp.json())["error"] == "not_available", "тестировщик вне триала счёт не получает"
-    assert client.app["bot"].create_invoice_link.await_count == 0
+    assert resp.status == 200 and (await resp.json())["ok"] is True, "решение владельца 28.10: заплатить может любой, кто захотел, даже вне сценария триала"
+    assert client.app["bot"].create_invoice_link.await_count == 1
     payer = _person(uid + 1, day=2)
     _sql("UPDATE users SET subscription_paid_until=datetime('now', '+20 days') WHERE telegram_id=?", (payer,))
     resp = await client.post("/api/subscription/invoice", headers=_headers(payer))
@@ -184,7 +184,7 @@ def test_the_styles_are_light_and_the_block_sits_before_the_chest():
     for forbidden in ("filter", "backdrop-filter", "infinite", "animation"):
         assert forbidden not in css, forbidden
     assert "Окно «Сундук»" not in css.split("*/", 1)[1]
-    assert "style.css?v=20261028_PARTNER_V87" in INDEX and "app.js?v=20261028_RESCUE_V100" in INDEX
+    assert "style.css?v=20261028_PAY_V88" in INDEX and "app.js?v=20261028_PAY_V101" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- тексты (Node на заглушках DOM)
@@ -298,13 +298,13 @@ def test_the_screen_has_the_short_offer_the_features_both_prices_and_the_mission
     assert day2["title"] == "Подписка на Адама" and day2["status"] == "Пробный доступ открыт до 30 октября, 00:00"
     assert day2["lead"].startswith("Собирай день вокруг того, что важно тебе: поддерживай привычки, выбирай главные задачи и обсуждай следующий шаг с Адамом.")
     assert day2["perks"] == "Привычки и серия План дня: главная и второстепенные задачи Адам, который знает контекст твоих действий Прогресс и разборы Рейтинг и друзья"
-    assert day2["offer"] == "153 ⭐ ≈ $1.99 за первый месяц, дальше 461 ⭐ ($5.99)", "обе цены — с первого дня"
+    assert day2["offer"] == "$1.99 первый месяц, дальше $5.99 в месяц", "обе цены — с первого дня, в долларах"
     assert day2["pay"] == "Продолжить с Адамом" and day2["payHidden"] is False and day2["payDisabled"] is False
     assert day2["renewal"] == "Само ничего не спишется: срок ты обновляешь вручную, я напомню заранее."
     assert day2["mission"].startswith("Адам создаётся, чтобы помогать превращать намерения в ежедневные действия.") and "субъектность" in day2["mission"]
     assert day2["mission"].endswith("Начать можно с одного посильного действия сегодня.") and "недельн" not in day2["mission"]
     assert "Условия" in day2["note"] and "@egor_support" in day2["note"] and "Telegram Stars" in day2["note"]
-    assert screen[8]["offer"] == "461 ⭐ ≈ $5.99 за месяц", "вводная цена — только первой покупке"
+    assert screen[8]["offer"] == "$5.99 в месяц", "вводная цена — только первой покупке"
     for window in screen:
         assert "последний день" not in window["offer"].lower() and "только сегодня" not in (window["lead"] + window["status"]).lower()
         assert "канал" not in (window["lead"] + window["status"] + window["perks"]).lower()

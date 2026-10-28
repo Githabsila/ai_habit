@@ -802,11 +802,17 @@ def trial_keyboard(buttons, price_stars: int, key: str = ""):
 
 
 def subscription_buy_keyboard(price_stars: int):
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=f"⭐ Оплатить {price_stars} Stars", callback_data="buy_subscription")],
-        ]
-    )
+    """Под сообщением «доступ закрыт»: оплата звёздами и, если настроены карта или крипта (pay_providers.py), кнопка в приложение, где есть выбор способа."""
+    rows = [[InlineKeyboardButton(text=f"⭐ Оплатить {price_stars} Stars", callback_data="buy_subscription")]]
+    base = (WEBAPP_URL or "").rstrip("/")
+    if base:
+        try:
+            import pay_providers
+            if pay_providers.available_methods():
+                rows.append([InlineKeyboardButton(text="💳 Картой или криптой", web_app=WebAppInfo(url=f"{base}/?sub=1&m=bot_locked"))])
+        except Exception:
+            pass
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 

@@ -6986,19 +6986,29 @@ function initPlanActions() {
       const action = btn.dataset.action;
       if (!itemId) return;
       try {
-        btn.disabled = true;
         if (action === "stars") {
           const item = (state.shop_items || []).find(x => String(x.id) === String(itemId));
-          const invoice = await api(`/api/shop/stars/${itemId}`, { method: "POST" });
-          if (!tg?.openInvoice) throw new Error("telegram_payment_unavailable");
-          tg.openInvoice(invoice.invoice_url, (status) => {
-            if (status === "paid") {
-              showToast(`${item?.name || "Покупка"} — оплата прошла!`, "praise", 3500);
-              setTimeout(async () => { secondaryLoaded.delete("profile"); await loadBootstrap(); await loadBootstrapSecondary("profile"); }, 500);
+          const starsFlow = async () => {
+            try {
+              btn.disabled = true;
+              const invoice = await api(`/api/shop/stars/${itemId}`, { method: "POST" });
+              if (!tg?.openInvoice) throw new Error("telegram_payment_unavailable");
+              tg.openInvoice(invoice.invoice_url, (status) => {
+                btn.disabled = false;
+                if (status === "paid") {
+                  showToast(`${item?.name || "Покупка"} — оплата прошла!`, "praise", 3500);
+                  setTimeout(async () => { secondaryLoaded.delete("profile"); await loadBootstrap(); await loadBootstrapSecondary("profile"); }, 500);
+                }
+              });
+            } catch (err) {
+              btn.disabled = false;
+              showToast(friendlyError(err), "error");
             }
-          });
+          };
+          await startPurchase({ kind: "item", itemId: Number(itemId), title: item?.name || "", starsFlow });
           return;
         }
+        btn.disabled = true;
         if (action === "equip") {
           const item = (state.shop_items || []).find(x => String(x.id) === String(itemId));
           await api("/api/cosmetics/equip", { method: "POST", body: JSON.stringify({ frame_id: item?.payload }) });
@@ -7946,7 +7956,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialPaywallOverlay", "trialOfferCard", "partnerOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialPaywallOverlay", "trialOfferCard", "partnerOverlay", "payMethodOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -8281,6 +8291,142 @@ function showVoiceToastsDemo() {
   showToast("+10 Adam Coin", "praise", 2000);
 }
 
+// ===================== ВЫБОР СПОСОБА ОПЛАТЫ (payments_ext.py, решение владельца 28.10: звёзды, карта, крипта — и за подписку, и в магазине) =====================
+// Если кроме звёзд настроен хотя бы один способ (GET /api/pay/methods), перед оплатой открывается окно выбора; иначе сразу идёт прежний путь через звёзды. Карта и крипта: заказ
+// POST /api/pay/order → страница платёжного сервиса во внешнем окне → приложение ждёт подтверждение (GET /api/pay/order/{id}), сервис сообщает о нём серверу вебхуком.
+// Симуляция pay_methods (админка → «Окна и анимации») открывает то же окно на демо-данных, ничего не создаёт.
+const SIM_PAY_METHODS = [
+  { method: "stars", label: "Звёздами", price_text: "153 ⭐" },
+  { method: "card", label: "Картой", price_text: "$1.99" },
+  { method: "crypto", label: "Криптой", price_text: "$1.99" },
+];
+const PAY_ICONS = { stars: "⭐", card: "💳", crypto: "🪙" };
+const PAY_ERRORS = {
+  already_paid: "Подписка уже оформлена", already_owned: "Это у тебя уже есть", daily_limit_reached: "На сегодня этот пакет уже куплен — завтра снова можно",
+  item_not_found: "Этот товар пока нельзя оплатить", method_unavailable: "Этот способ пока недоступен", provider_error: "Сервис оплаты сейчас не отвечает — выбери другой способ или попробуй позже",
+};
+let payCtx = null;
+let payPollTimer = null;
+let payPollBusy = false;
+
+function closePayChoice() {
+  const overlay = document.getElementById("payMethodOverlay");
+  clearInterval(payPollTimer);
+  payPollTimer = null;
+  payCtx = null;
+  if (overlay) { overlay.hidden = true; overlay.setAttribute("aria-hidden", "true"); }
+}
+
+function renderPayChoice(methods) {
+  document.getElementById("payMethodList").innerHTML = methods.map((m) =>
+    `<button type="button" class="pay-method" data-pay-method="${escapeHtml(m.method)}"><span class="pay-method__icon">${PAY_ICONS[m.method] || "💰"}</span><b>${escapeHtml(m.label)}</b><small>${escapeHtml(m.price_text)}</small></button>`).join("");
+  document.getElementById("payMethodSub").textContent = payCtx?.title ? payCtx.title : "Выбери удобный способ";
+  document.getElementById("payMethodWait").hidden = true;
+  document.getElementById("payMethodReopen").hidden = true;
+  document.getElementById("payMethodList").hidden = false;
+  document.getElementById("payMethodHint").hidden = !methods.some((m) => m.method === "stars");
+}
+
+function openPayChoice(methods, ctx) {
+  const overlay = document.getElementById("payMethodOverlay");
+  if (!overlay) return false;
+  payCtx = ctx;
+  renderPayChoice(methods);
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  haptic("light");
+  return true;
+}
+
+async function startPurchase({ kind, itemId = null, title = "", starsFlow }) {
+  let methods = null;
+  try {
+    const query = `kind=${kind}` + (itemId !== null ? `&item_id=${encodeURIComponent(itemId)}` : "");
+    methods = (await api(`/api/pay/methods?${query}`)).methods || [];
+  } catch (err) {
+    const code = err?.data?.error;
+    if (PAY_ERRORS[code]) { showToast(PAY_ERRORS[code], "error"); return; }
+    methods = null;                                                           // сеть или сбой: оплата звёздами всё равно должна работать
+  }
+  if (!methods || methods.length <= 1) { await starsFlow(); return; }
+  trk("pay_methods_shown", kind, null);
+  openPayChoice(methods, { kind, itemId, title, starsFlow, methods });
+}
+
+async function choosePayMethod(method) {
+  const ctx = payCtx;
+  if (!ctx) return;
+  haptic("light");
+  if (ctx.demo) { showToast("🧪 Демо: оплата не открывается", "success", 1800); return; }
+  trk("pay_method_chosen", method, null);
+  if (method === "stars") { closePayChoice(); await ctx.starsFlow(); return; }
+  const list = document.getElementById("payMethodList");
+  list.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+  try {
+    const order = await api("/api/pay/order", { method: "POST", body: JSON.stringify({ method, kind: ctx.kind, item_id: ctx.itemId }) });
+    ctx.orderId = order.order_id;
+    ctx.payUrl = order.pay_url;
+    openPayPage(order.pay_url);
+    list.hidden = true;
+    document.getElementById("payMethodHint").hidden = true;
+    const wait = document.getElementById("payMethodWait");
+    wait.textContent = "Открыл страницу оплаты. Оплати там и вернись сюда — подтверждение я увижу сам.";
+    wait.hidden = false;
+    document.getElementById("payMethodReopen").hidden = false;
+    clearInterval(payPollTimer);
+    payPollTimer = setInterval(pollPayOrder, 3000);
+  } catch (err) {
+    list.querySelectorAll("button").forEach((b) => { b.disabled = false; });
+    showToast(PAY_ERRORS[err?.data?.error] || friendlyError(err), "error");
+  }
+}
+
+function openPayPage(url) {
+  if (!url) return;
+  if (tg && typeof tg.openLink === "function") tg.openLink(url); else window.open(url, "_blank");
+}
+
+async function pollPayOrder() {
+  const ctx = payCtx;
+  if (!ctx?.orderId || payPollBusy || document.hidden) return;
+  payPollBusy = true;
+  try {
+    const res = await api(`/api/pay/order/${encodeURIComponent(ctx.orderId)}`);
+    if (res.fulfilled) await onPayDone(ctx);
+    else if (res.status === "failed" || res.status === "expired") {
+      closePayChoice();
+      showToast("Оплата не прошла — попробуй ещё раз или выбери другой способ", "error");
+    }
+  } catch (_) { /* следующий опрос */ } finally { payPollBusy = false; }
+}
+
+async function onPayDone(ctx) {
+  closePayChoice();
+  haptic("success");
+  if (ctx.kind === "subscription") trk("trial_paid", "external", null);
+  if (ctx.kind === "subscription") {
+    closeTrialPaywall();
+    showToast("Подписка активна ✅ Спасибо, что остаёшься со мной", "praise", 4200);
+  } else {
+    showToast("Оплата прошла — покупка уже у тебя", "praise", 3500);
+  }
+  try {
+    secondaryLoaded.delete("profile");
+    await loadBootstrap();
+    if (ctx.kind === "item") await loadBootstrapSecondary("profile");
+  } catch (_) { /* обновится при следующем заходе */ }
+}
+
+function initPayChoice() {
+  document.getElementById("payMethodList")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-pay-method]");
+    if (btn && !btn.disabled) choosePayMethod(btn.dataset.payMethod);
+  });
+  document.getElementById("payMethodClose")?.addEventListener("click", () => { haptic("light"); closePayChoice(); });
+  document.getElementById("payMethodReopen")?.addEventListener("click", () => { haptic("light"); openPayPage(payCtx?.payUrl); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && payCtx?.orderId) pollPayOrder(); });     // вернулись с оплаты — проверяем сразу
+}
+
 // ===================== ПОДПИСКА НА АДАМА И ТРИАЛ (db/access_state.py, db/trial.py, db/subscription.py) =====================
 // ТЗ 28.10: один экран «Подписка на Адама» на все состояния — пробные дни, дополнительное окно после них, закрытый доступ, оплачено. Кнопка подписки доступна с первого дня:
 // тап по карточке на Главной, по индикатору времени или строка в «Настройках». Блокирующим экран бывает только после триала (дополнительное окно: можно закрыть и смотреть
@@ -8385,7 +8531,7 @@ function renderTrialCard() {
   if (!card) return;
   const t = state?.access?.paywall ? state.access.trial : null;
   const settingsRow = document.getElementById("subscriptionSettingsRow");     // кнопка подписки в настройках — у всех в сценарии триала, с первого дня
-  if (settingsRow) settingsRow.hidden = !(t && t.scenario);
+  if (settingsRow) settingsRow.hidden = false;                              // подписку можно оформить любому, кто захотел, — строка в настройках у всех
   const hide = !t || !t.scenario || t.phase === "expired" || t.paid;
   if (hide) { card.hidden = true; clearInterval(trialTimerHandle); trialTimerHandle = null; return; }
   const text = trialCardText(t);
@@ -8417,6 +8563,10 @@ function subRenewalText(t, ov) {
 }
 
 function subCopy(t, ov) {
+  if (!t.paid && !t.scenario) return {
+    title: "Подписка на Адама", status: "Сейчас доступ у тебя открыт бесплатно",
+    lead: "Если хочешь поддержать проект и закрепить доступ за собой, подписку можно оформить в любой момент. Всё, что у тебя уже есть, остаётся.",
+  };
   if (t.paid) return { title: "Подписка на Адама", status: `Доступ открыт до ${ov?.paid_until_text || ""}`.trim(), lead: "Спасибо, что остаёшься со мной." };
   if (t.phase === "grace") return {
     title: "Пробный доступ завершён",
@@ -8433,8 +8583,8 @@ function subCopy(t, ov) {
 
 function subOfferHtml(t) {
   return t.intro_active
-    ? `<b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.intro_usd} за первый месяц, дальше ${t.renewal_price_stars} ⭐ (${t.renewal_usd})`)}</small>`
-    : `<b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.renewal_usd} за месяц`)}</small>`;
+    ? `<b>${escapeHtml(t.intro_usd)}</b><small>${escapeHtml(`первый месяц, дальше ${t.renewal_usd} в месяц`)}</small>`
+    : `<b>${escapeHtml(t.renewal_usd)}</b><small>в месяц</small>`;
 }
 
 function renderSubscriptionScreen(t, ov) {
@@ -8475,7 +8625,10 @@ async function loadSubscriptionOverview() {
 // Экран «Подписка на Адама». source — откуда открыли (для учёта): card, timer, settings, auto, nudge. blocking — после триала.
 async function openSubscriptionScreen({ source = "card", demo = null, overview = null, blocking = false } = {}) {
   const overlay = document.getElementById("trialPaywallOverlay");
-  const t = demo || (state?.access?.paywall ? state.access.trial : null);
+  let t = demo || (state?.access?.paywall ? state.access.trial : null);
+  if (!t && overlay && !demo) {                                              // доступ открыт бесплатно, триала нет: снимок для экрана берём отдельно
+    try { t = (await api("/api/trial"))?.trial || null; } catch (_) { t = null; }
+  }
   if (!overlay || !t) return false;
   trialSheetData = t;
   trialDemo = !!demo;
@@ -8534,11 +8687,15 @@ async function waitForTrialAccess() {
 async function payTrial(source) {
   if (trialPayBusy) return;
   if (trialDemo) { showToast("🧪 Демо: оплата не открывается", "success", 1800); return; }
+  haptic("medium");
+  trk("trial_pay_tap", source, null);
+  await startPurchase({ kind: "subscription", title: "Подписка на Адама", starsFlow: () => payTrialStars(source) });
+}
+
+async function payTrialStars(source) {
   const button = document.getElementById("trialPaywallPay");
   const setBusy = (busy) => { trialPayBusy = busy; if (button) button.disabled = busy; };
   setBusy(true);
-  haptic("medium");
-  trk("trial_pay_tap", source, null);
   try {
     const invoice = await api("/api/subscription/invoice", { method: "POST" });
     if (!tg?.openInvoice) throw new Error("telegram_payment_unavailable");
@@ -10201,6 +10358,7 @@ const SIM_SCENES = {
   trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),
   trial_paywall_full: () => showTrialPaywall(SIM_TRIAL_FULL_EXPIRED, { demo: true }),
   trial_timer: () => showTrialCardDemo(SIM_TRIAL_LAST),
+  pay_methods: () => { closePayChoice(); openPayChoice(SIM_PAY_METHODS, { demo: true, kind: "subscription", title: "Подписка на Адама", methods: SIM_PAY_METHODS }); },
   partner_screen: () => openPartnerScreen({ demo: SIM_PARTNER }),
   inviter_card: () => renderInviterCard(SIM_INVITER, { demo: true }),
   trial_offer_app: () => { closeTrialPaywall(); showTrialOffer(SIM_OFFER, { demo: true }); },
@@ -12601,6 +12759,7 @@ async function boot() {
             initSimMode();
             renderAdamIntroSettings();
             initPartner();
+            initPayChoice();
             setTimeout(() => { rescueHelpReady = maybeShowRescueHelp(); }, 4000);
             setTimeout(() => maybeShowFreezeHelp(), 5000);
         }

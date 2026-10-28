@@ -1006,7 +1006,7 @@ async def subscription_invoice_route(request):
     telegram_id, _ = await _authenticate(request, allow_locked=True)
     from db.trial import snapshot
     snap = snapshot(telegram_id)
-    if snap is None or not snap["scenario"]:
+    if snap is None:
         return web.json_response({"error": "not_available"}, status=403)
     if snap["paid"]:
         return web.json_response({"error": "already_paid"}, status=400)
@@ -3491,6 +3491,10 @@ def create_app(bot=None):
     # Партнёрская программа (db/partners.py): цифры участника, ссылки, карточка пригласившего и админка выплат.
     from webapp.routes_partners import routes as partner_routes
     app.add_routes(partner_routes)
+
+    # Оплата картой и криптой (payments_ext.py): способы, заказ, вебхук сервиса, админский список заказов.
+    from webapp.routes_pay import routes as pay_routes
+    app.add_routes(pay_routes)
 
     # Раздел «Триал» в аналитике админки (db/trial_stats.py).
     from webapp.routes_trial_stats import routes as trial_stats_routes

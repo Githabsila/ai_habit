@@ -177,11 +177,11 @@ async def test_the_locked_message_tells_the_deadline_and_both_prices(uid):
     snap = trial_db.snapshot(uid)
     text = tm.locked_text(snap)
     assert "Пробный доступ завершён" in text and "Твоя история сохранена" in text and snap["ends_at_text"] in text, "конкретный срок окна"
-    assert "Первый месяц — <b>153 ⭐</b>" in text and "дальше 461 ⭐" in text
+    assert "Первый месяц — <b>$1.99</b>" in text and "дальше $5.99 в месяц" in text
     assert "только сегодня" not in text.lower() and "последний день" not in text, "вводная цена не «только сегодня»: она действует и позже"
     shift_trial_day(uid, 5, ADMIN)
     text = tm.locked_text(trial_db.snapshot(uid))
-    assert "Доступ пока закрыт" in text and "Твоя история сохранена" in text and "Первый месяц — <b>153 ⭐</b>" in text
+    assert "Доступ пока закрыт" in text and "Твоя история сохранена" in text and "Первый месяц — <b>$1.99</b>" in text
 
 
 async def test_the_bot_blocks_an_expired_trial_account_with_the_scenario_text(uid):
@@ -197,7 +197,7 @@ async def test_the_bot_blocks_an_expired_trial_account_with_the_scenario_text(ui
     await AccessControlMiddleware()(handler, event, {})
     assert handler.await_count == 0 and len(shown) == 1, "закрытому аккаунту бот отвечает сам и дальше не пускает"
     text, kwargs = shown[0]
-    assert "Пробный доступ завершён" in text and "<b>153 ⭐</b>" in text and "дальше 461 ⭐" in text
+    assert "Пробный доступ завершён" in text and "<b>$1.99</b>" in text and "дальше $5.99 в месяц" in text
     assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == "buy_subscription" and "153" in kwargs["reply_markup"].inline_keyboard[0][0].text
     shift_trial_day(uid, 2, ADMIN)                                              # вернулся в триал — снова пускает
     await AccessControlMiddleware()(handler, event, {})

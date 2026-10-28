@@ -1920,6 +1920,10 @@ def create_tables():
         if name not in payment_columns:
             cursor.execute(f"ALTER TABLE stars_payments ADD COLUMN {name} {ddl}")
 
+    # Заказы на оплату картой и криптой (db/pay_orders.py) и колонка provider в журнале платежей.
+    from . import pay_orders as _pay_orders
+    _pay_orders.ensure_schema(cursor)
+
     # ---------------- «Что нового» (changelog внутри Mini App) ----------------
     # Раньше об обновлениях узнавали только по факту (или никак) — теперь
     # каждая запись здесь показывается пользователю один раз модальным окном
