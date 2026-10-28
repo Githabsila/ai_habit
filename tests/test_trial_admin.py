@@ -88,7 +88,7 @@ async def test_the_test_payment_goes_the_real_way_and_tells_the_person(client, u
     start_trial_mode(person, admin)
     await _act(client, admin, person, action="shift", day=2)
     body = await (await _act(client, admin, person, action="pay_test")).json()
-    assert body["delivered"] is True and "Оплаты мало, чтобы попасть в закрытый канал" in body["text"]
+    assert body["delivered"] is True and body["text"].startswith("✅ Подписка активна до") and "Оставшиеся бесплатные дни" in body["text"]
     bot = client.app["bot"]
     assert bot.send_message.await_args.args[0] == person and body["text"] == bot.send_message.await_args.args[1]
     assert body["snapshot"]["phase"] == "paid"

@@ -60,27 +60,23 @@ def _message(uid_, charge, payload=None, amount=153):
 
 # ---------------------------------------------------------------------------------------------------------------- сообщение после оплаты
 
-async def test_payment_on_day_one_asks_for_two_days_of_rhythm(uid):
+async def test_payment_on_day_one_adds_the_free_days_and_says_so(uid):
     _person(uid, 1)
     text, snap, link = await flow.complete_subscription_payment(SimpleNamespace(), uid)
-    assert has_active_subscription(uid) and link is None and snap["phase"] == "paid"
-    assert text.startswith("✅ Доступ продлён до ") and "Закрытый канал открывается за 2 дня ударного режима подряд" in text
+    assert has_active_subscription(uid) and link is None and snap["phase"] == "paid" and snap["early"] is True
+    assert text.startswith("✅ Подписка активна до ") and "Оставшиеся бесплатные дни пробного периода добавлены к сроку" in text
     # ранняя покупка: платный доступ включился сразу, а оставшиеся бесплатные дни добавлены к нему (ТЗ §6) — месяц считается от конца триала
     trial_end = datetime.fromisoformat(get_user(uid)["trial_ends_at"])
     assert (trial_end + timedelta(days=30)).strftime("%d.%m.%Y") in text
 
 
-async def test_payment_on_day_two_depends_on_yesterdays_and_todays_marks(uid):
-    _person(uid, 2)
-    text, _, _ = await flow.complete_subscription_payment(SimpleNamespace(), uid)
-    assert "Оплаты мало, чтобы попасть в закрытый канал" in text and "сегодня и завтра" in text
-    _sql("UPDATE users SET subscription_paid_until=NULL WHERE telegram_id=?", (uid,))
-    _mark(uid, 1, 1)
-    text, _, _ = await flow.complete_subscription_payment(SimpleNamespace(), uid)
-    assert "Сначала отметь привычку сегодня" in text
+async def test_payment_after_the_trial_has_no_free_days_note(uid):
+    _person(uid, 4)
+    text, snap, _ = await flow.complete_subscription_payment(SimpleNamespace(), uid)
+    assert snap["early"] is False and "бесплатные дни" not in text and "Продление вручную" in text
 
 
-async def test_a_ready_streak_gets_the_channel_link_at_once(uid, monkeypatch):
+async def test_a_ready_streak_gets_the_channel_link_at_once_when_the_channel_is_connected(uid, monkeypatch):
     _person(uid, 2)
     _mark(uid, 1, 1)
     _mark(uid, 0, 2)
@@ -88,22 +84,22 @@ async def test_a_ready_streak_gets_the_channel_link_at_once(uid, monkeypatch):
     grant = AsyncMock(return_value="https://t.me/+abc")
     monkeypatch.setattr(flow, "try_grant_channel_access", grant)
     text, snap, link = await flow.complete_subscription_payment(SimpleNamespace(), uid)
-    assert link == "https://t.me/+abc" and "https://t.me/+abc" in text and "2 дня ударного режима подряд — вот ссылка" in text
+    assert link == "https://t.me/+abc" and "https://t.me/+abc" in text
     grant.assert_awaited_once()
     grant.side_effect = RuntimeError("telegram down")                         # оплата не должна ломаться из-за канала
     _sql("UPDATE users SET subscription_paid_until=NULL WHERE telegram_id=?", (uid,))
     text, _, link = await flow.complete_subscription_payment(SimpleNamespace(), uid)
-    assert link is None and "Ссылку пришлю чуть позже" in text and has_active_subscription(uid)
+    assert link is None and has_active_subscription(uid)
 
 
-async def test_the_real_payment_handler_sends_the_scenario_text_once(uid):
+async def test_the_real_payment_handler_sends_the_confirmation_once(uid):
     _person(uid, 3)
     message = _message(uid, f"charge_{uid}")
     await pay.successful_payment(message)
     assert message.answer.await_count == 1
     text = message.answer.await_args.args[0]
-    assert text.startswith("✅ Доступ продлён") and "нужно 2 дня ударного режима подряд: отметь привычки сегодня и завтра" in text
-    assert get_payment(f"charge_{uid}")["amount"] == 153
+    assert text.startswith("✅ Подписка активна до") and "Продление вручную" in text
+    assert get_payment(f"charge_{uid}")["amount"] == 153 and get_payment(f"charge_{uid}")["status"] == "done"
     await pay.successful_payment(_message(uid, f"charge_{uid}"))             # повторная доставка того же платежа
     again = _message(uid, f"charge_{uid}")
     await pay.successful_payment(again)
@@ -127,7 +123,8 @@ async def test_paysupport_and_terms_commands_answer(monkeypatch):
     await pay.terms(terms)
     assert "help@example.com" in support.answer.await_args.args[0] and "/terms" in support.answer.await_args.args[0]
     text = terms.answer.await_args.args[0]
-    assert "Первые 3 дня — бесплатно" in text and "https://example.com/terms" in text and "help@example.com" in text
+    assert "Первые 3 календарных дня — бесплатно" in text and "вводной цене" in text and "https://example.com/terms" in text and "help@example.com" in text
+    assert "Подписка не продлевается сама" in text, "пока автопродление не включено, условия честно говорят про продление вручную"
 
 
 def _bot(refund=None):

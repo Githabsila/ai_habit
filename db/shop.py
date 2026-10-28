@@ -184,6 +184,100 @@ def mark_payment_processed(charge_id, user_id, payload, amount, purchased_at=Non
     conn.close()
 
 
+# ---- состояние обработки платежа (ТЗ 28.10 §19): received → done / failed
+# Раньше charge_id записывался ДО начисления и больше нигде не отмечался: если начисление падало, платёж считался «обработанным», доступ не открывался,
+# а повторное сообщение Telegram молча игнорировалось. Теперь у платежа есть состояние, и сбой можно повторить без двойного начисления.
+
+def begin_payment(charge_id, user_id, payload, amount, purchased_at=None, is_test=False, is_recurring=False, expires_at=None):
+    """Начинает обработку платежа. 'new' — первый раз (строка записана, состояние received), 'duplicate' — платёж уже обработан (ничего не начисляем),
+    'retry' — раньше обработка не завершилась (failed/received): начисляем заново, один раз."""
+    if not charge_id:
+        return "new"
+    conn = connect()
+    try:
+        row = conn.execute("SELECT status FROM stars_payments WHERE charge_id=?", (charge_id,)).fetchone()
+        if row is not None:
+            if (row["status"] or "done") == "done":
+                return "duplicate"
+            conn.execute("UPDATE stars_payments SET status='received', updated_at=CURRENT_TIMESTAMP WHERE charge_id=?", (charge_id,))
+            conn.commit()
+            return "retry"
+    finally:
+        conn.close()
+    mark_payment_processed(charge_id, user_id, payload, amount, purchased_at=purchased_at, is_test=is_test)
+    conn = connect()
+    try:
+        conn.execute(
+            "UPDATE stars_payments SET status='received', is_recurring=?, expires_at=?, updated_at=CURRENT_TIMESTAMP WHERE charge_id=?",
+            (1 if is_recurring else 0, _iso_utc(expires_at), charge_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return "new"
+
+
+def _iso_utc(moment):
+    if moment is None:
+        return None
+    if getattr(moment, "tzinfo", None) is not None:
+        from datetime import timezone as _tz
+        moment = moment.astimezone(_tz.utc).replace(tzinfo=None)
+    return moment.isoformat(sep=" ", timespec="seconds")
+
+
+def finish_payment(charge_id, ok, error=None):
+    """Платёж обработан (ok) или обработка упала (error сохраняется, попытка засчитывается)."""
+    if not charge_id:
+        return
+    conn = connect()
+    try:
+        if ok:
+            conn.execute("UPDATE stars_payments SET status='done', error=NULL, updated_at=CURRENT_TIMESTAMP WHERE charge_id=?", (charge_id,))
+        else:
+            conn.execute(
+                "UPDATE stars_payments SET status='failed', error=?, attempts=COALESCE(attempts,0)+1, updated_at=CURRENT_TIMESTAMP WHERE charge_id=?",
+                (str(error or "")[:300], charge_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def is_credited(charge_id):
+    """Начислен ли уже срок подписки за этот платёж (чтобы повтор после сбоя не добавил месяц второй раз)."""
+    if not charge_id:
+        return False
+    conn = connect()
+    try:
+        row = conn.execute("SELECT credited_at FROM stars_payments WHERE charge_id=?", (charge_id,)).fetchone()
+    finally:
+        conn.close()
+    return bool(row and row["credited_at"])
+
+
+def mark_credited(charge_id):
+    if not charge_id:
+        return
+    conn = connect()
+    try:
+        conn.execute("UPDATE stars_payments SET credited_at=CURRENT_TIMESTAMP WHERE charge_id=? AND credited_at IS NULL", (charge_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def failed_payments(limit=20, max_attempts=5):
+    """Платежи, по которым деньги получены, а начисление не прошло (для повтора и для админки): самые старые первыми."""
+    conn = connect()
+    try:
+        return conn.execute(
+            "SELECT * FROM stars_payments WHERE status='failed' AND COALESCE(attempts,0) < ? AND COALESCE(is_test,0)=0 "
+            "AND refunded_at IS NULL ORDER BY COALESCE(updated_at, created_at) LIMIT ?", (int(max_attempts), int(limit))).fetchall()
+    finally:
+        conn.close()
+
+
 def get_payment(charge_id):
     """Платёж Stars по номеру операции Telegram (telegram_payment_charge_id) или None."""
     conn = connect()

@@ -160,9 +160,11 @@ def public_trial(user_id):
     snap = snapshot(user_id)
     if snap is None:
         return None
+    from .subscription import payment_pending
+    snap["payment_pending"] = payment_pending(user_id)
     keys = ("scenario", "day", "days_total", "phase", "paid", "intro_active", "price_stars", "intro_price_stars", "renewal_price_stars",
             "intro_usd", "renewal_usd", "streak", "needed", "marked_today", "marked_yesterday", "channel_configured", "channel_granted",
-            "channel_eligible", "state", "read_only", "trial_ends_at", "grace_ends_at", "ends_at", "ends_at_text", "reason_text", "trial_tz", "paid_until")
+            "channel_eligible", "payment_pending", "state", "read_only", "trial_ends_at", "grace_ends_at", "ends_at", "ends_at_text", "reason_text", "trial_tz", "paid_until")
     return {key: snap[key] for key in keys}
 
 

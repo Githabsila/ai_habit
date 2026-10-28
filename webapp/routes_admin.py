@@ -696,6 +696,34 @@ async def admin_trial_overview_route(request):
     })
 
 
+@routes.get("/api/admin/payments")
+async def admin_payments_route(request):
+    """Платежи подписки, по которым деньги получены, а доступ не открылся (ТЗ §19), и последние реальные платежи — для ручной проверки."""
+    await _authenticate_admin(request)
+    from db.shop import failed_payments
+    from db.core import connect
+    failed = [dict(row) for row in failed_payments(limit=50, max_attempts=99)]
+    conn = connect()
+    try:
+        recent = [dict(row) for row in conn.execute(
+            "SELECT charge_id, user_id, payload, amount, status, purchased_at, created_at, is_recurring, refunded_at FROM stars_payments "
+            "WHERE COALESCE(is_test,0)=0 AND payload LIKE 'subscription:%' ORDER BY rowid DESC LIMIT 30").fetchall()]
+    finally:
+        conn.close()
+    return web.json_response({"failed": failed, "recent": recent})
+
+
+@routes.post("/api/admin/payments/retry")
+async def admin_payments_retry_route(request):
+    """Повторить начисление по упавшим платежам прямо сейчас (то же, что делает планировщик раз в 3 минуты)."""
+    await _authenticate_admin(request)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "bot_unavailable"}, status=503)
+    from subscription_flow import retry_failed_payments
+    return web.json_response({"ok": True, "credited": await retry_failed_payments(bot)})
+
+
 @routes.post("/api/admin/trial/toggle")
 async def admin_trial_toggle_route(request):
     """body: {"key": "*" | ключ сообщения, "enabled": true|false} — включить/выключить сообщения триала."""

@@ -80,10 +80,11 @@ async def test_a_locked_account_still_sees_its_trial_and_can_pay(client, uid):
     invoice = await client.post("/api/subscription/invoice", headers=_headers(person))
     assert invoice.status == 200
     result = await invoice.json()
-    assert result == {"ok": True, "invoice_url": "https://t.me/$invoice", "price_stars": 153}
+    assert result == {"ok": True, "invoice_url": "https://t.me/$invoice", "price_stars": 153, "recurring": False}
     kwargs = client.app["bot"].create_invoice_link.await_args.kwargs
     assert kwargs["currency"] == "XTR" and kwargs["payload"] == f"subscription:{person}" and kwargs["prices"][0].amount == 153
-    assert "Первый месяц по особой цене" in kwargs["description"] and kwargs["provider_token"] == ""
+    assert "Первый месяц по вводной цене" in kwargs["description"] and "канал" not in kwargs["description"] and kwargs["provider_token"] == ""
+    assert "subscription_period" not in kwargs, "первая покупка — разовый счёт на 30 дней (Stars не умеют другую цену первого периода внутри подписки)"
 
 
 @pytest.mark.parametrize("day,price", [(1, 153), (3, 153), (4, 153), (5, 153), (9, 153)])
@@ -93,8 +94,7 @@ async def test_the_invoice_amount_follows_the_day(client, uid, day, price):
     resp = await client.post("/api/subscription/invoice", headers=_headers(person))
     assert (await resp.json())["price_stars"] == price
     assert client.app["bot"].create_invoice_link.await_args.kwargs["prices"][0].amount == price
-    if price == 461:
-        assert "Первый месяц" not in client.app["bot"].create_invoice_link.await_args.kwargs["description"]
+    assert "Первый месяц по вводной цене" in client.app["bot"].create_invoice_link.await_args.kwargs["description"], "вводная цена — для первой покупки в любой день"
 
 
 async def test_testers_and_payers_cannot_get_an_invoice(client, uid):

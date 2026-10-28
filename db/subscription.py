@@ -61,7 +61,7 @@ def get_subscription_price_stars(user_id):
     return price_stars(user_id)
 
 
-def record_subscription_payment(user_id, months=1, paid_at=None):
+def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None):
     """Продлевает подписку на `months` месяцев от текущего срока (если он ещё не истёк) или от момента оплаты (если истёк/не было).
     Если человек платит во время пробных дней, платный доступ включается сразу, а оставшееся бесплатное время добавляется к нему: ранняя покупка
     не отнимает бесплатных часов (ТЗ §6). paid_at — когда человек реально заплатил (по часам Telegram): запоздалое подтверждение не отнимает условий.
@@ -80,6 +80,8 @@ def record_subscription_payment(user_id, months=1, paid_at=None):
         if free_left_from and free_left_from > base:
             base = free_left_from
     new_until = base + timedelta(days=30 * months)
+    if expires_at is not None and expires_at > new_until:
+        new_until = expires_at                         # подписка Stars: срок, который назвал Telegram, не короче того, что посчитали мы
 
     conn = connect()
     cursor = conn.cursor()
@@ -143,6 +145,70 @@ def bot_access_allowed(user_id):
     from .access_state import access_state
     info = access_state(user_id)
     return bool(info and info["allowed"])
+
+
+def get_auto_renew_charge(user_id):
+    """Номер платежа, по которому можно отключить автопродление, или None, если подписка оформлена без продления."""
+    user = get_user(user_id)
+    if not user or "subscription_charge_id" not in user.keys():
+        return None
+    return user["subscription_charge_id"] or None
+
+
+def set_auto_renew(user_id, enabled):
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET subscription_auto_renew=? WHERE telegram_id=?", (1 if enabled else 0, user_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def payment_pending(user_id, minutes=30):
+    """Человек открыл оплату (счёт выставлен недавно), а подтверждения ещё нет — экран показывает «ждём подтверждение», а не «оплати» (ТЗ §19)."""
+    conn = connect()
+    try:
+        asked = conn.execute("SELECT MAX(at) AS at FROM user_events WHERE user_id=? AND name='subscription_invoice'", (user_id,)).fetchone()["at"]
+        if not asked:
+            return False
+        asked_at = _parse_dt(asked)
+        if asked_at is None or datetime.now(timezone.utc).replace(tzinfo=None) - asked_at > timedelta(minutes=minutes):
+            return False
+        paid = conn.execute(
+            "SELECT 1 FROM stars_payments WHERE user_id=? AND payload LIKE 'subscription:%' AND created_at >= ? LIMIT 1", (user_id, asked)).fetchone()
+    finally:
+        conn.close()
+    return paid is None
+
+
+def subscription_overview(user_id):
+    """Для экрана «Подписка» (ТЗ §9, §19): срок, как продлевается, можно ли отключить продление, ждём ли подтверждение, как связаться при сбое."""
+    from config import (SUBSCRIPTION_AUTORENEW_ENABLED, SUBSCRIPTION_INTRO_PRICE_STARS, SUBSCRIPTION_RENEWAL_PRICE_STARS, SUPPORT_CONTACT, SUPPORT_EMAIL)
+    from .access_state import access_state, fmt_local
+    from .trial import INTRO_USD, RENEWAL_USD, intro_price_open
+    user = get_user(user_id)
+    if user is None:
+        return None
+    info = access_state(user_id)
+    charge = get_auto_renew_charge(user_id)
+    auto = bool(user["subscription_auto_renew"]) if "subscription_auto_renew" in user.keys() else False
+    paid = bool(info and info["state"] == "paid")
+    if paid and charge:
+        renewal_text = ("Продление автоматическое: каждые 30 дней спишется полная цена, пока ты не отключишь его." if auto
+                        else "Автопродление отключено: после окончания срока доступ закроется, пока ты не продлишь подписку.")
+    elif paid:
+        renewal_text = "Продление вручную: когда срок подойдёт к концу, я напомню — само ничего не спишется."
+    else:
+        renewal_text = ("Первая покупка — разовая, на 30 дней. Дальше можно оформить подписку с автопродлением; отключить её можно в любой момент."
+                        if SUBSCRIPTION_AUTORENEW_ENABLED else "Продление вручную: само ничего не спишется.")
+    return {
+        "state": info["state"], "reason_text": info["reason_text"], "paid": paid, "paid_until": info["paid_until"],
+        "paid_until_text": fmt_local(_parse_dt(info["paid_until"]), info["tz"]) if info["paid_until"] else "",
+        "auto_renew": auto and bool(charge), "can_toggle": bool(charge), "autorenew_available": bool(SUBSCRIPTION_AUTORENEW_ENABLED),
+        "renewal_text": renewal_text, "payment_pending": payment_pending(user_id),
+        "intro_active": intro_price_open(user_id), "intro_price_stars": SUBSCRIPTION_INTRO_PRICE_STARS, "renewal_price_stars": SUBSCRIPTION_RENEWAL_PRICE_STARS,
+        "intro_usd": INTRO_USD, "renewal_usd": RENEWAL_USD, "support": SUPPORT_CONTACT or SUPPORT_EMAIL,
+    }
 
 
 def get_subscription_status(user_id):

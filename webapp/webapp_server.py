@@ -997,8 +997,8 @@ async def trial_status_route(request):
 
 @routes.post("/api/subscription/invoice")
 async def subscription_invoice_route(request):
-    """Счёт на оплату доступа Stars (ADAM Pro на месяц): сумма — по сценарию триала (скидка до дня 4, дальше полная). Только аккаунтам в
-    сценарии триала; закрытому аккаунту тоже можно — иначе он не сможет оплатить."""
+    """Счёт на оплату доступа Stars: сумма и схема — по subscription_flow.invoice_spec (первая покупка — вводная цена в любой день, дальше полная; подписка с
+    автопродлением, если она включена). Только для аккаунта в сценарии триала; закрытому аккаунту тоже можно — иначе он не сможет оплатить."""
     telegram_id, _ = await _authenticate(request, allow_locked=True)
     from db.trial import snapshot
     snap = snapshot(telegram_id)
@@ -1009,21 +1009,47 @@ async def subscription_invoice_route(request):
     bot = request.app.get("bot")
     if bot is None:
         return web.json_response({"error": "payment_unavailable"}, status=503)
-    from aiogram.types import LabeledPrice
-    description = ("Первый месяц по особой цене: доступ к приложению и ко мне на 30 дней. Закрытый канал открывается после двух дней "
-                   "ударного режима подряд." if snap["intro_active"] else
-                   "Доступ к приложению и ко мне на 30 дней. Закрытый канал — после двух дней ударного режима подряд.")
-    link = await bot.create_invoice_link(
-        title="ADAM Pro — доступ на месяц",
-        description=description,
-        payload=f"subscription:{telegram_id}",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice(label="Доступ на месяц", amount=int(snap["price_stars"]))],
-    )
+    from subscription_flow import create_invoice_link
+    link, spec = await create_invoice_link(bot, telegram_id)
+    if link is None:
+        return web.json_response({"error": "not_available"}, status=403)
+    return web.json_response({"ok": True, "invoice_url": link, "price_stars": spec["price"], "recurring": spec["recurring"]})
+
+
+@routes.get("/api/subscription")
+async def subscription_status_route(request):
+    """Состояние подписки для экрана «Подписка»: срок, продление (автоматическое или вручную), можно ли его отключить, ожидается ли подтверждение оплаты."""
+    telegram_id, _ = await _authenticate(request, allow_locked=True)
+    from db.subscription import subscription_overview
+    return web.json_response(subscription_overview(telegram_id))
+
+
+@routes.post("/api/subscription/auto-renew")
+async def subscription_auto_renew_route(request):
+    """body: {"enabled": true|false} — включить или отключить автопродление подписки Stars (editUserStarSubscription). Только если подписка оформлена с продлением."""
+    telegram_id, _ = await _authenticate(request, allow_locked=True)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "invalid_json"}, status=400)
+    from db.subscription import get_auto_renew_charge, set_auto_renew
+    charge_id = get_auto_renew_charge(telegram_id)
+    if not charge_id:
+        return web.json_response({"error": "no_auto_renew"}, status=409)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "payment_unavailable"}, status=503)
+    enabled = bool(body.get("enabled"))
+    try:
+        await bot.edit_user_star_subscription(user_id=telegram_id, telegram_payment_charge_id=charge_id, is_canceled=not enabled)
+    except Exception:
+        logger.exception("Не удалось изменить автопродление (%s)", telegram_id)
+        return web.json_response({"error": "telegram_failed"}, status=502)
+    set_auto_renew(telegram_id, enabled)
     from db.tracking import track_server
-    track_server(telegram_id, "subscription_invoice", step=snap["phase"], meta={"price": snap["price_stars"], "day": snap["day"]})
-    return web.json_response({"ok": True, "invoice_url": link, "price_stars": snap["price_stars"]})
+    track_server(telegram_id, "subscription_auto_renew", step="on" if enabled else "off")
+    from db.subscription import subscription_overview
+    return web.json_response({"ok": True, **subscription_overview(telegram_id)})
 
 
 @routes.get("/api/changelog/unseen")
@@ -3494,6 +3520,17 @@ async def privacy_policy_page(request):
     return web.FileResponse(BASE_DIR / "static" / "privacy.html")
 
 
+TERMS_RENEWAL_MANUAL = ("Подписка <strong>не продлевается автоматически</strong> — это разовая оплата за период; чтобы продолжить пользоваться Сервисом после "
+                        "его истечения, нужно оплатить заново.")
+TERMS_RENEWAL_AUTO = ("Первый месяц — разовая оплата по вводной цене. Дальше доступ продлевается <strong>подпиской Telegram Stars с автоматическим списанием "
+                      "каждые 30 дней</strong> по полной цене; отключить продление можно в любой момент в разделе «Подписка» приложения или в настройках Telegram — "
+                      "тогда доступ действует до конца оплаченного периода.")
+
+
 @routes.get("/terms")
 async def terms_page(request):
-    return web.FileResponse(BASE_DIR / "static" / "terms.html")
+    """Условия: абзац о продлении зависит от того, как оформлена оплата сейчас (config.SUBSCRIPTION_AUTORENEW_ENABLED) — экран не обещает того, чего не делает платёжный механизм."""
+    import config
+    page = (BASE_DIR / "static" / "terms.html").read_text(encoding="utf-8")
+    page = page.replace("<!--RENEWAL-->", TERMS_RENEWAL_AUTO if config.SUBSCRIPTION_AUTORENEW_ENABLED else TERMS_RENEWAL_MANUAL)
+    return web.Response(text=page, content_type="text/html", charset="utf-8")

@@ -271,26 +271,25 @@ def test_a_name_with_html_is_escaped(uid):
     assert "<b>" not in text and "&lt;b&gt;Аня&lt;/b&gt;" in text
 
 
-@pytest.mark.parametrize("day,streak,mt,my,needle", [
-    (1, 0, False, False, "Закрытый канал открывается за 2 дня ударного режима подряд: отметь привычку сегодня и завтра"),
-    (2, 0, False, False, "Осталось два дня: отметь хотя бы одну привычку сегодня и завтра"),
-    (2, 1, False, True, "Сначала отметь привычку сегодня"),
-    (2, 1, True, False, "Сегодня уже отмечено — завтра отметь привычку ещё раз"),
-    (3, 0, False, False, "нужно 2 дня ударного режима подряд: отметь привычки сегодня и завтра"),
-    (2, 2, True, True, "условие для закрытого канала выполнено"),
-])
-def test_the_text_after_payment_follows_the_day_and_the_marks(uid, day, streak, mt, my, needle):
-    _person(uid, day=day)
-    snap = _at(uid, 12, streak=streak, marked_today=mt, marked_yesterday=my, channel_eligible=streak >= 2, channel_configured=False)
-    text = tm.paid_welcome_text(snap, "21.11.2026")
-    assert text.startswith("✅ Доступ продлён до 21.11.2026") and needle in text
+def test_the_text_after_payment_names_the_term_the_free_days_and_the_renewal():
+    """ТЗ 28.10 §19: после оплаты — точный срок, что стало с бесплатными днями и как продлевается подписка; про закрытый канал не говорим."""
+    from datetime import datetime as dt
+    snap = {"renewal_price_stars": 461, "renewal_usd": "$5.99"}
+    plain = tm.paid_welcome_text(snap, dt(2026, 11, 21))
+    assert plain.startswith("✅ Подписка активна до 21.11.2026") and "Продление вручную" in plain and "само ничего не спишется" in plain
+    assert "канал" not in plain.lower() and "бесплатные дни" not in plain
+    early = tm.paid_welcome_text({**snap, "early": True}, dt(2026, 11, 21))
+    assert "Оставшиеся бесплатные дни пробного периода добавлены к сроку" in early
+    kept = tm.paid_welcome_text({**snap, "protection": {"applied": True, "restored": 5}}, dt(2026, 11, 21))
+    assert "Серия сохранена: 5 дней подряд снова с тобой" in kept
+    auto = tm.paid_welcome_text(snap, dt(2026, 11, 21), auto_renew=True)
+    assert "Продление автоматическое: каждые 30 дней спишется 461 ⭐ (≈$5.99)" in auto and "настройках Telegram" in auto and "вручную" not in auto
 
 
-def test_the_text_after_payment_carries_the_link_when_the_streak_is_there(uid):
-    _person(uid, day=2)
-    snap = _at(uid, 12, streak=2, marked_today=True, marked_yesterday=True, channel_eligible=True, channel_configured=True)
+def test_the_text_after_payment_carries_the_link_only_when_there_is_one():
+    snap = {"renewal_price_stars": 461, "renewal_usd": "$5.99", "streak": 2}
     assert "https://t.me/+abc" in tm.paid_welcome_text(snap, "21.11.2026", link="https://t.me/+abc")
-    assert "Ссылку пришлю чуть позже" in tm.paid_welcome_text(snap, "21.11.2026")
+    assert "https://" not in tm.paid_welcome_text(snap, "21.11.2026")
 
 
 # ---------------------------------------------------------------------------------------------------------------- доставка

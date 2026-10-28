@@ -201,6 +201,11 @@ def create_tables():
         cursor.execute("ALTER TABLE users ADD COLUMN trial_ends_at TIMESTAMP")
     if "trial_tz" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN trial_tz TEXT")
+    # Автопродление подписки Stars (ТЗ §2): включено ли и по какому платежу его можно отключить (editUserStarSubscription).
+    if "subscription_auto_renew" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN subscription_auto_renew INTEGER DEFAULT 0")
+    if "subscription_charge_id" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN subscription_charge_id TEXT")
 
     # Ограничения ИИ для человека под контролем админа (db/ai_usage.py): отключение до момента и личный дневной лимит токенов.
     # Не учитывать человека в статистике (тестовый аккаунт владельца, проверка триала и т.п.): без этого цифры воронки и удержания врут.
@@ -1882,7 +1887,8 @@ def create_tables():
     # оплата (из админки: в реальные показатели и выплаты не попадает), состояние обработки (received → done / failed) и сообщение об ошибке.
     payment_columns = {row[1] for row in cursor.execute("PRAGMA table_info(stars_payments)").fetchall()}
     for name, ddl in (("purchased_at", "TIMESTAMP"), ("is_test", "INTEGER DEFAULT 0"), ("status", "TEXT DEFAULT 'done'"), ("error", "TEXT"),
-                      ("is_recurring", "INTEGER DEFAULT 0"), ("expires_at", "TIMESTAMP")):
+                      ("is_recurring", "INTEGER DEFAULT 0"), ("expires_at", "TIMESTAMP"), ("attempts", "INTEGER DEFAULT 0"), ("updated_at", "TIMESTAMP"),
+                      ("credited_at", "TIMESTAMP")):
         if name not in payment_columns:
             cursor.execute(f"ALTER TABLE stars_payments ADD COLUMN {name} {ddl}")
 

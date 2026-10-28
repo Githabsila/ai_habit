@@ -84,6 +84,14 @@ SUBSCRIPTION_RENEWAL_PRICE_STARS = int(os.getenv("SUBSCRIPTION_RENEWAL_PRICE_STA
 SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL = int(os.getenv("SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL", "2"))
 # Куда писать по вопросам оплаты и возвратов (/paysupport, требование Telegram для ботов с платежами); тот же адрес указан в /terms.
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "egormatancev12@gmail.com")
+# Запасной способ связи, который видит человек, если оплата прошла, а доступ не открылся (ТЗ 28.10 §19): ваш контакт в Telegram, например "@nick".
+# Пока не задан — показываем только почту выше. Добавляется переменной окружения SUPPORT_CONTACT на Railway.
+SUPPORT_CONTACT = os.getenv("SUPPORT_CONTACT", "").strip()
+# Автопродление подписки Stars (ТЗ §2). Telegram умеет подписку только по ссылке-счёту (createInvoiceLink, период 30 дней, ОДНА фиксированная цена): вводной цены
+# внутри подписки нет. Поэтому схема такая: первая покупка — разовый счёт на 30 дней по вводной цене, а когда человек платит не впервые, счёт — подписка с
+# автопродлением (отключается в приложении или в настройках Telegram). Пока флаг выключен, все счета разовые, а тексты честно говорят «продление вручную».
+SUBSCRIPTION_AUTORENEW_ENABLED = os.getenv("SUBSCRIPTION_AUTORENEW_ENABLED", "false").lower() == "true"
+SUBSCRIPTION_PERIOD_DAYS = 30
 # ID закрытого Telegram-канала (бот должен быть в нём админом с правом
 # приглашать пользователей) — пока не задан, выдача доступа просто
 # пропускается без ошибки.

@@ -1,3 +1,7 @@
+import asyncio
+import logging
+from datetime import datetime, timezone
+
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.state import StatesGroup, State
@@ -7,6 +11,8 @@ from aiogram.types import (
     LabeledPrice,
     PreCheckoutQuery,
     Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
 )
 
 from config import PREMIUM_PRICE_STARS, ADMIN_IDS, SUPPORT_EMAIL, WEBAPP_URL
@@ -21,9 +27,11 @@ from keyboards import (
     premium_buy_keyboard, back_menu_keyboard, subscription_buy_keyboard, trial_keyboard,
     gift_premium_candidates_keyboard, gift_premium_confirm_keyboard,
 )
-from subscription_flow import complete_subscription_payment, refund_payment
+from db.shop import begin_payment, finish_payment
+from subscription_flow import complete_subscription_payment, refund_payment, report_payment_failure
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 class GiftState(StatesGroup):
@@ -214,42 +222,98 @@ async def gift_premium_confirm(callback: CallbackQuery):
 
 @router.callback_query(F.data == "buy_subscription")
 async def buy_subscription(callback: CallbackQuery):
-    price = get_subscription_price_stars(callback.from_user.id)
-    from config import SUBSCRIPTION_RENEWAL_PRICE_STARS
-    intro = price < SUBSCRIPTION_RENEWAL_PRICE_STARS
-    await callback.message.answer_invoice(
-        title="ADAM Pro — доступ на месяц",
-        description=("Первый месяц по особой цене: доступ к приложению и ко мне на 30 дней. Закрытый канал открывается после двух дней "
-                     "ударного режима подряд." if intro else "Доступ к приложению и ко мне на 30 дней. Закрытый канал — после двух дней ударного режима подряд."),
-        payload=f"subscription:{callback.from_user.id}",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice(label="Подписка на месяц", amount=price)],
-    )
+    """Оплата доступа: схема и сумма — subscription_flow.invoice_spec (первая покупка разовая по вводной цене, дальше подписка с автопродлением, если она включена).
+    Подписку Telegram принимает только по ссылке-счёту, поэтому для неё — кнопка со ссылкой, для разовой — обычный счёт."""
+    from subscription_flow import create_invoice_link, invoice_spec
+    spec = invoice_spec(callback.from_user.id)
+    if spec is None:
+        await callback.answer("Сейчас оплата не нужна: доступ открыт.", show_alert=True)
+        return
+    if spec["recurring"]:
+        link, spec = await create_invoice_link(callback.bot, callback.from_user.id)
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=f"⭐ Оформить за {spec['price']} Stars", url=link)]])
+        await callback.message.answer(spec["description"], reply_markup=keyboard)
+    else:
+        await callback.message.answer_invoice(
+            title=spec["title"],
+            description=spec["description"],
+            payload=spec["payload"],
+            provider_token="",
+            currency="XTR",
+            prices=[LabeledPrice(label="Доступ на 30 дней", amount=spec["price"])],
+        )
+        from db.tracking import track_server
+        track_server(callback.from_user.id, "subscription_invoice", step=spec["snapshot"]["phase"],
+                     meta={"price": spec["price"], "day": spec["snapshot"]["day"], "recurring": False, "surface": "bot"})
     await callback.answer()
 
 
 @router.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
+    """Telegram спрашивает, можно ли брать оплату. Подписку берём только у того, на кого выписан счёт (иначе деньги ушли бы мимо)."""
+    payload = str(pre_checkout_query.invoice_payload or "")
+    if payload.startswith("subscription:"):
+        try:
+            owner = int(payload.split(":")[1])
+        except (IndexError, ValueError):
+            owner = None
+        if owner != pre_checkout_query.from_user.id:
+            await pre_checkout_query.answer(ok=False, error_message="Не получилось проверить счёт. Открой оплату в приложении ещё раз.")
+            return
     await pre_checkout_query.answer(ok=True)
+
+
+_payment_locks = {}
+
+
+def _payment_lock(charge_id):
+    """Один и тот же платёж не обрабатывается двумя апдейтами одновременно."""
+    return _payment_locks.setdefault(str(charge_id), asyncio.Lock())
+
+
+def _expiration(payment):
+    """Дата окончания периода у подписки Stars (Telegram присылает unix-время) → naive UTC или None."""
+    raw = getattr(payment, "subscription_expiration_date", None)
+    if not raw:
+        return None
+    try:
+        if isinstance(raw, datetime):
+            return raw.astimezone(timezone.utc).replace(tzinfo=None) if raw.tzinfo else raw
+        return datetime.fromtimestamp(int(raw), tz=timezone.utc).replace(tzinfo=None)
+    except (TypeError, ValueError, OSError):
+        return None
 
 
 @router.message(F.successful_payment)
 async def successful_payment(message: Message):
+    """Деньги дошли. Платёж проходит состояния received → done / failed (db/shop.py::begin_payment): повторное сообщение Telegram о той же покупке
+    ничего не начисляет второй раз, а если начисление упало — об этом узнают владелец и человек, и обработку можно повторить (subscription_flow.retry_failed_payments)."""
     payment = message.successful_payment
     payload = str(payment.invoice_payload or "")
-
-    # Защита от двойного начисления: Telegram изредка может повторно
-    # доставить update с successful_payment (сетевой сбой/рестарт бота
-    # между получением апдейта и обработкой) — без этой проверки
-    # пользователь получил бы награду дважды за одну и ту же оплату.
-    # telegram_payment_charge_id уникален для каждой реальной транзакции
-    # Stars, в отличие от invoice_payload (тот может повторяться).
     charge_id = payment.telegram_payment_charge_id
-    if is_payment_processed(charge_id):
-        log_error("duplicate_payment", f"charge_id={charge_id} payload={payload}", message.from_user.id)
-        return
-    mark_payment_processed(charge_id, message.from_user.id, payload, payment.total_amount, purchased_at=getattr(message, "date", None))
+    recurring = bool(getattr(payment, "is_recurring", False))
+    expires_at = _expiration(payment)
+    async with _payment_lock(charge_id):
+        state = begin_payment(charge_id, message.from_user.id, payload, payment.total_amount, purchased_at=getattr(message, "date", None),
+                              is_recurring=recurring, expires_at=expires_at)
+        if state == "duplicate":
+            log_error("duplicate_payment", f"charge_id={charge_id} payload={payload}", message.from_user.id)
+            return
+        try:
+            await _credit_payment(message, payment, payload)
+        except Exception as exc:
+            logger.exception("Оплата получена, но начисление не прошло: charge_id=%s payload=%s", charge_id, payload)
+            finish_payment(charge_id, False, error=f"{type(exc).__name__}: {exc}")
+            try:
+                await report_payment_failure(message.bot, message.from_user, charge_id, payload, payment.total_amount, exc)
+            except Exception:
+                logger.exception("Не удалось сообщить о сбое оплаты (%s)", charge_id)
+            return
+        finish_payment(charge_id, True)
+
+
+async def _credit_payment(message: Message, payment, payload: str):
+    """Начисление за один платёж: что именно куплено, определяет payload."""
 
     # Покупка платной рамки из Mini App через Telegram Stars.
     if payload.startswith("avatar_frame:"):
@@ -385,7 +449,9 @@ async def successful_payment(message: Message):
         if paid_user_id != message.from_user.id:
             return
         # Что сказать человеку, зависит от дня триала и отметок (ТЗ владельца): subscription_flow / trial_messages.paid_welcome_text.
-        text, snap, link = await complete_subscription_payment(message.bot, message.from_user.id, paid_at=getattr(message, "date", None))
+        text, snap, link = await complete_subscription_payment(
+            message.bot, message.from_user.id, paid_at=getattr(message, "date", None), charge_id=payment.telegram_payment_charge_id,
+            recurring=bool(getattr(payment, "is_recurring", False)), expires_at=_expiration(payment))
         await message.answer(text, reply_markup=trial_keyboard(("open",), snap["price_stars"]) or back_menu_keyboard())
         return
 
@@ -403,22 +469,28 @@ async def successful_payment(message: Message):
 
 @router.message(Command("paysupport"))
 async def paysupport(message: Message):
+    from config import SUPPORT_CONTACT
+    contact = f"<b>{SUPPORT_CONTACT}</b> или на <b>{SUPPORT_EMAIL}</b>" if SUPPORT_CONTACT else f"<b>{SUPPORT_EMAIL}</b>"
     await message.answer(
         "💳 <b>Вопросы по оплате</b>\n\n"
         "Оплата идёт через Telegram Stars. Если Stars списались, а доступ не открылся, или платёж прошёл по ошибке — "
-        f"напиши на <b>{SUPPORT_EMAIL}</b>: укажи свой @ник и время оплаты. Я проверю и, если нужно, верну Stars.\n\n"
+        f"напиши на {contact}: укажи свой @ник и время оплаты. Я проверю и, если нужно, верну Stars. Повторно платить не нужно.\n\n"
         "Условия оплаты и возврата — /terms."
     )
 
 
 @router.message(Command("terms"))
 async def terms(message: Message):
+    from config import SUBSCRIPTION_AUTORENEW_ENABLED
     link = f"{WEBAPP_URL.rstrip('/')}/terms" if WEBAPP_URL else ""
+    renewal = ("Первый месяц — разовая оплата по вводной цене, дальше — подписка Stars с автопродлением: отключить её можно в приложении "
+               "(раздел «Подписка») или в настройках Telegram."
+               if SUBSCRIPTION_AUTORENEW_ENABLED else "Подписка не продлевается сама: срок заканчивается, и нужно оплатить заново.")
     await message.answer(
         "📄 <b>Условия</b>\n\n"
-        "Первые 3 дня — бесплатно. Дальше — доступ на месяц: первый месяц по особой цене, затем полная. "
-        "Подписка не продлевается сама: срок заканчивается, и нужно оплатить заново. Возврат — по правилам Telegram Stars "
-        f"или через поддержку: {SUPPORT_EMAIL} (/paysupport)."
+        "Первые 3 календарных дня — бесплатно, считая день первого открытия приложения. Потом — подписка Pro: первый месяц по вводной цене для первой покупки "
+        f"(в любой день), затем полная. {renewal} Если оплатить во время пробных дней, оставшиеся бесплатные дни добавятся к сроку. "
+        f"Возврат — по правилам Telegram Stars или через поддержку: {SUPPORT_EMAIL} (/paysupport)."
         + (f"\n\nПолный текст: {link}" if link else "")
     )
 

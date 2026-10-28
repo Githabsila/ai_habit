@@ -138,28 +138,28 @@ def channel_link_text(snap, link):
     return f"🔑 {streak_phrase(snap['streak'])} ударного режима подряд — вот ссылка в закрытый канал: {html.escape(link)}"
 
 
-def paid_welcome_text(snap, until_str, link=None):
-    """Сообщение сразу после оплаты. snap — состояние на момент оплаты (отметки вчера/сегодня, серия, день триала)."""
-    head = f"✅ Доступ продлён до {until_str}. Спасибо, что остаёшься со мной!"
-    if snap["channel_eligible"]:
-        if link:
-            return head + f"\n\n{channel_link_text(snap, link)}"
-        if snap["channel_configured"]:
-            return head + f"\n\n🔑 У тебя {streak_phrase(snap['streak'])} подряд — условие для закрытого канала выполнено. Ссылку пришлю чуть позже."
-        return head + (f"\n\n🔑 У тебя {streak_phrase(snap['streak'])} подряд — условие для закрытого канала выполнено. "
-                       "Как только канал откроется, пришлю ссылку.")
-    needed = _needed_phrase(snap)
-    if snap["marked_today"]:
-        tail = f"Сегодня уже отмечено — завтра отметь привычку ещё раз, и ссылка в закрытый канал придёт сама 🔑 Канал открывается за {needed} подряд: оплаты мало, нужен ритм."
-    elif snap["marked_yesterday"]:
-        tail = f"Сначала отметь привычку сегодня — когда наберётся {needed} подряд, ссылка в закрытый канал придёт сама 🔑 Не теряй ритм!"
-    elif snap["day"] == 2:
-        tail = "Оплаты мало, чтобы попасть в закрытый канал, — нужен ритм. Осталось два дня: отметь хотя бы одну привычку сегодня и завтра 🔑"
-    elif snap["day"] <= 1:
-        tail = f"Закрытый канал открывается за {needed} ударного режима подряд: отметь привычку сегодня и завтра — и ссылка придёт сама 🔑"
-    else:
-        tail = f"Чтобы получить доступ в закрытый канал, нужно {needed} ударного режима подряд: отметь привычки сегодня и завтра 🔑"
-    return f"{head}\n\n{tail}"
+def renewal_line(snap, auto_renew):
+    """Как продлевается подписка — честно, по тому, как она реально оформлена (ТЗ §2, §19): автопродление Stars или продление вручную."""
+    if auto_renew:
+        return (f"Продление автоматическое: каждые 30 дней спишется {snap.get('renewal_price_stars')} ⭐ (≈{snap.get('renewal_usd')}). "
+                "Отключить можно в приложении (раздел «Подписка») или в настройках Telegram.")
+    return "Продление вручную: когда срок подойдёт к концу, я напомню — само ничего не спишется."
+
+
+def paid_welcome_text(snap, until, link=None, auto_renew=False):
+    """Подтверждение сразу после оплаты (ТЗ §19): точный срок доступа, что стало с бесплатными днями и серией, как продлевается подписка.
+    until — когда подписка закончится (datetime или готовая строка)."""
+    until_str = until.strftime("%d.%m.%Y") if hasattr(until, "strftime") else str(until)
+    lines = [f"✅ Подписка активна до {until_str}. Спасибо, что продолжаешь со мной!"]
+    if snap.get("early"):
+        lines.append("Оставшиеся бесплатные дни пробного периода добавлены к сроку: ничего не потеряно.")
+    protection = snap.get("protection") or {}
+    if protection.get("applied") and protection.get("restored"):
+        lines.append(f"Серия сохранена: {streak_phrase(protection['restored'])} подряд снова с тобой.")
+    lines.append(renewal_line(snap, auto_renew))
+    if link:
+        lines.append(channel_link_text(snap, link))
+    return "\n\n".join(lines)
 
 
 # ---------------------------------------------------------------------------------------------------------------- каталог
