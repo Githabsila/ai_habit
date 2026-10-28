@@ -762,6 +762,10 @@ def create_tables():
         PRIMARY KEY(owner_id, broken_date, helper_id)
     )
     """)
+    # 28.10: номер сообщения-пуша (чтобы убрать его у остальных друзей, когда серию спас первый) и месяц по календарю того, кого спасают.
+    for table, column, ddl in (("rescue_pushes", "message_id", "INTEGER"), ("rescue_pushes", "withdrawn_at", "TIMESTAMP"), ("streak_rescues", "owner_month", "TEXT")):
+        if column not in {row[1] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
     # ---------------- Путь человека (db/tracking.py) ----------------
     # user_events — значимые шаги: регистрация, шаги анкеты и онбординга, «пропустить», первая привычка/задача, сообщения Адаму.

@@ -803,7 +803,7 @@ async def _send_rescue_push(bot, scope, helper_id, owner_id, state, name):
     if not claim_notification(helper_id, day, "rescue_friend", scope):
         return False
     try:
-        await bot.send_message(
+        sent = await bot.send_message(
             helper_id, rescue_push_text(name, state["lost_streak"]), parse_mode="HTML", reply_markup=_rescue_keyboard()
         )
     except TelegramForbiddenError:
@@ -813,7 +813,7 @@ async def _send_rescue_push(bot, scope, helper_id, owner_id, state, name):
     except Exception:
         release_notification(helper_id, day, "rescue_friend", scope)
         raise
-    rescue_db.mark_push_sent(owner_id, state["broken_date"], helper_id)
+    rescue_db.mark_push_sent(owner_id, state["broken_date"], helper_id, message_id=getattr(sent, "message_id", None))
     return True
 
 

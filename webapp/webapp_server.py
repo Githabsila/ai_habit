@@ -2510,6 +2510,20 @@ async def rescue_help_route(request):
     return web.json_response({"friends": rescue_help_candidates(telegram_id)})
 
 
+async def _withdraw_rescue_pushes(app, owner_id, broken_date, helper_id):
+    """Серию спас первый друг: остальным друзьям пуш «её ещё можно спасти» больше не нужен — удаляем его из чата с ботом (засчитана помощь того, кто успел первым)."""
+    from db import rescue as rescue_db
+    bot = app.get("bot")
+    if bot is None:
+        return
+    for other_id, message_id in rescue_db.pushes_to_withdraw(owner_id, broken_date, helper_id):
+        try:
+            await bot.delete_message(other_id, message_id)
+        except Exception:
+            logger.info("Не удалось убрать пуш о спасении серии у %s", other_id)
+        rescue_db.mark_push_withdrawn(owner_id, broken_date, other_id)
+
+
 @routes.post("/api/users/{telegram_id}/rescue")
 async def user_rescue_route(request):
     """«Восстановить бесплатно»: вернуть другу погасшую серию. Правила — в db/rescue.py (только друзьям, свежий срыв, раз в месяц на
@@ -2523,6 +2537,7 @@ async def user_rescue_route(request):
         return web.json_response({"error": result["error"]}, status=400)
     from db.tracking import track_server
     track_server(telegram_id, "rescue_sent", meta={"to": target_id, "lost": result["lost_streak"]})
+    _spawn_background(_withdraw_rescue_pushes(request.app, target_id, result["broken_date"], telegram_id))
     name = html.escape(_display_name(get_user(telegram_id)))
     _spawn_background(_send_social_push(
         request.app, target_id,

@@ -7245,8 +7245,8 @@ function initPlanActions() {
     already_owned: "Your friend already has this",
     receiver_full: "Your friend already has the maximum number of freezes",
     receiver_limit: "Your friend already got a freeze today",
-    helper_limit: "You've already saved someone's streak this month",
-    cooldown: "This friend's streak was saved very recently",
+    helper_limit: "You've already helped this friend this month",
+    friend_limit: "This friend's streak has already been saved twice this month",
     item_not_giftable: "This can't be sent as a gift",
     invalid_amount: "You can't gift that many diamonds",
     not_enough_coins: "Not enough Adam Coin",
@@ -7314,8 +7314,8 @@ function initPlanActions() {
         already_owned: "У друга это уже есть",
         receiver_full: "У друга уже максимум заморозок",
         receiver_limit: "Сегодня другу уже подарили заморозку",
-        helper_limit: "В этом месяце ты уже спасал(а) чью-то серию",
-        cooldown: "Этого друга уже спасали совсем недавно",
+        helper_limit: "От тебя этот друг в этом месяце уже получил помощь",
+        friend_limit: "Серию этого друга в этом месяце уже спасали дважды",
         item_not_giftable: "Такой подарок отправить нельзя",
         invalid_amount: "Столько алмазов подарить нельзя",
         not_enough_coins: "Не хватает Adam Coin",
@@ -9256,7 +9256,7 @@ function initFreezeHelp() {
 // Серия друга погасла, но её ещё можно вернуть — как «дружеский забег ещё можно спасти» в Duolingo. В карточке «Друзья» рядом с именем
 // появляется значок погасшей серии (тап — окно), то же окно один раз за сессию само показывается при входе (на одного друга не чаще раза
 // в 5 часов — это и есть «Напомнить позже»). «Восстановить бесплатно» — POST /api/users/{id}/rescue: серия возвращается сразу, другу уходит
-// пуш. Правила (только друзьям, свежий срыв, раз в месяц на спасателя, раз в две недели на того, кого спасают) считает сервер.
+// пуш. Правила (только друзьям, свежий срыв, один друг — одному человеку раз в месяц, одного человека спасают не больше двух раз в месяц, засчитывается первый) считает сервер.
 // sim — симуляция из админки (SIM_SCENES): ничего не отправляется.
 const RESCUE_FLAME = (cls) =>
   `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.5c.8 3.4-1.5 5.2-3.3 7.4C7.2 11.7 6 13.4 6 15.6a6 6 0 0 0 12 0c0-2.5-1.1-4.2-2.4-5.8-.3 1.5-1 2.4-2 2.9.4-3.6-.4-7.6-1.6-10.2z" fill="currentColor"/><path class="rescue-help-crack" d="M13.4 7.2l-2.3 3.8 2.3 1.7-2.5 4.5" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -9290,7 +9290,7 @@ function renderRescueHelp() {
   } else {
     // неразрывный пробел: «в 12 дней» не рвётся на «в» и «12 дней» в разных строках
     document.getElementById("rescueHelpTitle").textContent = `${name} потерял(а) серию в ${pairDaysWord(lost).replace(" ", " ")}. Но её ещё можно спасти!`;
-    document.getElementById("rescueHelpSub").textContent = "Вернуть её ты успеешь, пока не поздно. Такая помощь — раз в месяц и ничего не стоит.";
+    document.getElementById("rescueHelpSub").textContent = "Вернуть её ты успеешь, пока не поздно. Помощь ничего не стоит, а засчитывается тому, кто успел первым.";
     send.textContent = "Восстановить бесплатно";
     send.disabled = s.busy;
   }
@@ -9342,7 +9342,7 @@ async function doRescueHelp() {
   } catch (err) {
     s.busy = false;
     showToast(friendlyError(err), "error");
-    if (["helper_limit", "cooldown", "not_available", "not_friends"].includes(err?.data?.error)) { closeRescueHelp(); loadFriendsCard(); }
+    if (["helper_limit", "friend_limit", "not_available", "not_friends"].includes(err?.data?.error)) { closeRescueHelp(); loadFriendsCard(); }
     else renderRescueHelp();
     return;
   }

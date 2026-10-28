@@ -53,6 +53,14 @@ def _row(sql, args=()):
         conn.close()
 
 
+def _row_all(sql, args=()):
+    conn = connect()
+    try:
+        return conn.execute(sql, args).fetchall()
+    finally:
+        conn.close()
+
+
 def _run(sql, args=()):
     conn = connect()
     conn.execute(sql, args)
@@ -129,7 +137,7 @@ def test_nothing_to_save_for_someone_who_never_lost_a_streak(uid):
 def test_the_streak_comes_back_and_the_break_is_forgotten(uid):
     helper, owner, day = _friends(uid)
     result = rescue.rescue_streak(helper, owner)
-    assert result == {"ok": True, "lost_streak": 12, "streak": 12}
+    assert result == {"ok": True, "lost_streak": 12, "streak": 12, "broken_date": day}
     assert _row("SELECT streak, best_streak FROM users WHERE telegram_id=?", (owner,))["streak"] == 12
     meta = _row("SELECT last_broken_streak, last_broken_date, free_restore_month FROM streak_meta WHERE user_id=?", (owner,))
     assert meta["last_broken_streak"] == 0 and meta["last_broken_date"] is None
@@ -183,15 +191,18 @@ def test_only_friends_can_save_a_streak(uid):
     assert rescue.rescue_candidates(stranger) == []
 
 
-def test_a_person_saves_one_streak_a_month(uid):
+def test_one_friend_helps_the_same_person_only_once_a_month_but_may_help_different_people(uid):
     helper, first, _ = _friends(uid)
     second = _person(uid + 2, "Второй")
     make_friends(helper, second)
     _broken(second)
     assert rescue.rescue_streak(helper, first)["ok"]
-    assert rescue.rescue_streak(helper, second) == {"error": "helper_limit"}
-    assert rescue.rescue_state(second)["available"] is True, "второй друг по-прежнему ждёт другого спасателя"
-    assert rescue.helper_used_this_month(helper) is True
+    assert rescue.rescue_state(second)["available"] is True
+    assert rescue.rescue_streak(helper, second)["ok"], "решение владельца 28.10: ограничение на пару «друг → человек», а не на спасателя вообще"
+    assert rescue.helped_this_month(helper, first) is True and rescue.helped_this_month(helper, second) is True
+    _break_again(first)                                 # серия первого погасла снова
+    assert rescue.rescue_state(first)["available"] is True, "второй шанс у него есть"
+    assert rescue.rescue_streak(helper, first) == {"error": "helper_limit"}, "но от того же друга в этом месяце — уже нет"
 
 
 def test_one_break_is_saved_once_even_with_two_helpers(uid):
@@ -203,25 +214,33 @@ def test_one_break_is_saved_once_even_with_two_helpers(uid):
     assert _row("SELECT COUNT(*) AS n FROM streak_rescues WHERE owner_id=?", (owner,))["n"] == 1
 
 
-def test_the_same_person_is_not_saved_twice_in_two_weeks(uid):
+def _break_again(owner, lost=9):
+    """Серия человека погасла снова: прошлые записи о спасении уходят в «давнюю» дату, чтобы у нового срыва была своя."""
+    _broken(owner, lost=lost)
+    _run("UPDATE streak_rescues SET broken_date='old-' || id WHERE owner_id=? AND broken_date NOT LIKE 'old-%'", (owner,))
+
+
+def test_a_person_is_saved_at_most_twice_a_month_each_time_by_a_different_friend(uid):
     helper, owner, _ = _friends(uid)
-    other = _person(uid + 2, "Другой")
+    other, third = _person(uid + 2, "Другой"), _person(uid + 3, "Третий")
     make_friends(other, owner)
+    make_friends(third, owner)
     assert rescue.rescue_streak(helper, owner)["ok"]
-    _broken(owner, lost=9)                              # через несколько дней серия погасла снова
-    _run("UPDATE streak_meta SET last_broken_date=? WHERE user_id=?", ((_today() - timedelta(days=1)).isoformat(), owner))
-    _run("UPDATE streak_rescues SET broken_date='2000-01-01' WHERE owner_id=?", (owner,))
-    assert rescue.rescue_state(owner)["reason"] == "cooldown"
-    assert rescue.rescue_streak(other, owner) == {"error": "cooldown"}
-    _run("UPDATE streak_rescues SET created_at=datetime('now', '-15 days') WHERE owner_id=?", (owner,))
-    assert rescue.rescue_streak(other, owner)["ok"], "через две недели снова можно"
+    _break_again(owner)
+    assert rescue.rescue_state(owner)["available"] is True, "второй шанс"
+    assert rescue.rescue_streak(other, owner)["ok"], "помогает другой друг"
+    _break_again(owner, lost=7)
+    assert rescue.rescue_state(owner)["reason"] == "friend_limit", "в третий раз за месяц — уже нет"
+    assert rescue.rescue_streak(third, owner) == {"error": "friend_limit"}
+    _run("UPDATE streak_rescues SET month='2000-01', owner_month='2000-01' WHERE owner_id=?", (owner,))
+    assert rescue.rescue_streak(third, owner)["ok"], "в новом месяце счётчик свой"
 
 
 def test_a_failed_attempt_costs_the_helper_nothing(uid):
     helper, owner, _ = _friends(uid)
     _run("UPDATE streak_meta SET last_broken_streak=0 WHERE user_id=?", (owner,))
     assert rescue.rescue_streak(helper, owner) == {"error": "not_available"}
-    assert rescue.helper_used_this_month(helper) is False, "неудача спасательный раз не тратит"
+    assert rescue.helped_this_month(helper, owner) is False, "неудача помощь не тратит"
 
 
 def test_a_banned_person_is_not_offered(uid):
@@ -244,13 +263,18 @@ def test_candidates_are_friends_with_a_savable_streak_longest_loss_first(uid):
     assert people[0]["lost_streak"] == 40 and {"first_name", "avatar_id", "frame_id", "handle"} <= set(people[0])
 
 
-def test_the_window_is_not_offered_to_someone_who_used_this_months_save(uid):
+def test_the_window_does_not_offer_a_friend_this_person_already_saved_this_month(uid):
     helper, first, _ = _friends(uid)
     second = _person(uid + 2, "Второй")
     make_friends(helper, second)
     _broken(second)
     rescue.rescue_streak(helper, first)
-    assert rescue.rescue_candidates(helper) == []
+    _break_again(first)
+    offered = [f["telegram_id"] for f in rescue.rescue_candidates(helper)]
+    assert offered == [second], "первого этот друг в этом месяце уже спасал — ему предлагается только второй"
+    other = _person(uid + 4, "Другой друг")
+    make_friends(other, first)
+    assert first in [f["telegram_id"] for f in rescue.rescue_candidates(other)], "а другому другу второй шанс предлагается"
 
 
 def test_the_friends_overview_marks_only_savable_friends(uid):
@@ -378,16 +402,56 @@ async def test_no_push_at_night_or_with_reminders_off_or_after_the_save(uid, mon
     assert _to(bot, helper) == [], "серия уже возвращена — писать не о чем"
 
 
-async def test_a_friend_who_used_the_months_save_is_not_asked_again(uid, monkeypatch):
+async def test_a_friend_who_already_saved_this_person_this_month_is_not_asked_again_about_him(uid, monkeypatch):
     sched = _daytime(monkeypatch)
     helper, first, _ = _friends(uid)
     second = _person(uid + 2, "Второй")
     make_friends(helper, second)
     _broken(second)
     rescue.rescue_streak(helper, first)
+    _break_again(first)
     bot = _Bot()
     await sched.run_rescue_notifications(bot)
-    assert _to(bot, helper) == []
+    mine = _to(bot, helper)
+    assert len(mine) == 1 and "<b>Второй</b>" in mine[0][1] and "<b>Мария</b>" not in mine[0][1], "про первого — нет (тот уже помог), про второго — есть"
+
+
+async def test_when_the_first_friend_saves_the_streak_the_push_vanishes_for_the_others(client, uid, monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    import webapp.webapp_server as server
+    sched = _daytime(monkeypatch)
+    helper, owner, day = _friends(uid)
+    other = _person(uid + 2, "Другой")
+    make_friends(other, owner)
+
+    class _NumberedBot(_Bot):
+        delete_message = AsyncMock()
+
+        async def send_message(self, chat_id, text, **kwargs):
+            await super().send_message(chat_id, text, **kwargs)
+            return SimpleNamespace(message_id=5000 + len(self.sent))
+
+    bot = _NumberedBot()
+    bot.delete_message = AsyncMock()
+    await sched.run_rescue_notifications(bot)
+    assert len(_to(bot, helper)) == 1 and len(_to(bot, other)) == 1
+    stored = {r["helper_id"]: r["message_id"] for r in [dict(x) for x in (_row_all("SELECT helper_id, message_id FROM rescue_pushes WHERE owner_id=? AND broken_date=?", (owner, day)))]}
+    assert set(stored) == {helper, other} and all(isinstance(v, int) for v in stored.values())
+
+    async def quiet_push(app, target_id, text):
+        return None
+
+    monkeypatch.setattr(server, "_send_social_push", quiet_push)
+    client.app["bot"] = bot
+    assert (await client.post(f"/api/users/{owner}/rescue", headers=_headers(helper))).status == 200
+    await asyncio.sleep(0.1)
+    deleted = [(c.args[0], c.args[1]) for c in bot.delete_message.call_args_list]
+    assert deleted == [(other, stored[other])], "тому, кто спас, его собственное сообщение остаётся, у остальных — удалено"
+    assert _row("SELECT withdrawn_at FROM rescue_pushes WHERE owner_id=? AND broken_date=? AND helper_id=?", (owner, day, other))["withdrawn_at"] is not None
+    assert (await client.get("/api/rescue-help", headers=_headers(other))).status == 200
+    assert (await (await client.get("/api/rescue-help", headers=_headers(other))).json())["friends"] == [], "и в приложении окно у других пропало"
 
 
 def test_the_push_text_declines_the_days_and_escapes_nothing_twice():
@@ -458,7 +522,7 @@ def test_the_save_button_calls_the_server_and_never_in_the_simulation():
     body = APP_JS[APP_JS.index("async function doRescueHelp()"):][:1700]
     assert 'api(`/api/users/${Number(s.friend.telegram_id)}/rescue`, { method: "POST", body: JSON.stringify({}) })' in body
     assert body.index("if (s.sim)") < body.index("api(`/api/users/"), "в симуляции сервер не трогаем"
-    assert '"helper_limit", "cooldown", "not_available", "not_friends"' in body and "loadFriendsCard()" in body
+    assert '"helper_limit", "friend_limit", "not_available", "not_friends"' in body and "loadFriendsCard()" in body
     assert 'step = "sent"' in body and 'haptic("success")' in body and "playChime()" in body
 
 

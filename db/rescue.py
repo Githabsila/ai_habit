@@ -9,8 +9,10 @@
   • спасать можно только ДРУЗЬЯМ (взаимная подписка) и только свежий срыв: серия была не короче RESCUE_MIN_STREAK, прошло не больше
     FREE_RESTORE_GRACE_DAYS дней, и между срывом и сегодня нет второго пропуска (иначе серия пережила бы два пустых дня — как у
     обычного возврата, но без дыр в журнале);
-  • это БЕСПЛАТНО для спасателя («Восстановить бесплатно» как в Duolingo), но не чаще раза в календарный месяц на человека, а у того, кого
-    спасают, — не чаще раза в RESCUE_RECEIVER_COOLDOWN_DAYS дней: иначе двух аккаунтов хватило бы, чтобы «не терять» серию вечно;
+  • это БЕСПЛАТНО для спасателя («Восстановить бесплатно» как в Duolingo). Решение владельца 28.10: помощь друзей — редкая, чтобы человек видел
+    поддержку знакомых и не хотел пропускать снова. Поэтому: одного человека можно спасти не больше RESCUE_RECEIVER_MONTH_LIMIT (2) раз в
+    календарный месяц; один и тот же друг помогает одному и тому же человеку не больше одного раза в месяц, второй шанс предлагается другим
+    друзьям (тому, кто уже помог в этом месяце, пуш и окно не показываются); засчитывается помощь того, кто успел первым;
   • свой возврат раз в месяц (free_restore_month) спасение не тратит: после спасения снимок срыва очищается, и возвращать больше нечего;
   • серия возвращается вместе с тем, что человек уже набрал после срыва: потерянные дни + сегодняшний, если он уже отметился.
 """
@@ -19,7 +21,7 @@ from datetime import date, timedelta
 from .core import connect
 
 RESCUE_MIN_STREAK = 3                   # короче — терять почти нечего, друзей не беспокоим
-RESCUE_RECEIVER_COOLDOWN_DAYS = 14      # одного человека спасают не чаще раза в две недели
+RESCUE_RECEIVER_MONTH_LIMIT = 2         # одного человека спасают не больше двух раз в календарный месяц (по его календарю)
 RESCUE_HELP_LIMIT = 3                   # сколько срывов предлагает окно при входе
 RESCUE_PUSH_FRIENDS = 5                 # скольким друзьям уходит пуш об одном срыве
 
@@ -34,7 +36,7 @@ def _off(reason="not_available"):
 
 def _state(conn, owner_id, today):
     """Можно ли сейчас спасти серию человека. today — его местная дата. {"available", "lost_streak", "broken_date", "current_streak"} или
-    {"available": False, "reason": "not_available" | "cooldown"}."""
+    {"available": False, "reason": "not_available" | "friend_limit"}."""
     from .streak import FREE_RESTORE_GRACE_DAYS
 
     row = conn.execute(
@@ -60,12 +62,28 @@ def _state(conn, owner_id, today):
         ).fetchone()
         if mid is None or mid["status"] not in ("completed", "freeze"):
             return _off()
-    if conn.execute(
-        "SELECT 1 FROM streak_rescues WHERE owner_id=? AND created_at >= datetime('now', ?) LIMIT 1",
-        (owner_id, f"-{RESCUE_RECEIVER_COOLDOWN_DAYS} days"),
-    ).fetchone():
-        return _off("cooldown")
+    if _owner_month_count(conn, owner_id, _month_key(today)) >= RESCUE_RECEIVER_MONTH_LIMIT:
+        return _off("friend_limit")
     return {"available": True, "lost_streak": lost, "broken_date": row["broken"], "current_streak": int(row["streak"] or 0)}
+
+
+def _owner_month_count(conn, owner_id, month):
+    """Сколько раз за календарный месяц человека (по его календарю) его серию уже спасали."""
+    return int(conn.execute("SELECT COUNT(*) AS n FROM streak_rescues WHERE owner_id=? AND COALESCE(owner_month, month)=?", (owner_id, month)).fetchone()["n"] or 0)
+
+
+def helped_this_month(helper_id, owner_id):
+    """Этот друг уже спасал этого человека в текущем месяце человека? Помощь одного друга — один раз; второй шанс идёт другим друзьям."""
+    from .streak import local_today
+
+    month = _month_key(local_today(owner_id))
+    conn = connect()
+    try:
+        return conn.execute(
+            "SELECT 1 FROM streak_rescues WHERE helper_id=? AND owner_id=? AND COALESCE(owner_month, month)=? LIMIT 1", (helper_id, owner_id, month)
+        ).fetchone() is not None
+    finally:
+        conn.close()
 
 
 def rescue_state(owner_id):
@@ -104,17 +122,6 @@ def rescue_states(owner_ids):
     return result
 
 
-def helper_used_this_month(helper_id):
-    from .streak import local_today
-
-    month = _month_key(local_today(helper_id))
-    conn = connect()
-    try:
-        return conn.execute("SELECT 1 FROM streak_rescues WHERE helper_id=? AND month=? LIMIT 1", (helper_id, month)).fetchone() is not None
-    finally:
-        conn.close()
-
-
 def _friend_ids(user_id):
     from .friends import get_friend_sources
 
@@ -124,8 +131,8 @@ def _friend_ids(user_id):
 def rescue_candidates(viewer_id, limit=RESCUE_HELP_LIMIT):
     """Друзья, чью серию сейчас можно спасти, — для окна при входе. Самая длинная потеря — первой. Пусто, если свой спасательный раз в этом
     месяце человек уже потратил."""
-    friend_ids = _friend_ids(viewer_id)
-    if not friend_ids or helper_used_this_month(viewer_id):
+    friend_ids = [fid for fid in _friend_ids(viewer_id) if not helped_this_month(viewer_id, fid)]       # кого уже спасал в этом месяце — второй раз не предлагаем
+    if not friend_ids:
         return []
     states = rescue_states(friend_ids)
     if not states:
@@ -157,7 +164,7 @@ def rescue_candidates(viewer_id, limit=RESCUE_HELP_LIMIT):
 
 
 def rescue_streak(helper_id, owner_id):
-    """Вернуть серию друга. {"ok": True, "lost_streak", "streak"} либо {"error": not_friends | helper_limit | cooldown | not_available}."""
+    """Вернуть серию друга. {"ok": True, "lost_streak", "streak", "broken_date"} либо {"error": not_friends | helper_limit | friend_limit | not_available}."""
     from .gifts import _are_mutual_friends
     from .streak import local_today
 
@@ -165,10 +172,11 @@ def rescue_streak(helper_id, owner_id):
         return {"error": "not_friends"}
     owner_today = local_today(owner_id)
     month = _month_key(local_today(helper_id))
+    owner_month = _month_key(owner_today)
     conn = connect()
     try:
         conn.execute("BEGIN IMMEDIATE")                # дальше всё под блокировкой записи: два спасателя разом серию дважды не вернут
-        if conn.execute("SELECT 1 FROM streak_rescues WHERE helper_id=? AND month=? LIMIT 1", (helper_id, month)).fetchone():
+        if conn.execute("SELECT 1 FROM streak_rescues WHERE helper_id=? AND owner_id=? AND COALESCE(owner_month, month)=? LIMIT 1", (helper_id, owner_id, owner_month)).fetchone():
             conn.rollback()
             return {"error": "helper_limit"}
         state = _state(conn, owner_id, owner_today)
@@ -193,8 +201,8 @@ def rescue_streak(helper_id, owner_id):
             (f"В ударе {restored} дн.", owner_id),
         )
         conn.execute(
-            "INSERT INTO streak_rescues(owner_id, helper_id, lost_streak, restored_streak, broken_date, month) VALUES (?, ?, ?, ?, ?, ?)",
-            (owner_id, helper_id, lost, restored, broken, month),
+            "INSERT INTO streak_rescues(owner_id, helper_id, lost_streak, restored_streak, broken_date, month, owner_month) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (owner_id, helper_id, lost, restored, broken, month, owner_month),
         )
         conn.commit()
     except Exception:
@@ -202,7 +210,7 @@ def rescue_streak(helper_id, owner_id):
         raise
     finally:
         conn.close()
-    return {"ok": True, "lost_streak": lost, "streak": restored}
+    return {"ok": True, "lost_streak": lost, "streak": restored, "broken_date": broken}
 
 
 # ---------------------------------------------------------------------------------------------------------------- пуши друзьям
@@ -233,7 +241,7 @@ def friends_to_notify(owner_id, broken_date):
             ).fetchone()
         finally:
             conn.close()
-        if sent or helper_used_this_month(friend_id):
+        if sent or helped_this_month(friend_id, owner_id):
             continue
         result.append(friend_id)
         if len(result) >= RESCUE_PUSH_FRIENDS:
@@ -241,10 +249,34 @@ def friends_to_notify(owner_id, broken_date):
     return result
 
 
-def mark_push_sent(owner_id, broken_date, helper_id):
+def mark_push_sent(owner_id, broken_date, helper_id, message_id=None):
+    """Запоминает, что этому другу про срыв написали, и номер сообщения в Telegram — чтобы убрать его, когда серию спасёт кто-то другой."""
     conn = connect()
     try:
-        conn.execute("INSERT OR IGNORE INTO rescue_pushes(owner_id, broken_date, helper_id) VALUES (?, ?, ?)", (owner_id, broken_date, helper_id))
+        conn.execute("INSERT OR IGNORE INTO rescue_pushes(owner_id, broken_date, helper_id, message_id) VALUES (?, ?, ?, ?)",
+                     (owner_id, broken_date, helper_id, message_id if isinstance(message_id, int) else None))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def pushes_to_withdraw(owner_id, broken_date, except_helper):
+    """Сообщения о срыве, которые ещё висят у других друзей: [(друг, номер сообщения)]. Когда серию спас один друг, остальным пуш не нужен — его удаляют."""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT helper_id, message_id FROM rescue_pushes WHERE owner_id=? AND broken_date=? AND helper_id!=? AND message_id IS NOT NULL AND withdrawn_at IS NULL",
+            (owner_id, broken_date, except_helper),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [(r["helper_id"], r["message_id"]) for r in rows]
+
+
+def mark_push_withdrawn(owner_id, broken_date, helper_id):
+    conn = connect()
+    try:
+        conn.execute("UPDATE rescue_pushes SET withdrawn_at=CURRENT_TIMESTAMP WHERE owner_id=? AND broken_date=? AND helper_id=?", (owner_id, broken_date, helper_id))
         conn.commit()
     finally:
         conn.close()
