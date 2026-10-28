@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261021_QUESTS_V84">
+<link rel="stylesheet" href="/static/style.css?v=20261021_QUESTS_V85">
 </head>
 <body>
 
@@ -155,7 +155,7 @@ style="width:0%">
      Рисует app.js::renderTrialCard. -->
 <button type="button" class="trial-card" id="trialCard" hidden>
   <span class="trial-card__voice" id="trialCardVoice"></span>
-  <span class="trial-card__body"><b class="trial-card__title" id="trialCardTitle"></b><small class="trial-card__sub" id="trialCardSub"></small></span>
+  <span class="trial-card__body"><b class="trial-card__title" id="trialCardTitle"></b><small class="trial-card__sub" id="trialCardSub"></small><em class="trial-card__timer" id="trialCardTimer" hidden></em><small class="trial-card__hint" id="trialCardHint" hidden></small></span>
   <span class="trial-card__days" id="trialCardDays" aria-hidden="true"></span>
 </button>
 
@@ -690,6 +690,11 @@ class="habit-add-form__submit">
 
 <div class="settings-card">
 
+  <div class="settings-row" id="subscriptionSettingsRow" hidden>
+    <span>💳 Подписка на Адама</span>
+    <button type="button" class="settings-quiet-toggle" id="subscriptionSettingsBtn">Открыть</button>
+  </div>
+
   <div class="section-heading section-heading--text-first">
   <h2>Как к тебе обращаться</h2>
   </div>
@@ -931,36 +936,26 @@ class="habit-add-form__submit">
      fixed-оверлеи уже жили здесь, вне #app — теперь и эта тоже. -->
 <!-- Триал: окно «Мой пробный период» (дни, цель на два дня подряд, цена) и блокирующее окно «Пробный период закончился» с оплатой Stars.
      Рисует app.js::openTrialSheet / showTrialPaywall; оплата — POST /api/subscription/invoice → Telegram.WebApp.openInvoice. -->
-<div class="feedback-sheet trial-sheet" id="trialSheet" hidden aria-hidden="true">
-  <div class="feedback-sheet__backdrop" id="trialSheetBackdrop"></div>
-  <section class="feedback-card trial-sheet__card" role="dialog" aria-modal="true" aria-labelledby="trialSheetTitle">
-    <div class="freeze-purchase-card__handle"></div>
-    <div class="feedback-card__icon is-voice" id="trialSheetVoice"></div>
-    <h3 id="trialSheetTitle">Мой пробный период</h3>
-    <div class="trial-days" id="trialSheetDays"></div>
-    <div class="trial-rule" id="trialSheetRule"></div>
-    <div class="trial-offer" id="trialSheetOffer"></div>
-    <div class="feedback-actions">
-      <button type="button" class="freeze-purchase-back" id="trialSheetLater">Позже</button>
-      <button type="button" class="feedback-send-btn" id="trialSheetPay">Оформить</button>
-    </div>
-  </section>
-</div>
-
 <div class="trial-paywall" id="trialPaywallOverlay" hidden aria-hidden="true">
   <section class="trial-paywall__card" role="dialog" aria-modal="true" aria-labelledby="trialPaywallTitle">
     <div class="trial-paywall__voice" id="trialPaywallVoice"></div>
-    <h2 id="trialPaywallTitle">Пробный период закончился</h2>
+    <h2 id="trialPaywallTitle">Подписка на Адама</h2>
+    <p class="trial-paywall__status" id="trialPaywallStatus"></p>
     <p class="trial-paywall__lead" id="trialPaywallLead"></p>
+    <ul class="trial-paywall__perks" id="trialPaywallPerks"></ul>
     <div class="trial-offer" id="trialPaywallOffer"></div>
-    <ul class="trial-paywall__perks">
-      <li>Снова открою привычки и план дня</li>
-      <li>Продолжу разбирать цели вместе с тобой</li>
-      <li>Прогресс и друзья остаются на месте</li>
-    </ul>
-    <button type="button" class="trial-paywall__pay" id="trialPaywallPay">Оформить</button>
-    <button type="button" class="trial-paywall__demo-close" id="trialPaywallClose" hidden>Посмотреть историю</button>
-    <p class="trial-paywall__note">Оплата идёт через Telegram Stars. Вопросы по оплате и возврат — команда /paysupport в чате со мной.</p>
+    <button type="button" class="trial-paywall__pay" id="trialPaywallPay">Продолжить с Адамом</button>
+    <p class="trial-paywall__pending" id="trialPaywallPending" hidden></p>
+    <p class="trial-paywall__renewal" id="trialPaywallRenewal"></p>
+    <button type="button" class="trial-paywall__link" id="trialPaywallRenewToggle" hidden></button>
+    <div class="trial-summary" id="trialSummary" hidden></div>
+    <button type="button" class="trial-paywall__link" id="trialPaywallSummaryBtn">Показать короткую сводку</button>
+    <details class="trial-mission" id="trialMission">
+      <summary>О проекте и миссии</summary>
+      <div id="trialMissionText"></div>
+    </details>
+    <button type="button" class="trial-paywall__demo-close" id="trialPaywallClose" hidden>Не сейчас</button>
+    <p class="trial-paywall__note" id="trialPaywallNote"></p>
   </section>
 </div>
 
@@ -1758,7 +1753,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261021_QUESTS_V96"></script>
+<script type="module" src="/static/app.js?v=20261021_QUESTS_V97"></script>
 
 </body>
 </html>

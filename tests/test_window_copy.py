@@ -13,7 +13,7 @@ INDEX = (STATIC / "index.html").read_text(encoding="utf-8")
 APP_JS = (STATIC / "app.js").read_text(encoding="utf-8")
 
 # Служебные слова и названия, которые в окнах допустимо называть несколько раз (бренд, валюта).
-ALLOWED = {"adam", "coin", "level", "adam,"}
+ALLOWED = {"adam", "coin", "level", "adam,", "адам"}          # «адам» — то же название бренда по-русски: «Подписка на Адама» / «Продолжить с Адамом» (ТЗ 28.10)
 
 
 def stems(text):

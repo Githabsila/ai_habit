@@ -1016,6 +1016,19 @@ async def subscription_invoice_route(request):
     return web.json_response({"ok": True, "invoice_url": link, "price_stars": spec["price"], "recurring": spec["recurring"]})
 
 
+@routes.get("/api/trial/summary")
+async def trial_summary_route(request):
+    """Короткая личная сводка по реальным данным (ТЗ §11): работает и в дополнительном окне, и после него — история остаётся с человеком."""
+    telegram_id, _ = await _authenticate(request, allow_locked=True)
+    from db.trial_summary import build_summary
+    summary = build_summary(telegram_id)
+    if summary is None:
+        return web.json_response({"error": "not_found"}, status=404)
+    from db.tracking import track_server
+    track_server(telegram_id, "trial_summary_shown", meta={"enough": summary["enough"], "days": summary["data"]["days"]})
+    return web.json_response({key: summary[key] for key in ("title", "lines", "note", "enough")})
+
+
 @routes.get("/api/subscription")
 async def subscription_status_route(request):
     """Состояние подписки для экрана «Подписка»: срок, продление (автоматическое или вручную), можно ли его отключить, ожидается ли подтверждение оплаты."""

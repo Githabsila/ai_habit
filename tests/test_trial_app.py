@@ -131,50 +131,60 @@ async def test_the_trial_routes_need_a_login(client):
 
 # ---------------------------------------------------------------------------------------------------------------- разметка и скрипт
 
-def test_markup_has_the_card_the_sheet_and_the_blocking_window():
-    for needle in ('id="trialCard"', 'id="trialCardVoice"', 'id="trialCardTitle"', 'id="trialCardSub"', 'id="trialCardDays"',
-                   'class="feedback-sheet trial-sheet" id="trialSheet" hidden', 'id="trialSheetBackdrop"', 'id="trialSheetDays"', 'id="trialSheetRule"',
-                   'id="trialSheetOffer"', 'id="trialSheetLater"', 'id="trialSheetPay"',
+def test_markup_has_the_card_the_timer_and_the_subscription_screen():
+    for needle in ('id="trialCard"', 'id="trialCardVoice"', 'id="trialCardTitle"', 'id="trialCardSub"', 'id="trialCardDays"', 'id="trialCardTimer"', 'id="trialCardHint"',
                    'class="trial-paywall" id="trialPaywallOverlay" hidden', 'role="dialog" aria-modal="true" aria-labelledby="trialPaywallTitle"',
-                   'id="trialPaywallLead"', 'id="trialPaywallOffer"', 'id="trialPaywallPay"', 'id="trialPaywallClose"'):
+                   'id="trialPaywallStatus"', 'id="trialPaywallLead"', 'id="trialPaywallPerks"', 'id="trialPaywallOffer"', 'id="trialPaywallPay"',
+                   'id="trialPaywallPending"', 'id="trialPaywallRenewal"', 'id="trialPaywallRenewToggle"', 'id="trialSummary"', 'id="trialPaywallSummaryBtn"',
+                   'id="trialMission"', 'id="trialMissionText"', 'id="trialPaywallClose"', 'id="trialPaywallNote"',
+                   'id="subscriptionSettingsRow"', 'id="subscriptionSettingsBtn"'):
         assert needle in INDEX, needle
     assert INDEX.index('id="trialCard"') < INDEX.index('id="todayFocus"'), "карточка — первая на Главной"
-    assert "команда /paysupport" in INDEX and "Telegram Stars" in INDEX
+    assert 'id="trialSheet"' not in INDEX, "окно «Мой пробный период» заменено экраном подписки"
+    screen = INDEX[INDEX.index('id="trialPaywallOverlay"'):][:2400]
+    assert ">Продолжить с Адамом</button>" in screen and "<summary>О проекте и миссии</summary>" in screen and ">Показать короткую сводку</button>" in screen
+    assert "канал" not in screen.lower() and "Premium" not in screen and "форум" not in screen.lower(), "закрытый канал, форумы и Premium не продаём"
 
 
-def test_the_script_wires_the_windows_into_the_app():
+def test_the_script_wires_the_screen_into_the_app():
     assert "renderTodayFocus();\n    renderTrialCard();" in APP_JS.replace("\r\n", "\n")
     assert 'if (res.status === 403 && code === "trial_expired") showTrialPaywall(data?.trial);' in APP_JS
     assert 'if (err?.data?.error === "trial_expired") return;' in APP_JS
     assert "initHabitEdit();\n            initTrial();" in APP_JS.replace("\r\n", "\n")
-    assert '"trialSheet", "trialPaywallOverlay",' in APP_JS
-    pay = APP_JS[APP_JS.index("async function payTrial(source)"):][:2400]
+    assert "maybeShowGraceScreen();" in APP_JS
+    assert '"habitUndoSheet", "trialPaywallOverlay",' in APP_JS
+    pay = APP_JS[APP_JS.index("async function payTrial(source)"):][:3400]
     assert pay.index("if (trialDemo)") < pay.index('api("/api/subscription/invoice"'), "в демо ничего не оплачивается"
     assert 'tg.openInvoice(invoice.invoice_url' in pay and 'status !== "paid"' in pay and "waitForTrialAccess()" in pay
-    assert 'trk("trial_pay_tap"' in pay and 'trk("trial_paid"' in pay and 'trk("trial_sheet_open"' in APP_JS and 'trk("trial_paywall_shown"' in APP_JS
+    assert "res?.trial?.paid" in APP_JS[APP_JS.index("async function waitForTrialAccess()"):][:400], "ждём именно подтверждённую подписку, а не просто «доступ есть»"
+    for event in ("trial_pay_tap", "trial_paid", "trial_paywall_shown", "sub_screen_open", "sub_summary_open", "sub_mission_open", "sub_not_now", "trial_timer_shown", "trial_timer_tap"):
+        assert f'trk("{event}"' in APP_JS, event
     assert "const SIM_TRIAL = {" in APP_JS and "SIM_TRIAL_INTRO_EXPIRED" in APP_JS and "SIM_TRIAL_FULL_EXPIRED" in APP_JS
+    assert "Повторно платить не нужно" in APP_JS, "при ожидании подтверждения повторно платить не просим"
 
 
 def test_the_simulations_are_listed_and_run_the_real_windows():
     keys = [row[0] for row in SCENES]
-    assert {"trial_card", "trial_sheet", "trial_paywall_intro", "trial_paywall_full"} <= set(keys)
-    for needle in ("trial_card: () => showTrialCardDemo(SIM_TRIAL),", "trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),",
-                   "trial_paywall_full: () => showTrialPaywall(SIM_TRIAL_FULL_EXPIRED, { demo: true }),", "openTrialSheet({ demo: SIM_TRIAL })"):
+    wanted = {"trial_card", "trial_sheet", "trial_paywall_intro", "trial_paywall_full", "trial_timer", "sub_paid", "sub_pending", "sub_summary"}
+    assert wanted <= set(keys)
+    for needle in ("trial_card: () => showTrialCardDemo(SIM_TRIAL),", "trial_timer: () => showTrialCardDemo(SIM_TRIAL_LAST),",
+                   "trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),",
+                   "trial_paywall_full: () => showTrialPaywall(SIM_TRIAL_FULL_EXPIRED, { demo: true }),", "openSubscriptionScreen({ source: \"sim\"", "showTrialSummary()"):
         assert needle in APP_JS, needle
     play = APP_JS[APP_JS.index("function playSimScene() {"):][:260]
-    assert "closeTrialPaywall();" in play and "closeTrialSheet();" in play, "окна триала не перекрывают следующую сцену"
+    assert "closeTrialPaywall();" in play, "окна триала не перекрывают следующую сцену"
     assert "z-index:10300" in CSS[CSS.index(".lab-bar{"):][:200], "панель симуляций выше блокирующего окна"
 
 
 def test_the_styles_are_light_and_the_block_sits_before_the_chest():
     css = CSS[CSS.index("Триал (app.js::renderTrialCard"):CSS.index("Окно «Сундук» (открытие сундука месяца")]
-    for needle in (".trial-card{", ".trial-dot.is-now", ".trial-days{", ".trial-rule__bar", ".trial-offer__tag", ".trial-paywall{", ".trial-paywall__pay{",
+    for needle in (".trial-card{", ".trial-card__timer{", ".trial-dot.is-now", ".trial-paywall{", ".trial-paywall__pay{", ".trial-summary{", ".trial-mission{",
                    "background:#07050d", "z-index:10080"):
         assert needle in css, needle
     for forbidden in ("filter", "backdrop-filter", "infinite", "animation"):
         assert forbidden not in css, forbidden
     assert "Окно «Сундук»" not in css.split("*/", 1)[1]
-    assert "style.css?v=20261021_QUESTS_V84" in INDEX and "app.js?v=20261021_QUESTS_V96" in INDEX
+    assert "style.css?v=20261021_QUESTS_V85" in INDEX and "app.js?v=20261021_QUESTS_V97" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- тексты (Node на заглушках DOM)
@@ -185,31 +195,43 @@ def _source(marker_start, marker_end):
 
 HARNESS = r"""
 const els = {};
-const el = (id) => (els[id] = els[id] || { id, innerHTML: "", textContent: "", hidden: true, disabled: false, style: {},
-  classList: { add() {}, remove() {}, contains() { return false; } }, setAttribute() {}, addEventListener() {}, querySelector() { return null; } });
+const el = (id) => (els[id] = els[id] || { id, innerHTML: "", textContent: "", hidden: true, disabled: false, style: {}, scrollTop: 0,
+  classList: { add() {}, remove() {}, contains() { return false; } }, setAttribute() {}, addEventListener() {}, querySelector() { return null; }, scrollIntoView() {} });
 const document = { getElementById: el };
-const state = { access: { paywall: true, trial: null } };
+let state = { access: { paywall: true, trial: null } };
 const requestAnimationFrame = (fn) => fn();
 const haptic = () => {}; const trk = () => {}; const hideProductHint = () => {};
+const localStorage = { getItem() { return null; }, setItem() {} };
+const setInterval = () => 1; const clearInterval = () => {};
 const adamVoiceHtml = (size, sticker) => `<voice ${size} ${sticker || ""}>`;
+const api = async () => ({}); const showToast = () => {}; const tg = null; const friendlyError = () => ""; const loadBootstrap = async () => {};
 %(helpers)s
 %(block)s
 const cases = %(cases)s;
 const out = [];
-for (const t of cases) {
-  state.access.trial = t;
-  for (const k of Object.keys(els)) { els[k].innerHTML = ""; els[k].textContent = ""; }
-  renderTrialCard(); renderTrialSheet(t); showTrialPaywall(t, { demo: true });
-  const strip = (s) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  out.push({
-    card: { hidden: els.trialCard.hidden, title: els.trialCardTitle.textContent, sub: els.trialCardSub.textContent, dots: els.trialCardDays.innerHTML.match(/trial-dot [a-z-]*/g) },
-    sheet: { days: strip(els.trialSheetDays.innerHTML), rule: strip(els.trialSheetRule.innerHTML), offer: strip(els.trialSheetOffer.innerHTML),
-             pay: els.trialSheetPay.textContent, payHidden: !!els.trialSheetPay.hidden, later: els.trialSheetLater.textContent },
-    paywall: { title: els.trialPaywallTitle.textContent, lead: els.trialPaywallLead.textContent, offer: strip(els.trialPaywallOffer.innerHTML), pay: els.trialPaywallPay.textContent,
-               shown: !els.trialPaywallOverlay.hidden, close: !els.trialPaywallClose.hidden },
-  });
-}
-process.stdout.write(JSON.stringify(out));
+(async () => {
+  for (const item of cases) {
+    const t = item.trial, ov = item.overview || { auto_renew: false, can_toggle: false, autorenew_available: false, paid_until_text: "30 ноября, 00:00", support: "@egor_support" };
+    state.access.trial = t;
+    for (const k of Object.keys(els)) { els[k].innerHTML = ""; els[k].textContent = ""; }
+    renderTrialCard();
+    await openSubscriptionScreen({ source: "sim", demo: t, overview: ov, blocking: !!item.blocking });
+    const strip = (s) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    out.push({
+      card: { hidden: els.trialCard.hidden, title: els.trialCardTitle.textContent, sub: els.trialCardSub.textContent, dots: els.trialCardDays.innerHTML.match(/trial-dot [a-z-]*/g),
+              timer: els.trialCardTimer.hidden ? null : els.trialCardTimer.textContent, hint: els.trialCardHint.hidden ? null : els.trialCardHint.textContent,
+              settingsRowHidden: !!els.subscriptionSettingsRow.hidden },
+      screen: { title: els.trialPaywallTitle.textContent, status: els.trialPaywallStatus.textContent, lead: els.trialPaywallLead.textContent, offer: strip(els.trialPaywallOffer.innerHTML),
+                offerHidden: !!els.trialPaywallOffer.hidden, perks: strip(els.trialPaywallPerks.innerHTML), pay: els.trialPaywallPay.textContent, payHidden: !!els.trialPaywallPay.hidden,
+                payDisabled: !!els.trialPaywallPay.disabled, renewal: els.trialPaywallRenewal.textContent, pending: els.trialPaywallPending.hidden ? null : els.trialPaywallPending.textContent,
+                toggle: els.trialPaywallRenewToggle.hidden ? null : els.trialPaywallRenewToggle.textContent, shown: !els.trialPaywallOverlay.hidden,
+                close: els.trialPaywallClose.hidden ? null : els.trialPaywallClose.textContent, mission: strip(els.trialMissionText.innerHTML), note: strip(els.trialPaywallNote.innerHTML) },
+    });
+  }
+  renderTrialSummary({ title: "Коротко за 3 дня с Адамом", lines: ["Привычки: отмечено 5 раз в 3 из 3 дней.", "План дня: добавлено задач — 4, выполнено — 2."], note: "После семи и больше дней..." });
+  out.summary = { text: els.trialSummary.innerHTML.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(), shown: !els.trialSummary.hidden, button: !!els.trialPaywallSummaryBtn.hidden };
+  process.stdout.write(JSON.stringify({ cases: out, summary: out.summary }));
+})();
 """
 
 
@@ -222,7 +244,7 @@ def _run(cases):
 
     helpers = _function("  function pluralRu(n, one, few, many) {")
     esc = _function("  function escapeHtml(value) {")
-    block = _source("function trialDays(n) {", "// Симуляция «карточка на Главной»")
+    block = _source("const SIM_TRIAL = {", "// Симуляция «карточка на Главной»")
     script = HARNESS % {"helpers": helpers + "\n" + esc, "block": block, "cases": json.dumps(cases)}
     result = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30, encoding="utf-8")
     assert result.returncode == 0, result.stderr
@@ -230,82 +252,97 @@ def _run(cases):
 
 
 def _t(**kw):
-    base = {"scenario": True, "day": 2, "days_total": 3, "phase": "day2", "paid": False, "intro_active": True, "price_stars": 153, "intro_price_stars": 153,
-            "renewal_price_stars": 461, "intro_usd": "$1.99", "renewal_usd": "$5.99", "streak": 0, "needed": 2, "marked_today": False,
-            "marked_yesterday": False, "channel_configured": True, "channel_granted": False, "channel_eligible": False}
+    base = {"scenario": True, "day": 2, "days_total": 3, "phase": "day2", "state": "trial", "paid": False, "read_only": False, "intro_active": True, "price_stars": 153,
+            "intro_price_stars": 153, "renewal_price_stars": 461, "intro_usd": "$1.99", "renewal_usd": "$5.99", "streak": 0, "needed": 2, "marked_today": False,
+            "marked_yesterday": False, "channel_configured": False, "channel_granted": False, "channel_eligible": False, "ends_at_text": "30 октября, 00:00",
+            "ends_at": None, "payment_pending": False}
     base.update(kw)
     return base
 
 
+def _case(trial, overview=None, blocking=False):
+    return {"trial": trial, "overview": overview, "blocking": blocking}
+
+
 CASES = [
-    _t(day=1, phase="day1"),
-    _t(),
-    _t(marked_yesterday=True, streak=1),
-    _t(marked_today=True, streak=1),
-    _t(streak=2, marked_today=True, marked_yesterday=True, channel_eligible=True),
-    _t(day=3, phase="day3", streak=1, marked_yesterday=True),
-    _t(day=4, phase="grace", read_only=True, ends_at_text="29 октября, 00:00", streak=2, channel_eligible=True),
-    _t(day=4, phase="grace", read_only=True, ends_at_text="29 октября, 00:00", streak=0),
-    _t(day=6, phase="expired", intro_active=False, price_stars=461),
-    _t(day=2, phase="paid", paid=True, streak=1),
-    _t(day=2, phase="paid", paid=True, streak=2, channel_eligible=True, channel_granted=True),
-    _t(day=2, phase="paid", paid=True, channel_configured=False),
+    _case(_t(day=1, phase="day1")),                                                                                                       # 0 день 1
+    _case(_t()),                                                                                                                         # 1 день 2
+    _case(_t(day=3, phase="day3", timer_demo_ms=5 * 3600000 + 20 * 60000)),                                                              # 2 последние сутки, таймер
+    _case(_t(day=4, phase="grace", state="grace", read_only=True, ends_at_text="29 октября, 00:00", streak=2, timer_demo_ms=14 * 3600000 + 5 * 60000), blocking=True),   # 3 окно
+    _case(_t(day=6, phase="expired", state="expired"), blocking=True),                                                                    # 4 закрыто
+    _case(_t(day=2, phase="paid", state="paid", paid=True, intro_active=False), overview={"auto_renew": True, "can_toggle": True, "autorenew_available": True,
+                                                                                         "paid_until_text": "30 ноября, 00:00", "support": "@egor_support"}),   # 5 оплачено, автопродление
+    _case(_t(day=2, phase="paid", state="paid", paid=True, intro_active=False)),                                                          # 6 оплачено вручную
+    _case(_t(payment_pending=True), overview={"payment_pending": True, "support": "@egor_support", "autorenew_available": False}),         # 7 ждём подтверждение
+    _case(_t(intro_active=False, price_stars=461)),                                                                                       # 8 уже платил раньше
 ]
 
 
 @pytest.mark.skipif(NODE is None, reason="нужен Node")
-def test_the_card_follows_the_day_and_the_goal():
-    out = _run(CASES)
-    day1, day2, with_yesterday, with_today, ready, day3, expired_a, expired_b, full, paid, granted, no_channel = out
-    assert day1["card"]["title"] == "Пробный период · день 1/3" and day1["card"]["dots"] == ["trial-dot is-now", "trial-dot ", "trial-dot "]
-    assert day2["card"]["sub"] == "Цель — два дня подряд: они открывают путь в закрытый канал"
-    assert with_yesterday["card"]["sub"] == "Отметь привычку — и два дня подряд будут твоими"
-    assert with_today["card"]["sub"] == "Сегодня отмечено — завтра отметь привычку ещё раз"
-    assert ready["card"]["sub"] == "Два дня подряд уже есть — канал откроется после оплаты"
-    assert day3["card"]["title"] == "Последний день пробного периода" and "особая цена 153 ⭐" in day3["card"]["sub"]
-    assert day2["card"]["dots"] == ["trial-dot is-done", "trial-dot is-now", "trial-dot "]
-    assert expired_a["card"]["hidden"] and expired_b["card"]["hidden"] and full["card"]["hidden"], "после триала карточки нет — есть окно оплаты"
-    assert paid["card"]["title"] == "Pro активен" and "До закрытого канала — 1 день ударного режима" in paid["card"]["sub"]
-    assert granted["card"]["hidden"] and no_channel["card"]["hidden"], "канал выдан или не подключён — карточку не показываем"
+def test_the_card_shows_the_term_the_dots_and_the_timer_only_when_it_is_needed():
+    cards = [item["card"] for item in _run(CASES)["cases"]]
+    assert cards[0]["title"] == "Пробный период · день 1/3" and cards[0]["sub"] == "Доступ открыт до 30 октября, 00:00" and cards[0]["timer"] is None
+    assert cards[0]["dots"] == ["trial-dot is-now", "trial-dot ", "trial-dot "] and cards[0]["settingsRowHidden"] is False, "кнопка подписки в настройках — с первого дня"
+    assert cards[1]["dots"] == ["trial-dot is-done", "trial-dot is-now", "trial-dot "] and cards[1]["timer"] is None
+    assert cards[2]["title"] == "Последние сутки пробного периода" and cards[2]["timer"] == "Осталось 5 ч 20 мин"
+    assert cards[2]["hint"] == "Столько осталось до конца пробного периода", "подсказка про смысл индикатора — при первом показе"
+    assert cards[3]["title"] == "Пробный доступ завершён" and cards[3]["sub"] == "Серию можно сохранить до 29 октября, 00:00"
+    assert cards[3]["timer"] == "Защита серии: ещё 14 ч 5 мин" and cards[3]["hint"] == "Столько можно сохранить заработанную серию", "это срок защиты серии, а не таймер цены"
+    assert cards[4]["hidden"] is True and cards[5]["hidden"] is True and cards[6]["hidden"] is True, "после закрытия доступа и после оплаты карточки нет"
 
 
 @pytest.mark.skipif(NODE is None, reason="нужен Node")
-def test_the_sheet_shows_days_the_rule_and_the_price():
-    out = _run(CASES)
-    day2, ready, paid = out[1], out[4], out[9]
-    assert day2["sheet"]["days"] == "День 1 позади День 2 сегодня День 3 впереди"
-    assert day2["sheet"]["rule"] == "Закрытый канал Открывается за 2 дня ударного режима подряд — у тебя 0 из 2."
-    assert day2["sheet"]["offer"] == "Pro-доступ · 153 ⭐ ≈ $1.99 за первый месяц по особой цене, дальше $5.99."
-    assert day2["sheet"]["pay"] == "Оформить за 153 ⭐" and day2["sheet"]["later"] == "Позже" and day2["sheet"]["payHidden"] is False
-    assert "Условие выполнено: два дня подряд у тебя уже есть." in ready["sheet"]["rule"]
-    assert paid["sheet"]["offer"] == "Pro активен Спасибо, что остаёшься со мной." and paid["sheet"]["payHidden"] is True and paid["sheet"]["later"] == "Хорошо"
-    assert paid["sheet"]["days"] == "День 1 позади День 2 позади День 3 позади"
+def test_the_screen_has_the_short_offer_the_features_both_prices_and_the_mission():
+    screen = [item["screen"] for item in _run(CASES)["cases"]]
+    day2 = screen[1]
+    assert day2["title"] == "Подписка на Адама" and day2["status"] == "Пробный доступ открыт до 30 октября, 00:00"
+    assert day2["lead"].startswith("Собирай день вокруг того, что важно тебе: поддерживай привычки, выбирай главные задачи и обсуждай следующий шаг с Адамом.")
+    assert day2["perks"] == "Привычки и серия План дня: главная и второстепенные задачи Адам, который знает контекст твоих действий Прогресс и разборы Рейтинг и друзья"
+    assert day2["offer"] == "153 ⭐ ≈ $1.99 за первый месяц, дальше 461 ⭐ ($5.99)", "обе цены — с первого дня"
+    assert day2["pay"] == "Продолжить с Адамом" and day2["payHidden"] is False and day2["payDisabled"] is False
+    assert day2["renewal"] == "Само ничего не спишется: срок ты обновляешь вручную, я напомню заранее."
+    assert day2["mission"].startswith("Адам создаётся, чтобы помогать превращать намерения в ежедневные действия.") and "субъектность" in day2["mission"]
+    assert day2["mission"].endswith("Начать можно с одного посильного действия сегодня.") and "недельн" not in day2["mission"]
+    assert "Условия" in day2["note"] and "@egor_support" in day2["note"] and "Telegram Stars" in day2["note"]
+    assert screen[8]["offer"] == "461 ⭐ ≈ $5.99 за месяц", "вводная цена — только первой покупке"
+    for window in screen:
+        assert "последний день" not in window["offer"].lower() and "только сегодня" not in (window["lead"] + window["status"]).lower()
+        assert "канал" not in (window["lead"] + window["status"] + window["perks"]).lower()
 
 
 @pytest.mark.skipif(NODE is None, reason="нужен Node")
-def test_the_window_after_the_trial_tells_the_deadline_the_saved_streak_and_both_prices():
-    """ТЗ 28.10 §7: после триала — дополнительное окно: история сохранена, срок защиты серии назван точной датой, вводная цена не «только сегодня»."""
-    out = _run(CASES)
-    kept, empty, closed = out[6]["paywall"], out[7]["paywall"], out[8]["paywall"]
-    assert kept["shown"] and kept["title"] == "Пробный доступ завершён" and kept["close"] is True, "в окне историю можно посмотреть"
-    assert kept["lead"] == "Твоя история сохранена. Заработанная серия — 2 дня подряд — сохранится, если продолжить до 29 октября, 00:00."
-    assert kept["offer"] == "153 ⭐ ≈ $1.99 за первый месяц, дальше 461 ⭐ ($5.99)" and kept["pay"] == "Оформить за 153 ⭐"
-    assert empty["lead"] == "Твоя история сохранена. Серия начнётся, как только ты вернёшься. Продолжить можно до 29 октября, 00:00."
-    assert closed["title"] == "Доступ пока закрыт"
-    assert "closeBtn.hidden = !demo && !t.read_only;" in APP_JS, "закрыть экран и посмотреть историю можно только в дополнительном окне (чтение)"
-    assert closed["lead"] == "Твоя история сохранена. Подписка снова откроет привычки, планирование и разговор со мной."
-    assert closed["offer"] == "461 ⭐ ≈ $5.99 за месяц доступа" and closed["pay"] == "Оформить за 461 ⭐"
-    for window in (kept, empty, closed):
-        assert "последний день" not in window["offer"].lower() and "только сегодня" not in window["lead"].lower()
+def test_after_the_trial_the_screen_names_the_deadline_the_streak_and_what_stays():
+    out = _run(CASES)["cases"]
+    window, closed = out[3]["screen"], out[4]["screen"]
+    assert window["title"] == "Пробный доступ завершён" and window["status"] == "Серия сохранится, если оформить подписку до 29 октября, 00:00"
+    assert window["lead"] == "Твоя история остаётся с тобой: вернутся привычки, планирование и разговор с Адамом."
+    assert window["close"] == "Посмотреть историю", "в дополнительном окне историю можно посмотреть"
+    assert closed["title"] == "Доступ пока закрыт" and closed["status"] == "Данные и серия ждут твоего возвращения" and closed["close"] == "Закрыть демо"
+    assert closed["lead"] == "Подписка снова откроет привычки, планирование и разговор с Адамом. История остаётся с тобой."
+    assert "потеря" not in closed["lead"].lower() and "удал" not in closed["lead"].lower(), "не пугаем потерей данных, которые сохраняются"
 
 
 @pytest.mark.skipif(NODE is None, reason="нужен Node")
-def test_no_window_repeats_its_own_words_or_speaks_in_the_third_person():
-    for case, result in zip(CASES, _run(CASES)):
-        sheet, paywall = result["sheet"], result["paywall"]
-        assert not shared("Мой пробный период", sheet["rule"], sheet["offer"], sheet["pay"], sheet["later"]), (case["phase"], sheet)
-        if case["phase"] in ("grace", "expired"):
-            assert not shared(paywall["title"], paywall["lead"], paywall["pay"]), (case["phase"], paywall)
-        for text in (sheet["rule"], sheet["offer"], paywall["lead"], result["card"]["sub"]):
-            assert not re.search(r"\bбот\w*|\bсистем\w*|\bAI\b|Адам написал|ADAM будет", text), text
-    assert not shared("Пробный период закончился", "Продолжу планировать твой день и разбирать цели"), "список выгод не повторяет заголовок"
+def test_the_paid_screen_shows_the_term_and_the_renewal_switch_and_the_pending_one_waits():
+    out = _run(CASES)["cases"]
+    auto, manual, waiting = out[5]["screen"], out[6]["screen"], out[7]["screen"]
+    assert auto["title"] == "Подписка на Адама" and auto["status"] == "Доступ открыт до 30 ноября, 00:00" and auto["payHidden"] is True and auto["offerHidden"] is True
+    assert auto["renewal"] == "Списание повторяется каждые 30 дней, пока ты не отключишь его: в приложении или в настройках Telegram."
+    assert auto["toggle"] == "Отключить автоматическое списание"
+    assert manual["toggle"] is None and manual["renewal"] == "Само ничего не спишется: срок ты обновляешь вручную, я напомню заранее."
+    assert waiting["payDisabled"] is True and waiting["pending"].startswith("Ждём подтверждение оплаты") and "Повторно платить не нужно" in waiting["pending"]
+    assert "@egor_support" in waiting["pending"], "запасной контакт при ожидании"
+
+
+@pytest.mark.skipif(NODE is None, reason="нужен Node")
+def test_the_summary_is_shown_inside_the_screen_and_the_button_goes_away():
+    summary = _run(CASES)["summary"]
+    assert summary["shown"] is True and summary["button"] is True
+    assert "Коротко за 3 дня с Адамом" in summary["text"] and "Привычки: отмечено 5 раз" in summary["text"] and "После семи и больше дней" in summary["text"]
+
+
+@pytest.mark.skipif(NODE is None, reason="нужен Node")
+def test_no_screen_repeats_its_own_words_or_speaks_in_the_third_person():
+    for case, result in zip(CASES, _run(CASES)["cases"]):
+        screen = result["screen"]
+        assert not shared(screen["title"], screen["status"], screen["lead"], screen["offer"], screen["pay"], screen["renewal"]), (case["trial"]["phase"], screen)

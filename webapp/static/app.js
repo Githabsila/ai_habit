@@ -7943,7 +7943,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialSheet", "trialPaywallOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialPaywallOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -8278,23 +8278,50 @@ function showVoiceToastsDemo() {
   showToast("+10 Adam Coin", "praise", 2000);
 }
 
-// ===================== ТРИАЛ (db/trial.py, trial_messages.py) =====================
-// Пробный период виден в приложении так же, как в сообщениях Адама: карточка на Главной (только у аккаунтов в сценарии триала —
-// state.access.paywall), окно «Мой пробный период» по тапу (дни, цель на два дня подряд для закрытого канала, цена) и блокирующее окно
-// «Пробный период закончился» с оплатой Stars. Данные — публичный снимок db/trial.py::public_trial (state.access.trial или err.data.trial
-// у закрытого аккаунта). Оплата: POST /api/subscription/invoice → Telegram.WebApp.openInvoice; доступ открывает бот (successful_payment).
-// Симуляции (админка → «Окна и анимации»): trial_card, trial_sheet, trial_paywall_intro, trial_paywall_full — на демо-данных, оплата не открывается.
+// ===================== ПОДПИСКА НА АДАМА И ТРИАЛ (db/access_state.py, db/trial.py, db/subscription.py) =====================
+// ТЗ 28.10: один экран «Подписка на Адама» на все состояния — пробные дни, дополнительное окно после них, закрытый доступ, оплачено. Кнопка подписки доступна с первого дня:
+// тап по карточке на Главной, по индикатору времени или строка в «Настройках». Блокирующим экран бывает только после триала (дополнительное окно: можно закрыть и смотреть
+// историю, она только для чтения). Данные — публичный снимок db/trial.py::public_trial (state.access.trial или err.data.trial у закрытого аккаунта) и GET /api/subscription
+// (срок, продление, ожидание оплаты). Оплата: POST /api/subscription/invoice → Telegram.WebApp.openInvoice; доступ открывает бот (successful_payment), экран ждёт подтверждение.
+// Симуляции (админка → «Окна и анимации»): trial_card, trial_sheet, trial_paywall_intro, trial_paywall_full, sub_paid, sub_pending, sub_summary, trial_timer — демо-данные, оплата не открывается.
 const SIM_TRIAL = {
-  scenario: true, day: 2, days_total: 3, phase: "day2", paid: false, intro_active: true, price_stars: 153, intro_price_stars: 153,
+  scenario: true, day: 2, days_total: 3, phase: "day2", state: "trial", paid: false, read_only: false, intro_active: true, price_stars: 153, intro_price_stars: 153,
   renewal_price_stars: 461, intro_usd: "$1.99", renewal_usd: "$5.99", streak: 1, needed: 2, marked_today: false, marked_yesterday: true,
-  channel_configured: true, channel_granted: false, channel_eligible: false,
+  channel_configured: false, channel_granted: false, channel_eligible: false, ends_at_text: "30 октября, 00:00", reason_text: "Пробный доступ до 30 октября, 00:00",
+  ends_at: null, payment_pending: false,
 };
-const SIM_TRIAL_INTRO_EXPIRED = { ...SIM_TRIAL, day: 4, phase: "grace", state: "grace", read_only: true, ends_at_text: "29 октября, 00:00", streak: 2, marked_today: false, marked_yesterday: true, channel_eligible: true };
-const SIM_TRIAL_FULL_EXPIRED = { ...SIM_TRIAL, day: 6, phase: "expired", state: "expired", read_only: false, streak: 0, marked_yesterday: false, channel_eligible: false };
-let trialSheetData = null;        // снимок, который показывает окно «Мой пробный период»
-let trialDemo = false;            // симуляция: «Оформить» ничего не открывает
+const SIM_TRIAL_LAST = { ...SIM_TRIAL, day: 3, phase: "day3", ends_at_text: "30 октября, 00:00", timer_demo_ms: 5 * 3600000 + 20 * 60000 };
+const SIM_TRIAL_INTRO_EXPIRED = { ...SIM_TRIAL, day: 4, phase: "grace", state: "grace", read_only: true, ends_at_text: "29 октября, 00:00", streak: 2, marked_today: false, marked_yesterday: true, timer_demo_ms: 14 * 3600000 + 5 * 60000 };
+const SIM_TRIAL_FULL_EXPIRED = { ...SIM_TRIAL, day: 6, phase: "expired", state: "expired", read_only: false, streak: 0, marked_yesterday: false };
+const SIM_TRIAL_PAID = { ...SIM_TRIAL, phase: "paid", state: "paid", paid: true, intro_active: false };
+const SIM_SUB_OVERVIEW = { auto_renew: false, can_toggle: false, autorenew_available: false, paid_until_text: "30 ноября, 00:00", payment_pending: false, support: "@egor_support" };
+const SIM_SUB_AUTO = { ...SIM_SUB_OVERVIEW, auto_renew: true, can_toggle: true, autorenew_available: true };
+const SIM_SUMMARY = {
+  title: "Коротко за 3 дня с Адамом", enough: true,
+  lines: ["Привычки: отмечено 5 раз в 3 из 3 дней.", "Чаще всего повторялась «Зарядка» — 3 раза.", "Главная задача была записана в 2 из 3 дней, выполнена в 1.",
+          "План дня: добавлено задач — 4, выполнено — 2.", "Пока без отметок: «Читать 20 минут». Здесь стоит выбрать посильный первый шаг."],
+  note: "После семи и больше дней использования появится больше материала для подробного недельного разбора, а по мере накопления истории — и для месячного.",
+};
+
+// Тексты экрана. Короткое предложение и раскрываемый рассказ о проекте — из ТЗ дословно; слова не повторяются между заголовком, подписью, предложением и кнопкой.
+const SUB_LEAD = "Собирай день вокруг того, что важно тебе: поддерживай привычки, выбирай главные задачи и обсуждай следующий шаг с Адамом. Твоя история помогает замечать, что получается и где стоит изменить подход.";
+const SUB_PERKS = ["Привычки и серия", "План дня: главная и второстепенные задачи", "Адам, который знает контекст твоих действий", "Прогресс и разборы", "Рейтинг и друзья"];
+const SUB_MISSION = [
+  "Адам создаётся, чтобы помогать превращать намерения в ежедневные действия. Мы часто понимаем, что для нас важно, но теряем это среди срочных дел, отвлечений и новых планов. Здесь можно выбрать привычки, расставить приоритеты и возвращаться к своим решениям вместе с наставником.",
+  "Для нас развитие — это возможность самостоятельнее управлять своей жизнью: выбирать цели, замечать последствия действий и менять подход, если он не работает. Это и есть субъектность — постепенно становиться автором собственных решений.",
+  "Этот путь необязательно проходить одному. Можно приглашать знакомых, видеть прогресс друг друга, соревноваться и поддерживать. За отметками должны оставаться реальные действия, а за рейтингом — собственный результат.",
+  "Ты можешь быть одним из первых участников: попробовать этот подход в своей жизни и рассказать, что помогает, а что мешает. Обратная связь поможет сделать приложение полезнее. Начать можно с одного посильного действия сегодня.",
+];
+const SUB_PENDING_TEXT = "Ждём подтверждение оплаты: Telegram передаёт её чуть позже. Повторно платить не нужно.";
+const SUB_DISMISS_KEY = "adam_sub_dismissed_on";
+let trialSheetData = null;        // снимок, который показывает экран
+let trialDemo = false;            // симуляция: «Продолжить с Адамом» ничего не открывает
 let trialPayBusy = false;
 let trialPaywallTracked = false;
+let subOverview = null;           // GET /api/subscription (срок, продление, ожидание оплаты)
+let subSummaryShown = false;
+let trialTimerHandle = null;
+let trialTimerTracked = false;
 
 function trialDays(n) {
   return `${n} ${pluralRu(n, "день", "дня", "дней")}`;
@@ -8309,96 +8336,192 @@ function trialDayDots(t) {
   return html;
 }
 
-// Что написано на карточке Главной: день триала и цель на сегодня (те же смыслы, что в сообщениях триала).
+// Сколько осталось до конца пробных дней (в последние сутки) или до конца защиты серии (в дополнительном окне). null — таймер не нужен.
+function trialTimerInfo(t, now = Date.now()) {
+  if (!t || !t.scenario || t.paid) return null;
+  let left = null;
+  if (typeof t.timer_demo_ms === "number") left = t.timer_demo_ms;
+  else if (t.ends_at) left = new Date(`${t.ends_at}Z`).getTime() - now;
+  if (left === null || left <= 0) return null;
+  const grace = t.phase === "grace";
+  if (!grace && !(t.phase === "day3" || left <= 24 * 3600000)) return null;
+  const total = Math.ceil(left / 60000);
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  const span = hours ? `${hours} ч ${minutes} мин` : `${minutes} мин`;
+  return { grace, text: grace ? `Защита серии: ещё ${span}` : `Осталось ${span}`, caption: grace ? "Столько можно сохранить заработанную серию" : "Столько осталось до конца пробного периода" };
+}
+
+// Что написано на карточке Главной: срок пробного периода; в последние сутки — индикатор времени, после триала — срок защиты серии.
 function trialCardText(t) {
-  const left = Math.max(1, t.needed - t.streak);
-  if (t.paid) return { title: "Pro активен", sub: `До закрытого канала — ${trialDays(left)} ударного режима` };
-  if (t.phase === "day3") return { title: "Последний день пробного периода", sub: `Завтра доступ закроется — особая цена ${t.price_stars} ⭐` };
-  const title = `Пробный период · день ${t.day}/${t.days_total}`;
-  if (t.channel_eligible) return { title, sub: "Два дня подряд уже есть — канал откроется после оплаты" };
-  if (t.marked_today) return { title, sub: "Сегодня отмечено — завтра отметь привычку ещё раз" };
-  if (t.marked_yesterday) return { title, sub: "Отметь привычку — и два дня подряд будут твоими" };
-  return { title, sub: "Цель — два дня подряд: они открывают путь в закрытый канал" };
+  if (t.phase === "grace") return { title: "Пробный доступ завершён", sub: `Серию можно сохранить до ${t.ends_at_text}` };
+  if (t.phase === "day3" || trialTimerInfo(t)) return { title: "Последние сутки пробного периода", sub: `Доступ открыт до ${t.ends_at_text}` };
+  return { title: `Пробный период · день ${t.day}/${t.days_total}`, sub: `Доступ открыт до ${t.ends_at_text}` };
+}
+
+function updateTrialTimer() {
+  const t = state?.access?.paywall ? state.access.trial : null;
+  const el = document.getElementById("trialCardTimer");
+  const hint = document.getElementById("trialCardHint");
+  if (!el) return;
+  const info = t ? trialTimerInfo(t) : null;
+  if (!info) { el.hidden = true; if (hint) hint.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = info.text;
+  if (hint) {
+    let seen = false;
+    try { seen = localStorage.getItem("adam_trial_timer_hint") === "1"; } catch (_) {}
+    hint.textContent = info.caption;
+    hint.hidden = seen;
+  }
+  if (!trialTimerTracked) { trialTimerTracked = true; trk("trial_timer_shown", info.grace ? "grace" : "trial", null); }
 }
 
 function renderTrialCard() {
   const card = document.getElementById("trialCard");
   if (!card) return;
   const t = state?.access?.paywall ? state.access.trial : null;
-  const hide = !t || !t.scenario || t.phase === "grace" || t.phase === "expired" || (t.paid && (t.channel_granted || !t.channel_configured));
-  if (hide) { card.hidden = true; return; }
+  const settingsRow = document.getElementById("subscriptionSettingsRow");     // кнопка подписки в настройках — у всех в сценарии триала, с первого дня
+  if (settingsRow) settingsRow.hidden = !(t && t.scenario);
+  const hide = !t || !t.scenario || t.phase === "expired" || t.paid;
+  if (hide) { card.hidden = true; clearInterval(trialTimerHandle); trialTimerHandle = null; return; }
   const text = trialCardText(t);
   document.getElementById("trialCardVoice").innerHTML = adamVoiceHtml("md");
   document.getElementById("trialCardTitle").textContent = text.title;
   document.getElementById("trialCardSub").textContent = text.sub;
-  document.getElementById("trialCardDays").innerHTML = trialDayDots(t);
+  document.getElementById("trialCardDays").innerHTML = t.phase === "grace" ? "" : trialDayDots(t);
   card.hidden = false;
+  updateTrialTimer();
+  clearInterval(trialTimerHandle);
+  trialTimerHandle = setInterval(updateTrialTimer, 30000);
 }
 
-function trialPayLabel(t) {
-  return `Оформить за ${t.price_stars} ⭐`;
+function trialPayLabel() {
+  return "Продолжить с Адамом";
 }
 
-function renderTrialSheet(t) {
-  document.getElementById("trialSheetVoice").innerHTML = adamVoiceHtml("lg", "⏳");
-  document.getElementById("trialSheetDays").innerHTML = Array.from({ length: t.days_total }, (_, index) => {
-    const n = index + 1;
-    const cls = t.paid || n < t.day ? "is-done" : (n === t.day ? "is-now" : "");
-    const note = t.paid || n < t.day ? "позади" : (n === t.day ? "сегодня" : "впереди");
-    return `<span class="trial-day ${cls}"><b>День ${n}</b><small>${note}</small></span>`;
-  }).join("");
-  const pct = Math.min(100, Math.round((Math.min(t.streak, t.needed) / Math.max(1, t.needed)) * 100));
-  const rule = t.channel_eligible
-    ? "Условие выполнено: два дня подряд у тебя уже есть."
-    : `Открывается за ${trialDays(t.needed)} ударного режима подряд — у тебя ${t.streak} из ${t.needed}.`;
-  document.getElementById("trialSheetRule").innerHTML =
-    `<b>Закрытый канал</b><small>${escapeHtml(rule)}</small><span class="trial-rule__bar"><i style="width:${pct}%"></i></span>`;
-  const offer = document.getElementById("trialSheetOffer");
-  const pay = document.getElementById("trialSheetPay");
-  const later = document.getElementById("trialSheetLater");
+// Как продлевается подписка — честно, по тому, как она реально оформлена (db/subscription.py::subscription_overview).
+function subRenewalText(t, ov) {
   if (t.paid) {
-    offer.innerHTML = "<b>Pro активен</b><small>Спасибо, что остаёшься со мной.</small>";
-    pay.hidden = true;
-    later.textContent = "Хорошо";
-  } else {
-    const sub = t.intro_active ? `≈ ${t.intro_usd} за первый месяц по особой цене, дальше ${t.renewal_usd}.` : `≈ ${t.renewal_usd} за месяц доступа.`;
-    offer.innerHTML = `<b>Pro-доступ · ${t.price_stars} ⭐</b><small>${escapeHtml(sub)}</small>`;
-    pay.hidden = false;
-    pay.textContent = trialPayLabel(t);
-    later.textContent = "Позже";
+    if (ov?.can_toggle) return ov.auto_renew
+      ? "Списание повторяется каждые 30 дней, пока ты не отключишь его: в приложении или в настройках Telegram."
+      : "Автоматические списания выключены: когда срок закончится, подписку можно будет оформить снова.";
+    return "Само ничего не спишется: срок ты обновляешь вручную, я напомню заранее.";
   }
+  return ov?.autorenew_available
+    ? "Первая оплата разовая, на 30 дней. Дальше можно оформить подписку, которая списывается сама, — отключить её можно в любой момент."
+    : "Само ничего не спишется: срок ты обновляешь вручную, я напомню заранее.";
 }
 
-function openTrialSheet({ demo = null } = {}) {
-  const sheet = document.getElementById("trialSheet");
+function subCopy(t, ov) {
+  if (t.paid) return { title: "Подписка на Адама", status: `Доступ открыт до ${ov?.paid_until_text || ""}`.trim(), lead: "Спасибо, что остаёшься со мной." };
+  if (t.phase === "grace") return {
+    title: "Пробный доступ завершён",
+    status: `Серия сохранится, если оформить подписку до ${t.ends_at_text}`,
+    lead: "Твоя история остаётся с тобой: вернутся привычки, планирование и разговор с Адамом.",
+  };
+  if (t.phase === "expired") return {
+    title: "Доступ пока закрыт",
+    status: "Данные и серия ждут твоего возвращения",
+    lead: "Подписка снова откроет привычки, планирование и разговор с Адамом. История остаётся с тобой.",
+  };
+  return { title: "Подписка на Адама", status: `Пробный доступ открыт до ${t.ends_at_text}`, lead: SUB_LEAD };
+}
+
+function subOfferHtml(t) {
+  return t.intro_active
+    ? `<b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.intro_usd} за первый месяц, дальше ${t.renewal_price_stars} ⭐ (${t.renewal_usd})`)}</small>`
+    : `<b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.renewal_usd} за месяц`)}</small>`;
+}
+
+function renderSubscriptionScreen(t, ov) {
+  const copy = subCopy(t, ov);
+  document.getElementById("trialPaywallVoice").innerHTML = adamVoiceHtml("lg", t.phase === "grace" || t.phase === "expired" ? "🔒" : "💳");
+  document.getElementById("trialPaywallTitle").textContent = copy.title;
+  document.getElementById("trialPaywallStatus").textContent = copy.status;
+  document.getElementById("trialPaywallLead").textContent = copy.lead;
+  document.getElementById("trialPaywallPerks").innerHTML = t.paid ? "" : SUB_PERKS.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+  document.getElementById("trialPaywallOffer").innerHTML = t.paid ? "" : subOfferHtml(t);
+  const offer = document.getElementById("trialPaywallOffer");
+  offer.hidden = !!t.paid;
+  const pay = document.getElementById("trialPaywallPay");
+  const pending = !!(t.payment_pending || ov?.payment_pending);
+  pay.hidden = !!t.paid;
+  pay.textContent = trialPayLabel();
+  pay.disabled = pending;
+  document.getElementById("trialPaywallRenewal").textContent = subRenewalText(t, ov);
+  const pendingEl = document.getElementById("trialPaywallPending");
+  pendingEl.hidden = !pending;
+  pendingEl.textContent = pending ? `${SUB_PENDING_TEXT}${ov?.support ? ` Если за несколько минут ничего не изменится, напиши: ${ov.support}.` : ""}` : "";
+  const toggle = document.getElementById("trialPaywallRenewToggle");
+  toggle.hidden = !(t.paid && ov?.can_toggle);
+  toggle.textContent = ov?.auto_renew ? "Отключить автоматическое списание" : "Включить автоматическое списание";
+  document.getElementById("trialSummary").hidden = true;
+  document.getElementById("trialPaywallSummaryBtn").hidden = !!t.paid && !t.scenario;
+  subSummaryShown = false;
+  document.getElementById("trialMissionText").innerHTML = SUB_MISSION.map((p) => `<p>${escapeHtml(p)}</p>`).join("");
+  const note = document.getElementById("trialPaywallNote");
+  const support = ov?.support ? ` Вопросы по оплате: ${ov.support}.` : " Вопросы по оплате — команда /paysupport в чате со мной.";
+  note.innerHTML = `Оплата идёт через Telegram Stars. <a href="/terms" target="_blank" rel="noopener">Условия</a>.${escapeHtml(support)}`;
+}
+
+async function loadSubscriptionOverview() {
+  try { return await api("/api/subscription"); } catch (_) { return null; }
+}
+
+// Экран «Подписка на Адама». source — откуда открыли (для учёта): card, timer, settings, auto, nudge. blocking — после триала.
+async function openSubscriptionScreen({ source = "card", demo = null, overview = null, blocking = false } = {}) {
+  const overlay = document.getElementById("trialPaywallOverlay");
   const t = demo || (state?.access?.paywall ? state.access.trial : null);
-  if (!sheet || !t || !sheet.hidden) return false;
+  if (!overlay || !t) return false;
   trialSheetData = t;
   trialDemo = !!demo;
   hideProductHint();
-  renderTrialSheet(t);
-  sheet.hidden = false;
-  sheet.setAttribute("aria-hidden", "false");
-  requestAnimationFrame(() => sheet.classList.add("is-open"));
+  const ov = demo ? (overview || SIM_SUB_OVERVIEW) : (overview || await loadSubscriptionOverview());
+  subOverview = ov;
+  renderSubscriptionScreen(t, ov);
+  const closeBtn = document.getElementById("trialPaywallClose");
+  closeBtn.hidden = !!blocking && !t.read_only && !demo;                        // закрыть нельзя только на закрытом доступе; в окне можно — история видна
+  closeBtn.textContent = blocking && t.read_only ? "Посмотреть историю" : (demo && blocking ? "Закрыть демо" : "Не сейчас");
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  overlay.scrollTop = 0;
+  const loading = document.getElementById("loadingOverlay");
+  if (loading) loading.hidden = true;
+  const banner = document.getElementById("bootRetryBanner");
+  if (banner) banner.hidden = true;
   haptic("light");
-  if (!demo) trk("trial_sheet_open", t.phase, null);
+  if (!demo) {
+    trk("sub_screen_open", source, null);
+    if (blocking && !trialPaywallTracked) { trialPaywallTracked = true; trk("trial_paywall_shown", t.phase, null); }
+  }
   return true;
 }
 
-function closeTrialSheet() {
-  const sheet = document.getElementById("trialSheet");
-  if (!sheet || sheet.hidden) return;
-  sheet.classList.remove("is-open");
-  sheet.setAttribute("aria-hidden", "true");
-  setTimeout(() => { if (!sheet.classList.contains("is-open")) sheet.hidden = true; }, 230);
+function openTrialSheet({ demo = null } = {}) {
+  return openSubscriptionScreen({ source: "card", demo });
 }
 
-// Деньги за доступ: счёт Stars → окно Telegram. «paid» — ждём, пока бот запишет платёж (successful_payment приходит отдельным апдейтом).
+function closeTrialSheet() { /* прежнее окно заменено экраном подписки (closeTrialPaywall) */ }
+
+function closeTrialPaywall({ dismissed = false } = {}) {
+  const overlay = document.getElementById("trialPaywallOverlay");
+  if (!overlay) return;
+  overlay.hidden = true;
+  overlay.setAttribute("aria-hidden", "true");
+  if (dismissed && !trialDemo) {
+    trk("sub_not_now", null, null);
+    try { localStorage.setItem(SUB_DISMISS_KEY, new Date().toDateString()); } catch (_) {}
+  }
+  trialDemo = false;
+}
+
+// Деньги за доступ: счёт Stars → окно Telegram. «paid» — ждём, пока бот запишет платёж (successful_payment приходит отдельным апдейтом): проверяем, что подписка действительно активна.
 async function waitForTrialAccess() {
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
     try {
       const res = await api("/api/trial");
-      if (res?.allowed) return true;
+      if (res?.trial?.paid) return true;
     } catch (_) { /* повторим */ }
     await new Promise((resolve) => setTimeout(resolve, 900));
   }
@@ -8408,8 +8531,8 @@ async function waitForTrialAccess() {
 async function payTrial(source) {
   if (trialPayBusy) return;
   if (trialDemo) { showToast("🧪 Демо: оплата не открывается", "success", 1800); return; }
-  const buttons = [document.getElementById("trialSheetPay"), document.getElementById("trialPaywallPay")].filter(Boolean);
-  const setBusy = (busy) => { trialPayBusy = busy; buttons.forEach((b) => { b.disabled = busy; }); };
+  const button = document.getElementById("trialPaywallPay");
+  const setBusy = (busy) => { trialPayBusy = busy; if (button) button.disabled = busy; };
   setBusy(true);
   haptic("medium");
   trk("trial_pay_tap", source, null);
@@ -8426,13 +8549,16 @@ async function payTrial(source) {
       haptic("success");
       if (await waitForTrialAccess()) {
         closeTrialPaywall();
-        closeTrialSheet();
-        showToast("Доступ продлён ✅ Спасибо, что остаёшься со мной", "praise", 4200);
+        showToast("Подписка активна ✅ Спасибо, что остаёшься со мной", "praise", 4200);
         if (state?.user) { try { await loadBootstrap(); } catch (_) { /* карточка обновится при следующем заходе */ } } else { location.reload(); }
+        setBusy(false);
       } else {
-        showToast("Платёж получен — доступ откроется через минуту", "success", 4200);
+        // Деньги списаны, подтверждения ещё нет: показываем ожидание и запасной контакт, повторно платить не просим.
+        const ov = { ...(subOverview || {}), payment_pending: true };
+        subOverview = ov;
+        if (trialSheetData) renderSubscriptionScreen({ ...trialSheetData, payment_pending: true }, ov);
+        showToast("Платёж получен — доступ откроется чуть позже", "success", 4200);
       }
-      setBusy(false);
     });
   } catch (err) {
     setBusy(false);
@@ -8440,56 +8566,61 @@ async function payTrial(source) {
   }
 }
 
+async function toggleAutoRenew() {
+  if (trialDemo || !subOverview?.can_toggle) return;
+  const enable = !subOverview.auto_renew;
+  try {
+    const result = await api("/api/subscription/auto-renew", { method: "POST", body: JSON.stringify({ enabled: enable }) });
+    subOverview = result;
+    renderSubscriptionScreen(trialSheetData, subOverview);
+    haptic("light");
+    showToast(enable ? "Автоматическое списание включено" : "Автоматическое списание отключено", "success", 2600);
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+  }
+}
+
+function renderTrialSummary(summary) {
+  const box = document.getElementById("trialSummary");
+  box.innerHTML = `<b>${escapeHtml(summary.title)}</b>` + summary.lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("")
+    + (summary.note ? `<small>${escapeHtml(summary.note)}</small>` : "");
+  box.hidden = false;
+  document.getElementById("trialPaywallSummaryBtn").hidden = true;
+}
+
+async function showTrialSummary() {
+  if (subSummaryShown) return;
+  subSummaryShown = true;
+  haptic("light");
+  if (trialDemo) { renderTrialSummary(SIM_SUMMARY); return; }
+  trk("sub_summary_open", null, null);
+  try {
+    renderTrialSummary(await api("/api/trial/summary"));
+  } catch (err) {
+    subSummaryShown = false;
+    showToast(friendlyError(err), "error");
+  }
+}
+
+// Блокирующий вход: сервер ответил «доступ закрыт» (403 trial_expired) или человек открыл приложение в дополнительном окне.
 function showTrialPaywall(t, { demo = false } = {}) {
-  const overlay = document.getElementById("trialPaywallOverlay");
-  if (!overlay) return;
+  if (!document.getElementById("trialPaywallOverlay")) return;
   if (!t) {                                         // сервер не прислал снимок — спрашиваем отдельным запросом (он доступен и закрытому аккаунту)
     api("/api/trial").then((res) => { if (res?.trial) showTrialPaywall(res.trial, { demo }); }).catch(() => {});
     return;
   }
-  trialDemo = demo;
-  closeTrialSheet();
-  document.getElementById("trialPaywallVoice").innerHTML = adamVoiceHtml("lg", "🔒");
-  const grace = t.phase === "grace";
-  document.getElementById("trialPaywallTitle").textContent = grace ? "Пробный доступ завершён" : "Доступ пока закрыт";
-  const keep = t.streak > 0
-    ? `Заработанная серия — ${trialDays(t.streak)} подряд — сохранится, если продолжить до ${t.ends_at_text}.`
-    : `Серия начнётся, как только ты вернёшься. Продолжить можно до ${t.ends_at_text}.`;
-  document.getElementById("trialPaywallLead").textContent = grace
-    ? `Твоя история сохранена. ${keep}`
-    : "Твоя история сохранена. Подписка снова откроет привычки, планирование и разговор со мной.";
-  const offer = t.intro_active
-    ? `<b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.intro_usd} за первый месяц, дальше ${t.renewal_price_stars} ⭐ (${t.renewal_usd})`)}</small>`
-    : `<b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.renewal_usd} за месяц доступа`)}</small>`;
-  document.getElementById("trialPaywallOffer").innerHTML = offer;
-  const pay = document.getElementById("trialPaywallPay");
-  pay.textContent = trialPayLabel(t);
-  pay.disabled = false;
-  const closeBtn = document.getElementById("trialPaywallClose");
-  closeBtn.hidden = !demo && !t.read_only;                  // в дополнительном окне история видна: можно закрыть экран и посмотреть её
-  closeBtn.textContent = demo ? "Закрыть демо" : "Посмотреть историю";
-  overlay.hidden = false;
-  overlay.setAttribute("aria-hidden", "false");
-  const loading = document.getElementById("loadingOverlay");
-  if (loading) loading.hidden = true;
-  const banner = document.getElementById("bootRetryBanner");
-  if (banner) banner.hidden = true;
-  if (!demo && !trialPaywallTracked) { trialPaywallTracked = true; trk("trial_paywall_shown", t.phase, null); }
+  if (!demo) { state = state || {}; state.access = { ...(state.access || {}), paywall: true, trial: t }; }
+  openSubscriptionScreen({ source: "auto", demo: demo ? t : null, blocking: true });
 }
 
-function closeTrialPaywall() {
-  const overlay = document.getElementById("trialPaywallOverlay");
-  if (!overlay) return;
-  overlay.hidden = true;
-  overlay.setAttribute("aria-hidden", "true");
-  trialDemo = false;
-}
-
-// Дополнительное окно после триала: при открытии приложения человек сразу видит экран продолжения (история под ним доступна только для чтения).
+// Дополнительное окно после триала: при открытии приложения человек видит экран продолжения (история под ним только для чтения). Если он уже нажал «Не сейчас» сегодня, второй раз сам экран не открывается.
 let graceScreenShown = false;
 function maybeShowGraceScreen() {
   const access = state?.access;
   if (graceScreenShown || !access || access.state !== "grace" || !access.trial) return;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem(SUB_DISMISS_KEY) === new Date().toDateString(); } catch (_) {}
+  if (dismissed) return;
   graceScreenShown = true;
   showTrialPaywall(access.trial);
 }
@@ -8497,19 +8628,27 @@ function maybeShowGraceScreen() {
 // Симуляция «карточка на Главной»: подставляем демо-снимок в состояние (только в памяти страницы) и рисуем карточку.
 function showTrialCardDemo(t) {
   closeTrialPaywall();
-  closeTrialSheet();
   state.access = { ...(state.access || {}), paywall: true, trial: t };
   renderTrialCard();
   document.getElementById("trialCard")?.scrollIntoView({ block: "center" });
 }
 
 function initTrial() {
-  document.getElementById("trialCard")?.addEventListener("click", () => { haptic("light"); openTrialSheet(); });
-  document.getElementById("trialSheetBackdrop")?.addEventListener("click", closeTrialSheet);
-  document.getElementById("trialSheetLater")?.addEventListener("click", () => { haptic("light"); closeTrialSheet(); });
-  document.getElementById("trialSheetPay")?.addEventListener("click", () => payTrial("sheet"));
+  document.getElementById("trialCard")?.addEventListener("click", () => {
+    haptic("light");
+    if (document.getElementById("trialCardTimer") && !document.getElementById("trialCardTimer").hidden) trk("trial_timer_tap", null, null);
+    try { localStorage.setItem("adam_trial_timer_hint", "1"); } catch (_) {}
+    openSubscriptionScreen({ source: document.getElementById("trialCardTimer")?.hidden === false ? "timer" : "card" });
+  });
+  document.getElementById("subscriptionSettingsBtn")?.addEventListener("click", () => {
+    document.getElementById("settingsOverlayClose")?.click();
+    openSubscriptionScreen({ source: "settings" });
+  });
   document.getElementById("trialPaywallPay")?.addEventListener("click", () => payTrial("paywall"));
-  document.getElementById("trialPaywallClose")?.addEventListener("click", () => { haptic("light"); closeTrialPaywall(); });
+  document.getElementById("trialPaywallClose")?.addEventListener("click", () => { haptic("light"); closeTrialPaywall({ dismissed: true }); });
+  document.getElementById("trialPaywallRenewToggle")?.addEventListener("click", toggleAutoRenew);
+  document.getElementById("trialPaywallSummaryBtn")?.addEventListener("click", showTrialSummary);
+  document.getElementById("trialMission")?.addEventListener("toggle", (e) => { if (e.target.open && !trialDemo) trk("sub_mission_open", null, null); });
 }
 
 // ===================== ИЗМЕНЕНИЕ ПРИВЫЧКИ =====================
@@ -9776,6 +9915,10 @@ const SIM_SCENES = {
   trial_sheet: () => { closeTrialPaywall(); closeTrialSheet(); setTimeout(() => openTrialSheet({ demo: SIM_TRIAL }), 260); },
   trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),
   trial_paywall_full: () => showTrialPaywall(SIM_TRIAL_FULL_EXPIRED, { demo: true }),
+  trial_timer: () => showTrialCardDemo(SIM_TRIAL_LAST),
+  sub_paid: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: SIM_TRIAL_PAID, overview: SIM_SUB_AUTO }); },
+  sub_pending: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: { ...SIM_TRIAL, payment_pending: true }, overview: { ...SIM_SUB_OVERVIEW, payment_pending: true } }); },
+  sub_summary: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: SIM_TRIAL }).then(() => showTrialSummary()); },
   remind_friends: () => openRemindSheetDemo(SIM_REMIND_FRIENDS),
   adam_voice: () => showVoiceToastsDemo(),
   freeze_help: () => openFreezeHelp({ sim: true, friend: SIM_FRIEND, price: 200, coins: 640 }),
