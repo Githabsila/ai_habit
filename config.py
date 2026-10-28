@@ -84,9 +84,9 @@ SUBSCRIPTION_RENEWAL_PRICE_STARS = int(os.getenv("SUBSCRIPTION_RENEWAL_PRICE_STA
 SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL = int(os.getenv("SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL", "2"))
 # Куда писать по вопросам оплаты и возвратов (/paysupport, требование Telegram для ботов с платежами); тот же адрес указан в /terms.
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "egormatancev12@gmail.com")
-# Запасной способ связи, который видит человек, если оплата прошла, а доступ не открылся (ТЗ 28.10 §19): ваш контакт в Telegram, например "@nick".
-# Пока не задан — показываем только почту выше. Добавляется переменной окружения SUPPORT_CONTACT на Railway.
-SUPPORT_CONTACT = os.getenv("SUPPORT_CONTACT", "").strip()
+# Запасной способ связи, который видит человек, если оплата прошла, а доступ не открылся (ТЗ 28.10 §19): контакты в Telegram. Решение владельца 28.10: оба аккаунта.
+# Можно переопределить переменной окружения SUPPORT_CONTACT на Railway (пустое значение уберёт Telegram-контакты, останется почта выше).
+SUPPORT_CONTACT = os.getenv("SUPPORT_CONTACT", "@floydddo, @AlxManagement").strip()
 # Автопродление подписки Stars (ТЗ §2). Telegram умеет подписку только по ссылке-счёту (createInvoiceLink, период 30 дней, ОДНА фиксированная цена): вводной цены
 # внутри подписки нет. Поэтому схема такая: первая покупка — разовый счёт на 30 дней по вводной цене, а когда человек платит не впервые, счёт — подписка с
 # автопродлением (отключается в приложении или в настройках Telegram). Пока флаг выключен, все счета разовые, а тексты честно говорят «продление вручную».
@@ -102,6 +102,8 @@ CLOSED_CHANNEL_ID = os.getenv("CLOSED_CHANNEL_ID", "")
 # оплата Stars проверены вручную. Гейт при этом всё равно применяется
 # ТОЛЬКО к пользователям, зарегистрированным ПОСЛЕ SUBSCRIPTION_GATE_CUTOVER —
 # уже существующие пользователи бота не блокируются задним числом.
+# Решение владельца 28.10: когда гейт будет включаться, свежий триал получают ВСЕ (и уже зарегистрированные): сначала три пробных дня с первого открытия
+# приложения, потом оплата. Для этого вместе с SUBSCRIPTION_GATE_ENABLED=true поставь SUBSCRIPTION_GATE_CUTOVER=all (дата в прошлом тоже подойдёт).
 SUBSCRIPTION_GATE_ENABLED = os.getenv("SUBSCRIPTION_GATE_ENABLED", "false").lower() == "true"
 SUBSCRIPTION_GATE_CUTOVER = os.getenv("SUBSCRIPTION_GATE_CUTOVER", "2100-01-01")
 

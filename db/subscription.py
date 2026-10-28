@@ -126,14 +126,21 @@ def gate_applies_to_user(user):
         return True
     if not SUBSCRIPTION_GATE_ENABLED:
         return False
-    created = _parse_dt(user["created_at"] if "created_at" in user.keys() else None)
+    return registered_after_cutover(user["created_at"] if "created_at" in user.keys() else None, SUBSCRIPTION_GATE_CUTOVER)
+
+
+def registered_after_cutover(created_at, cutover):
+    """Попадает ли аккаунт под общий гейт по дате регистрации. cutover = "all" (или "*") — под гейт попадают все, и уже зарегистрированные: каждый получает свежий
+    триал с первого открытия приложения (решение владельца 28.10). Иначе — дата ГГГГ-ММ-ДД: гейт только для зарегистрированных в этот день и позже."""
+    if str(cutover or "").strip().lower() in ("all", "*"):
+        return True
+    created = _parse_dt(created_at)
     if not created:
         return False
     try:
-        cutover = date.fromisoformat(SUBSCRIPTION_GATE_CUTOVER)
+        return created.date() >= date.fromisoformat(str(cutover).strip())
     except ValueError:
         return False
-    return created.date() >= cutover
 
 
 def bot_access_allowed(user_id):

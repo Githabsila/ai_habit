@@ -34,12 +34,8 @@ def _is_real(user):
         return False
     if not SUBSCRIPTION_GATE_ENABLED:
         return False
-    created = _parse(user["created_at"])
-    try:
-        cutover = date.fromisoformat(SUBSCRIPTION_GATE_CUTOVER)
-    except ValueError:
-        return False
-    return bool(created) and created.date() >= cutover
+    from .subscription import registered_after_cutover
+    return registered_after_cutover(user["created_at"], SUBSCRIPTION_GATE_CUTOVER)
 
 
 def cohort(days=30, source=None, scope="real", now=None):
