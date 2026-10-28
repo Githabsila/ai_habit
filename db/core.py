@@ -201,6 +201,9 @@ def create_tables():
         cursor.execute("ALTER TABLE users ADD COLUMN trial_ends_at TIMESTAMP")
     if "trial_tz" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN trial_tz TEXT")
+    # Редкие сообщения после триала (ТЗ §18): человек может отказаться от них кнопкой под сообщением; на оплату это не влияет.
+    if "winback_optout" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN winback_optout INTEGER DEFAULT 0")
     # Автопродление подписки Stars (ТЗ §2): включено ли и по какому платежу его можно отключить (editUserStarSubscription).
     if "subscription_auto_renew" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN subscription_auto_renew INTEGER DEFAULT 0")
@@ -711,6 +714,23 @@ def create_tables():
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+
+    # Журнал предложений подписки (db/trial_flow.py, ТЗ §12–§15): где человеку показали предложение (app — карточка в приложении после полезного
+    # действия, chat — под ответом Адама, push — внешнее сообщение в Telegram) и что он сделал (shown/sent, clicked, dismissed). По нему предложения
+    # не повторяются в нескольких местах подряд, «Не сейчас» гасит автоматические предложения до конца дня, а в статистике «отправлено»,
+    # «показано» и «нажато» — разные события.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS trial_offers(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        local_date TEXT NOT NULL,
+        place TEXT NOT NULL,
+        key TEXT,
+        event TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_trial_offers_user_day ON trial_offers(user_id, local_date)")
 
     # Спасение серии друга (db/rescue.py): одна запись на срыв (UNIQUE owner+день срыва) — кто и когда вернул серию; на ней же держатся
     # лимиты «раз в календарный месяц у спасателя» и «не чаще раза в две недели у того, кого спасают». rescue_pushes — кому из друзей

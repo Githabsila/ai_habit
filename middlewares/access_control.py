@@ -8,7 +8,7 @@ from keyboards import subscription_buy_keyboard
 
 # Пром 13: колбэки, которые обязаны проходить даже для заблокированного
 # пользователя — иначе он физически не сможет оформить/продлить подписку.
-_EXEMPT_CALLBACKS = {"buy_subscription", "back_menu"}
+_EXEMPT_CALLBACKS = {"buy_subscription", "back_menu", "winback_off"}
 
 
 class AccessControlMiddleware(BaseMiddleware):

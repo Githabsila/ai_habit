@@ -6543,6 +6543,7 @@ function initHabitActions() {
         const result = await api(`/api/habits/${habitId}/complete`, { method: "POST" });
         applyActionPatch(result);
         await celebrateHabitCompletion(result);
+        scheduleTrialOffer("habit");
       } else if (action === "progress") {
         btn.disabled = true;
         haptic("light");
@@ -6555,6 +6556,7 @@ function initHabitActions() {
         applyActionPatch(result);
         if (result.just_completed) {
           await celebrateHabitCompletion(result);
+          scheduleTrialOffer("habit");
         } else {
           showToast(`${result.progress_count}/${result.target_count}`, "success");
         }
@@ -6963,6 +6965,7 @@ function initPlanActions() {
         });
         if (res && res.message) showToast(res.message, "praise", 4500);
         applyPlanPatch(res);
+        scheduleTrialOffer("plan");
       } catch (err) {
         showToast(friendlyError(err), "error");
         await loadBootstrap();
@@ -7943,7 +7946,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialPaywallOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialPaywallOverlay", "trialOfferCard",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -8616,6 +8619,7 @@ function showTrialPaywall(t, { demo = false } = {}) {
 // Дополнительное окно после триала: при открытии приложения человек видит экран продолжения (история под ним только для чтения). Если он уже нажал «Не сейчас» сегодня, второй раз сам экран не открывается.
 let graceScreenShown = false;
 function maybeShowGraceScreen() {
+  handleTrialEntry();                                                        // переход из сообщения триала (?sub=1&m=…) — раньше автоматического экрана окна
   const access = state?.access;
   if (graceScreenShown || !access || access.state !== "grace" || !access.trial) return;
   let dismissed = false;
@@ -8631,6 +8635,85 @@ function showTrialCardDemo(t) {
   state.access = { ...(state.access || {}), paywall: true, trial: t };
   renderTrialCard();
   document.getElementById("trialCard")?.scrollIntoView({ block: "center" });
+}
+
+// ----- Предложение подписки внутри приложения (db/trial_flow.py::app_offer, ТЗ §12) -----
+// Во второй день пробного периода, после настоящего действия (отметка привычки, работа с планом), и не больше одного раза в день: спокойная карточка с фактом.
+// Не открывается сама по таймеру и не повторяется после «Не сейчас» (то же правило, что у экрана продолжения: SUB_DISMISS_KEY). Сервер записывает показ в журнал.
+const SIM_OFFER = { key: "d2_app_habit", text: "Первая отметка «Зарядка» есть — с неё и начинается ритм. Я могу помогать его держать.", terms: "Условия подписки", later: "Не сейчас" };
+let trialOfferData = null;
+let trialOfferDemo = false;
+let trialOfferTimer = null;
+let trialOfferHideTimer = null;
+const trialOfferAsked = new Set();
+
+function trialDismissedToday() {
+  try { return localStorage.getItem(SUB_DISMISS_KEY) === new Date().toDateString(); } catch (_) { return false; }
+}
+
+function hideTrialOffer() {
+  const card = document.getElementById("trialOfferCard");
+  clearTimeout(trialOfferHideTimer);
+  if (card) card.hidden = true;
+  trialOfferData = null;
+}
+
+function showTrialOffer(offer, { demo = false } = {}) {
+  const card = document.getElementById("trialOfferCard");
+  if (!card || !offer) return;
+  trialOfferData = offer;
+  trialOfferDemo = !!demo;
+  document.getElementById("trialOfferVoice").innerHTML = adamVoiceHtml("sm");
+  document.getElementById("trialOfferText").textContent = offer.text;
+  document.getElementById("trialOfferGo").textContent = offer.terms || "Условия подписки";
+  document.getElementById("trialOfferLater").textContent = offer.later || "Не сейчас";
+  card.hidden = false;
+  haptic("light");
+  clearTimeout(trialOfferHideTimer);
+  if (!demo) trialOfferHideTimer = setTimeout(hideTrialOffer, 20000);       // не отреагировал — карточка уходит сама, без отметки «Не сейчас»
+}
+
+function sendTrialOfferEvent(event) {
+  if (trialOfferDemo || !trialOfferData) return;
+  api("/api/trial/offer-event", { method: "POST", body: JSON.stringify({ place: "app", key: trialOfferData.key, event }) }).catch(() => {});
+}
+
+function scheduleTrialOffer(trigger) {
+  const t = state?.access?.paywall ? state.access.trial : null;
+  if (!t || t.phase !== "day2" || t.paid || trialDemo || trialDismissedToday() || trialOfferAsked.has(trigger)) return;
+  trialOfferAsked.add(trigger);
+  clearTimeout(trialOfferTimer);
+  let waited = 0;
+  const attempt = async () => {
+    if (celebrationOverlayOpen()) {                                          // праздники и окна важнее: ждём, пока уйдут
+      waited += 1;
+      if (waited <= 12) trialOfferTimer = setTimeout(attempt, 1500);
+      return;
+    }
+    try {
+      const res = await api("/api/trial/offer", { method: "POST", body: JSON.stringify({ trigger }) });
+      if (res?.offer) showTrialOffer(res.offer);
+    } catch (_) { /* предложение не обязательно */ }
+  };
+  trialOfferTimer = setTimeout(attempt, 2800);
+}
+
+// Переход из сообщения триала в Telegram (keyboards.py::trial_keyboard): ?m=<ключ сообщения> — учёт перехода, ?sub=1 — сразу экран подписки.
+function handleTrialEntry() {
+  let params;
+  try { params = new URLSearchParams(location.search); } catch (_) { return; }
+  const key = (params.get("m") || "").replace(/[^a-z0-9_]/gi, "").slice(0, 40);
+  const wantsSub = params.get("sub") === "1";
+  if (!key && !wantsSub) return;
+  params.delete("m");
+  params.delete("sub");
+  try { const rest = params.toString(); history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash); } catch (_) {}
+  if (key) trk("trial_msg_open", key, null);
+  if (wantsSub && state?.access?.paywall && state.access.trial) {
+    graceScreenShown = true;                                                 // нажали сами — экран открываем даже после сегодняшнего «Не сейчас»
+    if (state.access.state === "grace") showTrialPaywall(state.access.trial);
+    else openSubscriptionScreen({ source: "push" });
+  }
 }
 
 function initTrial() {
@@ -8649,6 +8732,20 @@ function initTrial() {
   document.getElementById("trialPaywallRenewToggle")?.addEventListener("click", toggleAutoRenew);
   document.getElementById("trialPaywallSummaryBtn")?.addEventListener("click", showTrialSummary);
   document.getElementById("trialMission")?.addEventListener("toggle", (e) => { if (e.target.open && !trialDemo) trk("sub_mission_open", null, null); });
+  document.getElementById("trialOfferGo")?.addEventListener("click", () => {
+    haptic("light");
+    const demo = trialOfferDemo;
+    sendTrialOfferEvent("clicked");
+    hideTrialOffer();
+    if (demo) { showToast("🧪 Демо: экран подписки не открывается", "success", 1800); return; }
+    openSubscriptionScreen({ source: "offer" });
+  });
+  document.getElementById("trialOfferLater")?.addEventListener("click", () => {
+    haptic("light");
+    sendTrialOfferEvent("dismissed");
+    if (!trialOfferDemo) { try { localStorage.setItem(SUB_DISMISS_KEY, new Date().toDateString()); } catch (_) {} }
+    hideTrialOffer();
+  });
 }
 
 // ===================== ИЗМЕНЕНИЕ ПРИВЫЧКИ =====================
@@ -9916,6 +10013,8 @@ const SIM_SCENES = {
   trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),
   trial_paywall_full: () => showTrialPaywall(SIM_TRIAL_FULL_EXPIRED, { demo: true }),
   trial_timer: () => showTrialCardDemo(SIM_TRIAL_LAST),
+  trial_offer_app: () => { closeTrialPaywall(); showTrialOffer(SIM_OFFER, { demo: true }); },
+  trial_chat_offer: () => { window.location.href = "/coach?sim=trial_offer"; },
   sub_paid: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: SIM_TRIAL_PAID, overview: SIM_SUB_AUTO }); },
   sub_pending: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: { ...SIM_TRIAL, payment_pending: true }, overview: { ...SIM_SUB_OVERVIEW, payment_pending: true } }); },
   sub_summary: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: SIM_TRIAL }).then(() => showTrialSummary()); },

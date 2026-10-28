@@ -219,6 +219,16 @@ def sent_log(user_id, limit=30):
     return [{"key": r["category"].split(":", 1)[1], "sent_at": r["sent_at"]} for r in rows]
 
 
+def sent_ever(user_id, key):
+    """Это сообщение триала человеку уже уходило (одноразовые сообщения не повторяются в другие дни)."""
+    conn = connect()
+    try:
+        row = conn.execute("SELECT 1 FROM notification_log WHERE user_id=? AND category=? LIMIT 1", (user_id, f"trial:{key}")).fetchone()
+    finally:
+        conn.close()
+    return row is not None
+
+
 def sent_today_count(user_id, local_date):
     """Сколько сообщений триала ушло человеку за этот местный день (для дневного лимита)."""
     conn = connect()
@@ -235,6 +245,8 @@ def clear_trial_messages(user_id):
     try:
         conn.execute("DELETE FROM streak_notifications WHERE user_id=? AND kind LIKE 'trial:%'", (user_id,))
         conn.execute("DELETE FROM notification_log WHERE user_id=? AND category LIKE 'trial:%'", (user_id,))
+        conn.execute("DELETE FROM trial_offers WHERE user_id=?", (user_id,))
+        conn.execute("UPDATE users SET winback_optout=0 WHERE telegram_id=?", (user_id,))
         conn.commit()
     finally:
         conn.close()

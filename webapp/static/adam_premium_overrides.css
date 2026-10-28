@@ -69,6 +69,13 @@ body{overflow:hidden;}
 
 /* habit card */
 .habit-suggestion{background:linear-gradient(145deg,rgba(255,217,120,.10),rgba(255,255,255,.035));border-color:rgba(255,217,120,.22);}
+/* Под ответом Адама в пробном периоде (ai_coach.js::answerTrialOffer): вопрос «Показать короткую сводку?» и тихая кнопка условий. Без анимаций и фильтров. */
+.trial-chat-offer{margin-top:10px;padding:10px 12px;border-radius:14px;background:rgba(185,168,255,.10);border:1px solid rgba(185,168,255,.22)}
+.trial-chat-offer__ask{font-size:13px;line-height:1.4;color:#EDE9FA;font-weight:700}
+.trial-chat-offer__row{display:flex;gap:8px;margin-top:8px}
+.trial-chat-offer__yes{flex:1 1 auto;min-height:34px;padding:0 14px;border:none;border-radius:11px;background:#B9A8FF;color:#1c1730;font-weight:800;font-size:13px;cursor:pointer}
+.trial-chat-offer__later{min-height:34px;padding:0 12px;border:none;border-radius:11px;background:rgba(255,255,255,.08);color:#D7D3E6;font-weight:700;font-size:13px;cursor:pointer}
+.trial-chat-offer__terms{display:block;margin:6px 0 0;padding:6px 0;border:none;background:none;color:#B9A8FF;font-size:12.5px;font-weight:700;text-align:left;cursor:pointer}
 .habit-label{color:#E6C766;}
 .add-habit-btn{background:linear-gradient(145deg,rgba(255,217,120,.20),rgba(255,184,45,.09));box-shadow:inset 0 1px rgba(255,255,255,.12);}
 

@@ -248,6 +248,20 @@ async def buy_subscription(callback: CallbackQuery):
     await callback.answer()
 
 
+@router.callback_query(F.data == "winback_off")
+async def winback_off(callback: CallbackQuery):
+    """«Не присылать такое» под редким сообщением после триала (ТЗ §18): серия останавливается, на доступ и данные это не влияет."""
+    from db import trial_flow
+    from db.tracking import track_server
+    trial_flow.set_winback_optout(callback.from_user.id, True)
+    track_server(callback.from_user.id, "winback_optout", surface="bot")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer("Хорошо, такие сообщения больше не пришлю. Подписка и история остаются с тобой.", show_alert=True)
+
+
 @router.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
     """Telegram спрашивает, можно ли брать оплату. Подписку берём только у того, на кого выписан счёт (иначе деньги ушли бы мимо)."""

@@ -411,6 +411,12 @@ async def _answer_chat_inner(user_id: int, pro: bool, message_text: str):
         quota = get_ai_quota(user_id, pro)
         return 402, {"error":"ai_quota_exceeded","message":"💬 Лимит ответов ADAM исчерпан.","quota":quota}
 
+    # Ответ на вопрос-приглашение (триал, ТЗ §15): после содержательного ответа — короткое предложение «Показать сводку?», не чаще раза в день.
+    # Считаем ДО сохранения сообщения: оно должно быть первым ответом человека на приглашение.
+    trial_offer = None
+    if not is_crisis:
+        trial_offer = _trial_chat_offer(user_id, message_text)
+
     # Сохраняем в БД
     add_ai_message(user_id, "user", message_text)
     message_id = add_ai_message(user_id, "assistant", answer)
@@ -418,7 +424,7 @@ async def _answer_chat_inner(user_id: int, pro: bool, message_text: str):
     if not is_crisis:
         _schedule_memory_update(user_id)
 
-    return 200, {
+    payload = {
         "answer": answer,
         "is_crisis": is_crisis,
         "suggested_habit": suggested_habit,
@@ -426,6 +432,23 @@ async def _answer_chat_inner(user_id: int, pro: bool, message_text: str):
         "quota": get_ai_quota(user_id, pro),
         "quest_events": _quest_events(user_id),
     }
+    if trial_offer:
+        payload["trial_offer"] = trial_offer
+    return 200, payload
+
+
+def _trial_chat_offer(user_id: int, message_text: str):
+    """Предложение под ответом Адама для человека в пробном периоде (db/trial_flow.py::chat_offer). Любой сбой — просто без предложения: ответ важнее."""
+    try:
+        from db import trial_flow
+        offer = trial_flow.chat_offer(user_id, message_text)
+        if offer:
+            from db.tracking import track_server
+            track_server(user_id, "trial_offer_shown", offer["key"], meta={"place": "chat"})
+        return offer
+    except Exception:
+        logger.exception("Не удалось проверить предложение подписки в чате")
+        return None
 
 
 @routes.get("/api/ai/chat/result")
@@ -546,6 +569,53 @@ async def ai_greet_miniapp(request):
         if adam_ck.claim_slot(user_id, slot["today"], "app"):
             adam_ck.finish_slot(user_id, slot["today"], "app", "sent", scenario=scenario, source=source, message_id=greeting["id"])
     return web.json_response({"greeting": greeting})
+
+
+@routes.post("/api/ai/trial-invite")
+async def ai_trial_invite_miniapp(request):
+    """Приглашение к разговору из сообщения в боте (/coach?intro=trial, ТЗ §13 и §15): первый вопрос Адама по данным человека. Создаётся один раз в день и записывается
+    в историю; повторное открытие возвращает тот же вопрос (заново не генерируем), после оплаты и вне триала приглашения нет — обычный разговор.
+
+    Request JSON: {"init_data": "..."}   Response JSON: {"invite": {"id", "message", "created_at"} | null}
+    """
+    from webapp.auth_helpers import authenticate
+    from db import trial_flow
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        data = {}
+    user_id, _is_admin = await authenticate(data.get("init_data", ""))
+    from_message = "".join(ch for ch in str(data.get("m") or "").lower() if ch.isalnum() or ch == "_")[:40]
+    if from_message:                                                    # пришёл по кнопке из сообщения триала
+        from db.tracking import track_server
+        track_server(user_id, "trial_msg_open", from_message, meta={"place": "chat"})
+    invite = trial_flow.open_invite(user_id)
+    if invite and invite.pop("new", False):
+        from db.tracking import track_server
+        track_server(user_id, "trial_invite_open", "chat", meta={"id": invite["id"]})
+    return web.json_response({"invite": invite})
+
+
+@routes.post("/api/ai/trial-summary")
+async def ai_trial_summary_miniapp(request):
+    """Ответ на «Показать короткую сводку?» под ответом Адама. body: {"init_data": "...", "answer": "yes" | "later"}.
+    «yes» кладёт в чат настоящую сводку сообщением Адама (и в историю); «later» запоминает отказ — сегодня предложений больше не будет."""
+    from webapp.auth_helpers import authenticate
+    from db import trial_flow
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        data = {}
+    user_id, _is_admin = await authenticate(data.get("init_data", ""))
+    result = trial_flow.chat_summary(user_id, str(data.get("answer") or ""))
+    if "error" in result:
+        return web.json_response(result, status=400)
+    from db.tracking import track_server
+    answer = "yes" if "message" in result else "later"
+    track_server(user_id, "trial_offer_clicked" if answer == "yes" else "trial_offer_dismissed", "summary_ask", meta={"place": "chat"})
+    return web.json_response(result)
 
 
 @routes.post("/api/ai/clear")

@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261021_QUESTS_V85">
+<link rel="stylesheet" href="/static/style.css?v=20261028_TRIAL_V86">
 </head>
 <body>
 
@@ -153,6 +153,14 @@ style="width:0%">
 
 <!-- Триал: карточка только у аккаунтов в сценарии триала (state.access.paywall); тап открывает «Мой пробный период».
      Рисует app.js::renderTrialCard. -->
+<div class="trial-offer-card" id="trialOfferCard" hidden role="status">
+  <span class="trial-offer-card__voice" id="trialOfferVoice"></span>
+  <p class="trial-offer-card__text" id="trialOfferText"></p>
+  <div class="trial-offer-card__actions">
+    <button type="button" class="trial-offer-card__go" id="trialOfferGo">Условия подписки</button>
+    <button type="button" class="trial-offer-card__later" id="trialOfferLater">Не сейчас</button>
+  </div>
+</div>
 <button type="button" class="trial-card" id="trialCard" hidden>
   <span class="trial-card__voice" id="trialCardVoice"></span>
   <span class="trial-card__body"><b class="trial-card__title" id="trialCardTitle"></b><small class="trial-card__sub" id="trialCardSub"></small><em class="trial-card__timer" id="trialCardTimer" hidden></em><small class="trial-card__hint" id="trialCardHint" hidden></small></span>
@@ -1753,7 +1761,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261021_QUESTS_V97"></script>
+<script type="module" src="/static/app.js?v=20261028_TRIAL_V98"></script>
 
 </body>
 </html>

@@ -290,8 +290,9 @@ def get_users_count():
     return count
 
 
-def get_all_users(include_blocked=True):
-    """Все пользователи. include_blocked=False — выборка для РАССЫЛОК: без тех, кто
+def get_all_users(include_blocked=True, unlocked_only=False):
+    """Все пользователи. unlocked_only=True — только те, у кого основные действия сейчас открыты (db/subscription.py::bot_access_allowed): напоминания о привычках
+    и плане не должны звать в закрытое окно после триала (ТЗ §14). include_blocked=False — выборка для РАССЫЛОК: без тех, кто
     заблокировал бота (см. mark_bot_blocked — иначе на каждого заблокировавшего каждый
     тик каждого job'а уходит заведомо проваливающийся запрос), без забаненных и без тех,
     кто ещё не прошёл анкету (db/push_access.py). Обслуживание данных (новый день, статистика,
@@ -309,6 +310,9 @@ def get_all_users(include_blocked=True):
     users = cursor.fetchall()
 
     conn.close()
+    if unlocked_only:
+        from .subscription import bot_access_allowed, gate_applies_to_user
+        users = [u for u in users if not gate_applies_to_user(u) or bot_access_allowed(u["telegram_id"])]
     return users
 
 

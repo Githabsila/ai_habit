@@ -42,7 +42,7 @@ from db import (
     get_streak_reengagement_state, has_completed_today,
     get_habit_checkpoint_style,
     get_users_needing_ai_welcome_nudge,
-    is_bot_blocked, mark_bot_blocked,
+    is_bot_blocked, mark_bot_blocked, bot_access_allowed,
 )
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from db import ai_usage
@@ -184,7 +184,7 @@ async def run_task_reminder_check(bot):
     прогон пользователю может уйти несколько сообщений — по одному на
     каждую просроченную привычку/задачу плюс, при необходимости, одно
     про общую цель дня."""
-    users = get_all_users(include_blocked=False)
+    users = get_all_users(include_blocked=False, unlocked_only=True)
     sent = 0
 
     for user in users:
@@ -264,7 +264,7 @@ async def run_planned_time_reminders(bot):
     """Раз в минуту (main.py) — у кого из привычек planned_time совпало
     с текущей локальной минутой пользователя, тот ещё не выполнен и по
     нему сегодня ещё не напоминали."""
-    users = get_all_users(include_blocked=False)
+    users = get_all_users(include_blocked=False, unlocked_only=True)
     sent = 0
 
     for user in users:
@@ -339,6 +339,11 @@ def checkpoint_verdict(telegram_id, settings, now, target_hour, check_window=Tru
     # пытался писать уже заблокировавшим бота — Telegram отвечает Forbidden на КАЖДУЮ такую попытку, это не временный сбой.
     if is_bot_blocked(telegram_id):
         out["reason"] = "bot_blocked"
+        return out
+
+    # После закрытия основных действий (дополнительное окно, конец доступа) напоминание не должно звать к недоступному (ТЗ §14).
+    if not bot_access_allowed(telegram_id):
+        out["reason"] = "access_locked"
         return out
 
     if not reminder_category_enabled(settings, "habits"):
@@ -532,7 +537,7 @@ async def run_habit_checkpoint_22(bot):
 
 async def run_day_progress_check(bot):
     """19:00 — единая сверка главной и второстепенных задач."""
-    users = get_all_users(include_blocked=False)
+    users = get_all_users(include_blocked=False, unlocked_only=True)
     sent = 0
 
     for user in users:
@@ -698,7 +703,7 @@ async def _broadcast(bot, text_fn, job_name, day_key):
     дубля: любое повторное/наложившееся срабатывание cron-job'а (напр. на
     границе misfire_grace_time) рассылало это сообщение ВСЕМ пользователям
     ещё раз."""
-    users = get_all_users(include_blocked=False)
+    users = get_all_users(include_blocked=False, unlocked_only=True)           # стартовые пинги зовут планировать — закрытым после триала не шлём
     sent = 0
     scope = notification_scope(bot)
 

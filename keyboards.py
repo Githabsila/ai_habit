@@ -781,13 +781,23 @@ def gift_premium_confirm_keyboard(recipient_id: int, price_stars: int):
     )
 
 
-def trial_keyboard(buttons, price_stars: int):
-    """Кнопки под сообщением триала (trial_messages.py): «buy» — оплатить Stars, «open» — открыть приложение. Нет кнопок — None."""
+def trial_keyboard(buttons, price_stars: int, key: str = ""):
+    """Кнопки под сообщением триала (trial_messages.py): «buy» — оплатить Stars, «open» — открыть приложение, «sub» — сразу экран «Подписка на Адама»,
+    «talk» — чат с Адамом и его вопрос, «optout» — отказаться от редких сообщений после триала. key — сообщение, из которого пришли: приложение учитывает
+    переход (событие trial_msg_open). Нет кнопок — None."""
     rows = []
+    base = (WEBAPP_URL or "").rstrip("/")
+    tag = f"&m={key}" if key else ""
     if "buy" in buttons:
         rows.append([InlineKeyboardButton(text=f"⭐ Оплатить {price_stars} Stars", callback_data="buy_subscription")])
-    if "open" in buttons and WEBAPP_URL:
-        rows.append([InlineKeyboardButton(text="Открыть ADAM", web_app=WebAppInfo(url=WEBAPP_URL))])
+    if "talk" in buttons and base:
+        rows.append([InlineKeyboardButton(text="Поговорить с Адамом", web_app=WebAppInfo(url=f"{base}/coach?intro=trial{tag}"))])
+    if "open" in buttons and base:
+        rows.append([InlineKeyboardButton(text="Открыть ADAM", web_app=WebAppInfo(url=f"{base}/?m={key}" if key else WEBAPP_URL))])
+    if "sub" in buttons and base:
+        rows.append([InlineKeyboardButton(text="Условия подписки", web_app=WebAppInfo(url=f"{base}/?sub=1{tag}"))])
+    if "optout" in buttons:
+        rows.append([InlineKeyboardButton(text="Не присылать такое", callback_data="winback_off")])
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 

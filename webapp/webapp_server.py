@@ -1029,6 +1029,40 @@ async def trial_summary_route(request):
     return web.json_response({key: summary[key] for key in ("title", "lines", "note", "enough")})
 
 
+@routes.post("/api/trial/offer")
+async def trial_offer_route(request):
+    """Спокойное предложение подписки внутри приложения (ТЗ §12): после настоящего действия во второй день пробного периода. body: {"trigger": "habit" | "plan" | "adam"}.
+    Ответ {"offer": {key, text, terms, later} | null}; показ записывается сразу — внешнее приглашение в этот день уже не уйдёт. Больше одного в день и после «Не сейчас» не бывает."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        body = {}
+    from db import trial_flow
+    offer = trial_flow.app_offer(telegram_id, str(body.get("trigger") or ""))
+    if offer:
+        from db.tracking import track_server
+        track_server(telegram_id, "trial_offer_shown", offer["key"], meta={"place": "app"})
+    return web.json_response({"offer": offer})
+
+
+@routes.post("/api/trial/offer-event")
+async def trial_offer_event_route(request):
+    """Что сделал человек с предложением: clicked (открыл условия) или dismissed («Не сейчас»). body: {"place": "app" | "chat", "key": "...", "event": "clicked" | "dismissed"}."""
+    telegram_id, _ = await _authenticate(request, allow_locked=True)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        body = {}
+    from db import trial_flow
+    place, key, event = str(body.get("place") or ""), str(body.get("key") or ""), str(body.get("event") or "")
+    if place not in ("app", "chat") or not trial_flow.mark_offer_event(telegram_id, place, key, event):
+        return web.json_response({"error": "invalid_event"}, status=400)
+    from db.tracking import track_server
+    track_server(telegram_id, f"trial_offer_{event}", key[:40], meta={"place": place})
+    return web.json_response({"ok": True})
+
+
 @routes.get("/api/subscription")
 async def subscription_status_route(request):
     """Состояние подписки для экрана «Подписка»: срок, продление (автоматическое или вручную), можно ли его отключить, ожидается ли подтверждение оплаты."""

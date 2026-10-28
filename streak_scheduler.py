@@ -21,7 +21,7 @@ from db import (
     get_users_near_personal_record,
     get_rank_overtakes_and_update_snapshot,
     get_gender, gender_forms,
-    is_bot_blocked, mark_bot_blocked,
+    is_bot_blocked, mark_bot_blocked, bot_access_allowed,
     get_user, settle_pair_quests, get_active_pair_quests, pair_last_day_reminder, PAIR_GOAL,
     pair_users_due_for_new_quest, get_pair_quest, list_pair_candidates, pair_eve_reminder,
     pair_pending_partner_events, pair_partner_done_text,
@@ -219,6 +219,10 @@ async def run_streak_risk_notifications(bot):
             if not reminder_category_enabled(settings, "streak"):
                 continue
 
+            # Основные действия закрыты (дополнительное окно, конец доступа): призыв «отметь привычку» звал бы в недоступное, серию здесь защищает триал (ТЗ §14).
+            if not bot_access_allowed(uid):
+                continue
+
             tz_name = get_timezone(uid)
             tz = ZoneInfo(tz_name)
             now = datetime.now(tz)
@@ -369,6 +373,8 @@ async def run_streak_reengagement_notifications(bot):
         try:
             settings = get_settings(uid)
             if not reminder_category_enabled(settings, "streak"):
+                continue
+            if not bot_access_allowed(uid):                                  # «вернись в серию» звало бы в закрытое (ТЗ §14)
                 continue
             tz = ZoneInfo(get_timezone(uid))
             now = datetime.now(tz)

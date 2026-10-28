@@ -285,7 +285,7 @@ async def run_adam_checkins(bot):
         return
     scope = notification_scope(bot)
     sent = 0
-    for user in get_all_users(include_blocked=False):
+    for user in get_all_users(include_blocked=False, unlocked_only=True):
         try:
             outcome = await process_user(bot, user["telegram_id"], scope)
         except Exception as exc:

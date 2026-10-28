@@ -1,12 +1,14 @@
 """
-Доставка сообщений триала (каталог и тексты — trial_messages.py, состояние человека — db/trial.py).
+Доставка сообщений триала (каталог и тексты — trial_messages.py, состояние человека — db/trial.py, журнал предложений и паузы — db/trial_flow.py).
 
-Раз в минуту проходит по людям, у которых идёт СЦЕНАРИЙ триала (режим «trial» у аккаунта или общий гейт подписки; у тестировщиков со
-свободным или временным доступом триал-сообщений нет), и шлёт то, что подходит им по дню триала, местному времени и отметкам.
+Раз в минуту проходит по людям, у которых идёт СЦЕНАРИЙ триала (режим «trial» у аккаунта или общий гейт подписки; у тестировщиков со свободным или временным
+доступом триал-сообщений нет), и шлёт то, что подходит им по дню триала, местному времени, заходам и уже показанным предложениям.
 
-Защита от спама: сообщение можно выключить в админке (все сразу или по одному), не больше трёх сообщений триала в день, не в тихие часы
-и не человеку, выключившему напоминания (ссылка в закрытый канал — исключение: человек за неё заплатил); от повторов защищает
-claim_notification (повторный тик в то же окно ничего не отправит); при ошибке отправки claim откатывается и следующий тик повторит.
+Правила частоты (ТЗ §12–§14, §18): у каждого вида своё ограничение — одноразовые сообщения уходят один раз за всё время, редкая серия после триала идёт по паузам из
+db/trial_flow.py; общего жёсткого предела «сообщений в день» нет (вся нагрузка видна в статистике). Сообщение можно выключить в админке (все сразу или по одному),
+не слать в тихие часы и тому, кто выключил напоминания (сообщения о настоящем изменении доступа — исключение). Приглашение дня 2 не уходит, если человек уже заходил
+или получил предложение в приложении; после оплаты ничего из этого не приходит (фаза «paid» не входит в каталог). От повторов защищает claim_notification; при ошибке
+отправки claim откатывается и следующий тик повторит.
 
 Выключено по умолчанию на уровне гейта (SUBSCRIPTION_GATE_ENABLED=false): без режима «trial» у аккаунта сообщений нет.
 """
@@ -21,21 +23,22 @@ from db import (
 from db.settings import in_quiet_hours
 from db.access import trial_scenario_for_user
 from db import trial as trial_db
-from db.subscription import try_grant_channel_access
+from db import trial_flow
+from db.tracking import track_server
+from db.users import is_bot_forbidden_error, mark_bot_blocked
 from keyboards import trial_keyboard
 import trial_messages
 
 logger = logging.getLogger("subscription_scheduler")
 
-# Не больше стольких сообщений триала человеку за местный день (не считая ссылки в закрытый канал).
-DAILY_CAP = 3
+PHASES = {message.phase for message in trial_messages.CATALOG}
 
 
 def build_message(key, snap, link=None):
     """(текст, клавиатура) сообщения триала для данного состояния человека — и для рассылки, и для «отправить» из админки."""
     message = trial_messages.BY_KEY[key]
     text = trial_messages.render(key, snap, link=link)
-    return text, trial_keyboard(message.buttons, snap["price_stars"])
+    return text, trial_keyboard(message.buttons, snap["price_stars"], key)
 
 
 async def run_trial_reminders(bot):
@@ -58,36 +61,40 @@ async def run_trial_reminders(bot):
             except Exception:
                 continue
             snap = trial_db.snapshot(telegram_id, now_local.astimezone(timezone.utc))
-            due = trial_messages.due_messages(snap)
+            if snap["phase"] not in PHASES:
+                continue
+            ctx = trial_flow.context(telegram_id, snap)
+            due = trial_messages.due_messages(snap, ctx)
             if not due:
                 continue
+            snap = dict(snap, wb=ctx["winback"])
             reminders_off = settings["reminders"] == 0
             quiet = in_quiet_hours(settings, now_local)
-            sent_today = trial_db.sent_today_count(telegram_id, snap["local_date"])
 
             for message in due:
                 if not trial_db.message_enabled(message.key):
                     continue
-                if message.action != "channel_link" and (reminders_off or quiet or sent_today >= DAILY_CAP):
+                if quiet or (reminders_off and not message.service):
+                    continue
+                if not message.series and trial_db.sent_ever(telegram_id, message.key):
                     continue
                 kind = f"trial:{message.key}"
                 if not claim_notification(telegram_id, snap["local_date"], kind, scope):
                     continue
                 try:
-                    link = None
-                    if message.action == "channel_link":
-                        link = await try_grant_channel_access(bot, telegram_id)
-                        if not link:
-                            release_notification(telegram_id, snap["local_date"], kind, scope)
-                            continue
-                    text, keyboard = build_message(message.key, snap, link=link)
+                    text, keyboard = build_message(message.key, snap)
                     await bot.send_message(telegram_id, text, reply_markup=keyboard)
-                except Exception:
+                except Exception as exc:
                     release_notification(telegram_id, snap["local_date"], kind, scope)
+                    if is_bot_forbidden_error(exc):
+                        mark_bot_blocked(telegram_id)
+                        break
                     raise
+                trial_flow.record(telegram_id, "push", message.key, "sent", snap["local_date"])
+                track_server(telegram_id, "trial_msg_sent", message.key, meta={"phase": snap["phase"], "day": snap["day"]})
                 sent += 1
-                if message.action != "channel_link":
-                    sent_today += 1
+                if message.series:
+                    break                                           # редкая серия: за раз не больше одного сообщения
         except Exception:
             logger.exception("Ошибка сообщения триала для %s", telegram_id)
 

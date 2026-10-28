@@ -103,21 +103,20 @@ async def test_any_message_of_the_scenario_can_be_previewed_or_sent(client, uid,
     start_trial_mode(person, admin)
     await _act(client, admin, person, action="shift", day=3)
     bot = client.app["bot"]
-    body = await (await _act(client, admin, person, action="send", key="d3_evening", to="me")).json()
+    body = await (await _act(client, admin, person, action="send", key="d3_end", to="me")).json()
     assert body["sent_to"] == "me"
     target, text = bot.send_message.await_args.args[:2]
-    assert target == admin and text.startswith("🧪 <b>Превью</b>") and "день 3" in text and "лишь слова" in text
+    assert target == admin and text.startswith("🧪 <b>Превью</b>") and "день 3" in text and "пробный доступ заканчивается" in text
     keyboard = bot.send_message.await_args.kwargs["reply_markup"]
-    assert [b.callback_data for row in keyboard.inline_keyboard for b in row] == ["buy_subscription"]
-    await _act(client, admin, person, action="send", key="d3_midday", to="user")
+    assert [b.text for row in keyboard.inline_keyboard for b in row] == ["Условия подписки"]
+    await _act(client, admin, person, action="send", key="d3_talk", to="user")
     target, text = bot.send_message.await_args.args[:2]
-    assert target == person and not text.startswith("🧪") and "завтра доступ ко мне закроется" in text
-    assert (await _act(client, admin, person, action="send", key="channel_link", to="user")).status == 400, "ссылку в канал человеку «просто так» не шлём"
-    assert (await _act(client, admin, person, action="send", key="channel_link", to="me")).status == 200
+    assert target == person and not text.startswith("🧪") and "у меня есть вопрос по твоим дням" in text
+    assert (await _act(client, admin, person, action="send", key="channel_link", to="me")).status == 400, "канал больше не продаём — такого сообщения нет"
     assert (await _act(client, admin, person, action="send", key="nope", to="me")).status == 400
     assert (await _act(client, admin, person, action="boom")).status == 400
     bot.send_message.side_effect = RuntimeError("blocked")
-    failed = await _act(client, admin, person, action="send", key="d3_midday", to="user")
+    failed = await _act(client, admin, person, action="send", key="d3_talk", to="user")
     assert failed.status == 502 and (await failed.json())["error"] == "send_failed"
 
 
@@ -126,13 +125,13 @@ async def test_the_switches_work_for_all_and_for_one_message(client, uid, admin)
     assert overview["enabled"] is True and [m["key"] for m in overview["messages"]] == [m.key for m in tm.CATALOG]
     assert all(m["enabled"] for m in overview["messages"])
     assert {"trial_days", "intro_price_stars", "renewal_price_stars", "streak_needed", "channel_configured", "gate_enabled"} <= set(overview["config"])
-    body = await (await client.post("/api/admin/trial/toggle", json={"key": "d3_midday", "enabled": False}, headers=_headers(admin))).json()
-    assert [m["enabled"] for m in body["messages"] if m["key"] == "d3_midday"] == [False] and trial_db.message_enabled("d3_midday") is False
+    body = await (await client.post("/api/admin/trial/toggle", json={"key": "d3_talk", "enabled": False}, headers=_headers(admin))).json()
+    assert [m["enabled"] for m in body["messages"] if m["key"] == "d3_talk"] == [False] and trial_db.message_enabled("d3_talk") is False
     body = await (await client.post("/api/admin/trial/toggle", json={"key": "*", "enabled": False}, headers=_headers(admin))).json()
-    assert body["enabled"] is False and trial_db.message_enabled("d3_evening") is False
+    assert body["enabled"] is False and trial_db.message_enabled("d3_end") is False
     await client.post("/api/admin/trial/toggle", json={"key": "*", "enabled": True}, headers=_headers(admin))
-    await client.post("/api/admin/trial/toggle", json={"key": "d3_midday", "enabled": True}, headers=_headers(admin))
-    assert trial_db.message_enabled("d3_midday") is True
+    await client.post("/api/admin/trial/toggle", json={"key": "d3_talk", "enabled": True}, headers=_headers(admin))
+    assert trial_db.message_enabled("d3_talk") is True
     assert (await client.post("/api/admin/trial/toggle", json={"key": "boom", "enabled": True}, headers=_headers(admin))).status == 400
 
 

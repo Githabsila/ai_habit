@@ -1,28 +1,26 @@
 """
-Сообщения триала ADAM — каталог по ТЗ владельца (30.08 п.13 и 12.10) и их показ. Пишет Адам от первого лица (правило владельца 21.10),
-на «ты», без рода у человека (линтер тестов tests/test_adam_texts.py), без слов «бот» и «система».
+Сообщения триала ADAM — каталог по ТЗ владельца (28.10.2026 «Триал, подписка и приглашения друзей», §12–§18) и их показ. Пишет Адам от первого лица (правило владельца
+21.10), на «ты», без рода у человека (линтер тестов tests/test_adam_texts.py), без слов «бот» и «система». Цены, сроки и условия в текстах не придумываются: их показывает
+экран подписки из правил приложения (кнопка «Условия подписки»), а подробные личные детали остаются внутри приложения — на экран блокировки они не выходят.
 
 Что в каталоге (фаза → время по местным часам человека):
-  день 1       d1_goal      18–21   цель: два дня подряд → возможность попасть в закрытый канал
-  день 2       d2_goal      12–15   про деньги ни слова; цель — два дня подряд (если сегодня ещё нет отметки)
-               d2_offer     9–23    после первой отметки за день — особое предложение 1.99$ (153 ⭐)
-  день 3       d3_midday    12–15   последний день триала, завтра доступ закроется, скидка
-               d3_evening   19–22   то же вечером — «Или все твои мысли и первые действия…»
-  день 4       d4_midday    12–15   триал закончился, СЕГОДНЯ последний день скидки, завтра полная цена
-               d4_evening   19–22   последний вечер скидки
-  день 5       d5_full      12–15   доступ закрыт, вернуться можно за полную цену (дальше — тишина, повторного триала нет)
-  оплачено     paid_nudge   12–15   до закрытого канала осталось N дней подряд
-               channel_link 8–23    серия набрана → ссылка в закрытый канал (нужен CLOSED_CHANNEL_ID)
+  день 1       — ничего: знакомство с приложением, полезные действия и кнопка подписки (§12)
+  день 2       d2_invite    12–17   одно внешнее приглашение, только если человек сегодня не заходил и предложения в приложении не было (§12)
+  день 3       d3_talk      11–14   приглашение к разговору с Адамом: вопрос по данным человека (§13, §15)
+               d3_end       18–21   прямо: сегодня пробный доступ заканчивается, история сохранится (§13)
+  окно 24 ч    grace_notice 9–21    одно сообщение: что закрыто, что сохранено, до какого времени серия под защитой (§18)
+  после окна   wb_question / wb_insight / wb_continue   11–19   редкие контекстные сообщения (db/trial_flow.py::winback_state): пауза растёт, при отсутствии реакции серия
+                                      замедляется и останавливается, от неё можно отказаться; после оплаты не приходят (§18)
 Сообщение после оплаты (paid_welcome_text) шлёт обработчик платежа — оно зависит от дня и от отметок вчера/сегодня.
 
-Показ: `due_messages(snap)` — что подходит человеку СЕЙЧАС (фаза, часы, условие); включены ли сообщения и не отправлено ли оно уже — решает
-доставка (subscription_scheduler.py: тумблеры из админки, дневной лимит, тихие часы, claim_notification).
+Показ: `due_messages(snap, ctx)` — что подходит человеку СЕЙЧАС (фаза, часы, условие и ворота по журналу предложений); включены ли сообщения и не отправлено ли оно уже —
+решает доставка (subscription_scheduler.py: тумблеры из админки, лимит на каждый вид, тихие часы, claim_notification).
 """
 import html
 from dataclasses import dataclass
 from typing import Callable
 
-from adam_messages import day_word, streak_phrase
+from adam_messages import streak_phrase
 
 
 def _name(snap):
@@ -35,83 +33,33 @@ def _say(snap, sentence):
     return f"{name}, {sentence}" if name else sentence[:1].upper() + sentence[1:]
 
 
-def _price(snap):
-    usd = snap["intro_usd"] if snap["intro_active"] else snap["renewal_usd"]
-    return f"{snap['price_stars']} ⭐ (≈{usd})"
-
-
-def _needed_phrase(snap):
-    return streak_phrase(snap["needed"])
-
-
 # ---------------------------------------------------------------------------------------------------------------- тексты
 
-def _d1_goal(snap):
-    if snap["marked_today"]:
-        return _say(snap, "первый день закрыт — отличное начало 👏 Завтра отметь привычку ещё раз: два дня подряд дают возможность попасть в закрытый канал 🔑")
-    return _say(snap, "первый день ещё не закончился — одной привычки хватит, чтобы серия пошла. Моя цель для тебя на ближайшие два дня: "
-                      "ударный режим подряд, он открывает возможность попасть в закрытый канал 🔑")
-
-
-def _d2_goal(snap):
+def _d2_invite(snap):
     if snap["marked_yesterday"]:
-        return _say(snap, "сегодня второй день. Отметь привычку — и два дня подряд будут у тебя в кармане: это даёт возможность попасть в закрытый канал 🔑")
-    return _say(snap, "сегодня второй день. Твоя цель сейчас — два дня ударного режима подряд, они дают возможность попасть в закрытый канал 🔑 "
-                      "Начни с одной привычки сегодня.")
+        return _say(snap, "вчера у тебя была отметка привычки — хороший старт. Загляни сегодня: продолжим с неё и посмотрим, что помогает держать ритм.")
+    return _say(snap, "первый день позади. Загляни сегодня: выберем одно посильное дело и посмотрим, как оно пойдёт.")
 
 
-def _channel_line_before_payment(snap):
-    if snap["channel_eligible"]:
-        return "Два дня подряд у тебя уже есть — после оплаты сразу пришлю ссылку в закрытый канал 🔑"
-    if snap["marked_today"]:
-        return "Закрытый канал откроется, когда наберётся " + _needed_phrase(snap) + " подряд — завтра достаточно отметить привычку 🔑"
-    if snap["marked_yesterday"]:
-        return "Отметь привычку сегодня — и после оплаты закрытый канал откроется сразу 🔑"
-    return f"Закрытый канал открывается с {_needed_phrase(snap)} ударного режима подряд: отметь привычки сегодня и завтра 🔑"
+def _d3_talk(snap):
+    return _say(snap, "у меня есть вопрос по твоим дням в приложении: хочу понять, что помогает тебе держать ритм. Ответь, когда зайдёшь, — это пара минут.")
 
 
-def _d2_offer(snap):
-    return (_say(snap, f"отличная отметка! Пока ты в ритме — особое предложение: Pro на первый месяц всего за {_price(snap)}, "
-                       f"дальше {snap['renewal_usd']}.") + " " + _channel_line_before_payment(snap))
+def _d3_end(snap):
+    when = snap.get("ends_at_text") or "в полночь"
+    return _say(snap, f"сегодня пробный доступ заканчивается: {when}. Твоя история сохранится. Если хочешь продолжить пользоваться привычками, планом и разговором со мной, "
+                      "условия подписки собраны на одном экране.")
 
 
-def _d3_midday(snap):
-    return (_say(snap, f"сегодня последний день пробного периода — завтра доступ ко мне закроется. Особая цена только сейчас: "
-                       f"{_price(snap)} за первый месяц, дальше {snap['renewal_usd']}.") + " " + _channel_line_before_payment(snap))
+def _grace_notice(snap):
+    return locked_text(snap)
 
 
-def _d3_evening(snap):
-    return _say(snap, "последний вечер пробного периода — завтра доступ закроется. Или все твои мысли и первые действия о дисциплине и привычках "
-                      f"были лишь слова? Особая цена ещё со мной: {_price(snap)} за первый месяц.")
-
-
-def _streak_line_after_trial(snap):
-    if snap["channel_eligible"]:
-        return f"Твой ударный режим — {streak_phrase(snap['streak'])} подряд — сохранился: не дай ему пропасть."
-    return "Ударный режим пока не набран — он начнётся в день, когда ты вернёшься."
-
-
-def _d4_midday(snap):
-    return (f"Пробный период закончился, доступ закрыт. {_streak_line_after_trial(snap)} Сегодня последний день, когда месяц стоит {_price(snap)}; "
-            f"завтра — {snap['renewal_price_stars']} ⭐ ({snap['renewal_usd']}).")
-
-
-def _d4_evening(snap):
-    return (f"Последний вечер скидки: {snap['price_stars']} ⭐ вместо {snap['renewal_price_stars']} ⭐. "
-            "Завтра цена станет полной, а повторного триала не будет.")
-
-
-def _d5_full(snap):
-    return (f"Доступ пока закрыт. Вернуться ко мне можно за {snap['renewal_price_stars']} ⭐ в месяц (≈{snap['renewal_usd']}): "
-            "твои привычки и серия ждут тебя.")
-
-
-def _paid_nudge(snap):
-    if snap["marked_today"]:
-        return "Подписка активна 👍 Сегодня уже отмечено — завтра отметь привычку ещё раз, и ссылка в закрытый канал придёт сама 🔑"
-    left = max(1, snap["needed"] - snap["streak"])
-    return (f"Подписка активна 👍 До закрытого канала осталось {left} {day_word(left)} ударного режима подряд — "
-            "отметь привычку сегодня, и ссылка придёт сама 🔑")
+def _wb(kind):
+    def text(snap):
+        from db import trial_flow
+        return trial_flow.winback_text(snap["user_id"], trial_flow._facts(snap["user_id"]), (snap.get("wb") or {}).get("sent", 0), kind)
+    return text
 
 
 def _price_line(snap):
@@ -168,46 +116,49 @@ def paid_welcome_text(snap, until, link=None, auto_renew=False):
 class TrialMessage:
     key: str
     label: str                                        # название в админке
-    when: str                                         # «День 3 · 19–22» — когда подходит
-    phase: str                                        # day1 | day2 | day3 | expired_intro | expired_full | paid
+    when: str                                         # «День 3 · 18–21» — когда подходит
+    phase: str                                        # day2 | day3 | grace | expired
     hours: tuple                                      # окно местных часов (с, до)
     text: Callable = None                             # snap -> текст
-    condition: Callable = lambda snap: True           # дополнительное условие к фазе
-    buttons: tuple = ()                               # "buy" — оплатить Stars, "open" — открыть приложение
-    action: str = ""                                  # "channel_link" — текст строит доставка (нужна ссылка из Telegram)
+    condition: Callable = lambda snap: True           # условие по снимку человека
+    gate: Callable = None                             # (snap, ctx) -> bool: ворота по журналу предложений, заходам и паузам (db/trial_flow.py::context)
+    buttons: tuple = ()                               # "sub" — условия подписки, "talk" — разговор с Адамом, "open" — открыть приложение, "optout" — отказаться от серии, "buy" — оплатить
+    service: bool = False                             # сообщение о настоящем изменении доступа: приходит и тому, кто выключил напоминания (но не в тихие часы)
+    series: bool = False                              # редкая серия: частота и паузы считает trial_flow.winback_state, а не «один раз»
+    action: str = ""                                  # зарезервировано: текст строит доставка
 
 
 CATALOG = (
-    TrialMessage("d1_goal", "День 1 · цель на два дня подряд", "День 1 · 18–21", "day1", (18, 21), _d1_goal, buttons=("open",)),
-    TrialMessage("d2_goal", "День 2 · цель, про деньги ни слова", "День 2 · 12–15, если сегодня ещё нет отметки", "day2", (12, 15), _d2_goal,
-                 condition=lambda s: not s["marked_today"], buttons=("open",)),
-    TrialMessage("d2_offer", "День 2 · предложение после отметки", "День 2 · 9–23, после первой отметки за день", "day2", (9, 23), _d2_offer,
-                 condition=lambda s: s["marked_today"], buttons=("buy",)),
-    TrialMessage("d3_midday", "День 3 · последний день триала", "День 3 · 12–15", "day3", (12, 15), _d3_midday, buttons=("buy",)),
-    TrialMessage("d3_evening", "День 3 · последний вечер", "День 3 · 19–22", "day3", (19, 22), _d3_evening, buttons=("buy",)),
-    TrialMessage("d4_midday", "День 4 · триал закончился, последний день скидки", "День 4 · 12–15", "grace", (12, 15), _d4_midday, buttons=("buy",)),
-    TrialMessage("d4_evening", "День 4 · последний вечер скидки", "День 4 · 19–22", "grace", (19, 22), _d4_evening, buttons=("buy",)),
-    TrialMessage("d5_full", "День 5 · доступ закрыт, полная цена", "День 5 · 12–15, один раз", "expired", (12, 15), _d5_full,
-                 condition=lambda s: s["day"] == s["days_total"] + 2, buttons=("buy",)),
-    TrialMessage("paid_nudge", "Оплачено · сколько осталось до канала", "Каждый день 12–15, пока нет ссылки", "paid", (12, 15), _paid_nudge,
-                 condition=lambda s: s["channel_configured"] and not s["channel_granted"] and not s["channel_eligible"], buttons=("open",)),
-    TrialMessage("channel_link", "Оплачено · ссылка в закрытый канал", "Когда набрано 2 дня подряд, 8–23", "paid", (8, 23), None,
-                 condition=lambda s: s["channel_configured"] and not s["channel_granted"] and s["channel_eligible"], action="channel_link"),
+    TrialMessage("d2_invite", "День 2 · приглашение, если сегодня не заходил", "День 2 · 12–17, один раз; не уходит, если человек уже заходил или получил предложение в приложении",
+                 "day2", (12, 17), _d2_invite, gate=lambda s, c: not c["opened_today"] and not c["sale_shown"] and not c["dismissed"], buttons=("open", "sub")),
+    TrialMessage("d3_talk", "День 3 · приглашение к разговору с Адамом", "День 3 · 11–14, один раз; без продажи",
+                 "day3", (11, 14), _d3_talk, gate=lambda s, c: c["chats_today"] < 2, buttons=("talk",)),
+    TrialMessage("d3_end", "День 3 · прямо про конец пробного доступа", "День 3 · 18–21, один раз; после оплаты не приходит",
+                 "day3", (18, 21), _d3_end, buttons=("sub",), service=True),
+    TrialMessage("grace_notice", "Окно 24 часа · что закрыто и что сохранено", "Окно после триала · 9–21, один раз",
+                 "grace", (9, 21), _grace_notice, buttons=("sub",), service=True),
+    TrialMessage("wb_question", "После триала · полезный вопрос", "После окна · 11–19, редко (паузы растут, без реакции — замедляется)",
+                 "expired", (11, 19), _wb("question"), gate=lambda s, c: c["winback"]["allowed"] and c.get("wb_kind") == "question", buttons=("sub", "optout"), series=True),
+    TrialMessage("wb_insight", "После триала · вывод по прошлым действиям", "После окна · 11–19, редко",
+                 "expired", (11, 19), _wb("insight"), gate=lambda s, c: c["winback"]["allowed"] and c.get("wb_kind") == "insight", buttons=("sub", "optout"), series=True),
+    TrialMessage("wb_continue", "После триала · продолжить начатое", "После окна · 11–19, редко",
+                 "expired", (11, 19), _wb("continue"), gate=lambda s, c: c["winback"]["allowed"] and c.get("wb_kind") == "continue", buttons=("sub", "optout"), series=True),
 )
 BY_KEY = {m.key: m for m in CATALOG}
 
 
-def due_messages(snap):
-    """Сообщения, подходящие человеку сейчас: сценарий триала идёт, фаза и час совпали, условие выполнено."""
+def due_messages(snap, ctx=None):
+    """Сообщения, подходящие человеку сейчас: сценарий триала идёт, фаза и час совпали, условие и ворота выполнены."""
     if not snap or not snap.get("scenario"):
         return []
+    if ctx is None:
+        from db import trial_flow
+        ctx = trial_flow.context(snap["user_id"], snap)
+    snap = dict(snap, wb=ctx.get("winback") or {})
     hour = snap["local_hour"]
-    return [m for m in CATALOG if m.phase == snap["phase"] and m.hours[0] <= hour < m.hours[1] and m.condition(snap)]
+    return [m for m in CATALOG if m.phase == snap["phase"] and m.hours[0] <= hour < m.hours[1] and m.condition(snap) and (m.gate is None or m.gate(snap, ctx))]
 
 
 def render(key, snap, link=None):
     """Текст сообщения по ключу для данного состояния человека (админка: «отправить мне»)."""
-    message = BY_KEY[key]
-    if message.action == "channel_link":
-        return channel_link_text(snap, link or "https://t.me/+ссылка-в-канал")
-    return message.text(snap)
+    return BY_KEY[key].text(snap)

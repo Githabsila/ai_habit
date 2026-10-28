@@ -244,7 +244,8 @@ async def test_broadcast_job_excludes_blocked_users(monkeypatch, module_name, jo
     await getattr(module, job_name)(FakeBot())
 
     assert calls, f"{module_name}.{job_name} не запрашивал список пользователей"
-    assert all(kw == {"include_blocked": False} for kw in calls)
+    # рассылки о действиях берут только тех, у кого они открыты (unlocked_only, ТЗ §14); заблокировавших бота не берёт ни одна
+    assert all(kw.get("include_blocked") is False and set(kw) <= {"include_blocked", "unlocked_only"} for kw in calls)
 
 
 @pytest.mark.parametrize("job_name", [

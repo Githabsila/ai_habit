@@ -95,6 +95,15 @@ try {
     tg.onEvent('contentSafeAreaChanged', applySafeArea);
 }
 catch (e) { }
+// Симуляция «Предложение в чате» (админка → «Окна и анимации»): /coach?sim=trial_offer показывает готовый диалог с блоком «Показать короткую сводку?», кнопки сервер не трогают.
+const SIM_TRIAL_CHAT = (() => { try { return new URLSearchParams(location.search).get('sim') === 'trial_offer'; } catch (e) { return false; } })();
+const SIM_TRIAL_MESSAGES = [
+    { id: 'sim-1', role: 'assistant', text: 'Аня, за эти дни у тебя уже есть отметки привычек — особенно «Зарядка». Что помогает возвращаться к ним, а что мешает?', time: '10:02', canRate: false },
+    { id: 'sim-2', role: 'user', text: 'Помогает утро и музыка, мешает усталость вечером, когда нет сил.', time: '10:03' },
+    { id: 'sim-3', role: 'assistant', text: 'Тогда держи утреннее время за собой: зарядка до завтрака и короткая версия на вечер, когда сил мало. Так серия не рвётся из-за одного тяжёлого дня.', time: '10:03', canRate: true,
+      trialOffer: { key: 'summary_ask', text: 'Показать короткую сводку?', yes: 'Да', later: 'Не сейчас', terms: 'Условия подписки' } },
+];
+const SIM_TRIAL_SUMMARY = 'Коротко за 3 дня с Адамом\n\nПривычки: отмечено 5 раз в 3 из 3 дней.\n\nЧаще всего повторялась «Зарядка» — 3 раза.';
 function goHome() {
     if (window.AdamHaptics) {
         window.AdamHaptics.tap();
@@ -388,7 +397,7 @@ function AiChat() {
     // Адам «печатает» своё первое сообщение дня (см. greetFromAdam ниже).
     // Пришли по «Ответить Адаму» (?nudge=1|demo): «ADAM печатает» горит с первого кадра, а не после ответа /api/ai/greet —
     // сервер составляет вопрос пару секунд, и без этого казалось, что ничего не происходит. Нет вопроса — гасим (greetFromAdam).
-    const [greeting, setGreeting] = useState(() => { const q = new URLSearchParams(location.search); return !!q.get('nudge') && !q.get('intro'); });
+    const [greeting, setGreeting] = useState(() => { const q = new URLSearchParams(location.search); return (!!q.get('nudge') && !q.get('intro')) || q.get('intro') === 'trial'; });
     // Страховка: если запрос приветствия завис, «печатает» не должно гореть вечно.
     useEffect(() => {
         if (!greeting)
@@ -594,7 +603,7 @@ function AiChat() {
             const coins = data.quest_events.reduce((sum, q) => sum + (Number(q.reward) || 0), 0);
             setTimeout(() => showToast('🗺️ Квест «' + data.quest_events[0].title + '» выполнен · +' + coins + ' Adam Coin', 3800), 700);
         }
-        setMessages(p => p.some(m => String(m.id) === String(data.message_id)) ? p : [...base(p), { id: data.message_id, role: 'assistant', text: data.answer, time: formatTime(), isCrisis: data.is_crisis, habit: data.suggested_habit, canRate: true, sourcePrompt: text, isNew: true }]);
+        setMessages(p => p.some(m => String(m.id) === String(data.message_id)) ? p : [...base(p), { id: data.message_id, role: 'assistant', text: data.answer, time: formatTime(), isCrisis: data.is_crisis, habit: data.suggested_habit, trialOffer: data.trial_offer || null, canRate: true, sourcePrompt: text, isNew: true }]);
         vibrate('light');
     };
     // Итога нет (сервис перезапускали / срок вышел / не дождались): честно берём переписку с сервера — если ответ там уже есть, покажем его.
@@ -673,6 +682,11 @@ function AiChat() {
             // waitForInitData. Без этого параллельные quota/history запросы
             // с mount иногда уходили раньше, чем initData был готов.
             await waitForInitData();
+            if (SIM_TRIAL_CHAT) {
+                setGreeting(false);
+                setMessages(SIM_TRIAL_MESSAGES);
+                return;
+            }
             fetch('/api/ai/quota', { headers: { 'X-Telegram-Init-Data': getInitData() } })
                 .then(r => r.json()).then(setQuota).catch(() => { });
             const maybeSendOnboardingIntro = (hasHistory) => {
@@ -743,18 +757,33 @@ function AiChat() {
             // Первый вопрос Адама («Привет, Имя! Как прошёл день?»): сервер сам решает, нужен ли он
             // (сегодня человек ещё не писал и уже общался раньше — см. db/ai_nudge.py), и не тратит
             // дневной лимит ответов. ?nudge=demo — «Показать напоминание» в Настройках.
+            // Ссылка из сообщения триала (?intro=trial): вопрос Адама по данным человека (один раз в день, заново не создаётся). После оплаты и вне триала
+            // приглашения нет — тогда обычный первый вопрос дня, без продажи.
+            const fetchGreeting = async (trialMode, demo) => {
+                if (trialMode) {
+                    const inviteRes = await fetch('/api/ai/trial-invite', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ init_data: getInitData(), m: (startParams.get('m') || '').slice(0, 40) })
+                    });
+                    const invite = inviteRes.ok ? (await inviteRes.json()).invite : null;
+                    if (invite && invite.message)
+                        return invite;
+                }
+                const res = await fetch('/api/ai/greet', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ init_data: getInitData(), demo })
+                });
+                return res.ok ? (await res.json()).greeting : null;
+            };
             const greetFromAdam = async () => {
-                if (startParams.get('intro'))
+                const trialMode = startParams.get('intro') === 'trial';
+                if (startParams.get('intro') && !trialMode)
                     return;
-                const nudgeParam = startParams.get('nudge');
+                const nudgeParam = startParams.get('nudge') || (trialMode ? 'trial' : null);
                 const demo = nudgeParam === 'demo';
                 const openedAt = Date.now();
                 try {
-                    const res = await fetch('/api/ai/greet', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ init_data: getInitData(), demo })
-                    });
-                    const g = res.ok ? (await res.json()).greeting : null;
+                    const g = await fetchGreeting(trialMode, demo);
                     if (!g || !g.message) {
                         setGreeting(false);                          // вопроса сегодня не будет — не держим «печатает» зря
                         if (nudgeParam)
@@ -926,6 +955,44 @@ function AiChat() {
         catch (e) {
             tg.showAlert('Не удалось добавить привычку. Попробуй ещё раз.');
         }
+    };
+    // «Показать короткую сводку?» (db/trial_flow.py::chat_offer): «Да» кладёт в чат настоящую сводку сообщением Адама, «Не сейчас» гасит предложение до завтра.
+    const answerTrialOffer = async (id, answer) => {
+        setMessages(p => p.map(m => m.id === id ? { ...m, trialOffer: null } : m));
+        vibrate('light');
+        if (SIM_TRIAL_CHAT) {
+            if (answer === 'yes')
+                setMessages(p => [...p, { id: 'sim-4', role: 'assistant', text: SIM_TRIAL_SUMMARY, time: formatTime(), canRate: false, isNew: true, trialTerms: 'Условия подписки' }]);
+            return;
+        }
+        try {
+            const res = await fetch('/api/ai/trial-summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ init_data: getInitData(), answer }) });
+            if (!res.ok)
+                throw new Error();
+            const data = await res.json();
+            if (answer === 'yes' && data.message) {
+                setMessages(p => p.some(m => String(m.id) === String(data.message.id)) ? p : [...p, {
+                    id: data.message.id, role: 'assistant', text: fixBrokenText(data.message.message), time: formatTime(data.message.created_at),
+                    canRate: false, isNew: true, trialTerms: data.terms || 'Условия подписки'
+                }]);
+            }
+        }
+        catch (e) {
+            showToast('Не получилось показать сводку — попробуй чуть позже', 2200);
+        }
+    };
+    // «Условия подписки» под сводкой или предложением: учитываем нажатие и открываем экран подписки в основном приложении.
+    const openTrialTerms = async () => {
+        vibrate('light');
+        if (SIM_TRIAL_CHAT) {
+            showToast('🧪 Демо: экран подписки не открывается', 1800);
+            return;
+        }
+        try {
+            await fetch('/api/trial/offer-event', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': getInitData() }, body: JSON.stringify({ place: 'chat', key: 'summary_ask', event: 'clicked' }) });
+        }
+        catch (e) { }
+        window.location.href = '/?sub=1&m=chat_offer';
     };
     const getTip = async () => {
         if (loading)
@@ -1132,7 +1199,15 @@ function AiChat() {
                                 React.createElement("strong", null,
                                     "\u2795 ",
                                     m.habit)),
-                            React.createElement("button", { className: "add-habit-btn", onClick: () => addHabit(m.id, m.habit) }, "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C")))))),
+                            React.createElement("button", { className: "add-habit-btn", onClick: () => addHabit(m.id, m.habit) }, "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C")),
+                        m.trialOffer && React.createElement("div", { className: "trial-chat-offer" },
+                            React.createElement("div", { className: "trial-chat-offer__ask" }, m.trialOffer.text),
+                            React.createElement("div", { className: "trial-chat-offer__row" },
+                                React.createElement("button", { className: "trial-chat-offer__yes", onClick: () => answerTrialOffer(m.id, 'yes') }, m.trialOffer.yes),
+                                React.createElement("button", { className: "trial-chat-offer__later", onClick: () => answerTrialOffer(m.id, 'later') }, m.trialOffer.later)),
+                            React.createElement("button", { className: "trial-chat-offer__terms", onClick: openTrialTerms }, m.trialOffer.terms)),
+                        m.trialTerms && React.createElement("div", { className: "trial-chat-offer" },
+                            React.createElement("button", { className: "trial-chat-offer__terms", onClick: openTrialTerms }, m.trialTerms)))))),
             (loading || greeting) && React.createElement("div", { className: "message assistant" },
                 React.createElement("div", { className: "thinking" },
                     React.createElement("div", { className: "thinking-avatar" },
