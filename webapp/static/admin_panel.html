@@ -443,6 +443,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--gold">💳</span>Оплата: карта, крипта, акции</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Звёзды работают сами. Карта идёт через Tribute: на каждую цену заведи в Tribute цифровой товар с этой ценой в долларах и привяжи его номер ниже. Крипта (Heleket) и ключи — в Railway, инструкция в PAYMENTS_SETUP.md.</div>' +
+        '<div id="payAdminBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--gold">🤝</span>Партнёрская программа</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Пилот: участник получает долю от полной суммы покупок приглашённых в первые дни. Участвует тот, кого добавили сюда и у кого есть действующая подписка. Выплаты ручные: смотри «к выплате», переведи деньги сам и отметь выплату.</div>' +
         '<div id="partnersBox"><div class="empty-note">Загружаю…</div></div>' +
@@ -555,6 +561,7 @@ textarea.field{resize:vertical;min-height:88px}
     loadAccessOverview();
     loadTrialOverview();
     loadPartners();
+    loadPayAdmin();
     (function(){ var b = document.getElementById('trialStatsBtn'); if (b) b.addEventListener('click', loadTrialStats); })();
     loadAiUsage(7);
     document.querySelectorAll('[data-ai-days]').forEach(function(btn){
@@ -1442,6 +1449,53 @@ textarea.field{resize:vertical;min-height:88px}
       var code = e && e.data && e.data.error;
       var texts = { invalid_state: 'Такого состояния нет', not_in_trial: 'Сначала включи триал для этого аккаунта', invalid_day: 'Такого дня нет', bot_unavailable: 'Бот недоступен', send_failed: 'Telegram не принял сообщение (человек мог заблокировать бота)', not_for_user: 'Это сообщение нельзя отправить человеку' };
       showToast(texts[code] || 'Ошибка');
+    }
+  }
+
+  // ---------- Оплата: Tribute, акции, заказы (payments_ext.py) ----------
+  var PAY_ADMIN_ERRORS = { unknown_key: 'Такой цены нет', product_not_found: 'Такого товара в Tribute нет', amount_mismatch: 'Цена или валюта товара в Tribute не совпадает', not_approved: 'Товар в Tribute ещё не одобрен',
+    not_configured: 'Сначала задай TRIBUTE_API_KEY в Railway', invalid_product: 'Нужен номер товара', invalid_promo: 'Нужны заголовок и текст' };
+
+  async function loadPayAdmin(){
+    var box = document.getElementById('payAdminBox');
+    if (!box) return;
+    try{
+      var t = await api('/api/admin/pay/tribute');
+      var promos = (await api('/api/admin/pay/promos')).promos || [];
+      var orders = (await api('/api/admin/pay/orders')).orders || [];
+      var rows = (t.needed || []).map(function(n){
+        return '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(n.label) + ' · ' + escapeHtml(n.price) + '</b><small>' + escapeHtml(n.key) + (n.product_id ? ' · привязан товар ' + n.product_id : ' · не привязан') + '</small></div>' +
+          '<input type="text" size="6" style="width:80px" placeholder="номер" data-tribute-key="' + escapeHtml(n.key) + '" value="' + (n.product_id || '') + '"><button class="btn" data-tribute-save="' + escapeHtml(n.key) + '">OK</button></div>';
+      }).join('');
+      var remote = (t.tribute_products || []).slice(0, 12).map(function(p){ return '<div class="empty-note" style="padding:1px 0">№' + p.id + ' · ' + escapeHtml(p.name || '') + ' · ' + escapeHtml(p.price) + ' · ' + escapeHtml(p.status || '') + '</div>'; }).join('');
+      var promoRows = promos.map(function(p){ return '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(p.title) + (p.active ? '' : ' (убрана)') + '</b><small>' + escapeHtml(p.text) + (p.until ? ' · до ' + escapeHtml(String(p.until).slice(0, 10)) : '') + '</small></div>' +
+        (p.active ? '<button class="btn" data-promo-remove="' + p.id + '">Убрать</button>' : '') + '</div>'; }).join('');
+      var orderRows = orders.slice(0, 10).map(function(o){ return '<div class="empty-note" style="padding:1px 0">' + escapeHtml(String(o.created_at).slice(5, 16)) + ' · ' + o.user_id + ' · ' + escapeHtml(o.provider) + ' · ' + escapeHtml(o.price) + ' · ' + escapeHtml(o.status) + (o.fulfilled ? ' · выдано' : (o.status === 'paid' ? ' · <b>не выдано</b>' : '')) + '</div>'; }).join('');
+      box.innerHTML =
+        '<div class="empty-note" style="padding:0 0 6px">Ключ Tribute: <b>' + (t.configured ? 'задан' : 'не задан') + '</b>. Адрес вебхука для Tribute (кабинет → Настройки → API Keys): <b>' + escapeHtml(t.webhook_url) + '</b></div>' +
+        '<div class="section-label" style="margin:8px 2px 6px">Товары Tribute под наши цены</div>' + rows +
+        (remote ? '<div class="section-label" style="margin:10px 2px 6px">Товары в твоём Tribute</div>' + remote : '') +
+        '<div class="section-label" style="margin:14px 2px 6px">Акции в окне «Покупки»</div>' + (promoRows || '<div class="empty-note">Акций нет</div>') +
+        '<div class="btn-row"><input type="text" id="promoTitle" placeholder="заголовок" style="width:140px"><input type="text" id="promoText" placeholder="текст" style="width:200px"><input type="text" id="promoUntil" placeholder="до ГГГГ-ММ-ДД" style="width:110px"><button class="btn btn-accent" id="promoAddBtn">Добавить</button></div>' +
+        '<div class="section-label" style="margin:14px 2px 6px">Последние заказы (карта и крипта)</div>' + (orderRows || '<div class="empty-note">Пока нет</div>');
+      box.querySelectorAll('[data-tribute-save]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          var input = box.querySelector('[data-tribute-key="' + btn.dataset.tributeSave + '"]');
+          try{ await api('/api/admin/pay/tribute/products', { method: 'POST', body: JSON.stringify({ key: btn.dataset.tributeSave, product_id: input.value.trim() }) }); haptic('light'); showToast('Сохранено'); loadPayAdmin(); }
+          catch(e){ showToast(PAY_ADMIN_ERRORS[e && e.data && e.data.error] || 'Ошибка'); }
+        });
+      });
+      box.querySelectorAll('[data-promo-remove]').forEach(function(btn){
+        btn.addEventListener('click', async function(){ try{ await api('/api/admin/pay/promos/' + btn.dataset.promoRemove + '/remove', { method: 'POST', body: '{}' }); loadPayAdmin(); }catch(e){ showToast('Ошибка'); } });
+      });
+      var add = document.getElementById('promoAddBtn');
+      if (add) add.addEventListener('click', async function(){
+        var until = document.getElementById('promoUntil').value.trim();
+        try{ await api('/api/admin/pay/promos', { method: 'POST', body: JSON.stringify({ title: document.getElementById('promoTitle').value, text: document.getElementById('promoText').value, until: until ? until + ' 23:59:59' : null }) }); haptic('light'); showToast('Акция добавлена'); loadPayAdmin(); }
+        catch(e){ showToast(PAY_ADMIN_ERRORS[e && e.data && e.data.error] || 'Ошибка'); }
+      });
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }
   }
 

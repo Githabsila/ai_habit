@@ -60,14 +60,19 @@ def methods_for(user_id, kind, item_id=None):
     methods = [{"method": "stars", "label": "Звёздами", "price_text": f"{_stars_price(user_id, kind, item)} ⭐"}]
     cents = pay_orders.price_cents(kind, item["id"] if item else None, user_id)
     if cents:
-        for entry in pay_providers.available_methods():
+        key = pay_orders.price_key(kind, item["id"] if item else None, user_id)
+        for entry in pay_providers.available_methods(key):
             methods.append({"method": entry["method"], "label": entry["label"], "price_text": pay_orders.format_usd(cents)})
     return methods
 
 
 async def start_order(user_id, method, kind, item_id=None):
     """Создаёт заказ и счёт у платёжного сервиса. {"order_id", "pay_url"} либо PayError(код)."""
-    provider = pay_providers.provider_for(method)
+    if kind == "subscription":
+        key = pay_orders.price_key("subscription", user_id=user_id)
+    else:
+        key = pay_orders.price_key("item", item_id) if str(item_id).lstrip("-").isdigit() else None
+    provider = pay_providers.provider_for(method, key)
     if provider is None:
         raise PayError("method_unavailable")
     if kind == "subscription":
@@ -81,7 +86,7 @@ async def start_order(user_id, method, kind, item_id=None):
     cents = pay_orders.price_cents(kind, item["id"] if item else None, user_id)
     if not cents:
         raise PayError("item_not_found")
-    order = pay_orders.create_order(user_id, provider.name, method, kind, item["id"] if item else None, cents)
+    order = pay_orders.create_order(user_id, provider.name, method, kind, item["id"] if item else None, cents, price_key=key)
     try:
         invoice = await provider.create_invoice(order, cents)
     except pay_providers.ProviderError as exc:
@@ -91,6 +96,43 @@ async def start_order(user_id, method, kind, item_id=None):
     pay_orders.set_provider_info(order["order_id"], invoice["uuid"], invoice["url"])
     track_server(user_id, "pay_order_created", method, meta={"kind": kind, "item": item["id"] if item else None, "cents": cents, "provider": provider.name})
     return {"order_id": order["order_id"], "pay_url": invoice["url"]}
+
+
+def _support_text():
+    import config
+    return str(getattr(config, "SUPPORT_CONTACT", "") or getattr(config, "SUPPORT_EMAIL", "") or "")
+
+
+def catalog(user_id):
+    """Всё для окна «Покупки» в магазине (GET /api/pay/catalog): подписка, товары с ценой в долларах и в звёздах, способы оплаты, поддержка и акции.
+    Цены в долларах — основные (решение владельца 28.10); звёзды — только как цена в счёте Telegram."""
+    from db.users import get_user
+    user = get_user(user_id)
+    paid_until = None
+    active = has_active_subscription(user_id)
+    if active and user is not None and "subscription_paid_until" in user.keys():
+        paid_until = str(user["subscription_paid_until"])[:10]
+    sub_cents = pay_orders.price_cents("subscription", user_id=user_id)
+    groups = {"diamond_pack_stars": "diamonds", "answer_pack_stars": "answers", "booster_stars": "booster", "frame_stars": "frame"}
+    items = []
+    for item_id in pay_orders.USD_PRICES_CENTS:
+        item = shop.get_shop_item(item_id)
+        if not item or item["item_type"] not in ITEM_TYPES:
+            continue
+        available, note = True, None
+        try:
+            _check_item(user_id, item_id)
+        except PayError as exc:
+            available, note = False, {"already_owned": "Уже у тебя", "daily_limit_reached": "На сегодня куплено"}.get(exc.code, "Недоступно")
+        items.append({"item_id": item_id, "group": groups.get(item["item_type"], "other"), "name": item["name"], "description": item["description"],
+                      "usd_text": pay_orders.format_usd(pay_orders.USD_PRICES_CENTS[item_id]), "stars_text": f"{int(item['price'])} ⭐", "available": available, "note": note})
+    methods = [{"method": "stars", "label": "Звёздами Telegram"}] + [{"method": m["method"], "label": m["label"]} for m in pay_providers.available_methods()]
+    return {
+        "subscription": {"active": active, "until": paid_until, "price_text": pay_orders.format_usd(sub_cents),
+                         "next_text": f"дальше {pay_orders.format_usd(pay_orders.SUBSCRIPTION_RENEWAL_CENTS)} в месяц" if sub_cents == pay_orders.SUBSCRIPTION_FIRST_CENTS else "в месяц"},
+        "items": items, "methods": methods, "support": _support_text(),
+        "promos": [{"id": p["id"], "title": p["title"], "text": p["text"], "until": p["until"]} for p in pay_orders.list_promos()],
+    }
 
 
 # ---------------------------------------------------------------------------------------------------------------- начисление

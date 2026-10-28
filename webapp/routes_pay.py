@@ -34,6 +34,13 @@ async def _auth(request):
     return telegram_id
 
 
+@routes.get("/api/pay/catalog")
+async def pay_catalog_route(request):
+    """Каталог для окна «Покупки»: подписка, товары с ценами, способы оплаты, поддержка, акции."""
+    telegram_id = await _auth(request)
+    return web.json_response(payments_ext.catalog(telegram_id))
+
+
 @routes.get("/api/pay/methods")
 async def pay_methods_route(request):
     telegram_id = await _auth(request)
@@ -80,6 +87,13 @@ async def pay_webhook_route(request):
     if payload is None:
         logger.warning("Вебхук оплаты %s отклонён: подпись не сошлась", provider.name)
         return web.json_response({"error": "bad_signature"}, status=400)
+    handler = getattr(provider, "handle", None)
+    if handler is not None:                                                   # Tribute: сопоставление с заказом и выдача внутри сервиса (нет наших номеров заказов)
+        try:
+            return web.json_response(await handler(payload, request.app.get("bot")))
+        except Exception:
+            logger.exception("Не удалось обработать вебхук %s", provider.name)
+            return web.json_response({"error": "handler_failed"}, status=500)     # сервис повторит позже
     order = pay_orders.get_order(payload.get("order_id") or "")
     if order is None or order["provider"] != provider.name:
         return web.json_response({"ok": True, "ignored": True})
@@ -109,6 +123,77 @@ async def _alert_admins(bot, text):
 
 
 # ---------------------------------------------------------------------------------------------------------------- админка
+
+@routes.get("/api/admin/pay/tribute")
+async def admin_tribute_route(request):
+    """Что нужно завести в Tribute и что уже привязано: по строке на каждую нашу цену; плюс список товаров из Tribute (если задан ключ API), чтобы выбрать номер."""
+    from webapp.routes_admin import _authenticate_admin
+    await _authenticate_admin(request)
+    provider = pay_providers.PROVIDERS["tribute"]
+    mapped = {row["key"]: row for row in pay_orders.tribute_products()}
+    needed = [{"key": key, "label": label, "price": pay_orders.format_usd(cents), "product_id": mapped[key]["product_id"] if key in mapped else None,
+               "link": mapped[key]["link"] if key in mapped else None} for key, label, cents in pay_orders.all_price_keys()]
+    remote = []
+    if provider.configured():
+        remote = [{"id": p.get("id"), "name": p.get("name"), "price": f"{int(p.get('amount') or 0) / 100:.2f} {p.get('currency')}", "status": p.get("status")}
+                  for p in await provider.list_products()]
+    return web.json_response({"configured": provider.configured(), "needed": needed, "tribute_products": remote,
+                              "webhook_url": f"{(request.url.scheme + '://' + request.host)}/api/pay/webhook/tribute"})
+
+
+@routes.post("/api/admin/pay/tribute/products")
+async def admin_tribute_register_route(request):
+    """Привязать товар Tribute к нашей цене. body: {"key": "sub_first", "product_id": 123} (product_id пустой — убрать привязку). Цена, валюта и статус проверяются."""
+    from webapp.routes_admin import _authenticate_admin
+    await _authenticate_admin(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        body = {}
+    key, product_id = str(body.get("key") or ""), body.get("product_id")
+    if pay_orders.key_to_purchase(key) is None:
+        return web.json_response({"error": "unknown_key"}, status=400)
+    if product_id in (None, "", 0):
+        pay_orders.remove_tribute_product(key)
+        return web.json_response({"ok": True, "removed": True})
+    if not str(product_id).isdigit():
+        return web.json_response({"error": "invalid_product"}, status=400)
+    provider = pay_providers.PROVIDERS["tribute"]
+    if not provider.configured():
+        return web.json_response({"error": "not_configured"}, status=409)
+    result = await provider.register_product(key, int(product_id))
+    return web.json_response(result, status=200 if result.get("ok") else 400)
+
+
+@routes.get("/api/admin/pay/promos")
+async def admin_promos_route(request):
+    from webapp.routes_admin import _authenticate_admin
+    await _authenticate_admin(request)
+    return web.json_response({"promos": [dict(r) for r in pay_orders.list_promos(only_current=False)]})
+
+
+@routes.post("/api/admin/pay/promos")
+async def admin_promo_add_route(request):
+    """Новая акция в окне «Покупки»: {"title", "text", "until"?: "ГГГГ-ММ-ДД ЧЧ:ММ:СС"}. Показывается, пока не вышел срок или её не уберут."""
+    from webapp.routes_admin import _authenticate_admin
+    await _authenticate_admin(request)
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        body = {}
+    promo_id = pay_orders.add_promo(body.get("title"), body.get("text"), body.get("until"))
+    if promo_id is None:
+        return web.json_response({"error": "invalid_promo"}, status=400)
+    return web.json_response({"ok": True, "id": promo_id})
+
+
+@routes.post("/api/admin/pay/promos/{promo_id}/remove")
+async def admin_promo_remove_route(request):
+    from webapp.routes_admin import _authenticate_admin
+    await _authenticate_admin(request)
+    pay_orders.remove_promo(int(request.match_info["promo_id"]))
+    return web.json_response({"ok": True})
+
 
 @routes.get("/api/admin/pay/orders")
 async def admin_pay_orders_route(request):

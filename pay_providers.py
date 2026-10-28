@@ -8,7 +8,7 @@
   paid_amount_matches(payload, order)    — сумма в подтверждении совпала с суммой заказа
 
 Подключено сейчас: Heleket (криптовалюта) — по его документации https://doc.heleket.com/ (запрос и вебхук подписываются MD5 от base64 тела и платёжного API-ключа).
-Карта Visa/Mastercard: сервис выберет владелец (он знает платёжки СНГ) — под него добавляется ещё один класс по образцу Heleket и регистрируется в PROVIDERS ниже.
+Карта Visa/Mastercard: Tribute (pay_tribute.py) — решение владельца 28.10; у него нет «счёта на человека», вместо этого ссылки заранее заведённых товаров и вебхук с номером покупки.
 
 Ключи в код не пишутся и мне не присылаются: HELEKET_MERCHANT_ID и HELEKET_API_KEY владелец задаёт в Railway сам.
 """
@@ -49,6 +49,9 @@ class Heleket:
 
     def configured(self):
         return bool(self._merchant() and self._key())
+
+    def available_for(self, price_key):
+        return True                              # счёт на любую сумму создаётся по запросу
 
     # --- подпись: MD5(base64(тело) + ключ). Слэши в теле экранируются как в PHP (json_encode по умолчанию), чтобы подпись совпала при любом способе проверки.
     @staticmethod
@@ -116,19 +119,24 @@ class Heleket:
 PROVIDERS = {"heleket": Heleket()}
 
 
-def provider_for(method):
-    """Настроенный сервис для способа оплаты ('crypto' | 'card') или None."""
+def provider_for(method, price_key=None):
+    """Настроенный сервис для способа оплаты ('crypto' | 'card'), который умеет принять именно эту покупку (price_key), или None."""
     for provider in PROVIDERS.values():
-        if provider.method == method and provider.configured():
+        if provider.method == method and provider.configured() and provider.available_for(price_key):
             return provider
     return None
 
 
-def available_methods():
-    """Способы оплаты, которые можно показать человеку: [{"method", "label", "provider"}]. Звёзды сюда не входят — они есть всегда."""
+def available_methods(price_key=None):
+    """Способы оплаты, которые можно показать человеку за эту покупку: [{"method", "label", "provider"}]. Звёзды сюда не входят — они есть всегда."""
     result = []
     for method in ("card", "crypto"):
-        provider = provider_for(method)
+        provider = provider_for(method, price_key)
         if provider:
-            result.append({"method": method, "label": provider.label if method == "crypto" else "Картой", "provider": provider.name})
+            result.append({"method": method, "label": provider.label, "provider": provider.name})
     return result
+
+
+from pay_tribute import Tribute  # noqa: E402  (регистрируем после определения общих классов: Tribute берёт ProviderError отсюда)
+
+PROVIDERS["tribute"] = Tribute()

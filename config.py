@@ -87,6 +87,9 @@ SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "egormatancev12@gmail.com")
 # Запасной способ связи, который видит человек, если оплата прошла, а доступ не открылся (ТЗ 28.10 §19): контакты в Telegram. Решение владельца 28.10: оба аккаунта.
 # Можно переопределить переменной окружения SUPPORT_CONTACT на Railway (пустое значение уберёт Telegram-контакты, останется почта выше).
 SUPPORT_CONTACT = os.getenv("SUPPORT_CONTACT", "@floydddo, @AlxManagement").strip()
+# Оплата картой через Tribute (pay_tribute.py, wiki.tribute.tg): ключ API из кабинета автора (Настройки → API Keys). Им же подписываются вебхуки. Задаёт владелец в Railway —
+# в код и в чат он не попадает. Пока не задан, способ «Картой» в приложении не показывается.
+TRIBUTE_API_KEY = os.getenv("TRIBUTE_API_KEY", "").strip()
 # Оплата криптовалютой через Heleket (pay_providers.py, doc.heleket.com): merchant UUID и платёжный API-ключ задаёт владелец в Railway — в код и в чат они не попадают.
 # Пока не заданы, способ «Криптой» в приложении не показывается.
 HELEKET_MERCHANT_ID = os.getenv("HELEKET_MERCHANT_ID", "").strip()

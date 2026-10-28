@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261028_PAY_V88">
+<link rel="stylesheet" href="/static/style.css?v=20261028_HUB_V89">
 </head>
 <body>
 
@@ -552,6 +552,12 @@ class="habit-add-form__submit">
   </div>
 </div>
 
+<button type="button" class="shop-hub-banner" id="shopHubBtn">
+  <span class="shop-hub-banner__icon">💳</span>
+  <span class="shop-hub-banner__text"><b>Подписка и покупки</b><small>Цены в долларах: звёзды, карта или крипта</small></span>
+  <span class="shop-hub-banner__arrow">›</span>
+</button>
+
 <div class="self-reward-card" id="selfRewardCard">
   <div class="self-reward-card__body">
     <div class="self-reward-card__title">Вознаградите себя</div>
@@ -962,6 +968,20 @@ class="habit-add-form__submit">
      fixed-оверлеи уже жили здесь, вне #app — теперь и эта тоже. -->
 <!-- Триал: окно «Мой пробный период» (дни, цель на два дня подряд, цена) и блокирующее окно «Пробный период закончился» с оплатой Stars.
      Рисует app.js::openTrialSheet / showTrialPaywall; оплата — POST /api/subscription/invoice → Telegram.WebApp.openInvoice. -->
+<div class="hub-overlay" id="shopHubOverlay" hidden aria-hidden="true">
+  <section class="hub-card" role="dialog" aria-modal="true" aria-labelledby="shopHubTitle">
+    <h2 id="shopHubTitle">Покупки</h2>
+    <div id="shopHubPromos"></div>
+    <div id="shopHubSubscription"></div>
+    <div id="shopHubItems"></div>
+    <div class="hub-info">
+      <div class="hub-group">Способы оплаты</div>
+      <div id="shopHubMethods"></div>
+      <p class="hub-support" id="shopHubSupport"></p>
+    </div>
+    <button type="button" class="hub-close" id="shopHubClose">Закрыть</button>
+  </section>
+</div>
 <div class="pay-overlay" id="payMethodOverlay" hidden aria-hidden="true">
   <section class="pay-card" role="dialog" aria-modal="true" aria-labelledby="payMethodTitle">
     <h2 id="payMethodTitle">Как оплатить</h2>
@@ -969,7 +989,8 @@ class="habit-add-form__submit">
     <div class="pay-card__list" id="payMethodList"></div>
     <p class="pay-card__hint" id="payMethodHint" hidden>Звёзды покупаются в Telegram: их цена в твоей валюте зависит от магазина.</p>
     <p class="pay-card__wait" id="payMethodWait" hidden></p>
-    <button type="button" class="pay-card__again" id="payMethodReopen" hidden>Открыть страницу ещё раз</button>
+    <button type="button" class="pay-card__again" id="payMethodPaid" hidden>Проверить статус</button>
+    <button type="button" class="pay-card__again pay-card__again--quiet" id="payMethodReopen" hidden>Открыть страницу ещё раз</button>
     <button type="button" class="pay-card__close" id="payMethodClose">Не сейчас</button>
   </section>
 </div>
@@ -1807,7 +1828,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261028_PAY_V101"></script>
+<script type="module" src="/static/app.js?v=20261028_HUB_V102"></script>
 
 </body>
 </html>

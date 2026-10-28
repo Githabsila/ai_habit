@@ -309,8 +309,10 @@ def test_the_app_asks_for_the_method_before_paying_for_a_subscription_and_in_the
         assert needle in _APP_JS, needle
     pay = _APP_JS[_APP_JS.index("async function payTrial(source)"):][:700]
     assert 'startPurchase({ kind: "subscription"' in pay and "starsFlow: () => payTrialStars(source)" in pay
-    shop = _APP_JS[_APP_JS.index('if (action === "stars")'):][:1400]
-    assert 'startPurchase({ kind: "item", itemId: Number(itemId)' in shop and "/api/shop/stars/${itemId}" in shop, "в магазине сначала выбор, звёзды — прежним путём"
+    shop = _APP_JS[_APP_JS.index('if (action === "stars")'):][:700]
+    assert 'startPurchase({ kind: "item", itemId: Number(itemId)' in shop and "buyShopItemStars(itemId" in shop, "в магазине сначала выбор, звёзды — прежним путём"
+    stars = _APP_JS[_APP_JS.index("async function buyShopItemStars"):][:700]
+    assert "/api/shop/stars/${itemId}" in stars and "tg.openInvoice" in stars
     start = _APP_JS[_APP_JS.index("async function startPurchase"):][:1100]
     assert "methods.length <= 1" in start and "await starsFlow()" in start, "без других способов оплата звёздами идёт сразу, как раньше"
 
@@ -343,3 +345,78 @@ def test_the_locked_message_offers_card_and_crypto_only_when_they_are_set_up(mon
     both = keyboards.subscription_buy_keyboard(153).inline_keyboard
     assert [b.text for row in both for b in row] == ["⭐ Оплатить 153 Stars", "💳 Картой или криптой"]
     assert both[1][0].web_app.url == "https://adam.example/?sub=1&m=bot_locked"
+
+
+# ---------------------------------------------------------------------------------------------------------------- окно «Покупки»
+
+async def test_the_catalog_lists_everything_with_dollar_prices_methods_support_and_promos(client, uid, heleket):
+    person = _user(uid)
+    pay_orders.add_promo("Неделя алмазов", "Алмазы дешевле до воскресенья", None)
+    catalog = await (await client.get("/api/pay/catalog", headers=_headers(person))).json()
+    assert catalog["subscription"] == {"active": False, "until": None, "price_text": "$1.99", "next_text": "дальше $5.99 в месяц"}
+    by_id = {i["item_id"]: i for i in catalog["items"]}
+    assert set(by_id) == {7, 22, 23, 24, 27, 28}
+    assert by_id[27]["usd_text"] == "$1.99" and by_id[27]["stars_text"] == "150 ⭐" and by_id[28]["usd_text"] == "$7.99" and by_id[27]["group"] == "diamonds"
+    assert by_id[22]["group"] == "answers" and by_id[24]["group"] == "booster" and by_id[7]["group"] == "frame" and all(i["available"] for i in catalog["items"])
+    assert [m["method"] for m in catalog["methods"]] == ["stars", "crypto"] and catalog["support"] == "@floydddo, @AlxManagement"
+    assert "Неделя алмазов" in [p["title"] for p in catalog["promos"]]
+    assert (await client.get("/api/pay/catalog")).status == 401
+
+
+async def test_the_catalog_marks_owned_limited_items_and_an_active_subscription(client, uid, heleket):
+    person = _user(uid)
+    _sql("UPDATE users SET frame_id='paid_double_gold' WHERE telegram_id=?", (person,))
+    record_subscription_payment(person, months=1)
+    catalog = await (await client.get("/api/pay/catalog", headers=_headers(person))).json()
+    frame = [i for i in catalog["items"] if i["item_id"] == 7][0]
+    assert frame["available"] is False and frame["note"] == "Уже у тебя"
+    assert catalog["subscription"]["active"] is True and catalog["subscription"]["until"] and catalog["subscription"]["next_text"] == "в месяц"
+
+
+def test_promos_show_only_while_active_and_not_expired():
+    first = pay_orders.add_promo("Короткая", "Текст", "2000-01-01 00:00:00")
+    second = pay_orders.add_promo("Живая", "Текст", "2999-01-01 00:00:00")
+    third = pay_orders.add_promo("Убранная", "Текст", None)
+    pay_orders.remove_promo(third)
+    shown = [p["id"] for p in pay_orders.list_promos()]
+    assert second in shown and first not in shown and third not in shown
+    all_ids = [p["id"] for p in pay_orders.list_promos(only_current=False)]
+    assert {first, second, third} <= set(all_ids)
+    assert pay_orders.add_promo("", "x") is None and pay_orders.add_promo("x", " ") is None
+
+
+async def test_the_admin_manages_promos_and_others_cannot(client, uid, monkeypatch):
+    import webapp.routes_admin as routes_admin
+    admin, person = _user(uid), _user(uid + 1)
+    monkeypatch.setattr(routes_admin, "ADMIN_IDS", [admin])
+    created = await client.post("/api/admin/pay/promos", headers=_headers(admin), json={"title": "Скидка недели", "text": "Пакеты ответов дешевле", "until": "2999-01-01 00:00:00"})
+    promo_id = (await created.json())["id"]
+    catalog = await (await client.get("/api/pay/catalog", headers=_headers(person))).json()
+    assert promo_id in [p["id"] for p in catalog["promos"]]
+    assert (await client.post("/api/admin/pay/promos", headers=_headers(admin), json={"title": "", "text": "x"})).status == 400
+    assert (await client.post(f"/api/admin/pay/promos/{promo_id}/remove", headers=_headers(admin), json={})).status == 200
+    catalog = await (await client.get("/api/pay/catalog", headers=_headers(person))).json()
+    assert promo_id not in [p["id"] for p in catalog["promos"]]
+    assert (await client.get("/api/admin/pay/promos", headers=_headers(person))).status == 403
+    assert (await client.post("/api/admin/pay/promos", headers=_headers(person), json={"title": "a", "text": "b"})).status == 403
+
+
+def test_the_shop_has_the_purchases_window_with_its_entry_and_the_demo_scene():
+    from db.sim_lab import SCENES
+    for marker in ('id="shopHubOverlay"', 'id="shopHubBtn"', 'id="shopHubItems"', 'id="shopHubSubscription"', 'id="shopHubPromos"', 'id="shopHubMethods"', 'id="shopHubSupport"', 'id="payMethodPaid"'):
+        assert marker in _INDEX, marker
+    for needle in ("async function openShopHub", "/api/pay/catalog", "function renderShopHub", "async function hubBuy", "function initShopHub", "initShopHub();", "shop_hub:", "HUB_GROUPS",
+                   "buyShopItemStars", "pollPayOrder(true)"):
+        assert needle in _APP_JS, needle
+    assert "shop_hub" in {scene[0] for scene in SCENES}
+    banner = _INDEX[_INDEX.index('id="shopHubBtn"'):][:400]
+    assert "Цены в долларах" in banner
+    hub = _APP_JS[_APP_JS.index("async function hubBuy"):][:900]
+    assert 'startPurchase({ kind: "subscription"' in hub and 'startPurchase({ kind: "item"' in hub and "if (hubDemo)" in hub, "покупка идёт через выбор способа, в демо ничего не открывается"
+
+
+def test_the_purchases_window_copy_is_clean():
+    from tests.test_window_copy import shared
+    assert not shared("Покупки", "", "Закрыть")
+    section = _APP_JS[_APP_JS.index("const HUB_METHOD_HINTS"):][:1400] + _APP_JS[_APP_JS.index("function renderShopHub"):][:2400]
+    assert "(а)" not in section and "(ась)" not in section

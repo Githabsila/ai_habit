@@ -14949,6 +14949,43 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 :root[data-mode="light"] .trial-paywall__card h2{color:#1C1730}
 :root[data-mode="light"] .trial-paywall__lead,:root[data-mode="light"] .trial-paywall__perks li{color:#3A3550}
 
+/* Окно «Покупки» в магазине (app.js::openShopHub) и баннер входа: без фильтров и постоянной анимации. */
+.shop-hub-banner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;width:100%;margin:0 0 12px;padding:12px 14px;border-radius:16px;border:1px solid rgba(185,168,255,.3);background:rgba(185,168,255,.1);color:inherit;font:inherit;text-align:left;cursor:pointer}
+.shop-hub-banner__icon{font-size:22px}
+.shop-hub-banner__text b{display:block;font:800 14px 'Space Grotesk',sans-serif}
+.shop-hub-banner__text small{font-size:12px;color:#B8B4C8}
+.shop-hub-banner__arrow{font-size:22px;color:#B9A8FF}
+.hub-overlay{position:fixed;inset:0;z-index:1655;overflow-y:auto;background:#12101c;padding:calc(var(--adam-chrome-top, 0px) + 16px) 16px 32px}
+.hub-overlay[hidden]{display:none}
+.hub-card{max-width:520px;margin:0 auto;color:#EDE9FA}
+.hub-card h2{margin:6px 0 12px;font:800 22px 'Space Grotesk',sans-serif}
+.hub-promo{margin:0 0 10px;padding:10px 12px;border-radius:14px;background:rgba(255,215,106,.1);border:1px solid rgba(255,215,106,.35)}
+.hub-promo b{display:block;font:800 13.5px 'Space Grotesk',sans-serif;color:#FFD76A}
+.hub-promo span{display:block;margin-top:2px;font-size:12.5px;line-height:1.45}
+.hub-promo small{color:#9EA8BD}
+.hub-group{margin:16px 2px 8px;font:800 13px 'Space Grotesk',sans-serif;color:#B9A8FF}
+.hub-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;margin-bottom:8px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+.hub-row--sub{grid-template-columns:1fr auto}
+.hub-row b{display:block;font-size:13.5px}
+.hub-row small{display:block;margin-top:2px;font-size:11.5px;line-height:1.35;color:#9EA8BD}
+.hub-price{text-align:right}
+.hub-price b{font:800 15px 'Space Grotesk',sans-serif}
+.hub-buy{min-height:34px;padding:0 14px;border:none;border-radius:11px;background:#B9A8FF;color:#1c1730;font:800 12.5px 'Space Grotesk',sans-serif;cursor:pointer}
+.hub-buy:disabled{background:rgba(255,255,255,.08);color:#9EA8BD;cursor:default}
+.hub-badge{padding:4px 10px;border-radius:99px;background:rgba(120,220,160,.18);color:#8FE3B0;font:800 12px 'Space Grotesk',sans-serif}
+.hub-info p{margin:0 0 8px;font-size:12.5px;line-height:1.5;color:#B8B4C8}
+.hub-info p b{color:#EDE9FA}
+.hub-support{margin-top:10px!important;color:#D7D3E6!important}
+.hub-close{width:100%;margin-top:20px;min-height:44px;border:none;border-radius:14px;background:rgba(255,255,255,.08);color:#EDE9FA;font:800 14px 'Space Grotesk',sans-serif;cursor:pointer}
+.pay-card__again--quiet{background:rgba(255,255,255,.08);color:#EDE9FA}
+:root[data-mode="light"] .hub-overlay{background:#f6f3ff}
+:root[data-mode="light"] .hub-card,:root[data-mode="light"] .hub-info p b{color:#1C1730}
+:root[data-mode="light"] .hub-row{background:#fff;border-color:rgba(28,23,48,.1)}
+:root[data-mode="light"] .hub-row small,:root[data-mode="light"] .hub-info p,:root[data-mode="light"] .shop-hub-banner__text small{color:#5B5570}
+:root[data-mode="light"] .hub-support{color:#3A3550!important}
+:root[data-mode="light"] .hub-close{background:rgba(28,23,48,.08);color:#1C1730}
+:root[data-mode="light"] .hub-promo b{color:#8A5A00}
+
 /* Окно выбора способа оплаты (app.js::startPurchase): звёзды, карта, крипта. Нижняя шторка, без фильтров и постоянной анимации. */
 .pay-overlay{position:fixed;inset:0;z-index:1660;display:flex;align-items:flex-end;justify-content:center;background:rgba(10,8,18,.62)}
 .pay-overlay[hidden]{display:none}

@@ -6988,24 +6988,7 @@ function initPlanActions() {
       try {
         if (action === "stars") {
           const item = (state.shop_items || []).find(x => String(x.id) === String(itemId));
-          const starsFlow = async () => {
-            try {
-              btn.disabled = true;
-              const invoice = await api(`/api/shop/stars/${itemId}`, { method: "POST" });
-              if (!tg?.openInvoice) throw new Error("telegram_payment_unavailable");
-              tg.openInvoice(invoice.invoice_url, (status) => {
-                btn.disabled = false;
-                if (status === "paid") {
-                  showToast(`${item?.name || "Покупка"} — оплата прошла!`, "praise", 3500);
-                  setTimeout(async () => { secondaryLoaded.delete("profile"); await loadBootstrap(); await loadBootstrapSecondary("profile"); }, 500);
-                }
-              });
-            } catch (err) {
-              btn.disabled = false;
-              showToast(friendlyError(err), "error");
-            }
-          };
-          await startPurchase({ kind: "item", itemId: Number(itemId), title: item?.name || "", starsFlow });
+          await startPurchase({ kind: "item", itemId: Number(itemId), title: item?.name || "", starsFlow: () => buyShopItemStars(itemId, item?.name || "", btn) });
           return;
         }
         btn.disabled = true;
@@ -7956,7 +7939,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialPaywallOverlay", "trialOfferCard", "partnerOverlay", "payMethodOverlay",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialPaywallOverlay", "trialOfferCard", "partnerOverlay", "payMethodOverlay", "shopHubOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -8291,6 +8274,116 @@ function showVoiceToastsDemo() {
   showToast("+10 Adam Coin", "praise", 2000);
 }
 
+// ===================== ОКНО «ПОКУПКИ» В МАГАЗИНЕ (payments_ext.py::catalog, GET /api/pay/catalog) =====================
+// Одно место для всего платного: подписка, алмазы, пакеты ответов, бустер, рамка — с ценами в долларах (решение владельца 28.10: считаем в долларах, звёзды — только цена в счёте Telegram),
+// способы оплаты, поддержка и акции (их добавляет админ, они показываются сверху). «Купить» открывает выбор способа (startPurchase). Симуляция shop_hub (админка → «Окна и анимации»).
+const SIM_HUB = {
+  subscription: { active: false, until: null, price_text: "$1.99", next_text: "дальше $5.99 в месяц" },
+  items: [
+    { item_id: 27, group: "diamonds", name: "💎 10 алмазов", description: "Премиальная валюта", usd_text: "$1.99", stars_text: "150 ⭐", available: true, note: null },
+    { item_id: 28, group: "diamonds", name: "💎 50 алмазов", description: "Премиальная валюта", usd_text: "$7.99", stars_text: "600 ⭐", available: true, note: null },
+    { item_id: 22, group: "answers", name: "💬 +50 ответов ADAM", description: "К дневному лимиту", usd_text: "$1.99", stars_text: "150 ⭐", available: true, note: null },
+    { item_id: 23, group: "answers", name: "💬 +100 ответов ADAM", description: "К дневному лимиту", usd_text: "$3.99", stars_text: "280 ⭐", available: true, note: null },
+    { item_id: 24, group: "booster", name: "⚡ Бустер x2 Adam Coin — 24ч", description: "Вдвое больше монет за привычки", usd_text: "$1.29", stars_text: "99 ⭐", available: true, note: null },
+    { item_id: 7, group: "frame", name: "👑 Рамка: Double Gold", description: "Двойная позолота", usd_text: "$3.99", stars_text: "299 ⭐", available: false, note: "Уже у тебя" },
+  ],
+  methods: [{ method: "stars", label: "Звёздами Telegram" }, { method: "card", label: "Картой" }, { method: "crypto", label: "Криптой" }],
+  support: "@floydddo, @AlxManagement",
+  promos: [{ id: 1, title: "Здесь будут акции", text: "Скидки и наборы со сниженной ценой появятся в этом окне.", until: null }],
+};
+const HUB_GROUPS = [["diamonds", "Алмазы"], ["answers", "Ответы Адама"], ["booster", "Бустер"], ["frame", "Рамка"]];
+const HUB_METHOD_HINTS = {
+  stars: "Звёзды покупаются в Telegram, цена в твоей валюте зависит от магазина. Рядом с товаром — цена в звёздах.",
+  card: "Visa или Mastercard, оплата проходит внутри Telegram.",
+  crypto: "USDT, TON и другие монеты — выберешь на странице оплаты.",
+};
+let hubData = null;
+let hubDemo = false;
+
+function closeShopHub() {
+  const overlay = document.getElementById("shopHubOverlay");
+  if (overlay) { overlay.hidden = true; overlay.setAttribute("aria-hidden", "true"); }
+}
+
+function renderShopHub(d) {
+  const promos = (d.promos || []).map((p) => `<div class="hub-promo"><b>${escapeHtml(p.title)}</b><span>${escapeHtml(p.text)}</span>${p.until ? `<small>до ${escapeHtml(String(p.until).slice(0, 10))}</small>` : ""}</div>`).join("");
+  document.getElementById("shopHubPromos").innerHTML = promos;
+  const s = d.subscription || {};
+  document.getElementById("shopHubSubscription").innerHTML = `<div class="hub-row hub-row--sub"><div><b>Подписка на Адама</b><small>${s.active ? `Активна до ${escapeHtml(s.until || "")}` : `${escapeHtml(s.price_text || "")} · ${escapeHtml(s.next_text || "")}`}</small></div>`
+    + (s.active ? `<span class="hub-badge">Активна</span>` : `<button type="button" class="hub-buy" data-hub-buy="sub">Оформить</button>`) + `</div>`;
+  const items = d.items || [];
+  document.getElementById("shopHubItems").innerHTML = HUB_GROUPS.map(([group, title]) => {
+    const rows = items.filter((i) => i.group === group);
+    if (!rows.length) return "";
+    return `<div class="hub-group">${escapeHtml(title)}</div>` + rows.map((i) => `<div class="hub-row"><div><b>${escapeHtml(i.name)}</b><small>${escapeHtml(i.note || i.description || "")}</small></div>`
+      + `<div class="hub-price"><b>${escapeHtml(i.usd_text)}</b><small>${escapeHtml(i.stars_text)}</small></div>`
+      + `<button type="button" class="hub-buy" data-hub-buy="item:${i.item_id}"${i.available ? "" : " disabled"}>${i.available ? "Купить" : escapeHtml(i.note || "Недоступно")}</button></div>`).join("");
+  }).join("");
+  document.getElementById("shopHubMethods").innerHTML = (d.methods || []).map((m) => `<p><b>${escapeHtml(m.label)}</b> — ${escapeHtml(HUB_METHOD_HINTS[m.method] || "")}</p>`).join("");
+  document.getElementById("shopHubSupport").textContent = `Что-то не так с оплатой? Напиши: ${d.support || "в поддержку"}. Покупка выдаётся сразу после подтверждения.`;
+}
+
+async function openShopHub({ demo = null } = {}) {
+  const overlay = document.getElementById("shopHubOverlay");
+  if (!overlay) return;
+  hubDemo = !!demo;
+  try {
+    hubData = demo || await api("/api/pay/catalog");
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+    return;
+  }
+  renderShopHub(hubData);
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  overlay.scrollTop = 0;
+  haptic("light");
+  if (!demo) trk("shop_hub_open", null, null);
+}
+
+async function hubBuy(target) {
+  haptic("light");
+  if (hubDemo) { showToast("🧪 Демо: покупка не открывается", "success", 1800); return; }
+  trk("shop_hub_buy", target, null);
+  closeShopHub();
+  if (target === "sub") {
+    await startPurchase({ kind: "subscription", title: "Подписка на Адама", starsFlow: () => payTrialStars("hub") });
+    return;
+  }
+  const id = Number(String(target).replace("item:", ""));
+  const item = (hubData?.items || []).find((i) => i.item_id === id);
+  await startPurchase({ kind: "item", itemId: id, title: item?.name || "", starsFlow: () => buyShopItemStars(id, item?.name || "") });
+}
+
+// Покупка товара магазина за звёзды: счёт Telegram, после оплаты обновляем магазин. btn — кнопка в списке магазина (если вызвали оттуда).
+async function buyShopItemStars(itemId, name, btn = null) {
+  try {
+    if (btn) btn.disabled = true;
+    const invoice = await api(`/api/shop/stars/${itemId}`, { method: "POST" });
+    if (!tg?.openInvoice) throw new Error("telegram_payment_unavailable");
+    tg.openInvoice(invoice.invoice_url, (status) => {
+      if (btn) btn.disabled = false;
+      if (status === "paid") {
+        showToast(`${name || "Покупка"} — оплата прошла!`, "praise", 3500);
+        setTimeout(async () => { secondaryLoaded.delete("profile"); await loadBootstrap(); await loadBootstrapSecondary("profile"); }, 500);
+      }
+    });
+  } catch (err) {
+    if (btn) btn.disabled = false;
+    showToast(friendlyError(err), "error");
+  }
+}
+
+function initShopHub() {
+  document.getElementById("shopHubBtn")?.addEventListener("click", () => openShopHub());
+  document.getElementById("shopDiamondBalance")?.addEventListener("click", () => openShopHub());
+  document.getElementById("shopHubClose")?.addEventListener("click", () => { haptic("light"); closeShopHub(); });
+  document.getElementById("shopHubOverlay")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-hub-buy]");
+    if (btn && !btn.disabled) hubBuy(btn.dataset.hubBuy);
+  });
+}
+
 // ===================== ВЫБОР СПОСОБА ОПЛАТЫ (payments_ext.py, решение владельца 28.10: звёзды, карта, крипта — и за подписку, и в магазине) =====================
 // Если кроме звёзд настроен хотя бы один способ (GET /api/pay/methods), перед оплатой открывается окно выбора; иначе сразу идёт прежний путь через звёзды. Карта и крипта: заказ
 // POST /api/pay/order → страница платёжного сервиса во внешнем окне → приложение ждёт подтверждение (GET /api/pay/order/{id}), сервис сообщает о нём серверу вебхуком.
@@ -8323,6 +8416,7 @@ function renderPayChoice(methods) {
   document.getElementById("payMethodSub").textContent = payCtx?.title ? payCtx.title : "Выбери удобный способ";
   document.getElementById("payMethodWait").hidden = true;
   document.getElementById("payMethodReopen").hidden = true;
+  document.getElementById("payMethodPaid").hidden = true;
   document.getElementById("payMethodList").hidden = false;
   document.getElementById("payMethodHint").hidden = !methods.some((m) => m.method === "stars");
 }
@@ -8373,6 +8467,7 @@ async function choosePayMethod(method) {
     wait.textContent = "Открыл страницу оплаты. Оплати там и вернись сюда — подтверждение я увижу сам.";
     wait.hidden = false;
     document.getElementById("payMethodReopen").hidden = false;
+    document.getElementById("payMethodPaid").hidden = false;
     clearInterval(payPollTimer);
     payPollTimer = setInterval(pollPayOrder, 3000);
   } catch (err) {
@@ -8383,19 +8478,23 @@ async function choosePayMethod(method) {
 
 function openPayPage(url) {
   if (!url) return;
-  if (tg && typeof tg.openLink === "function") tg.openLink(url); else window.open(url, "_blank");
+  if (/^https:\/\/(t\.me|telegram\.me)\//i.test(url) && tg && typeof tg.openTelegramLink === "function") tg.openTelegramLink(url);      // товар Tribute живёт внутри Telegram
+  else if (tg && typeof tg.openLink === "function") tg.openLink(url);
+  else window.open(url, "_blank");
 }
 
-async function pollPayOrder() {
+async function pollPayOrder(manual = false) {
   const ctx = payCtx;
-  if (!ctx?.orderId || payPollBusy || document.hidden) return;
+  if (!ctx?.orderId || payPollBusy || (document.hidden && !manual)) return;
   payPollBusy = true;
   try {
     const res = await api(`/api/pay/order/${encodeURIComponent(ctx.orderId)}`);
     if (res.fulfilled) await onPayDone(ctx);
-    else if (res.status === "failed" || res.status === "expired") {
+    else if (res.status === "failed" || res.status === "expired" || res.status === "refunded") {
       closePayChoice();
       showToast("Оплата не прошла — попробуй ещё раз или выбери другой способ", "error");
+    } else if (manual === true) {
+      showToast("Пока не вижу оплату — подтверждение обычно приходит за минуту", "success", 3200);
     }
   } catch (_) { /* следующий опрос */ } finally { payPollBusy = false; }
 }
@@ -8424,6 +8523,7 @@ function initPayChoice() {
   });
   document.getElementById("payMethodClose")?.addEventListener("click", () => { haptic("light"); closePayChoice(); });
   document.getElementById("payMethodReopen")?.addEventListener("click", () => { haptic("light"); openPayPage(payCtx?.payUrl); });
+  document.getElementById("payMethodPaid")?.addEventListener("click", () => { haptic("light"); pollPayOrder(true); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && payCtx?.orderId) pollPayOrder(); });     // вернулись с оплаты — проверяем сразу
 }
 
@@ -10358,6 +10458,7 @@ const SIM_SCENES = {
   trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),
   trial_paywall_full: () => showTrialPaywall(SIM_TRIAL_FULL_EXPIRED, { demo: true }),
   trial_timer: () => showTrialCardDemo(SIM_TRIAL_LAST),
+  shop_hub: () => { closeShopHub(); openShopHub({ demo: SIM_HUB }); },
   pay_methods: () => { closePayChoice(); openPayChoice(SIM_PAY_METHODS, { demo: true, kind: "subscription", title: "Подписка на Адама", methods: SIM_PAY_METHODS }); },
   partner_screen: () => openPartnerScreen({ demo: SIM_PARTNER }),
   inviter_card: () => renderInviterCard(SIM_INVITER, { demo: true }),
@@ -12760,6 +12861,7 @@ async function boot() {
             renderAdamIntroSettings();
             initPartner();
             initPayChoice();
+            initShopHub();
             setTimeout(() => { rescueHelpReady = maybeShowRescueHelp(); }, 4000);
             setTimeout(() => maybeShowFreezeHelp(), 5000);
         }
