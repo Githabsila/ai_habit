@@ -253,6 +253,12 @@ FEATURES = (
              "POST /api/admin/partners/settings", "GET /api/admin/trial/stats", "GET /api/admin/trial/source/{code}"),
         note="Денежные начисления за покупки приглашённых и карточка пригласившего",
     ),
+    Feature(
+        "royal_style", "Оформление Royal Gold", "system", "2026-10-28",
+        events=("style_mode_set", "style_preview_sent"),
+        api=("GET /api/admin/style", "POST /api/admin/style", "POST /api/admin/style/preview"),
+        note="Премиальное оформление бота и приложения с переключателем classic / preview / premium",
+    ),
     # ------------------------------------------------------------------ профиль и настройки
     Feature(
         "profile", "Профиль и вкладка «Профиль»", "system", "2026-01-01",

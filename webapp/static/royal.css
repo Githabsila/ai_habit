@@ -1,0 +1,23 @@
+/* Оформление «Royal Gold»: дополнения к перекраске royal.js (db/style_mode.py). Подключается тем же скриптом и только тем, кому режим включён, поэтому у остальных
+   файл даже не скачивается. Все правила под html.adam-royal. Без filter/backdrop-filter и бесконечных анимаций (правила «диеты для отрисовки»). */
+html.adam-royal {
+  --royal-gold: #E8C06A;
+  --royal-gold-deep: #B8893A;
+  --royal-ink: #1B1408;
+  --royal-serif: "Playfair Display", "Georgia", "Times New Roman", serif;
+}
+
+/* Заголовки окон и экранов — с засечками, как на дорогой вывеске (шрифт с кириллицей; если не загрузился, подойдёт Georgia). */
+html.adam-royal h1,
+html.adam-royal h2,
+html.adam-royal h3 {
+  font-family: var(--royal-serif) !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* Значок активной вкладки на золотой плашке — тёмный, как и подпись. */
+html.adam-royal .tab-bar__item.is-active .tab-bar__icon,
+html.adam-royal .tab-bar__item.is-active .tab-bar__icon svg {
+  color: var(--royal-ink);
+}

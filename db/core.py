@@ -1920,6 +1920,9 @@ def create_tables():
         if name not in payment_columns:
             cursor.execute(f"ALTER TABLE stars_payments ADD COLUMN {name} {ddl}")
 
+    # Режим оформления «Royal Gold» (db/style_mode.py): classic | preview | premium; по умолчанию preview — новое оформление видят только админы.
+    cursor.execute("CREATE TABLE IF NOT EXISTS style_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_by INTEGER, updated_at TIMESTAMP)")
+
     # Заказы на оплату картой и криптой (db/pay_orders.py) и колонка provider в журнале платежей.
     from . import pay_orders as _pay_orders
     _pay_orders.ensure_schema(cursor)

@@ -9,6 +9,7 @@ fulfil начисляет покупку ровно один раз и пише�
 """
 import logging
 
+import bot_style
 import pay_providers
 from db import pay_orders, shop, trial as trial_db
 from db.subscription import has_active_subscription
@@ -207,7 +208,9 @@ async def fulfil(bot, order):
     track_server(order["user_id"], "pay_order_paid", order["method"], meta={"kind": order["kind"], "item": order["item_id"], "cents": order["amount_cents"], "provider": order["provider"]})
     if text and bot is not None:
         try:
-            await bot.send_message(order["user_id"], text)
+            # Оформление «Royal Gold» (bot_style.py): подтверждение подписки — с золотым баннером, если оно включено у человека.
+            if not (order["kind"] == "subscription" and await bot_style.send_banner(bot, order["user_id"], "paid", text)):
+                await bot.send_message(order["user_id"], text)
         except Exception:
             logger.info("Не удалось написать человеку о покупке %s", order["order_id"])
     return True

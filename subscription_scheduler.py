@@ -16,6 +16,7 @@ import logging
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+import bot_style
 from db import (
     get_all_users, get_timezone, get_settings,
     claim_notification, release_notification, notification_scope,
@@ -32,6 +33,9 @@ import trial_messages
 logger = logging.getLogger("subscription_scheduler")
 
 PHASES = {message.phase for message in trial_messages.CATALOG}
+
+# Сообщения, которые при включённом оформлении «Royal Gold» приходят с баннером (bot_style.py): приглашение второго дня и «пробный доступ заканчивается».
+BANNER_KEYS = {"d2_invite", "d3_end"}
 
 
 def build_message(key, snap, link=None):
@@ -83,7 +87,10 @@ async def run_trial_reminders(bot):
                     continue
                 try:
                     text, keyboard = build_message(message.key, snap)
-                    await bot.send_message(telegram_id, text, reply_markup=keyboard)
+                    # Оформление «Royal Gold» (bot_style.py): приглашение на второй день и «пробный доступ заканчивается» приходят с золотым баннером, если оно включено у человека.
+                    with_banner = message.key in BANNER_KEYS and await bot_style.send_banner(bot, telegram_id, "trial", text, keyboard)
+                    if not with_banner:
+                        await bot.send_message(telegram_id, text, reply_markup=keyboard)
                 except Exception as exc:
                     release_notification(telegram_id, snap["local_date"], kind, scope)
                     if is_bot_forbidden_error(exc):

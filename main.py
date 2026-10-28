@@ -14,6 +14,7 @@ from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 from config import BOT_TOKEN, WEBAPP_URL, PORT, ADMIN_IDS
 from db import create_tables, get_user, give_premium_admin, award_season_rewards, publish_release_notes
 from bot_middlewares import retry_flood_control
+from bot_style import royal_dress
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
 from scheduler import scheduler
@@ -100,6 +101,8 @@ async def main():
     # с ожиданием retry_after надёжнее, чем терять сообщение и ждать
     # следующего тика планировщика. Работает для всех методов Bot API сразу.
     bot.session.middleware(retry_flood_control)
+    # Оформление «Royal Gold» (bot_style.py, режим в админке): золотая шапка на длинных сообщениях тем, у кого оно включено; остальным ничего не меняется.
+    bot.session.middleware(royal_dress)
 
     # --- ДИСПЕТЧЕР ---
     dp = Dispatcher()

@@ -443,6 +443,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--gold">👑</span>Оформление Royal Gold</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Премиальное оформление бота и приложения. «Предпросмотр» — видят только админы (по умолчанию), «Премиум» — все, «Классика» — всё как было. Переключение действует сразу, откат — одно нажатие.</div>' +
+        '<div id="styleModeBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--gold">💳</span>Оплата: карта, крипта, акции</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Звёзды работают сами. Карта идёт через Tribute: на каждую цену заведи в Tribute цифровой товар с этой ценой в долларах и привяжи его номер ниже. Крипта (Heleket) и ключи — в Railway, инструкция в PAYMENTS_SETUP.md.</div>' +
         '<div id="payAdminBox"><div class="empty-note">Загружаю…</div></div>' +
@@ -562,6 +568,7 @@ textarea.field{resize:vertical;min-height:88px}
     loadTrialOverview();
     loadPartners();
     loadPayAdmin();
+    loadStyleMode();
     (function(){ var b = document.getElementById('trialStatsBtn'); if (b) b.addEventListener('click', loadTrialStats); })();
     loadAiUsage(7);
     document.querySelectorAll('[data-ai-days]').forEach(function(btn){
@@ -1449,6 +1456,32 @@ textarea.field{resize:vertical;min-height:88px}
       var code = e && e.data && e.data.error;
       var texts = { invalid_state: 'Такого состояния нет', not_in_trial: 'Сначала включи триал для этого аккаунта', invalid_day: 'Такого дня нет', bot_unavailable: 'Бот недоступен', send_failed: 'Telegram не принял сообщение (человек мог заблокировать бота)', not_for_user: 'Это сообщение нельзя отправить человеку' };
       showToast(texts[code] || 'Ошибка');
+    }
+  }
+
+  // ---------- Оформление Royal Gold (db/style_mode.py) ----------
+  async function loadStyleMode(){
+    var box = document.getElementById('styleModeBox');
+    if (!box) return;
+    try{
+      var d = await api('/api/admin/style');
+      box.innerHTML = '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' + (d.modes || []).map(function(m){
+        return '<button class="btn' + (m.mode === d.mode ? ' btn-accent' : '') + '" data-style-mode="' + m.mode + '">' + escapeHtml(m.label) + '</button>';
+      }).join('') + '</div><div class="empty-note" style="padding:8px 0 0">Сейчас: <b>' + escapeHtml((d.modes || []).filter(function(m){ return m.mode === d.mode; }).map(function(m){ return m.label; })[0] || d.mode) + '</b>. После переключения перезайди в приложение, чтобы увидеть.</div>' +
+        '<div class="btn-row" style="margin-top:8px"><button class="btn" id="styleSampleBtn">Прислать примеры в бот</button></div>';
+      var sampleBtn = document.getElementById('styleSampleBtn');
+      if (sampleBtn) sampleBtn.addEventListener('click', async function(){
+        try{ var r = await api('/api/admin/style/preview', { method: 'POST' }); haptic('medium'); showToast('Прислал в бот: баннеров ' + (r.banners || 0)); }
+        catch(e){ showToast(e && e.status === 409 ? 'Оформление выключено для тебя: выбери «Предпросмотр» или «Премиум»' : 'Не получилось отправить'); }
+      });
+      box.querySelectorAll('[data-style-mode]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          try{ await api('/api/admin/style', { method: 'POST', body: JSON.stringify({ mode: btn.dataset.styleMode }) }); haptic('medium'); showToast('Оформление переключено'); loadStyleMode(); }
+          catch(e){ showToast('Ошибка'); }
+        });
+      });
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }
   }
 

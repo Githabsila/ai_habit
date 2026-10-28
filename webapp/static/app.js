@@ -536,6 +536,30 @@
     }
   }
 
+  // Оформление «Royal Gold» (db/style_mode.py): сервер присылает state.premium_style по режиму из админки. Включено — подключаем royal.js (золотая гамма поверх
+  // обычных стилей) и запоминаем в localStorage, чтобы при следующем заходе файл подключился из <head> ещё до отрисовки. Выключили режим — один раз
+  // перезагружаем страницу: перекрашенные стили в памяти не откатить иначе, а прежний вид вернётся целиком.
+  function applyRoyalStyle(on) {
+    const root = document.documentElement;
+    try {
+      if (on) {
+        localStorage.setItem("adam_royal", "1");
+        if (!root.classList.contains("adam-royal")) {
+          root.classList.add("adam-royal");
+          const el = document.createElement("script");
+          el.src = "/static/royal.js?v=20261028_ROYAL_V1";
+          document.head.appendChild(el);
+        }
+      } else {
+        localStorage.removeItem("adam_royal");
+        if (root.classList.contains("adam-royal") && !sessionStorage.getItem("adam_royal_reload")) {
+          sessionStorage.setItem("adam_royal_reload", "1");
+          location.reload();
+        }
+      }
+    } catch (_) { /* без localStorage оформление просто не запоминается */ }
+  }
+
   async function loadBootstrap() {
     // Не допускаем несколько тяжёлых /api/bootstrap одновременно: это могло
     // происходить при быстрых кликах/обновлениях и давать гонки перерисовки.
@@ -565,6 +589,7 @@
             showLevelUp(newLevel, knownLevel);
           }
           knownLevel = newLevel;
+          applyRoyalStyle(!!state.premium_style);
           renderAll();
           // Квесты дня: завёл привычку, сохранил план — ответ /api/bootstrap уже содержит выполненное (сервер выдаёт награду сам). Есть прошлый
           // снимок — показываем изменение окном; первый заход — только тост про то, что сделано без приложения (сообщение Адаму в боте и т.п.).

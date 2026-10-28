@@ -5,6 +5,7 @@ from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
+from bot_style import send_banner_reply
 from config import ADMIN_IDS
 from keyboards import welcome_menu
 
@@ -163,8 +164,7 @@ async def start(message: Message, state: FSMContext):
         await message.answer(f"🎁 Бонус за переход по приглашению друга: +{invite['invitee_coins']} Adam Coin!")
 
     # Приветственное сообщение
-    await message.answer(
-        """
+    welcome_text = """
 👋 Добро пожаловать! Я — ADAM.
 
 Вместе мы будем:
@@ -175,6 +175,9 @@ async def start(message: Message, state: FSMContext):
 - 👥 Искать единомышленников
 
 Всё это — в приложении. Открой его кнопкой ниже 👇
-        """,
-        reply_markup=welcome_menu(is_admin=message.from_user.id in ADMIN_IDS)
-    )
+        """
+    welcome_markup = welcome_menu(is_admin=message.from_user.id in ADMIN_IDS)
+    # Оформление «Royal Gold» (bot_style.py): тем, у кого оно включено, приветствие приходит с золотым баннером; остальным — как раньше.
+    if await send_banner_reply(message, "welcome", welcome_text, welcome_markup):
+        return
+    await message.answer(welcome_text, reply_markup=welcome_markup)

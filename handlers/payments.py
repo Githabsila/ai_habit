@@ -15,6 +15,7 @@ from aiogram.types import (
     InlineKeyboardButton,
 )
 
+from bot_style import send_banner_reply
 from config import PREMIUM_PRICE_STARS, ADMIN_IDS, SUPPORT_EMAIL, WEBAPP_URL
 from db import (
     give_premium_admin, set_cosmetic, get_shop_item, add_ai_bonus_answers, log_stars_purchase,
@@ -466,7 +467,11 @@ async def _credit_payment(message: Message, payment, payload: str):
         text, snap, link = await complete_subscription_payment(
             message.bot, message.from_user.id, paid_at=getattr(message, "date", None), charge_id=payment.telegram_payment_charge_id,
             recurring=bool(getattr(payment, "is_recurring", False)), expires_at=_expiration(payment))
-        await message.answer(text, reply_markup=trial_keyboard(("open",), snap["price_stars"]) or back_menu_keyboard())
+        paid_markup = trial_keyboard(("open",), snap["price_stars"]) or back_menu_keyboard()
+        # Оформление «Royal Gold» (bot_style.py): подтверждение подписки приходит с золотым баннером тем, у кого оно включено.
+        if await send_banner_reply(message, "paid", text, paid_markup):
+            return
+        await message.answer(text, reply_markup=paid_markup)
         return
 
     give_premium_admin(message.from_user.id)

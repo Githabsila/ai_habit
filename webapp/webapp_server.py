@@ -102,6 +102,7 @@ from multi_agent import generate_progress_analysis
 from db import ai_usage
 from db import adam_profile as adam_profile_db
 from db import partners as _partners_db
+from db import style_mode as _style_mode_db
 from db import inbox as inbox_db
 from db.gifts import freeze_help_candidates, FREEZE_GIFT_PRICE
 from db.habit_undo import undo_mark as undo_habit_mark, undo_count_today
@@ -596,6 +597,8 @@ async def bootstrap(request):
         "access": public_access(telegram_id),
         # Партнёрская программа (db/partners.py): участник видит свой раздел; новичок, пришедший по ссылке участника, — карточку пригласившего.
         "is_partner": _partners_db.get_partner(telegram_id) is not None,
+        # Оформление «Royal Gold» (db/style_mode.py): true — приложение подключает royal.css; режим «classic» (или «preview» для не-админа) возвращает прежний вид.
+        "premium_style": _style_mode_db.premium_active(telegram_id),
         "inviter_card": _partners_db.inviter_card(telegram_id),
         "self_reward_cost": SELF_REWARD_COST,
         "product_onboarding": get_onboarding_state(telegram_id),
@@ -3491,6 +3494,10 @@ def create_app(bot=None):
     # Партнёрская программа (db/partners.py): цифры участника, ссылки, карточка пригласившего и админка выплат.
     from webapp.routes_partners import routes as partner_routes
     app.add_routes(partner_routes)
+
+    # Переключатель оформления «Royal Gold» (db/style_mode.py) — только для админов.
+    from webapp.routes_style import routes as style_routes
+    app.add_routes(style_routes)
 
     # Оплата картой и криптой (payments_ext.py): способы, заказ, вебхук сервиса, админский список заказов.
     from webapp.routes_pay import routes as pay_routes
