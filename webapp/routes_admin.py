@@ -687,9 +687,10 @@ async def admin_trial_overview_route(request):
         CLOSED_CHANNEL_ID, SUBSCRIPTION_GATE_ENABLED, SUBSCRIPTION_INTRO_PRICE_STARS, SUBSCRIPTION_RENEWAL_PRICE_STARS,
         SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL, SUBSCRIPTION_TRIAL_DAYS,
     )
+    from db import trial as trial_db
     global_on, messages = _trial_catalog()
     return web.json_response({
-        "enabled": global_on, "messages": messages,
+        "enabled": global_on, "messages": messages, "lab_states": [{"key": key, "label": label} for key, (label, _steps) in trial_db.LAB_STATES.items()],
         "config": {"trial_days": SUBSCRIPTION_TRIAL_DAYS, "intro_price_stars": SUBSCRIPTION_INTRO_PRICE_STARS,
                    "renewal_price_stars": SUBSCRIPTION_RENEWAL_PRICE_STARS, "streak_needed": SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL,
                    "channel_configured": bool(CLOSED_CHANNEL_ID), "gate_enabled": bool(SUBSCRIPTION_GATE_ENABLED)},
@@ -755,6 +756,7 @@ async def admin_user_trial_get_route(request):
 async def admin_user_trial_action_route(request):
     """Проверка триала с тестового аккаунта. body: {"action": ...}
       shift {day}      — «машина времени»: сегодня у аккаунта (в режиме «trial») день N;
+      lab {state}      — готовое состояние для проверки (trial_db.LAB_STATES): день 1/2/3, окно, после, ранняя покупка, оплата, ожидание, ошибка, возвращение;
       reset            — обнулить старт: триал с дня 1, забыть отправленные сообщения и тестовую оплату (reset_onboarding — и онбординг);
       send {key, to}   — отправить сообщение каталога: to «me» (превью админу) или «user» (человеку, как будто пришло по расписанию);
       pay_test         — тестовая оплата: тот же путь, что у настоящего платежа (сообщение после оплаты, ссылка в канал), без Stars;
@@ -780,6 +782,30 @@ async def admin_user_trial_action_route(request):
         outcome = shift_trial_day(telegram_id, body.get("day"), admin_id)
         if "error" in outcome:
             return web.json_response(outcome, status=TRIAL_ERRORS.get(outcome["error"], 400))
+    elif action == "lab":
+        state_key = str(body.get("state") or "")
+        if state_key not in trial_db.LAB_STATES:
+            return web.json_response({"error": "invalid_state"}, status=400)
+        if not in_trial:
+            return web.json_response({"error": "not_in_trial"}, status=409)
+        if bot is None and "pay_test" in trial_db.LAB_STATES[state_key][1]:
+            return web.json_response({"error": "bot_unavailable"}, status=503)
+        trial_db.clear_test_payment(telegram_id)                                 # каждый раз с чистого состояния: без чужих тестовых оплат
+        for step in trial_db.LAB_STATES[state_key][1]:
+            if isinstance(step, tuple):
+                outcome = shift_trial_day(telegram_id, step[1], admin_id)
+                if "error" in outcome:
+                    return web.json_response(outcome, status=TRIAL_ERRORS.get(outcome["error"], 400))
+            elif step == "pay_test":
+                from subscription_flow import complete_subscription_payment
+                await complete_subscription_payment(bot, telegram_id, test=True)
+            elif step == "pending":
+                trial_db.lab_mark_pending(telegram_id)
+            elif step == "fail":
+                trial_db.lab_fail_payment(telegram_id)
+            elif step == "expire":
+                trial_db.lab_expire_subscription(telegram_id)
+        result["lab"] = state_key
     elif action in ("reset", "unpay", "pay_test"):
         if not in_trial:
             return web.json_response({"error": "not_in_trial"}, status=409)

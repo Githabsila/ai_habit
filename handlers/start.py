@@ -94,6 +94,16 @@ async def start(message: Message, state: FSMContext):
         if payload_kind == "src":
             attribute_source(message.from_user.id, payload_value, via="start")
             payload = ""
+        elif payload_kind == "partner":
+            # Ссылка участника партнёрской программы (db/partners.py): запоминаем переход и привязку по правилу first/last. Дружбу не навязываем и никого не подписываем.
+            try:
+                from db.partners import register_touch
+                touch = register_touch(message.from_user.id, payload_value)
+                if touch["counted"]:
+                    attribute_source(message.from_user.id, "partner", via="start")
+            except Exception:
+                logger.exception("Не удалось записать переход по ссылке участника")
+            payload = ""
         if payload.startswith(FRIEND_LINK_PREFIX):
             payload = payload[len(FRIEND_LINK_PREFIX):]
             via_friend_link = True

@@ -242,6 +242,13 @@ def finish_payment(charge_id, ok, error=None):
         conn.commit()
     finally:
         conn.close()
+    if ok:
+        try:                                                # подтверждённая покупка приглашённого — начисление участнику (db/partners.py); сбой платёж не ломает
+            from . import partners
+            partners.accrue_payment(charge_id)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Не удалось начислить участнику программы за платёж %s", charge_id)
 
 
 def is_credited(charge_id):
@@ -303,6 +310,12 @@ def mark_payment_refunded(charge_id):
         conn.commit()
     finally:
         conn.close()
+    try:                                                    # возврат сторнирует начисление участнику партнёрской программы
+        from . import partners
+        partners.reverse_payment(charge_id)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Не удалось сторнировать начисление по возврату %s", charge_id)
 
 
 def log_stars_purchase(user_id, item_id):

@@ -432,6 +432,23 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--teal">📈</span>Триал · статистика</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Путь людей от входа до оплаты и после неё. «Реальные» — те, к кому сценарий применяется общим гейтом; «проверка» — аккаунты из админки, они считаются отдельно. «Отправлено», «показано» и «нажато» — разные события; «прочитано» Telegram не отдаёт.</div>' +
+        '<div class="btn-row" style="margin-bottom:10px;gap:6px;flex-wrap:wrap">' +
+          '<select id="trialStatsScope"><option value="real">реальные</option><option value="test">проверка</option><option value="all">все</option></select>' +
+          '<select id="trialStatsDays"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option></select>' +
+          '<input type="text" id="trialStatsSource" placeholder="источник (код)" style="width:130px">' +
+          '<button class="btn btn-accent" id="trialStatsBtn">Показать</button></div>' +
+        '<div id="trialStatsBox"><div class="empty-note">Нажми «Показать»</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--gold">🤝</span>Партнёрская программа</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Пилот: участник получает долю от полной суммы покупок приглашённых в первые дни. Участвует тот, кого добавили сюда и у кого есть действующая подписка. Выплаты ручные: смотри «к выплате», переведи деньги сам и отметь выплату.</div>' +
+        '<div id="partnersBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--violet">🔥</span>Расход ИИ</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Токены модели по людям и по функциям: кто больше всех тратит и на что. Отсюда можно открыть человека и временно ограничить ему ИИ.</div>' +
         '<div class="btn-row" style="margin-bottom:10px">' +
@@ -537,6 +554,8 @@ textarea.field{resize:vertical;min-height:88px}
     document.getElementById('openAnalyticsBtn').addEventListener('click', function(){ haptic('light'); window.location.href = '/analytics'; });
     loadAccessOverview();
     loadTrialOverview();
+    loadPartners();
+    (function(){ var b = document.getElementById('trialStatsBtn'); if (b) b.addEventListener('click', loadTrialStats); })();
     loadAiUsage(7);
     document.querySelectorAll('[data-ai-days]').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -1322,7 +1341,8 @@ textarea.field{resize:vertical;min-height:88px}
   }
 
   // ---------- Триал: проверка сценария с тестового аккаунта (db/trial.py, trial_messages.py) ----------
-  var TRIAL_PHASES = { day1: 'день 1', day2: 'день 2', day3: 'день 3 (последний)', expired_intro: 'день 4 · последний день скидки', expired_full: 'день 5+ · полная цена', paid: 'оплачено' };
+  var TRIAL_PHASES = { not_started: 'ещё не открывал приложение', day1: 'день 1', day2: 'день 2', day3: 'день 3 (последние сутки)', grace: 'дополнительное окно 24 часа', expired: 'после окна: доступ закрыт', paid: 'оплачено' };
+  var trialLabStates = [];
   var trialCatalog = [];
 
   function trialHtml(u){
@@ -1339,7 +1359,7 @@ textarea.field{resize:vertical;min-height:88px}
       'цена сейчас: <b>' + s.price_stars + ' ⭐</b>' + (s.intro_active ? ' (скидка)' : ''),
       'серия: <b>' + s.streak + '</b> из ' + s.needed,
       'вчера: ' + (s.marked_yesterday ? '✅' : '—') + ' · сегодня: ' + (s.marked_today ? '✅' : '—'),
-      'канал: ' + (s.channel_granted ? 'ссылка выдана' : (s.channel_eligible ? 'условие выполнено' : 'нет условия')) + (s.channel_configured ? '' : ' (CLOSED_CHANNEL_ID не задан)')
+      'до конца: ' + escapeHtml(s.ends_at_text || '—')
     ].join(' · ');
     var sent = (t.sent || []).slice(0, 8).map(function(x){
       return '<div class="empty-note" style="padding:1px 0">' + fmtDate(x.sent_at) + ' · ' + escapeHtml(trialLabel(x.key)) + '</div>';
@@ -1356,6 +1376,9 @@ textarea.field{resize:vertical;min-height:88px}
       '<div class="empty-note" style="padding:8px 0 4px">Машина времени: сегодня у этого аккаунта —</div>' +
       '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
         [1, 2, 3, 4, 5, 6].map(function(d){ return '<button class="btn' + (d === s.day ? ' btn-accent' : '') + '" data-trial-shift="' + d + '">день ' + d + '</button>'; }).join('') + '</div>' +
+      '<div class="empty-note" style="padding:8px 0 4px">Готовые состояния для проверки (сбрасывают тестовые оплаты и сразу ставят нужный день):</div>' +
+      '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
+        trialLabStates.map(function(x){ return '<button class="btn" data-trial-lab="' + escapeHtml(x.key) + '">' + escapeHtml(x.label) + '</button>'; }).join('') + '</div>' +
       '<div class="empty-note" style="padding:8px 0 4px">Оплата и старт</div>' +
       '<div class="btn-row" style="gap:6px;flex-wrap:wrap">' +
         '<button class="btn btn-gold" data-trial-act="pay_test">💳 Оплатить тестово</button>' +
@@ -1389,6 +1412,9 @@ textarea.field{resize:vertical;min-height:88px}
     box.querySelectorAll('[data-trial-shift]').forEach(function(btn){
       btn.addEventListener('click', function(){ trialAction(u.telegram_id, { action: 'shift', day: parseInt(btn.dataset.trialShift, 10) }, 'Теперь у аккаунта день ' + btn.dataset.trialShift); });
     });
+    box.querySelectorAll('[data-trial-lab]').forEach(function(btn){
+      btn.addEventListener('click', function(){ trialAction(u.telegram_id, { action: 'lab', state: btn.dataset.trialLab }, btn.textContent); });
+    });
     box.querySelectorAll('[data-trial-act]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var act = btn.dataset.trialAct;
@@ -1414,8 +1440,136 @@ textarea.field{resize:vertical;min-height:88px}
       if (!keepCard) { renderUserCard(await api('/api/admin/user/' + id)); loadAccessOverview(); }
     }catch(e){
       var code = e && e.data && e.data.error;
-      var texts = { not_in_trial: 'Сначала включи триал для этого аккаунта', invalid_day: 'Такого дня нет', bot_unavailable: 'Бот недоступен', send_failed: 'Telegram не принял сообщение (человек мог заблокировать бота)', not_for_user: 'Это сообщение нельзя отправить человеку' };
+      var texts = { invalid_state: 'Такого состояния нет', not_in_trial: 'Сначала включи триал для этого аккаунта', invalid_day: 'Такого дня нет', bot_unavailable: 'Бот недоступен', send_failed: 'Telegram не принял сообщение (человек мог заблокировать бота)', not_for_user: 'Это сообщение нельзя отправить человеку' };
       showToast(texts[code] || 'Ошибка');
+    }
+  }
+
+  // ---------- Партнёрская программа (db/partners.py) ----------
+  var PARTNER_SETTING_LABELS = {
+    attribution_rule: 'Какая ссылка засчитывается (first — первая, last — последняя)', default_share: 'Доля по умолчанию, %', default_window_days: 'Период начислений, дней',
+    window_start: 'Срок считаем от (attribution — перехода по ссылке, registration — регистрации)', hold_days: 'Ждём после покупки, дней (возвраты)', min_payout: 'Минимальная выплата, ⭐', rounding: 'Округление (floor — вниз, round — обычное)'
+  };
+  var PARTNER_ERRORS = { user_not_found: 'Такого человека нет в базе', already_partner: 'Уже в пилоте', not_partner: 'Это не участник', below_minimum: 'Сумма меньше минимальной выплаты или выплачивать нечего',
+    invalid_share: 'Доля — число от 0 до 100', invalid_window: 'Период — от 1 до 365 дней', invalid_value: 'Такое значение не подходит', invalid_request: 'Нужна причина и допустимое действие', already_paid: 'Уже выплачено', invalid_user: 'Нужен числовой id' };
+
+  function partnerError(e){ var code = e && e.data && e.data.error; showToast(PARTNER_ERRORS[code] || 'Ошибка'); }
+
+  async function loadPartners(){
+    var box = document.getElementById('partnersBox');
+    if (!box) return;
+    try{
+      var data = await api('/api/admin/partners');
+      var list = (data.partners || []).map(function(p){
+        var b = p.balance || {};
+        return '<div class="user-card" style="margin-top:8px"><div class="user-card-head"><b>' + escapeHtml(p.name || String(p.user_id)) + (p.username ? ' @' + escapeHtml(p.username) : '') + ' · ' + p.user_id + '</b>' +
+          (p.valid_now && p.subscription_active ? '<span class="badge badge-ok">участвует</span>' : '<span class="badge badge-bad">' + (p.subscription_active ? 'условия не действуют' : 'нет подписки') + '</span>') + '</div>' +
+          '<div class="empty-note" style="padding:4px 0">Условия: ' + p.share_percent + '% · ' + p.window_days + ' дн.' + (p.valid_until ? ' · до ' + escapeHtml(String(p.valid_until).slice(0, 10)) : '') + (p.note ? ' · ' + escapeHtml(p.note) : '') + '</div>' +
+          '<div class="empty-note" style="padding:0 0 6px">Начислено ' + b.accrued + ' ⭐ · <b>к выплате ' + b.payable + ' ⭐</b> · ждёт срока ' + b.waiting + ' · на проверке ' + b.hold + ' · выплачено ' + b.paid + (b.clawback ? ' · <b>к удержанию ' + b.clawback + '</b>' : '') + '</div>' +
+          '<div class="btn-row"><button class="btn btn-accent" data-partner-pay="' + p.user_id + '">💸 Отметить выплату</button><button class="btn" data-partner-open="' + p.user_id + '">Подробнее</button>' +
+          '<button class="btn" data-partner-pause="' + p.user_id + '" data-status="' + (p.status === 'active' ? 'paused' : 'active') + '">' + (p.status === 'active' ? '⏸ Пауза' : '▶ Включить') + '</button></div>' +
+          '<div id="partnerDetail' + p.user_id + '"></div></div>';
+      }).join('') || '<div class="empty-note">В пилоте пока никого</div>';
+      var settings = data.settings || {};
+      var settingsHtml = Object.keys(PARTNER_SETTING_LABELS).map(function(key){
+        return '<label class="list-row"><div class="list-row-name"><b>' + escapeHtml(PARTNER_SETTING_LABELS[key]) + '</b></div><input type="text" size="8" style="width:96px" data-partner-setting="' + key + '" value="' + escapeHtml(String(settings[key])) + '"></label>';
+      }).join('');
+      var audit = (data.audit || []).map(function(a){ return '<div class="empty-note" style="padding:2px 0">' + escapeHtml(String(a.at).slice(0, 16)) + ' · ' + escapeHtml(a.action) + (a.partner_id ? ' · ' + a.partner_id : '') + ' · ' + escapeHtml(a.details || '') + '</div>'; }).join('');
+      box.innerHTML = list +
+        '<div class="section-label" style="margin:14px 2px 6px">Добавить в пилот</div>' +
+        '<div class="btn-row"><input type="text" id="partnerNewId" placeholder="id в Telegram" style="width:120px"><input type="text" id="partnerNewShare" placeholder="доля %" style="width:70px"><input type="text" id="partnerNewDays" placeholder="дней" style="width:60px">' +
+        '<button class="btn btn-accent" id="partnerAddBtn">Добавить</button></div>' +
+        '<div class="section-label" style="margin:14px 2px 6px">Параметры</div>' + settingsHtml +
+        '<div class="section-label" style="margin:14px 2px 6px">Журнал исправлений</div>' + (audit || '<div class="empty-note">Пусто</div>');
+      bindPartners(box);
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  function bindPartners(box){
+    var add = document.getElementById('partnerAddBtn');
+    if (add) add.addEventListener('click', async function(){
+      var body = { user_id: Number(document.getElementById('partnerNewId').value) };
+      var share = document.getElementById('partnerNewShare').value.trim(), days = document.getElementById('partnerNewDays').value.trim();
+      if (share) body.share_percent = Number(share);
+      if (days) body.window_days = Number(days);
+      try{ await api('/api/admin/partners', { method: 'POST', body: JSON.stringify(body) }); haptic('light'); showToast('Добавлено'); loadPartners(); }catch(e){ partnerError(e); }
+    });
+    box.querySelectorAll('[data-partner-pay]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var confirmation = prompt('Номер или заметка о переводе (попадёт в журнал):', '');
+        if (confirmation === null) return;
+        try{ var r = await api('/api/admin/partners/' + btn.dataset.partnerPay + '/payout', { method: 'POST', body: JSON.stringify({ confirmation: confirmation, note: 'ручная выплата' }) }); haptic('light'); showToast('Выплата отмечена: ' + r.amount + ' ⭐'); loadPartners(); }catch(e){ partnerError(e); }
+      });
+    });
+    box.querySelectorAll('[data-partner-pause]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        try{ await api('/api/admin/partners/' + btn.dataset.partnerPause + '/conditions', { method: 'POST', body: JSON.stringify({ status: btn.dataset.status }) }); haptic('light'); loadPartners(); }catch(e){ partnerError(e); }
+      });
+    });
+    box.querySelectorAll('[data-partner-open]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var target = document.getElementById('partnerDetail' + btn.dataset.partnerOpen);
+        if (!target) return;
+        try{
+          var d = await api('/api/admin/partners/' + btn.dataset.partnerOpen);
+          var rows = (d.payable_items || []).map(function(i){ return '<div class="empty-note" style="padding:2px 0">к выплате: ' + i.amount + ' ⭐ (' + i.share_percent + '% от ' + i.base + ') · ' + escapeHtml(String(i.purchased_at).slice(0, 10)) + ' · ' + escapeHtml(i.charge_id) + '</div>'; }).join('');
+          var hist = (d.history || []).map(function(h){ return '<div class="empty-note" style="padding:2px 0">' + escapeHtml(h.invitee) + ' · ' + h.amount + ' ⭐ · ' + escapeHtml(h.status_label) + (h.reason ? ' · ' + escapeHtml(h.reason) : '') + '</div>'; }).join('');
+          var links = (d.links || []).map(function(l){ return '<div class="empty-note" style="padding:2px 0">🔗 ' + escapeHtml(l.label) + ' · переходов ' + l.touches + ' · приглашённых ' + l.invitees + ' · купили ' + l.buyers + '</div>'; }).join('');
+          target.innerHTML = '<div style="margin-top:8px">' + (rows || '<div class="empty-note">К выплате пока ничего</div>') + hist + links + '</div>';
+        }catch(e){ partnerError(e); }
+      });
+    });
+    box.querySelectorAll('[data-partner-setting]').forEach(function(input){
+      input.addEventListener('change', async function(){
+        try{ await api('/api/admin/partners/settings', { method: 'POST', body: JSON.stringify({ key: input.dataset.partnerSetting, value: input.value }) }); haptic('light'); showToast('Сохранено'); }catch(e){ partnerError(e); loadPartners(); }
+      });
+    });
+  }
+
+  // ---------- Триал · статистика (db/trial_stats.py) ----------
+  async function loadTrialStats(){
+    var box = document.getElementById('trialStatsBox');
+    if (!box) return;
+    box.innerHTML = '<div class="empty-note">Считаю…</div>';
+    var q = '?days=' + document.getElementById('trialStatsDays').value + '&scope=' + document.getElementById('trialStatsScope').value;
+    var source = document.getElementById('trialStatsSource').value.trim();
+    if (source) q += '&source=' + encodeURIComponent(source);
+    try{
+      var d = await api('/api/admin/trial/stats' + q);
+      function row(label, value){ return '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(label) + '</b></div><div>' + value + '</div></div>'; }
+      var offers = (d.offers || []).map(function(o){ return row(o.place + ' · ' + o.key, 'отправлено ' + (o.sent || 0) + ' · показано ' + (o.shown || 0) + ' · нажато ' + (o.clicked || 0) + ' · «не сейчас» ' + (o.dismissed || 0)); }).join('');
+      var msgs = (d.messages || []).map(function(m){ return row(m.key, 'отправлено ' + m.sent + ' · открыли приложение ' + m.opened); }).join('');
+      var funcs = (d.functions || []).map(function(f){ return row(f.name, f.count); }).join('');
+      var kinds = ((d.notifications || {}).by_kind || []).map(function(k){ return row(k.kind, k.count); }).join('');
+      var sources = (d.by_source || []).map(function(s){ return '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(s.source || 'без источника') + '</b></div><div>людей ' + s.users + ' · оплатили ' + s.paid +
+        (s.source ? ' <button class="btn" data-trial-source="' + escapeHtml(s.source) + '">к людям</button>' : '') + '</div></div><div id="trialSource_' + escapeHtml(s.source) + '"></div>'; }).join('');
+      var hours = (d.hours || []).map(function(n, h){ return h + ':' + n; }).join(' ');
+      box.innerHTML =
+        row('Начали триал', d.started) + row('Заходили на 2-й день', d.day2) + row('Заходили на 3-й день', d.day3) + row('Заходили в окне (4-й день)', d.day4) +
+        row('Оплатили на триале (ранние)', d.early_purchases) + row('Оплатили в окне 24 часа', d.window_purchases) + row('Оплатили позже', d.late_purchases) + row('Всего оплативших', d.paid) +
+        row('Вернулись после окна', d.returned_after_window) + row('Подозрительных регистраций (на проверку)', d.suspicious) +
+        row('Ошибки в приложении', d.client_errors) + row('Сбои оплаты', d.payment_failures) + row('Токены ИИ на человека', d.ai_per_user) +
+        row('Уведомлений на человека', (d.notifications.per_user) + ' (максимум ' + d.notifications.max_per_user + ')') +
+        '<div class="section-label" style="margin:12px 2px 6px">Предложения подписки</div>' + (offers || '<div class="empty-note">Пока нет</div>') +
+        '<div class="section-label" style="margin:12px 2px 6px">Сообщения в Telegram</div>' + (msgs || '<div class="empty-note">Пока нет</div>') +
+        '<div class="section-label" style="margin:12px 2px 6px">Нагрузка по видам уведомлений</div>' + (kinds || '<div class="empty-note">Пока нет</div>') +
+        '<div class="section-label" style="margin:12px 2px 6px">Что делали (функции)</div>' + (funcs || '<div class="empty-note">Пока нет</div>') +
+        '<div class="section-label" style="margin:12px 2px 6px">Время активности (час: заходы)</div><div class="empty-note">' + hours + '</div>' +
+        '<div class="section-label" style="margin:12px 2px 6px">Источники</div>' + (sources || '<div class="empty-note">Пока нет</div>');
+      box.querySelectorAll('[data-trial-source]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          var target = document.getElementById('trialSource_' + btn.dataset.trialSource);
+          try{
+            var r = await api('/api/admin/trial/source/' + encodeURIComponent(btn.dataset.trialSource) + '?days=' + document.getElementById('trialStatsDays').value);
+            target.innerHTML = (r.people || []).map(function(p){ return '<div class="empty-note" style="padding:2px 0">' + escapeHtml(p.name || String(p.user_id)) + (p.username ? ' @' + escapeHtml(p.username) : '') + ' · ' + p.user_id +
+              ' · ' + (p.useful_action ? 'с отметками' : 'без отметок') + (p.paid ? ' · оплата есть' : '') + (p.group === 'test' ? ' · проверка' : '') + (p.suspicious ? ' · ⚠ подозрительная регистрация' : '') + '</div>'; }).join('') || '<div class="empty-note">Никого</div>';
+          }catch(e){ showToast('Ошибка'); }
+        });
+      });
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось посчитать</div>';
     }
   }
 
@@ -1425,9 +1579,10 @@ textarea.field{resize:vertical;min-height:88px}
     try{
       var data = await api('/api/admin/trial');
       trialCatalog = data.messages || [];
+      trialLabStates = data.lab_states || [];
       var c = data.config || {};
-      var facts = 'Триал ' + c.trial_days + ' дн. · цена ' + c.intro_price_stars + ' ⭐ → ' + c.renewal_price_stars + ' ⭐ · канал с ' + c.streak_needed + ' дн. подряд · ' +
-        (c.channel_configured ? 'канал подключён' : '<b>канал не подключён (CLOSED_CHANNEL_ID)</b>') + ' · общий гейт оплаты: ' + (c.gate_enabled ? '<b>ВКЛЮЧЁН</b>' : 'выключен');
+      var facts = 'Триал ' + c.trial_days + ' дн. · цена ' + c.intro_price_stars + ' ⭐ → ' + c.renewal_price_stars + ' ⭐ · ' +
+        'общий гейт оплаты: ' + (c.gate_enabled ? '<b>ВКЛЮЧЁН</b>' : 'выключен');
       box.innerHTML = '<div class="empty-note" style="padding:0 0 8px">' + facts + '</div>' +
         '<label class="list-row" style="cursor:pointer"><div class="list-row-name"><b>Все сообщения триала</b><small>общий выключатель</small></div><input type="checkbox" data-trial-toggle="*"' + (data.enabled ? ' checked' : '') + '></label>' +
         trialCatalog.map(function(m){

@@ -36,6 +36,7 @@ from username_sync import run_username_sync
 from abuse_alerts import run_abuse_alerts
 from subscription_scheduler import run_trial_reminders
 from subscription_flow import retry_failed_payments
+from partner_scheduler import run_partner_jobs
 from admin_digest_scheduler import run_admin_daily_digest, DIGEST_HOUR_UTC
 from error_alert_scheduler import run_error_spike_check
 from backups.backup import start_backup_scheduler, send_offsite_backup
@@ -215,6 +216,7 @@ async def main():
     scheduler.add_job(run_trial_reminders, "interval", minutes=1, args=[bot])
     # Деньги получены, а начисление упало (ТЗ 28.10 §19): повторяем начисление и сообщаем, когда получилось.
     scheduler.add_job(retry_failed_payments, "interval", minutes=3, args=[bot])
+    scheduler.add_job(run_partner_jobs, "interval", minutes=5, args=[bot])
 
     # Ежедневная проактивная сводка админам (DAU, ошибки за 24ч, расход
     # AI-квоты против общего потолка, воронки, конверсия подписки) — не

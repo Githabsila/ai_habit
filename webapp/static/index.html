@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261028_TRIAL_V86">
+<link rel="stylesheet" href="/static/style.css?v=20261028_PARTNER_V87">
 </head>
 <body>
 
@@ -153,6 +153,19 @@ style="width:0%">
 
 <!-- Триал: карточка только у аккаунтов в сценарии триала (state.access.paywall); тап открывает «Мой пробный период».
      Рисует app.js::renderTrialCard. -->
+<div class="inviter-card" id="inviterCard" hidden>
+  <span class="inviter-card__voice" id="inviterVoice"></span>
+  <div class="inviter-card__body">
+    <b class="inviter-card__title">Тебя пригласили в ADAM</b>
+    <span class="inviter-card__who" id="inviterWho"></span>
+    <div class="inviter-card__actions">
+      <button type="button" class="inviter-card__btn" id="inviterFriend">Добавить в друзья</button>
+      <button type="button" class="inviter-card__btn" id="inviterFollow">Подписаться</button>
+      <button type="button" class="inviter-card__btn inviter-card__btn--quiet" id="inviterCopy">Скопировать ник</button>
+      <button type="button" class="inviter-card__btn inviter-card__btn--quiet" id="inviterClose">Закрыть</button>
+    </div>
+  </div>
+</div>
 <div class="trial-offer-card" id="trialOfferCard" hidden role="status">
   <span class="trial-offer-card__voice" id="trialOfferVoice"></span>
   <p class="trial-offer-card__text" id="trialOfferText"></p>
@@ -698,6 +711,11 @@ class="habit-add-form__submit">
 
 <div class="settings-card">
 
+  <div class="settings-row" id="partnerSettingsRow" hidden>
+    <span>🤝 Партнёрский раздел</span>
+    <button type="button" class="settings-quiet-toggle" id="partnerSettingsBtn">Открыть</button>
+  </div>
+
   <div class="settings-row" id="subscriptionSettingsRow" hidden>
     <span>💳 Подписка на Адама</span>
     <button type="button" class="settings-quiet-toggle" id="subscriptionSettingsBtn">Открыть</button>
@@ -944,6 +962,23 @@ class="habit-add-form__submit">
      fixed-оверлеи уже жили здесь, вне #app — теперь и эта тоже. -->
 <!-- Триал: окно «Мой пробный период» (дни, цель на два дня подряд, цена) и блокирующее окно «Пробный период закончился» с оплатой Stars.
      Рисует app.js::openTrialSheet / showTrialPaywall; оплата — POST /api/subscription/invoice → Telegram.WebApp.openInvoice. -->
+<div class="partner-overlay" id="partnerOverlay" hidden aria-hidden="true">
+  <section class="partner-card" role="dialog" aria-modal="true" aria-labelledby="partnerTitle">
+    <div class="partner-card__voice" id="partnerVoice"></div>
+    <h2 id="partnerTitle">Партнёрский раздел</h2>
+    <p class="partner-card__terms" id="partnerTerms"></p>
+    <div class="partner-grid" id="partnerGrid"></div>
+    <div class="partner-section-title">Мои ссылки</div>
+    <div id="partnerLinks"></div>
+    <div class="partner-new">
+      <input type="text" id="partnerLinkLabel" maxlength="40" placeholder="Где разместишь ссылку" autocomplete="off">
+      <button type="button" id="partnerLinkAdd">Создать</button>
+    </div>
+    <div class="partner-section-title">Начисления</div>
+    <div id="partnerHistory"></div>
+    <button type="button" class="partner-card__close" id="partnerClose">Закрыть</button>
+  </section>
+</div>
 <div class="trial-paywall" id="trialPaywallOverlay" hidden aria-hidden="true">
   <section class="trial-paywall__card" role="dialog" aria-modal="true" aria-labelledby="trialPaywallTitle">
     <div class="trial-paywall__voice" id="trialPaywallVoice"></div>
@@ -1761,7 +1796,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261028_TRIAL_V98"></script>
+<script type="module" src="/static/app.js?v=20261028_PARTNER_V99"></script>
 
 </body>
 </html>

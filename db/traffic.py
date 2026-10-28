@@ -37,11 +37,13 @@ def slug(title):
 
 
 def parse_payload(payload):
-    """Что пришло в /start: ('src', код) | ('friend', id) | ('ref', id) | (None, None)."""
+    """Что пришло в /start: ('src', код) | ('partner', код ссылки участника) | ('friend', id) | ('ref', id) | (None, None)."""
     text = str(payload or "")
     if text.startswith("src_"):
         code = text[4:]
         return ("src", code) if SOURCE_RE.match(code) else (None, None)
+    if text.startswith("p_") and 4 <= len(text) <= 24 and text[2:].isalnum():
+        return "partner", text[2:].lower()
     if text.startswith("friend_") and text[7:].isdigit():
         return "friend", int(text[7:])
     if text.isdigit():

@@ -241,6 +241,16 @@ FEATURES = (
              "cb:gift_premium_confirm_#", "msg:successful_payment", "cmd:/paysupport", "cmd:/terms", "cmd:/refund"),
         note="Нажатия на оплату и сами платежи",
     ),
+    Feature(
+        "partners", "Партнёрская программа", "money", "2026-10-28",
+        screens=("partner",),
+        clicks=("partner*", "inviter*"),
+        events=("partner_stats_open", "partner_link_create", "partner_link_copy", "partner_payout", "partner_accrual_signal", "inviter_card_shown", "inviter_card_action"),
+        api=("GET /api/partner/stats", "POST /api/partner/link", "GET /api/partner/inviter", "POST /api/partner/inviter/friend", "GET /api/admin/partners", "GET /api/admin/partners/{user_id}",
+             "POST /api/admin/partners", "POST /api/admin/partners/{user_id}/conditions", "POST /api/admin/partners/{user_id}/payout", "POST /api/admin/partners/accrual/{accrual_id}",
+             "POST /api/admin/partners/settings", "GET /api/admin/trial/stats", "GET /api/admin/trial/source/{code}"),
+        note="Денежные начисления за покупки приглашённых и карточка пригласившего",
+    ),
     # ------------------------------------------------------------------ профиль и настройки
     Feature(
         "profile", "Профиль и вкладка «Профиль»", "system", "2026-01-01",

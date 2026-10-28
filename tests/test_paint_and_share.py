@@ -27,7 +27,7 @@ def test_share_helper_puts_the_caption_first_and_the_link_after_it():
 def test_every_share_goes_through_the_helper():
     assert "https://t.me/share/url" not in APP_JS.replace(
         "https://t.me/share/url?url=${encodeURIComponent(text)}&text=${encodeURIComponent(link)}", "")
-    assert APP_JS.count("telegramShareUrl(") == 4          # объявление + друг, квиз, карточка прогресса
+    assert APP_JS.count("telegramShareUrl(") == 5          # объявление + друг, квиз, карточка прогресса, ссылка участника партнёрского раздела
     assert "telegramShareUrl(text, refLink)" in APP_JS and "telegramShareUrl(text, link)" in APP_JS
 
 

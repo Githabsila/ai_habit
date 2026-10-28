@@ -184,7 +184,7 @@ def test_the_styles_are_light_and_the_block_sits_before_the_chest():
     for forbidden in ("filter", "backdrop-filter", "infinite", "animation"):
         assert forbidden not in css, forbidden
     assert "Окно «Сундук»" not in css.split("*/", 1)[1]
-    assert "style.css?v=20261028_TRIAL_V86" in INDEX and "app.js?v=20261028_TRIAL_V98" in INDEX
+    assert "style.css?v=20261028_PARTNER_V87" in INDEX and "app.js?v=20261028_PARTNER_V99" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- тексты (Node на заглушках DOM)

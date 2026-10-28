@@ -7946,7 +7946,7 @@ async function openFriendInvite(shareText) {
 const REMIND_BLOCKING_OVERLAYS = [
   "streakCelebrationOverlay", "doubleBonusOverlay", "pairGuideOverlay", "levelupOverlay", "streakOnboardingOverlay",
   "achievementShareOverlay", "archetypeQuizOverlay", "startQuizOverlay", "appTourOverlay",
-  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialPaywallOverlay", "trialOfferCard",
+  "handleIntroOverlay", "heroLightbox", "evolutionOverlay", "adminGiftOverlay", "statusLadderOverlay", "chestOverlay", "adamIntroOverlay", "freezeHelpOverlay", "rescueHelpOverlay", "inboxOverlay", "habitEditSheet", "habitUndoSheet", "trialPaywallOverlay", "trialOfferCard", "partnerOverlay",
 ];
 
 function celebrationOverlayOpen({ skipEvolution = false } = {}) {
@@ -8746,6 +8746,194 @@ function initTrial() {
     if (!trialOfferDemo) { try { localStorage.setItem(SUB_DISMISS_KEY, new Date().toDateString()); } catch (_) {} }
     hideTrialOffer();
   });
+}
+
+// ===================== ПАРТНЁРСКАЯ ПРОГРАММА И КАРТОЧКА ПРИГЛАСИВШЕГО (db/partners.py, ТЗ §20–§24) =====================
+// Участник пилота (state.is_partner) видит в «Настройках» свой раздел: условия, цифры, ссылки (личная и подписанные — чтобы сравнивать площадки) и историю начислений без имён
+// приглашённых. Новичок, пришедший по ссылке участника, один раз видит карточку пригласившего: добавить в друзья и подписаться он решает сам, ник можно скопировать.
+// Симуляции (админка → «Окна и анимации»): partner_screen, inviter_card — демо-данные, ничего не отправляется.
+const SIM_PARTNER = {
+  active: true, subscription_active: true, share_percent: 40, window_days: 30, valid_until: null, invited: 6, buyers: 2, purchases: 3, currency: "XTR", min_payout: 100,
+  balance: { accrued: 244, hold: 61, waiting: 61, payable: 122, paid: 61, clawback: 0 },
+  history: [
+    { invitee: "Приглашённый №4", amount: 61, base: 153, status: "accrued", status_label: "начислено", reason: null, at: "2026-10-27 12:10:00" },
+    { invitee: "Приглашённый №2", amount: 61, base: 153, status: "hold", status_label: "на проверке", reason: "подозрительная регистрация: всплеск приходов по одной ссылке", at: "2026-10-26 09:30:00" },
+  ],
+  links: [
+    { id: 1, code: "demo1234", label: "Личная", is_personal: 1, touches: 14, invitees: 6, buyers: 2 },
+    { id: 2, code: "demo5678", label: "Канал про привычки", is_personal: 0, touches: 9, invitees: 3, buyers: 1 },
+  ],
+  payouts: [],
+};
+const SIM_INVITER = { user_id: 1, name: "Аня", handle: "@anya_pro" };
+const INVITER_CLOSED_KEY = "adam_inviter_card_closed";
+let partnerData = null;
+let partnerDemo = false;
+let inviterDemo = false;
+
+function partnerLinkUrl(code) {
+  return state?.bot_username ? `https://t.me/${state.bot_username}?start=p_${code}` : "";
+}
+
+function partnerLinkText(link) {
+  return `${link.label}: ${link.touches} ${pluralRu(link.touches, "переход", "перехода", "переходов")}, приглашённых — ${link.invitees}, купили — ${link.buyers}`;
+}
+
+function renderPartnerScreen(data) {
+  const b = data.balance || {};
+  const until = data.valid_until ? ` Условия действуют до ${escapeHtml(String(data.valid_until).slice(0, 10))}.` : "";
+  document.getElementById("partnerVoice").innerHTML = adamVoiceHtml("lg", "🤝");
+  document.getElementById("partnerTerms").innerHTML = escapeHtml(
+    `Ты получаешь ${data.share_percent}% от полной суммы покупок тех, кто пришёл по твоим ссылкам, в первые ${data.window_days} ${pluralRu(data.window_days, "день", "дня", "дней")} после перехода. `
+    + `Выплаты ручные, от ${data.min_payout} ⭐.${until}`) + (data.active && data.subscription_active ? "" : `<br><b>${escapeHtml(data.subscription_active ? "Условия сейчас не действуют." : "Нужна действующая подписка: пока её нет, начисления ждут проверки.")}</b>`);
+  document.getElementById("partnerGrid").innerHTML = [
+    ["Приглашено", data.invited], ["Купили", data.buyers], ["Начислено", `${b.accrued} ⭐`], ["К выплате", `${b.payable} ⭐`],
+    ["Ждёт срока", `${b.waiting} ⭐`], ["На проверке", `${b.hold} ⭐`], ["Выплачено", `${b.paid} ⭐`], ["Покупок", data.purchases],
+  ].map(([label, value]) => `<div><b>${escapeHtml(String(value))}</b><small>${escapeHtml(label)}</small></div>`).join("");
+  document.getElementById("partnerLinks").innerHTML = (data.links || []).map((link) => `
+    <div class="partner-link" data-code="${escapeHtml(link.code)}"><b>${escapeHtml(link.label)}</b>
+      <span><button type="button" data-partner-copy="${escapeHtml(link.code)}" data-personal="${link.is_personal}">Копировать</button><button type="button" class="partner-link__share" data-partner-share="${escapeHtml(link.code)}">Отправить</button></span>
+      <small>${escapeHtml(partnerLinkText(link))}</small></div>`).join("");
+  const history = data.history || [];
+  document.getElementById("partnerHistory").innerHTML = history.length
+    ? history.map((row) => `<div class="partner-row"><span>${escapeHtml(row.invitee)}<small>${escapeHtml(String(row.at || "").slice(0, 10))}${row.reason ? ` · ${escapeHtml(row.reason)}` : ""}</small></span><span>${row.amount} ⭐<small>${escapeHtml(row.status_label)}</small></span></div>`).join("")
+    : `<div class="partner-empty">Пока начислений нет: они появятся после первых покупок приглашённых.</div>`;
+}
+
+async function openPartnerScreen({ demo = null } = {}) {
+  const overlay = document.getElementById("partnerOverlay");
+  if (!overlay) return;
+  partnerDemo = !!demo;
+  try {
+    partnerData = demo || await api("/api/partner/stats");
+  } catch (err) {
+    showToast(friendlyError(err), "error");
+    return;
+  }
+  renderPartnerScreen(partnerData);
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  overlay.scrollTop = 0;
+  haptic("light");
+}
+
+function closePartnerScreen() {
+  const overlay = document.getElementById("partnerOverlay");
+  if (!overlay) return;
+  overlay.hidden = true;
+  overlay.setAttribute("aria-hidden", "true");
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* запасной путь ниже */ }
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  } catch (_) { return false; }
+}
+
+async function createPartnerLink() {
+  const input = document.getElementById("partnerLinkLabel");
+  const label = (input?.value || "").trim();
+  if (!label) { showToast("Напиши, где разместишь ссылку", "error"); return; }
+  if (partnerDemo) { showToast("🧪 Демо: ссылка не создаётся", "success", 1800); return; }
+  try {
+    const result = await api("/api/partner/link", { method: "POST", body: JSON.stringify({ label }) });
+    partnerData = { ...partnerData, links: result.links };
+    input.value = "";
+    renderPartnerScreen(partnerData);
+    haptic("success");
+    showToast("Ссылка создана", "success", 1800);
+  } catch (err) {
+    const texts = { too_many_links: "Ссылок уже много — хватит десяти", empty_label: "Напиши, где разместишь ссылку" };
+    showToast(texts[err?.data?.error] || friendlyError(err), "error");
+  }
+}
+
+function renderPartnerRow() {
+  const row = document.getElementById("partnerSettingsRow");
+  if (row) row.hidden = !state?.is_partner;
+}
+
+function renderInviterCard(card = state?.inviter_card, { demo = false } = {}) {
+  const el = document.getElementById("inviterCard");
+  if (!el) return;
+  let closed = false;
+  try { closed = !demo && localStorage.getItem(INVITER_CLOSED_KEY) === "1"; } catch (_) {}
+  if (!card || closed) { el.hidden = true; return; }
+  inviterDemo = demo;
+  document.getElementById("inviterVoice").innerHTML = adamVoiceHtml("sm");
+  document.getElementById("inviterWho").textContent = `${card.name}${card.handle ? ` · ${card.handle}` : ""}`;
+  document.getElementById("inviterCopy").hidden = !card.handle;
+  el.hidden = false;
+  if (!demo && !el.dataset.tracked) { el.dataset.tracked = "1"; trk("inviter_card_shown", null, null); }
+}
+
+function initPartner() {
+  document.getElementById("partnerSettingsBtn")?.addEventListener("click", () => {
+    document.getElementById("settingsOverlayClose")?.click();
+    openPartnerScreen();
+  });
+  document.getElementById("partnerClose")?.addEventListener("click", () => { haptic("light"); closePartnerScreen(); });
+  document.getElementById("partnerLinkAdd")?.addEventListener("click", createPartnerLink);
+  document.getElementById("partnerOverlay")?.addEventListener("click", async (e) => {
+    const copy = e.target.closest("[data-partner-copy]");
+    const share = e.target.closest("[data-partner-share]");
+    if (!copy && !share) return;
+    const code = (copy || share).dataset.partnerCopy || (copy || share).dataset.partnerShare;
+    const url = partnerLinkUrl(code);
+    if (!url) { showToast("Не получилось собрать ссылку — попробуй чуть позже", "error"); return; }
+    haptic("light");
+    if (copy) {
+      if (!partnerDemo) trk("partner_link_copy", copy.dataset.personal === "1" ? "personal" : "labeled", null);
+      showToast((await copyText(url)) ? "Ссылка скопирована" : "Не получилось скопировать", "success", 1800);
+    } else {
+      if (!partnerDemo) trk("partner_link_copy", "share", null);
+      const shareUrl = telegramShareUrl("Присоединяйся к ADAM — привычки, план дня и наставник:", url);
+      if (tg && typeof tg.openTelegramLink === "function") tg.openTelegramLink(shareUrl); else window.open(shareUrl, "_blank");
+    }
+  });
+  const closeCard = () => {
+    document.getElementById("inviterCard").hidden = true;
+    if (!inviterDemo) { try { localStorage.setItem(INVITER_CLOSED_KEY, "1"); } catch (_) {} trk("inviter_card_action", "close", null); }
+  };
+  document.getElementById("inviterClose")?.addEventListener("click", () => { haptic("light"); closeCard(); });
+  document.getElementById("inviterCopy")?.addEventListener("click", async () => {
+    haptic("light");
+    const card = inviterDemo ? SIM_INVITER : state?.inviter_card;
+    if (!card?.handle) return;
+    if (!inviterDemo) trk("inviter_card_action", "copy", null);
+    showToast((await copyText(card.handle)) ? "Ник скопирован" : "Не получилось скопировать", "success", 1800);
+  });
+  document.getElementById("inviterFriend")?.addEventListener("click", async () => {
+    haptic("light");
+    if (inviterDemo) { showToast("🧪 Демо: никто не добавляется", "success", 1800); return; }
+    try {
+      await api("/api/partner/inviter/friend", { method: "POST" });
+      showToast("Вы теперь друзья", "praise", 2400);
+      closeCard();
+    } catch (err) { showToast(friendlyError(err), "error"); }
+  });
+  document.getElementById("inviterFollow")?.addEventListener("click", async () => {
+    haptic("light");
+    const card = inviterDemo ? SIM_INVITER : state?.inviter_card;
+    if (inviterDemo || !card) { showToast("🧪 Демо: никто не подписывается", "success", 1800); return; }
+    try {
+      await api(`/api/users/${card.user_id}/follow`, { method: "POST" });
+      trk("inviter_card_action", "follow", null);
+      showToast("Подписка оформлена", "praise", 2400);
+      closeCard();
+    } catch (err) { showToast(friendlyError(err), "error"); }
+  });
+  renderPartnerRow();
+  renderInviterCard();
 }
 
 // ===================== ИЗМЕНЕНИЕ ПРИВЫЧКИ =====================
@@ -10013,6 +10201,8 @@ const SIM_SCENES = {
   trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),
   trial_paywall_full: () => showTrialPaywall(SIM_TRIAL_FULL_EXPIRED, { demo: true }),
   trial_timer: () => showTrialCardDemo(SIM_TRIAL_LAST),
+  partner_screen: () => openPartnerScreen({ demo: SIM_PARTNER }),
+  inviter_card: () => renderInviterCard(SIM_INVITER, { demo: true }),
   trial_offer_app: () => { closeTrialPaywall(); showTrialOffer(SIM_OFFER, { demo: true }); },
   trial_chat_offer: () => { window.location.href = "/coach?sim=trial_offer"; },
   sub_paid: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: SIM_TRIAL_PAID, overview: SIM_SUB_AUTO }); },
@@ -12410,6 +12600,7 @@ async function boot() {
             initLabMode();
             initSimMode();
             renderAdamIntroSettings();
+            initPartner();
             setTimeout(() => { rescueHelpReady = maybeShowRescueHelp(); }, 4000);
             setTimeout(() => maybeShowFreezeHelp(), 5000);
         }

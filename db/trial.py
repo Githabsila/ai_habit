@@ -252,6 +252,52 @@ def clear_trial_messages(user_id):
         conn.close()
 
 
+# Готовые состояния для проверки с тестового аккаунта (ТЗ 28.10 §28): ключ → (название, шаги). Шаги: ("shift", день) — «машина времени»; "pay_test" — тестовая оплата тем же
+# путём, что настоящая; "pending" — оплата начата, подтверждения ещё нет; "fail" — оплата получена, а начисление не прошло; "expire" — подписка оплачена и уже закончилась.
+LAB_STATES = {
+    "day1": ("Первый день", (("shift", 1),)),
+    "day2": ("Второй день", (("shift", 2),)),
+    "day3": ("Третий день, последние сутки", (("shift", 3),)),
+    "grace": ("Триал закончился: окно 24 часа", (("shift", 4),)),
+    "after": ("После окна: доступ закрыт", (("shift", 6),)),
+    "early_pay": ("Ранняя покупка (на 2-й день)", (("shift", 2), "pay_test")),
+    "pay_ok": ("Успешная оплата в окне", (("shift", 4), "pay_test")),
+    "pay_wait": ("Ожидание подтверждения оплаты", (("shift", 4), "pending")),
+    "pay_error": ("Ошибка: деньги списаны, доступ не открылся", (("shift", 4), "fail")),
+    "returning": ("Вернулся после окончания подписки", (("shift", 8), "pay_test", "expire")),
+}
+
+
+def lab_mark_pending(user_id):
+    """Оплата начата (счёт выставлен), подтверждения ещё нет: экран подписки покажет «ждём подтверждение»."""
+    from .tracking import track_server
+    track_server(user_id, "subscription_invoice", "lab", meta={"lab": True})
+
+
+def lab_fail_payment(user_id):
+    """Тестовый платёж, который получен, а обработка упала: он виден в списке сбоев админки (is_test), в реальные показатели не попадает."""
+    import time
+    conn = connect()
+    try:
+        conn.execute(
+            "INSERT INTO stars_payments(charge_id, user_id, payload, amount, is_test, status, error, attempts, purchased_at) VALUES (?, ?, ?, 0, 1, 'failed', 'проверка: сбой начисления', 1, CURRENT_TIMESTAMP)",
+            (f"lab-fail-{user_id}-{int(time.time())}", user_id, f"subscription:{user_id}"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def lab_expire_subscription(user_id):
+    """Подписка была оплачена и закончилась (вчера): человек возвращается как платившее раньше, цена — полная."""
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET subscription_paid_until=datetime('now', '-1 day') WHERE telegram_id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def clear_test_payment(user_id):
     """Стереть оплату, ссылку в канал и «платил раньше» — только для проверки триала с тестового аккаунта (админка)."""
     conn = connect()
@@ -261,6 +307,7 @@ def clear_test_payment(user_id):
             (user_id,),
         )
         conn.execute("DELETE FROM stars_payments WHERE user_id=? AND COALESCE(is_test,0)=1", (user_id,))
+        conn.execute("DELETE FROM user_events WHERE user_id=? AND name='subscription_invoice' AND step='lab'", (user_id,))
         conn.commit()
     finally:
         conn.close()

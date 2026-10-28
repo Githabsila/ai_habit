@@ -732,6 +732,10 @@ def create_tables():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_trial_offers_user_day ON trial_offers(user_id, local_date)")
 
+    # Денежная партнёрская программа (db/partners.py, ТЗ §20–§24): участники пилота, ссылки, история переходов, привязки, начисления, выплаты и журнал исправлений.
+    from . import partners as _partners
+    _partners.ensure_schema(cursor)
+
     # Спасение серии друга (db/rescue.py): одна запись на срыв (UNIQUE owner+день срыва) — кто и когда вернул серию; на ней же держатся
     # лимиты «раз в календарный месяц у спасателя» и «не чаще раза в две недели у того, кого спасают». rescue_pushes — кому из друзей
     # уже сообщали про этот срыв (пуш один раз на срыв).

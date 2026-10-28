@@ -160,5 +160,6 @@ def test_the_panel_has_the_trial_blocks_and_calls_the_api():
     assert "Триал · сообщения" in PANEL and 'id="trialOverviewBox"' in PANEL and "loadTrialOverview();" in PANEL
     assert "'<div id=\"trialSection\">' + trialHtml(u) + '</div>'" in PANEL and "bindTrial(u);" in PANEL
     for needle in ("/api/admin/trial'", "/api/admin/trial/toggle", "'/api/admin/user/' + id + '/trial'", "data-trial-shift", "data-trial-act=\"pay_test\"",
-                   "data-trial-act=\"reset\"", "data-trial-send", "Машина времени", "Обнулить старт", "Оплатить тестово", "CLOSED_CHANNEL_ID"):
+                   "data-trial-act=\"reset\"", "data-trial-send", "Машина времени", "Обнулить старт", "Оплатить тестово", "data-trial-lab", "Готовые состояния", "loadTrialStats", "Триал · статистика"):
         assert needle in PANEL, needle
+    assert "CLOSED_CHANNEL_ID" not in PANEL, "закрытый канал больше не продаём — в карточке про него ни слова"
