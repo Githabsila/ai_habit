@@ -249,7 +249,7 @@ async def successful_payment(message: Message):
     if is_payment_processed(charge_id):
         log_error("duplicate_payment", f"charge_id={charge_id} payload={payload}", message.from_user.id)
         return
-    mark_payment_processed(charge_id, message.from_user.id, payload, payment.total_amount)
+    mark_payment_processed(charge_id, message.from_user.id, payload, payment.total_amount, purchased_at=getattr(message, "date", None))
 
     # Покупка платной рамки из Mini App через Telegram Stars.
     if payload.startswith("avatar_frame:"):
@@ -385,7 +385,7 @@ async def successful_payment(message: Message):
         if paid_user_id != message.from_user.id:
             return
         # Что сказать человеку, зависит от дня триала и отметок (ТЗ владельца): subscription_flow / trial_messages.paid_welcome_text.
-        text, snap, link = await complete_subscription_payment(message.bot, message.from_user.id)
+        text, snap, link = await complete_subscription_payment(message.bot, message.from_user.id, paid_at=getattr(message, "date", None))
         await message.answer(text, reply_markup=trial_keyboard(("open",), snap["price_stars"]) or back_menu_keyboard())
         return
 

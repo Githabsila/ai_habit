@@ -67,10 +67,13 @@ class _Bot:
 async def test_a_locked_account_still_sees_its_trial_and_can_pay(client, uid):
     person = _person(uid, day=4)
     client.app["bot"] = _Bot()
-    locked = await client.get("/api/bootstrap", headers=_headers(person))
+    readable = await client.get("/api/bootstrap", headers=_headers(person))
+    assert readable.status == 200, "дополнительное окно: данные и история видны (только чтение)"
+    assert (await readable.json())["access"]["state"] == "grace"
+    locked = await client.post("/api/habits", headers=_headers(person), json={"title": "Новая привычка"})
     body = await locked.json()
-    assert locked.status == 403 and body["error"] == "trial_expired"
-    assert body["trial"]["phase"] == "expired_intro" and body["trial"]["price_stars"] == 153 and body["trial"]["intro_active"] is True
+    assert locked.status == 403 and body["error"] == "trial_expired", "а новые действия закрыты"
+    assert body["trial"]["phase"] == "grace" and body["trial"]["price_stars"] == 153 and body["trial"]["intro_active"] is True
     status = await client.get("/api/trial", headers=_headers(person))
     data = await status.json()
     assert status.status == 200 and data["allowed"] is False and data["trial"]["day"] == 4
@@ -83,7 +86,7 @@ async def test_a_locked_account_still_sees_its_trial_and_can_pay(client, uid):
     assert "Первый месяц по особой цене" in kwargs["description"] and kwargs["provider_token"] == ""
 
 
-@pytest.mark.parametrize("day,price", [(1, 153), (3, 153), (4, 153), (5, 461), (9, 461)])
+@pytest.mark.parametrize("day,price", [(1, 153), (3, 153), (4, 153), (5, 153), (9, 153)])
 async def test_the_invoice_amount_follows_the_day(client, uid, day, price):
     person = _person(uid, day=day)
     client.app["bot"] = _Bot()
@@ -171,7 +174,7 @@ def test_the_styles_are_light_and_the_block_sits_before_the_chest():
     for forbidden in ("filter", "backdrop-filter", "infinite", "animation"):
         assert forbidden not in css, forbidden
     assert "Окно «Сундук»" not in css.split("*/", 1)[1]
-    assert "style.css?v=20261021_QUESTS_V84" in INDEX and "app.js?v=20261021_QUESTS_V95" in INDEX
+    assert "style.css?v=20261021_QUESTS_V84" in INDEX and "app.js?v=20261021_QUESTS_V96" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- тексты (Node на заглушках DOM)
@@ -202,7 +205,8 @@ for (const t of cases) {
     card: { hidden: els.trialCard.hidden, title: els.trialCardTitle.textContent, sub: els.trialCardSub.textContent, dots: els.trialCardDays.innerHTML.match(/trial-dot [a-z-]*/g) },
     sheet: { days: strip(els.trialSheetDays.innerHTML), rule: strip(els.trialSheetRule.innerHTML), offer: strip(els.trialSheetOffer.innerHTML),
              pay: els.trialSheetPay.textContent, payHidden: !!els.trialSheetPay.hidden, later: els.trialSheetLater.textContent },
-    paywall: { lead: els.trialPaywallLead.textContent, offer: strip(els.trialPaywallOffer.innerHTML), pay: els.trialPaywallPay.textContent, shown: !els.trialPaywallOverlay.hidden },
+    paywall: { title: els.trialPaywallTitle.textContent, lead: els.trialPaywallLead.textContent, offer: strip(els.trialPaywallOffer.innerHTML), pay: els.trialPaywallPay.textContent,
+               shown: !els.trialPaywallOverlay.hidden, close: !els.trialPaywallClose.hidden },
   });
 }
 process.stdout.write(JSON.stringify(out));
@@ -240,9 +244,9 @@ CASES = [
     _t(marked_today=True, streak=1),
     _t(streak=2, marked_today=True, marked_yesterday=True, channel_eligible=True),
     _t(day=3, phase="day3", streak=1, marked_yesterday=True),
-    _t(day=4, phase="expired_intro", streak=2, channel_eligible=True),
-    _t(day=4, phase="expired_intro", streak=0),
-    _t(day=6, phase="expired_full", intro_active=False, price_stars=461),
+    _t(day=4, phase="grace", read_only=True, ends_at_text="29 октября, 00:00", streak=2, channel_eligible=True),
+    _t(day=4, phase="grace", read_only=True, ends_at_text="29 октября, 00:00", streak=0),
+    _t(day=6, phase="expired", intro_active=False, price_stars=461),
     _t(day=2, phase="paid", paid=True, streak=1),
     _t(day=2, phase="paid", paid=True, streak=2, channel_eligible=True, channel_granted=True),
     _t(day=2, phase="paid", paid=True, channel_configured=False),
@@ -279,13 +283,20 @@ def test_the_sheet_shows_days_the_rule_and_the_price():
 
 
 @pytest.mark.skipif(NODE is None, reason="нужен Node")
-def test_the_blocking_window_tells_the_streak_and_the_price_of_today():
+def test_the_window_after_the_trial_tells_the_deadline_the_saved_streak_and_both_prices():
+    """ТЗ 28.10 §7: после триала — дополнительное окно: история сохранена, срок защиты серии назван точной датой, вводная цена не «только сегодня»."""
     out = _run(CASES)
-    intro_kept, intro_empty, full = out[6]["paywall"], out[7]["paywall"], out[8]["paywall"]
-    assert intro_kept["shown"] and intro_kept["lead"] == "Твой ударный режим — 2 дня подряд — сохранился. Вернись ко мне, пока он не пропал."
-    assert intro_kept["offer"] == "Последний день скидки 153 ⭐ ≈ $1.99 за первый месяц, завтра — 461 ⭐ ($5.99)" and intro_kept["pay"] == "Оформить за 153 ⭐"
-    assert intro_empty["lead"] == "Ударный режим начнётся, как только ты вернёшься."
-    assert full["offer"] == "461 ⭐ ≈ $5.99 за месяц доступа" and full["pay"] == "Оформить за 461 ⭐" and "скидки" not in full["offer"].lower()
+    kept, empty, closed = out[6]["paywall"], out[7]["paywall"], out[8]["paywall"]
+    assert kept["shown"] and kept["title"] == "Пробный доступ завершён" and kept["close"] is True, "в окне историю можно посмотреть"
+    assert kept["lead"] == "Твоя история сохранена. Заработанная серия — 2 дня подряд — сохранится, если продолжить до 29 октября, 00:00."
+    assert kept["offer"] == "153 ⭐ ≈ $1.99 за первый месяц, дальше 461 ⭐ ($5.99)" and kept["pay"] == "Оформить за 153 ⭐"
+    assert empty["lead"] == "Твоя история сохранена. Серия начнётся, как только ты вернёшься. Продолжить можно до 29 октября, 00:00."
+    assert closed["title"] == "Доступ пока закрыт"
+    assert "closeBtn.hidden = !demo && !t.read_only;" in APP_JS, "закрыть экран и посмотреть историю можно только в дополнительном окне (чтение)"
+    assert closed["lead"] == "Твоя история сохранена. Подписка снова откроет привычки, планирование и разговор со мной."
+    assert closed["offer"] == "461 ⭐ ≈ $5.99 за месяц доступа" and closed["pay"] == "Оформить за 461 ⭐"
+    for window in (kept, empty, closed):
+        assert "последний день" not in window["offer"].lower() and "только сегодня" not in window["lead"].lower()
 
 
 @pytest.mark.skipif(NODE is None, reason="нужен Node")
@@ -293,7 +304,8 @@ def test_no_window_repeats_its_own_words_or_speaks_in_the_third_person():
     for case, result in zip(CASES, _run(CASES)):
         sheet, paywall = result["sheet"], result["paywall"]
         assert not shared("Мой пробный период", sheet["rule"], sheet["offer"], sheet["pay"], sheet["later"]), (case["phase"], sheet)
-        assert not shared("Пробный период закончился", paywall["lead"], paywall["offer"], paywall["pay"]), (case["phase"], paywall)
+        if case["phase"] in ("grace", "expired"):
+            assert not shared(paywall["title"], paywall["lead"], paywall["pay"]), (case["phase"], paywall)
         for text in (sheet["rule"], sheet["offer"], paywall["lead"], result["card"]["sub"]):
             assert not re.search(r"\bбот\w*|\bсистем\w*|\bAI\b|Адам написал|ADAM будет", text), text
     assert not shared("Пробный период закончился", "Продолжу планировать твой день и разбирать цели"), "список выгод не повторяет заголовок"

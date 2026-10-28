@@ -61,7 +61,7 @@ async def test_the_shift_moves_the_account_to_the_chosen_day(client, uid, admin)
     refused = await _act(client, admin, person, action="shift", day=3)
     assert refused.status == 409 and (await refused.json())["error"] == "not_in_trial", "машина времени — только для аккаунтов в триале"
     start_trial_mode(person, admin)
-    for day, phase in ((3, "day3"), (4, "expired_intro"), (5, "expired_full"), (1, "day1")):
+    for day, phase in ((3, "day3"), (4, "grace"), (5, "expired"), (1, "day1")):
         body = await (await _act(client, admin, person, action="shift", day=day)).json()
         assert body["ok"] and body["snapshot"]["day"] == day and body["snapshot"]["phase"] == phase and body["access"]["trial_day"] == day
     assert (await _act(client, admin, person, action="shift", day=11)).status == 400

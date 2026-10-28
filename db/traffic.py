@@ -175,7 +175,7 @@ def channel_stats(days=30):
             in_clause = ",".join("?" for _ in ids)
             active = conn.execute(f"SELECT COALESCE(SUM(active_seconds),0) AS n, COUNT(*) AS c FROM app_sessions WHERE user_id IN ({in_clause})", ids).fetchone()
             friends = conn.execute(f"SELECT COALESCE(SUM(referrals),0) AS n FROM users WHERE telegram_id IN ({in_clause})", ids).fetchone()
-            revenue = conn.execute(f"SELECT COALESCE(SUM(amount),0) AS n FROM stars_payments WHERE user_id IN ({in_clause})", ids).fetchone()
+            revenue = conn.execute(f"SELECT COALESCE(SUM(amount),0) AS n FROM stars_payments WHERE user_id IN ({in_clause}) AND COALESCE(is_test,0)=0", ids).fetchone()
         finally:
             conn.close()
         total = len(ids)

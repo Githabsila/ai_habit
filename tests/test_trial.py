@@ -17,6 +17,7 @@ import trial_messages as tm
 from db import add_user, get_user, set_timezone, start_trial_mode
 from db import trial as trial_db
 from db.access import shift_trial_day
+from db.access_state import set_trial_start
 from db.core import connect
 from db.subscription import get_subscription_price_stars, record_subscription_payment
 from tests.test_adam_texts import FORMAL, GENDERED, _problems
@@ -76,7 +77,7 @@ def test_the_trial_day_follows_the_local_calendar_not_utc(uid):
     start_trial_mode(uid, ADMIN)
     # зарегистрировалась в 23:30 по Москве (20:30 UTC): по UTC день 1 закончился бы через 3.5 часа, по местному календарю — через 30 минут
     started = datetime(2026, 10, 20, 20, 30)
-    _sql("UPDATE users SET trial_started_at=? WHERE telegram_id=?", (started.isoformat(), uid))
+    set_trial_start(uid, started)
     assert trial_db.trial_day(uid, datetime(2026, 10, 20, 20, 45, tzinfo=UTC)) == 1           # 23:45 по Москве — всё ещё первый день
     assert trial_db.trial_day(uid, datetime(2026, 10, 20, 21, 30, tzinfo=UTC)) == 2           # 00:30 по Москве уже второй
     assert trial_db.trial_day(uid, datetime(2026, 10, 22, 12, 0, tzinfo=UTC)) == 3
@@ -85,20 +86,21 @@ def test_the_trial_day_follows_the_local_calendar_not_utc(uid):
     assert end == datetime(2026, 10, 22, 21, 0), "триал кончается в полночь по Москве после третьего дня (21:00 UTC)"
 
 
-def test_the_discount_lasts_until_day_four_and_never_returns(uid):
+def test_the_intro_price_belongs_to_the_first_purchase_on_any_day_and_never_returns(uid):
+    """ТЗ 28.10 §6: вводная цена — для любой ПЕРВОЙ покупки, хоть на пятый день; «только сегодня» не говорим, потому что это неправда."""
     _person(uid, day=1)
     intro, full = config.SUBSCRIPTION_INTRO_PRICE_STARS, config.SUBSCRIPTION_RENEWAL_PRICE_STARS
     assert intro < full
-    for day, expected in ((1, intro), (2, intro), (3, intro), (4, intro), (5, full), (9, full)):
-        shift_trial_day(uid, day, ADMIN)
-        assert get_subscription_price_stars(uid) == expected, day
-        assert trial_db.snapshot(uid)["intro_active"] is (expected == intro)
+    for day in (1, 2, 3, 4, 5, 9, 30):
+        shift_trial_day(uid, min(day, 10), ADMIN)
+        assert get_subscription_price_stars(uid) == intro, day
+        assert trial_db.snapshot(uid)["intro_active"] is True
     shift_trial_day(uid, 2, ADMIN)
     record_subscription_payment(uid, months=1)
-    assert get_subscription_price_stars(uid) == full, "после первой оплаты — полная цена, даже если день ещё льготный"
+    assert get_subscription_price_stars(uid) == full, "после первой оплаты — полная цена"
 
 
-@pytest.mark.parametrize("day,phase", [(1, "day1"), (2, "day2"), (3, "day3"), (4, "expired_intro"), (5, "expired_full"), (8, "expired_full")])
+@pytest.mark.parametrize("day,phase", [(1, "day1"), (2, "day2"), (3, "day3"), (4, "grace"), (5, "expired"), (8, "expired")])
 def test_the_phase_follows_the_day_and_payment_wins(uid, day, phase):
     _person(uid, day=day)
     snap = trial_db.snapshot(uid)

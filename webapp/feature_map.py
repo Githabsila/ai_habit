@@ -232,7 +232,7 @@ FEATURES = (
         "payments", "Подписка и оплата", "money", "2026-01-01",
         screens=("trialPaywall",),
         clicks=("trialCard*", "trialSheet*", "trialPaywall*", "trial-*"),
-        events=("trial_sheet_open", "trial_pay_tap", "trial_paywall_shown", "trial_paid", "subscription_invoice", "subscription_paid"),
+        events=("trial_sheet_open", "trial_pay_tap", "trial_paywall_shown", "trial_paid", "subscription_invoice", "subscription_paid", "trial_started", "trial_streak_protected"),
         api=("GET /api/trial", "POST /api/subscription/invoice"),
         bot=("cb:buy_subscription", "cb:buy_premium", "cb:premium_info", "cb:gift_premium_start", "cb:gift_premium_to_#",
              "cb:gift_premium_confirm_#", "msg:successful_payment", "cmd:/paysupport", "cmd:/terms", "cmd:/refund"),

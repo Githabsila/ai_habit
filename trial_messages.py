@@ -114,15 +114,24 @@ def _paid_nudge(snap):
             "отметь привычку сегодня, и ссылка придёт сама 🔑")
 
 
-def locked_text(snap):
-    """Что человек видит, когда доступ закрыт (бот при любом действии; то же говорит окно в приложении): триал закончился и цена на сегодня."""
-    head = "⏳ <b>Пробный период закончился.</b>"
+def _price_line(snap):
+    """Цена для окна оплаты: первая покупка — по вводной цене в любой день (ТЗ §6), дальше полная; без «только сегодня»."""
     if snap["intro_active"]:
-        price = (f"Сегодня последний день, когда месяц стоит <b>{snap['price_stars']} ⭐</b> (≈{snap['intro_usd']}); "
-                 f"завтра — {snap['renewal_price_stars']} ⭐ ({snap['renewal_usd']}).")
-    else:
-        price = f"Вернуться ко мне можно за <b>{snap['renewal_price_stars']} ⭐</b> в месяц (≈{snap['renewal_usd']})."
-    return f"{head}\n\n{_streak_line_after_trial(snap)} {price}\n\nТвои привычки и серия ждут тебя."
+        return (f"Первый месяц — <b>{snap['price_stars']} ⭐</b> (≈{snap['intro_usd']}), дальше {snap['renewal_price_stars']} ⭐ (≈{snap['renewal_usd']}).")
+    return f"Месяц — <b>{snap['renewal_price_stars']} ⭐</b> (≈{snap['renewal_usd']})."
+
+
+def locked_text(snap):
+    """Что человек видит, когда основные действия закрыты (бот при любом действии; то же говорит экран в приложении, ТЗ §7 и §18).
+    Дополнительное окно (grace) — конкретный срок защиты серии; после него (expired) — просто как вернуться. История и данные сохранены в обоих случаях."""
+    if snap.get("phase") == "grace":
+        until = snap.get("ends_at_text") or ""
+        streak = (f"Заработанная серия — {streak_phrase(snap['streak'])} подряд — сохранится, если продолжить до {until}."
+                  if snap["streak"] > 0 else f"Продолжить можно до {until}: серия начнётся в день, когда ты вернёшься.")
+        return (f"⏳ <b>Пробный доступ завершён.</b>\n\nТвоя история сохранена. {streak} "
+                f"Подписка снова откроет привычки, планирование и разговор со мной.\n\n{_price_line(snap)}")
+    return ("🔒 <b>Доступ пока закрыт.</b>\n\nТвоя история сохранена. Подписка снова откроет привычки, планирование и разговор со мной.\n\n"
+            f"{_price_line(snap)}")
 
 
 def channel_link_text(snap, link):
@@ -176,9 +185,9 @@ CATALOG = (
                  condition=lambda s: s["marked_today"], buttons=("buy",)),
     TrialMessage("d3_midday", "День 3 · последний день триала", "День 3 · 12–15", "day3", (12, 15), _d3_midday, buttons=("buy",)),
     TrialMessage("d3_evening", "День 3 · последний вечер", "День 3 · 19–22", "day3", (19, 22), _d3_evening, buttons=("buy",)),
-    TrialMessage("d4_midday", "День 4 · триал закончился, последний день скидки", "День 4 · 12–15", "expired_intro", (12, 15), _d4_midday, buttons=("buy",)),
-    TrialMessage("d4_evening", "День 4 · последний вечер скидки", "День 4 · 19–22", "expired_intro", (19, 22), _d4_evening, buttons=("buy",)),
-    TrialMessage("d5_full", "День 5 · доступ закрыт, полная цена", "День 5 · 12–15, один раз", "expired_full", (12, 15), _d5_full,
+    TrialMessage("d4_midday", "День 4 · триал закончился, последний день скидки", "День 4 · 12–15", "grace", (12, 15), _d4_midday, buttons=("buy",)),
+    TrialMessage("d4_evening", "День 4 · последний вечер скидки", "День 4 · 19–22", "grace", (19, 22), _d4_evening, buttons=("buy",)),
+    TrialMessage("d5_full", "День 5 · доступ закрыт, полная цена", "День 5 · 12–15, один раз", "expired", (12, 15), _d5_full,
                  condition=lambda s: s["day"] == s["days_total"] + 2, buttons=("buy",)),
     TrialMessage("paid_nudge", "Оплачено · сколько осталось до канала", "Каждый день 12–15, пока нет ссылки", "paid", (12, 15), _paid_nudge,
                  condition=lambda s: s["channel_configured"] and not s["channel_granted"] and not s["channel_eligible"], buttons=("open",)),

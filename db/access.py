@@ -54,9 +54,9 @@ def _field(user, name):
 
 
 def trial_window_end(user):
-    """Когда кончается триал в режиме 'trial' (местная полночь человека после TRIAL_DAYS дней от trial_started_at; в UTC без tzinfo), иначе None."""
+    """Когда кончается триал у аккаунта в сценарии триала (записанный при старте срок: местная полночь после третьего дня; UTC без tzinfo), иначе None."""
     from .trial import window_end_utc
-    if user is None or _row_mode(user) != MODE_TRIAL:
+    if user is None:
         return None
     return window_end_utc(user)
 
@@ -103,7 +103,9 @@ def get_access(user_id):
     paid_until = _field(user, "subscription_paid_until")
     paid_active = bool(paid_until and paid_until > now)
     from .subscription import bot_access_allowed, get_trial_day
+    from .access_state import access_state
     from config import SUBSCRIPTION_TRIAL_DAYS
+    state = access_state(user_id)
     days_left = None
     if end is not None and end > now:
         seconds = (end - now).total_seconds()
@@ -122,6 +124,8 @@ def get_access(user_id):
         "trial_days_total": SUBSCRIPTION_TRIAL_DAYS,
         "allowed": bot_access_allowed(user_id),
         "paywall": trial_scenario_active(user_id),
+        "state": state["state"], "read_only": state["read_only"], "reason_text": state["reason_text"],
+        "ends_at": state["ends_at"], "ends_at_text": state["ends_at_text"], "trial_ends_at": state["trial_ends_at"], "grace_ends_at": state["grace_ends_at"],
     }
 
 
@@ -130,7 +134,7 @@ def public_access(user_id):
     info = get_access(user_id)
     if info is None:
         return {"mode": MODE_OPEN, "paywall": False, "allowed": True}
-    result = {key: info[key] for key in ("mode", "paywall", "allowed", "days_left", "free_active")}
+    result = {key: info[key] for key in ("mode", "paywall", "allowed", "days_left", "free_active", "state", "read_only", "reason_text", "ends_at", "ends_at_text")}
     if info["paywall"]:
         # Аккаунту в сценарии триала приложение показывает карточку и окна триала: день, цена сегодня, серия, условие канала (db/trial.py).
         from .trial import public_trial
@@ -243,18 +247,33 @@ def gift_days(user_id, days, admin_id=None):
 def set_unlimited(user_id, admin_id=None):
     """Снять ограничения: режим 'open' (как у первых тестировщиков), бесплатный период и триал сбрасываются."""
     return _apply(user_id, admin_id, "unlimited", None,
-                  lambda user, conn: {"access_mode": MODE_OPEN, "access_until": None, "trial_started_at": None})
+                  lambda user, conn: {"access_mode": MODE_OPEN, "access_until": None, "trial_started_at": None, "trial_ends_at": None, "trial_tz": None})
 
 
 def start_trial_mode(user_id, admin_id=None, restart=False):
-    """Включить сценарий триала для аккаунта: триал идёт с сегодняшнего дня (день 1). restart=True — начать триал заново."""
+    """Включить сценарий триала для аккаунта: триал идёт с сегодняшнего дня (день 1; срок записывается сразу). restart=True — начать триал заново."""
+    from .access_state import compute_trial_end, user_tz_name
+
     def change(user, conn):
         started = user["trial_started_at"] if "trial_started_at" in user.keys() else None
         if _row_mode(user) == MODE_TRIAL and started and not restart:
             return {}
-        return {"access_mode": MODE_TRIAL, "trial_started_at": _iso(_now()), "access_until": None}
+        now = _now()
+        tz_name = user_tz_name(user["telegram_id"])
+        return {"access_mode": MODE_TRIAL, "trial_started_at": _iso(now), "trial_ends_at": _iso(compute_trial_end(now, tz_name)), "trial_tz": tz_name,
+                "access_until": None}
 
     return _apply(user_id, admin_id, "trial_restart" if restart else "trial_on", None, change)
+
+
+def reset_trial_start(user_id, admin_id=None):
+    """Для проверки: аккаунт в сценарии триала снова «ещё не открывал приложение» — триал начнётся при следующем открытии."""
+    def change(user, conn):
+        if _row_mode(user) != MODE_TRIAL:
+            return {"error": "not_in_trial"}
+        return {"trial_started_at": None, "trial_ends_at": None, "trial_tz": None}
+
+    return _apply(user_id, admin_id, "trial_reset", None, change)
 
 
 def shift_trial_day(user_id, day, admin_id=None):
@@ -279,7 +298,10 @@ def shift_trial_day(user_id, day, admin_id=None):
             tz = ZoneInfo("UTC")
         today = datetime.now(timezone.utc).astimezone(tz).date()
         start_local = datetime.combine(today - timedelta(days=day - 1), _time(8, 0), tzinfo=tz)
-        return {"trial_started_at": _iso(start_local.astimezone(timezone.utc).replace(tzinfo=None))}
+        started = start_local.astimezone(timezone.utc).replace(tzinfo=None)
+        from .access_state import compute_trial_end, user_tz_name
+        tz_name = user_tz_name(user_id)
+        return {"trial_started_at": _iso(started), "trial_ends_at": _iso(compute_trial_end(started, tz_name)), "trial_tz": tz_name}
 
     return _apply(user_id, admin_id, "trial_shift", day, change)
 

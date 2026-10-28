@@ -1,13 +1,12 @@
 """
-Триал ADAM (ТЗ владельца: сообщения от 30.08 п.13 и 12.10): первые 3 дня бесплатно, потом Pro — первый месяц по скидке (153 ⭐ ≈ $1.99),
-дальше полная цена (461 ⭐ ≈ $5.99); закрытый канал — только с двумя днями ударного режима подряд.
+Триал ADAM (ТЗ владельца 28.10.2026 «Триал, подписка и приглашения друзей»): первые 3 календарных дня бесплатно (день первого открытия — первый), потом
+дополнительное окно 24 часа, в котором можно оплатить и сохранить серию, потом Pro. Первый месяц — по вводной цене (153 ⭐ ≈ $1.99) для ЛЮБОЙ первой покупки в любой
+день, дальше полная (461 ⭐ ≈ $5.99). Закрытый канал и Premium не продаём.
 
-Здесь — состояние человека в триале (`snapshot`), на которое смотрят и сообщения (trial_messages.py), и окна приложения, и админка:
-• день триала считается по ЛОКАЛЬНОМУ календарю человека (первый день — день старта, до его полуночи; раньше шёл по UTC и у вечерних
-  регистраций первый день заканчивался через пару часов);
-• скидка $1.99 действует до дня «после триала» включительно (день 4), с 5-го дня — только полная цена;
-• тумблеры сообщений триала (все сразу и по одному) и служебные действия для проверки с тестовых аккаунтов: «обнулить старт»,
-  стереть тестовую оплату.
+Здесь — состояние человека в триале (`snapshot`), на которое смотрят и сообщения (trial_messages.py), и окна приложения, и админка. Состояния и сроки
+считает db/access_state.py (триал стартует при первом открытии приложения, срок записывается один раз и не двигается от смены пояса или повторных входов);
+• день триала считается по ЛОКАЛЬНОМУ календарю пояса, в котором назначен триал;
+• тумблеры сообщений триала (все сразу и по одному) и служебные действия для проверки с тестовых аккаунтов: «обнулить старт», стереть тестовую оплату.
 Триал идёт только у аккаунтов в режиме «trial» (админка) или при общем гейте подписки — см. db/access.py::trial_scenario_for_user.
 """
 from datetime import datetime, time, timedelta, timezone
@@ -48,54 +47,50 @@ def _aware(now_utc):
 
 
 def trial_started_utc(user):
-    """Начало триала (UTC без tzinfo): у аккаунта в режиме «trial» — trial_started_at, иначе — регистрация."""
+    """Начало триала (UTC без tzinfo): по записи users.trial_started_at (первое открытие приложения); у аккаунта вне сценария триала — регистрация."""
+    from .access_state import trial_bounds
     if user is None:
         return None
-    keys = user.keys()
-    started = None
-    if "access_mode" in keys and user["access_mode"] == "trial" and "trial_started_at" in keys:
-        started = _parse(user["trial_started_at"])
-    if started is None and "created_at" in keys:
-        started = _parse(user["created_at"])
-    return started
+    bounds = trial_bounds(user)
+    if bounds:
+        return bounds["started"]
+    return _parse(user["created_at"]) if "created_at" in user.keys() else None
 
 
 def trial_day(user_id, now_utc=None):
-    """1 — в день старта (по местному времени человека), 2 — на следующий и так далее."""
+    """1 — в день первого открытия (по местному календарю пояса триала), 2 — на следующий и так далее. До первого открытия — 1."""
+    from .access_state import local_day_number, trial_bounds
     user = get_user(user_id)
     if not user:
         return None
-    started = trial_started_utc(user)
-    if started is None:
-        return 1
-    tz = _tz(user_id)
-    start_day = started.replace(tzinfo=UTC).astimezone(tz).date()
-    today = _aware(now_utc).astimezone(tz).date()
-    return max(1, (today - start_day).days + 1)
+    bounds = trial_bounds(user)
+    if bounds is None:
+        started = _parse(user["created_at"]) if "created_at" in user.keys() else None
+        if started is None:
+            return 1
+        return local_day_number(started, _tz_name(user_id), _aware(now_utc).astimezone(UTC).replace(tzinfo=None))
+    return local_day_number(bounds["started"], bounds["tz"], _aware(now_utc).astimezone(UTC).replace(tzinfo=None))
+
+
+def _tz_name(user_id):
+    from .access_state import user_tz_name
+    return user_tz_name(user_id)
 
 
 def window_end_utc(user):
-    """Когда кончается бесплатный триал: местная полночь после последнего дня (UTC без tzinfo). None — триал не идёт."""
-    from config import SUBSCRIPTION_TRIAL_DAYS
-    if user is None or "access_mode" not in user.keys() or user["access_mode"] != "trial":
+    """Когда кончается бесплатный триал: местная полночь после последнего дня (UTC без tzinfo), записана при старте. None — триал не начинался или не идёт."""
+    from .access import trial_scenario_for_user
+    from .access_state import trial_bounds
+    if user is None or not trial_scenario_for_user(user):
         return None
-    started = _parse(user["trial_started_at"] if "trial_started_at" in user.keys() else None)
-    if started is None:
-        return None
-    tz = _tz(user["telegram_id"])
-    first_day = started.replace(tzinfo=UTC).astimezone(tz).date()
-    end_local = datetime.combine(first_day + timedelta(days=int(SUBSCRIPTION_TRIAL_DAYS)), time.min, tzinfo=tz)
-    return end_local.astimezone(UTC).replace(tzinfo=None)
+    bounds = trial_bounds(user)
+    return bounds["ends"] if bounds else None
 
 
 def intro_price_open(user_id, day=None, ever_paid=None):
-    """Скидка на первый месяц: не платил раньше и не позже дня после триала (день 4 — «последний день скидки»)."""
-    from config import SUBSCRIPTION_TRIAL_DAYS
+    """Вводная цена — для любой ПЕРВОЙ покупки в любой день (ТЗ §6): пока человек ни разу не платил. Параметр day оставлен для совместимости."""
     from .subscription import has_ever_paid
-    if (has_ever_paid(user_id) if ever_paid is None else ever_paid):
-        return False
-    day = trial_day(user_id) if day is None else day
-    return day is not None and day <= int(SUBSCRIPTION_TRIAL_DAYS) + 1
+    return not (has_ever_paid(user_id) if ever_paid is None else ever_paid)
 
 
 def price_stars(user_id):
@@ -121,11 +116,13 @@ def snapshot(user_id, now_utc=None):
         SUBSCRIPTION_TRIAL_DAYS,
     )
     from .access import trial_scenario_for_user
+    from .access_state import access_state
     from .subscription import has_active_subscription, has_ever_paid
     user = get_user(user_id)
     if user is None:
         return None
     now = _aware(now_utc)
+    info = access_state(user_id, now)
     tz = _tz(user_id)
     local = now.astimezone(tz)
     total = int(SUBSCRIPTION_TRIAL_DAYS)
@@ -140,14 +137,7 @@ def snapshot(user_id, now_utc=None):
         streak = max(streak, marks[today_s][1])
     needed = int(SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL)
     intro = intro_price_open(user_id, day, ever)
-    if paid:
-        phase = "paid"
-    elif day <= total:
-        phase = f"day{day}"
-    elif day == total + 1:
-        phase = "expired_intro"
-    else:
-        phase = "expired_full"
+    phase = info["phase"] or "day1"
     return {
         "user_id": user_id, "name": (user["first_name"] or "").strip(), "scenario": trial_scenario_for_user(user),
         "mode": user["access_mode"] if "access_mode" in user.keys() and user["access_mode"] else "open",
@@ -159,6 +149,9 @@ def snapshot(user_id, now_utc=None):
         "channel_configured": bool(CLOSED_CHANNEL_ID), "channel_granted": bool("channel_access_granted_at" in user.keys() and user["channel_access_granted_at"]),
         "channel_eligible": streak >= needed,
         "local_hour": local.hour, "local_date": today_s, "timezone": str(tz),
+        "state": info["state"], "read_only": info["read_only"], "trial_ends_at": info["trial_ends_at"], "grace_ends_at": info["grace_ends_at"],
+        "ends_at": info["ends_at"], "ends_at_text": info["ends_at_text"], "reason_text": info["reason_text"], "trial_tz": info["tz"],
+        "paid_until": info["paid_until"],
     }
 
 
@@ -169,7 +162,7 @@ def public_trial(user_id):
         return None
     keys = ("scenario", "day", "days_total", "phase", "paid", "intro_active", "price_stars", "intro_price_stars", "renewal_price_stars",
             "intro_usd", "renewal_usd", "streak", "needed", "marked_today", "marked_yesterday", "channel_configured", "channel_granted",
-            "channel_eligible")
+            "channel_eligible", "state", "read_only", "trial_ends_at", "grace_ends_at", "ends_at", "ends_at_text", "reason_text", "trial_tz", "paid_until")
     return {key: snap[key] for key in keys}
 
 
@@ -253,6 +246,7 @@ def clear_test_payment(user_id):
             "UPDATE users SET subscription_paid_until=NULL, subscription_first_payment_at=NULL, channel_access_granted_at=NULL WHERE telegram_id=?",
             (user_id,),
         )
+        conn.execute("DELETE FROM stars_payments WHERE user_id=? AND COALESCE(is_test,0)=1", (user_id,))
         conn.commit()
     finally:
         conn.close()

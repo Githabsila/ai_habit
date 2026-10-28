@@ -39,6 +39,8 @@ def _lock_by_gate(monkeypatch, uid_):
     conn.execute("UPDATE users SET created_at=? WHERE telegram_id=?", (old, uid_))
     conn.commit()
     conn.close()
+    from db.access_state import set_trial_start
+    set_trial_start(uid_, datetime.utcnow() - timedelta(days=30))          # триал начался при первом открытии приложения 30 дней назад
 
 
 # ---------------------------------------------------------------------------------------------------------------- тариф
@@ -177,6 +179,9 @@ def test_the_weekly_goal_review_goes_to_everyone_with_access_not_only_premium(pe
     conn.execute("UPDATE users SET created_at=CURRENT_TIMESTAMP WHERE telegram_id=?", (person,))
     conn.commit()
     conn.close()
+    from db.access_state import set_trial_start
+    set_trial_start(person + 1, datetime.utcnow() - timedelta(days=30))
+    set_trial_start(person, datetime.utcnow())
     due = {row["user_id"] for row in get_surveys_due_for_feedback(days=7)}
     assert person in due, "обычному человеку в триале разбор цели положен (входит в Pro)"
     assert person + 1 not in due, "закрытому гейтом после триала — нет"

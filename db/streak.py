@@ -317,33 +317,40 @@ def rollover_user(user_id):
     streak = int(u["streak"] or 0) if u else 0
 
     if streak > 0 and (not prev or prev["status"] not in ("completed", "freeze")):
-        wk = week_key(today)
-        _ensure_week(c, user_id, wk)
-        c.execute("SELECT freeze_balance FROM streak_meta WHERE user_id=?", (user_id,))
-        bal = int(c.fetchone()["freeze_balance"] or 0)
-        if bal > 0:
-            bal -= 1
-            # Запас кончился именно сейчас — запоминаем день: друзья увидят иконку «без заморозок» (db/gifts.py::freeze_states).
-            c.execute("""UPDATE streak_meta SET freeze_balance=?, freeze_empty_since=? WHERE user_id=?""",
-                      (bal, str(today) if bal == 0 else None, user_id))
+        # Защита серии в дополнительном окне после триала (ТЗ 28.10 §8): день окна, за который человек в срок оплатил, не ломает серию и не тратит
+        # заморозку; записывается тем же статусом «freeze», чтобы следующий день продолжил серию (db/trial_protection.py).
+        from .trial_protection import covers, PROTECTED_MESSAGE
+        if covers(user_id, previous_day):
             c.execute("""INSERT OR REPLACE INTO streak_days(user_id,day,status,streak_after,ai_message)
-                         VALUES(?,?,?,?,?)""", (user_id, previous_day, "freeze", streak, "❄️ День сохранён заморозкой."))
+                         VALUES(?,?,?,?,?)""", (user_id, previous_day, "freeze", streak, PROTECTED_MESSAGE))
         else:
-            # Улучшение #50: снимок потерянной серии — до её обнуления,
-            # чтобы позже (restore_streak_free) было что восстанавливать.
-            # last_broken_date хранит именно previous_day (тот день, что
-            # реально помечен "missed"), а не today_s: restore переписывает
-            # его на "freeze", и следующий rollover должен смотреть на ТОТ
-            # же день, что действительно был пропущен.
-            c.execute(
-                "UPDATE streak_meta SET last_broken_streak=?, last_broken_date=? WHERE user_id=?",
-                (streak, previous_day, user_id),
-            )
-            streak = 0
-            c.execute("UPDATE users SET streak=0, last_completed=NULL WHERE telegram_id=?", (user_id,))
-            c.execute("""INSERT OR REPLACE INTO streak_days(user_id,day,status,streak_after,ai_message)
-                         VALUES(?,?,?,?,?)""", (user_id, previous_day, "missed", 0, "🔥 Серия погасла. Начни снова сегодня."))
-            c.execute("UPDATE streak_meta SET temp_frame=NULL, temp_status=NULL WHERE user_id=?", (user_id,))
+            wk = week_key(today)
+            _ensure_week(c, user_id, wk)
+            c.execute("SELECT freeze_balance FROM streak_meta WHERE user_id=?", (user_id,))
+            bal = int(c.fetchone()["freeze_balance"] or 0)
+            if bal > 0:
+                bal -= 1
+                # Запас кончился именно сейчас — запоминаем день: друзья увидят иконку «без заморозок» (db/gifts.py::freeze_states).
+                c.execute("""UPDATE streak_meta SET freeze_balance=?, freeze_empty_since=? WHERE user_id=?""",
+                          (bal, str(today) if bal == 0 else None, user_id))
+                c.execute("""INSERT OR REPLACE INTO streak_days(user_id,day,status,streak_after,ai_message)
+                             VALUES(?,?,?,?,?)""", (user_id, previous_day, "freeze", streak, "❄️ День сохранён заморозкой."))
+            else:
+                # Улучшение #50: снимок потерянной серии — до её обнуления,
+                # чтобы позже (restore_streak_free) было что восстанавливать.
+                # last_broken_date хранит именно previous_day (тот день, что
+                # реально помечен "missed"), а не today_s: restore переписывает
+                # его на "freeze", и следующий rollover должен смотреть на ТОТ
+                # же день, что действительно был пропущен.
+                c.execute(
+                    "UPDATE streak_meta SET last_broken_streak=?, last_broken_date=? WHERE user_id=?",
+                    (streak, previous_day, user_id),
+                )
+                streak = 0
+                c.execute("UPDATE users SET streak=0, last_completed=NULL WHERE telegram_id=?", (user_id,))
+                c.execute("""INSERT OR REPLACE INTO streak_days(user_id,day,status,streak_after,ai_message)
+                             VALUES(?,?,?,?,?)""", (user_id, previous_day, "missed", 0, "🔥 Серия погасла. Начни снова сегодня."))
+                c.execute("UPDATE streak_meta SET temp_frame=NULL, temp_status=NULL WHERE user_id=?", (user_id,))
 
     c.execute("""UPDATE streak_meta SET rollover_day=? WHERE user_id=?""", (today_s, user_id))
     conn.commit()

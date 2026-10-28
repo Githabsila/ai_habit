@@ -127,7 +127,7 @@ def overview(days=30, source=None):
             src_params + [since.isoformat(), cohort_cut]).fetchone()[0]
         paid = conn.execute(
             f"SELECT COUNT(DISTINCT p.user_id), COALESCE(SUM(p.amount),0) FROM stars_payments p JOIN users u ON u.telegram_id=p.user_id "
-            f"WHERE {real}{src} AND date(p.created_at)>=?", src_params + [since.isoformat()]).fetchone()
+            f"WHERE {real}{src} AND date(p.created_at)>=? AND COALESCE(p.is_test,0)=0", src_params + [since.isoformat()]).fetchone()
         first_session = conn.execute("SELECT MIN(started_at) FROM app_sessions").fetchone()[0]
     finally:
         conn.close()

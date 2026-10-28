@@ -228,6 +228,12 @@ async def _authenticate(request, allow_locked=False):
     # пользователей, зарегистрированных до SUBSCRIPTION_GATE_CUTOVER —
     # см. db/subscription.py bot_access_allowed/gate_applies_to.
     if not is_admin and not allow_locked and not bot_access_allowed(telegram_id):
+        # Дополнительное окно 24 часа после триала: история и данные видны (чтение), новые действия закрыты — они получают 403 и экран продолжения.
+        from db.access_state import access_state
+        window = access_state(telegram_id) or {}
+        if window.get("read_only") and request.method == "GET":
+            touch_last_seen(telegram_id)
+            return telegram_id, is_admin
         status = get_subscription_status(telegram_id)
         timed = status.get("access_mode") == "timed"
         from db.trial import public_trial
@@ -529,6 +535,11 @@ async def bootstrap(request):
     Рейтинг/календарь/архив достижений/магазин загружаются после первого кадра.
     """
     telegram_id, is_admin = await _authenticate(request)
+    try:               # первое успешное открытие приложения запускает триал (ТЗ §4); повторные входы его не трогают
+        from db.access_state import ensure_trial_started
+        ensure_trial_started(telegram_id)
+    except Exception:
+        logger.warning("Не удалось запустить триал при открытии (%s)", telegram_id, exc_info=True)
     user = get_user(telegram_id)
     habits = get_habits(telegram_id)
     progress = get_progress(telegram_id)

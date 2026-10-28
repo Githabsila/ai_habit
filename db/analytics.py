@@ -63,12 +63,12 @@ def get_subscription_conversion():
     conn = connect()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT COUNT(*) AS n FROM users WHERE subscription_first_payment_at IS NOT NULL "
-        "OR subscription_paid_until IS NOT NULL"
+        "SELECT COUNT(*) AS n FROM users WHERE (subscription_first_payment_at IS NOT NULL "
+        "OR subscription_paid_until IS NOT NULL) AND telegram_id NOT IN (SELECT user_id FROM stars_payments WHERE COALESCE(is_test,0)=1)"   # тестовые оплаты из админки не в счёт
     )
     started_trial_or_paid = int(cursor.fetchone()["n"] or 0)
     cursor.execute(
-        "SELECT COUNT(*) AS n FROM users WHERE subscription_first_payment_at IS NOT NULL"
+        "SELECT COUNT(*) AS n FROM users WHERE subscription_first_payment_at IS NOT NULL AND telegram_id NOT IN (SELECT user_id FROM stars_payments WHERE COALESCE(is_test,0)=1)"
     )
     paid = int(cursor.fetchone()["n"] or 0)
     conn.close()

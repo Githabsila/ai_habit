@@ -16,6 +16,7 @@ from db import (
     public_access, record_subscription_payment, set_unlimited, start_trial_mode, trial_scenario_active,
 )
 from db.access import access_overview
+from db.access_state import set_trial_start
 from db.core import connect
 from tests.conftest import sign_init_data
 
@@ -59,7 +60,9 @@ def test_everyone_is_open_by_default_with_no_trial_and_no_paywall(uid):
     info = get_access(uid)
     assert info["mode"] == "open" and info["allowed"] is True and info["paywall"] is False and info["days_left"] is None
     assert bot_access_allowed(uid) is True and trial_scenario_active(uid) is False
-    assert public_access(uid) == {"mode": "open", "paywall": False, "allowed": True, "days_left": None, "free_active": False}
+    public = public_access(uid)
+    assert {key: public[key] for key in ("mode", "paywall", "allowed", "days_left", "free_active")} ==         {"mode": "open", "paywall": False, "allowed": True, "days_left": None, "free_active": False}
+    assert public["state"] == "open" and public["read_only"] is False and public["reason_text"] == "Свободный доступ"
 
 
 # ---------------------------------------------------------------------------------------------------------------- временный доступ
@@ -154,7 +157,7 @@ def test_trial_mode_starts_from_day_one_and_shows_the_paywall(uid):
 def test_trial_expires_after_three_days_and_a_restart_starts_over(uid):
     _user(uid, created_days_ago=30)
     start_trial_mode(uid, ADMIN)
-    _sql("UPDATE users SET trial_started_at=? WHERE telegram_id=?", ((_now() - timedelta(days=4)).isoformat(), uid))
+    set_trial_start(uid, _now() - timedelta(days=4))
     assert bot_access_allowed(uid) is False and get_access(uid)["trial_day"] == 5
     info = start_trial_mode(uid, ADMIN, restart=True)
     assert info["allowed"] is True and info["trial_day"] == 1
@@ -208,7 +211,7 @@ async def test_trial_and_payment_messages_go_only_to_accounts_in_the_trial_scena
     grant_access(timed_user, 7, ADMIN)
     trial_user = _user(uid + 2, created_days_ago=30)
     start_trial_mode(trial_user, ADMIN)
-    _sql("UPDATE users SET trial_started_at=? WHERE telegram_id=?", ((_now() - timedelta(days=1)).isoformat(), trial_user))
+    set_trial_start(trial_user, _now() - timedelta(days=1))
     users = [get_user(open_user), get_user(timed_user), get_user(trial_user)]
     monkeypatch.setattr(sub_sched, "get_all_users", lambda **kw: users)
     monkeypatch.setattr(sub_sched, "datetime", _Noon)
@@ -228,7 +231,7 @@ def _headers(uid_):
 async def test_bootstrap_carries_the_access_mode_and_hides_the_paywall_for_testers(client, uid):
     _user(uid)
     data = await (await client.get("/api/bootstrap", headers=_headers(uid))).json()
-    assert data["access"] == {"mode": "open", "paywall": False, "allowed": True, "days_left": None, "free_active": False}
+    assert {key: data["access"][key] for key in ("mode", "paywall", "allowed", "days_left", "free_active")} ==         {"mode": "open", "paywall": False, "allowed": True, "days_left": None, "free_active": False} and data["access"]["state"] == "open"
     trial = _user(uid + 1)
     start_trial_mode(trial, ADMIN)
     data = await (await client.get("/api/bootstrap", headers=_headers(trial))).json()
@@ -251,7 +254,7 @@ async def test_an_expired_timed_account_gets_a_clear_403_but_an_extension_opens_
 async def test_an_expired_trial_account_still_gets_the_trial_message(client, uid):
     _user(uid)
     start_trial_mode(uid, ADMIN)
-    _sql("UPDATE users SET trial_started_at=? WHERE telegram_id=?", ((_now() - timedelta(days=5)).isoformat(), uid))
+    set_trial_start(uid, _now() - timedelta(days=5))
     resp = await client.get("/api/bootstrap", headers=_headers(uid))
     assert resp.status == 403 and (await resp.json())["error"] == "trial_expired"
 

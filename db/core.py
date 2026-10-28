@@ -194,6 +194,13 @@ def create_tables():
         cursor.execute("ALTER TABLE users ADD COLUMN access_until TIMESTAMP")
     if "trial_started_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN trial_started_at TIMESTAMP")
+    # ТЗ «Триал, подписка и приглашения» (28.10): триал стартует при первом успешном открытии приложения; срок назначается один раз и
+    # дальше не пересчитывается (смена часового пояса его не двигает). trial_ends_at — когда закрываются основные действия (UTC),
+    # trial_tz — пояс, по которому сосчитаны три календарных дня (db/access_state.py).
+    if "trial_ends_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN trial_ends_at TIMESTAMP")
+    if "trial_tz" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN trial_tz TEXT")
 
     # Ограничения ИИ для человека под контролем админа (db/ai_usage.py): отключение до момента и личный дневной лимит токенов.
     # Не учитывать человека в статистике (тестовый аккаунт владельца, проверка триала и т.п.): без этого цифры воронки и удержания врут.
@@ -1871,6 +1878,13 @@ def create_tables():
     # Возврат Stars (handlers/payments.py::/refund, Telegram refundStarPayment): когда платёж вернули человеку.
     if "refunded_at" not in {row[1] for row in cursor.execute("PRAGMA table_info(stars_payments)").fetchall()}:
         cursor.execute("ALTER TABLE stars_payments ADD COLUMN refunded_at TIMESTAMP")
+    # ТЗ 28.10 §19/§3: когда человек реально заплатил (по часам Telegram — запоздалое подтверждение не отнимает условий), тестовая ли это
+    # оплата (из админки: в реальные показатели и выплаты не попадает), состояние обработки (received → done / failed) и сообщение об ошибке.
+    payment_columns = {row[1] for row in cursor.execute("PRAGMA table_info(stars_payments)").fetchall()}
+    for name, ddl in (("purchased_at", "TIMESTAMP"), ("is_test", "INTEGER DEFAULT 0"), ("status", "TEXT DEFAULT 'done'"), ("error", "TEXT"),
+                      ("is_recurring", "INTEGER DEFAULT 0"), ("expires_at", "TIMESTAMP")):
+        if name not in payment_columns:
+            cursor.execute(f"ALTER TABLE stars_payments ADD COLUMN {name} {ddl}")
 
     # ---------------- «Что нового» (changelog внутри Mini App) ----------------
     # Раньше об обновлениях узнавали только по факту (или никак) — теперь

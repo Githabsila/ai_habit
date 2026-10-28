@@ -34,9 +34,10 @@ def get_trial_day(user_id):
 
 
 def is_in_trial(user_id):
-    from config import SUBSCRIPTION_TRIAL_DAYS
-    day = get_trial_day(user_id)
-    return day is not None and day <= SUBSCRIPTION_TRIAL_DAYS
+    """Идут ли пробные дни (или человек ещё не открывал приложение — триал не расходуется): db/access_state.py."""
+    from .access_state import STATE_NOT_STARTED, STATE_TRIAL, access_state
+    info = access_state(user_id)
+    return bool(info and info["state"] in (STATE_NOT_STARTED, STATE_TRIAL))
 
 
 def has_active_subscription(user_id):
@@ -60,14 +61,24 @@ def get_subscription_price_stars(user_id):
     return price_stars(user_id)
 
 
-def record_subscription_payment(user_id, months=1):
-    """Продлевает подписку на `months` месяцев от текущего срока (если он
-    ещё не истёк) или от сегодня (если истёк/не было). Возвращает новую
-    дату окончания."""
+def record_subscription_payment(user_id, months=1, paid_at=None):
+    """Продлевает подписку на `months` месяцев от текущего срока (если он ещё не истёк) или от момента оплаты (если истёк/не было).
+    Если человек платит во время пробных дней, платный доступ включается сразу, а оставшееся бесплатное время добавляется к нему: ранняя покупка
+    не отнимает бесплатных часов (ТЗ §6). paid_at — когда человек реально заплатил (по часам Telegram): запоздалое подтверждение не отнимает условий.
+    Возвращает новую дату окончания."""
     user = get_user(user_id)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    moment = paid_at or now
+    if getattr(moment, "tzinfo", None) is not None:
+        moment = moment.astimezone(timezone.utc).replace(tzinfo=None)
     current_until = _parse_dt(user["subscription_paid_until"]) if user else None
-    base = current_until if (current_until and current_until > now) else now
+    base = current_until if (current_until and current_until > moment) else moment
+    from .access_state import STATE_TRIAL, access_state
+    state = access_state(user_id, moment)
+    if state and state["state"] == STATE_TRIAL and state["trial_ends_at"]:
+        free_left_from = _parse_dt(state["trial_ends_at"])
+        if free_left_from and free_left_from > base:
+            base = free_left_from
     new_until = base + timedelta(days=30 * months)
 
     conn = connect()
@@ -124,18 +135,14 @@ def gate_applies_to_user(user):
 
 
 def bot_access_allowed(user_id):
-    """True, если пользователю можно пользоваться ботом/мини-аппом прямо
-    сейчас: гейт не применяется к нему, ИЛИ он ещё в триале, ИЛИ у него
-    активна оплаченная подписка."""
+    """True, если пользователю можно полноценно пользоваться ботом/мини-аппом прямо сейчас: гейт не применяется к нему, ИЛИ он ещё в триале
+    (или ещё не открывал приложение), ИЛИ идут подарочные дни, ИЛИ у него активна оплаченная подписка. В дополнительном окне после триала
+    (grace) основные действия закрыты — оно «только чтение»: см. db/access_state.py."""
     if not gate_applies_to(user_id):
         return True
-    from .access import free_period_active
-    user = get_user(user_id)
-    if has_active_subscription(user_id) or free_period_active(user):
-        return True
-    if user is not None and "access_mode" in user.keys() and user["access_mode"] == "timed":
-        return False                     # временный доступ закончился (триал для таких аккаунтов не действует)
-    return is_in_trial(user_id)
+    from .access_state import access_state
+    info = access_state(user_id)
+    return bool(info and info["allowed"])
 
 
 def get_subscription_status(user_id):
@@ -145,12 +152,15 @@ def get_subscription_status(user_id):
     streak = int(user["streak"] or 0) if user else 0
     trial_day = get_trial_day(user_id)
     access_mode = (user["access_mode"] if user and "access_mode" in user.keys() else None) or "open"
+    from .access_state import access_state
+    state = access_state(user_id) or {}
     return {
+        "state": state.get("state"), "reason_text": state.get("reason_text"), "ends_at": state.get("ends_at"), "read_only": bool(state.get("read_only")),
         "access_mode": access_mode,
         "trial_day": trial_day,
         "trial_days_total": SUBSCRIPTION_TRIAL_DAYS,
         "in_trial": is_in_trial(user_id),
-        "trial_expired": (trial_day or 0) > SUBSCRIPTION_TRIAL_DAYS,
+        "trial_expired": state.get("state") in ("grace", "expired") if state.get("scenario") else (trial_day or 0) > SUBSCRIPTION_TRIAL_DAYS,
         "has_paid": has_active_subscription(user_id),
         "ever_paid": has_ever_paid(user_id),
         "access_allowed": bot_access_allowed(user_id),

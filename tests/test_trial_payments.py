@@ -65,8 +65,9 @@ async def test_payment_on_day_one_asks_for_two_days_of_rhythm(uid):
     text, snap, link = await flow.complete_subscription_payment(SimpleNamespace(), uid)
     assert has_active_subscription(uid) and link is None and snap["phase"] == "paid"
     assert text.startswith("✅ Доступ продлён до ") and "Закрытый канал открывается за 2 дня ударного режима подряд" in text
-    until = (datetime.now() + timedelta(days=30)).strftime("%d.%m.%Y")
-    assert until in text or (datetime.now() + timedelta(days=29)).strftime("%d.%m.%Y") in text or (datetime.now() + timedelta(days=31)).strftime("%d.%m.%Y") in text
+    # ранняя покупка: платный доступ включился сразу, а оставшиеся бесплатные дни добавлены к нему (ТЗ §6) — месяц считается от конца триала
+    trial_end = datetime.fromisoformat(get_user(uid)["trial_ends_at"])
+    assert (trial_end + timedelta(days=30)).strftime("%d.%m.%Y") in text
 
 
 async def test_payment_on_day_two_depends_on_yesterdays_and_todays_marks(uid):
@@ -174,13 +175,16 @@ async def test_the_refund_command_is_for_admins_only(uid, monkeypatch):
 
 # ---------------------------------------------------------------------------------------------------------------- закрытый доступ
 
-async def test_the_locked_message_tells_the_price_of_today(uid):
+async def test_the_locked_message_tells_the_deadline_and_both_prices(uid):
     _person(uid, 4)
-    text = tm.locked_text(trial_db.snapshot(uid))
-    assert "Пробный период закончился" in text and "Сегодня последний день, когда месяц стоит <b>153 ⭐</b>" in text and "461 ⭐" in text
+    snap = trial_db.snapshot(uid)
+    text = tm.locked_text(snap)
+    assert "Пробный доступ завершён" in text and "Твоя история сохранена" in text and snap["ends_at_text"] in text, "конкретный срок окна"
+    assert "Первый месяц — <b>153 ⭐</b>" in text and "дальше 461 ⭐" in text
+    assert "только сегодня" not in text.lower() and "последний день" not in text, "вводная цена не «только сегодня»: она действует и позже"
     shift_trial_day(uid, 5, ADMIN)
     text = tm.locked_text(trial_db.snapshot(uid))
-    assert "<b>461 ⭐</b> в месяц" in text and "153" not in text
+    assert "Доступ пока закрыт" in text and "Твоя история сохранена" in text and "Первый месяц — <b>153 ⭐</b>" in text
 
 
 async def test_the_bot_blocks_an_expired_trial_account_with_the_scenario_text(uid):
@@ -196,7 +200,7 @@ async def test_the_bot_blocks_an_expired_trial_account_with_the_scenario_text(ui
     await AccessControlMiddleware()(handler, event, {})
     assert handler.await_count == 0 and len(shown) == 1, "закрытому аккаунту бот отвечает сам и дальше не пускает"
     text, kwargs = shown[0]
-    assert "Пробный период закончился" in text and "<b>153 ⭐</b>" in text and "завтра — 461 ⭐" in text
+    assert "Пробный доступ завершён" in text and "<b>153 ⭐</b>" in text and "дальше 461 ⭐" in text
     assert kwargs["reply_markup"].inline_keyboard[0][0].callback_data == "buy_subscription" and "153" in kwargs["reply_markup"].inline_keyboard[0][0].text
     shift_trial_day(uid, 2, ADMIN)                                              # вернулся в триал — снова пускает
     await AccessControlMiddleware()(handler, event, {})

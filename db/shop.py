@@ -160,19 +160,25 @@ def is_payment_processed(charge_id):
     return row is not None
 
 
-def mark_payment_processed(charge_id, user_id, payload, amount):
+def mark_payment_processed(charge_id, user_id, payload, amount, purchased_at=None, is_test=False):
     """Записывает charge_id ДО начисления награды в handlers/payments.py.
     INSERT OR IGNORE — если между is_payment_processed() и этим вызовом
     случилась гонка, UNIQUE PRIMARY KEY на charge_id просто тихо не даст
     вставить дубликат, повторное начисление всё равно не произойдёт
-    благодаря проверке в вызывающем коде."""
+    благодаря проверке в вызывающем коде. purchased_at — когда человек реально заплатил (по часам Telegram, UTC), is_test — тестовая оплата из админки."""
     if not charge_id:
         return
+    moment = None
+    if purchased_at is not None:
+        if getattr(purchased_at, "tzinfo", None) is not None:
+            from datetime import timezone as _tz
+            purchased_at = purchased_at.astimezone(_tz.utc).replace(tzinfo=None)
+        moment = purchased_at.isoformat(sep=" ", timespec="seconds")
     conn = connect()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT OR IGNORE INTO stars_payments(charge_id, user_id, payload, amount) VALUES (?, ?, ?, ?)",
-        (charge_id, user_id, payload, amount),
+        "INSERT OR IGNORE INTO stars_payments(charge_id, user_id, payload, amount, purchased_at, is_test) VALUES (?, ?, ?, ?, ?, ?)",
+        (charge_id, user_id, payload, amount, moment, 1 if is_test else 0),
     )
     conn.commit()
     conn.close()

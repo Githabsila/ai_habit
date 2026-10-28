@@ -73,6 +73,8 @@ EVENT_LABELS = {
     "trial_pay_tap": ("⭐", "Нажал «Оформить» (Pro)"),
     "trial_paywall_shown": ("🔒", "Увидел «Пробный период закончился»"),
     "trial_paid": ("✅", "Оплатил Pro в приложении"),
+    "trial_started": ("⏳", "Начался пробный период (первое открытие приложения)"),
+    "trial_streak_protected": ("🛡", "Серия сохранена оплатой в дополнительном окне"),
     "subscription_invoice": ("🧾", "Выставлен счёт на Pro"),
     "subscription_paid": ("💳", "Оплатил Pro (Stars)"),
     "freeze_gift_sent": ("❄️", "Подарил другу заморозку серии"),
@@ -395,7 +397,7 @@ def journey(user_id):
         ai_count = _one(conn, "SELECT COUNT(*) FROM ai_messages WHERE user_id=? AND role='user'", (user_id,)) or 0
         first_friend = _one(conn, "SELECT MIN(created_at) FROM friendships WHERE user_id=?", (user_id,))
         paid = _earliest(user["subscription_first_payment_at"] if "subscription_first_payment_at" in keys else None,
-                         _one(conn, "SELECT MIN(created_at) FROM stars_payments WHERE user_id=?", (user_id,)))
+                         _one(conn, "SELECT MIN(created_at) FROM stars_payments WHERE user_id=? AND COALESCE(is_test,0)=0", (user_id,)))
         survey_done = _earliest(user["survey_completed_at"] if "survey_completed_at" in keys else None, event_first("survey_completed"))
         approved = _earliest(event_first("access_approved"))
 
@@ -578,7 +580,9 @@ def _collect_marks(conn, where, params):
     earlier("task", grouped("SELECT user_id, MIN(at) FROM user_events WHERE user_id IN ({ids}) AND name='task_added' GROUP BY user_id"))
     earlier("ai", grouped("SELECT user_id, MIN(created_at) FROM ai_messages WHERE user_id IN ({ids}) AND role='user' GROUP BY user_id"))
     earlier("friend", grouped("SELECT user_id, MIN(created_at) FROM friendships WHERE user_id IN ({ids}) GROUP BY user_id"))
-    earlier("paid", grouped("SELECT user_id, MIN(created_at) FROM stars_payments WHERE user_id IN ({ids}) GROUP BY user_id"))
+    earlier("paid", grouped("SELECT user_id, MIN(created_at) FROM stars_payments WHERE user_id IN ({ids}) AND COALESCE(is_test,0)=0 GROUP BY user_id"))
+    for uid in grouped("SELECT user_id, MIN(created_at) FROM stars_payments WHERE user_id IN ({ids}) AND COALESCE(is_test,0)=1 GROUP BY user_id"):
+        marks["paid"][uid] = None                      # аккаунт с тестовой оплатой из админки: «заплатил» ему не засчитываем
     for uid in ids:
         created = marks["registered"][uid]
         if not created:

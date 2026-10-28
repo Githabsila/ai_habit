@@ -768,7 +768,7 @@ async def admin_user_trial_action_route(request):
                 return web.json_response({"error": "bot_unavailable"}, status=503)
             from subscription_flow import complete_subscription_payment
             from keyboards import trial_keyboard
-            text, snap, link = await complete_subscription_payment(bot, telegram_id)
+            text, snap, link = await complete_subscription_payment(bot, telegram_id, test=True)
             try:
                 await bot.send_message(telegram_id, text, reply_markup=trial_keyboard(("open",), snap["price_stars"]))
                 result["delivered"] = True

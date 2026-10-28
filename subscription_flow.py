@@ -10,15 +10,24 @@ refund_payment — возврат Stars через Telegram (refundStarPayment):
 from db import (
     get_payment, mark_payment_refunded, record_subscription_payment, revoke_subscription, try_grant_channel_access,
 )
+from datetime import datetime, timezone
+
 from db import trial as trial_db
 import trial_messages
 
 
-async def complete_subscription_payment(bot, user_id, months=1):
+async def complete_subscription_payment(bot, user_id, months=1, paid_at=None, test=False):
     """Продлевает подписку и собирает сообщение после оплаты. Возвращает (текст, состояние триала, ссылка в канал или None)."""
+    if test:                                                      # тестовая оплата из админки: в реальные показатели и выплаты не попадает (ТЗ §3, §26)
+        import uuid
+        from db.shop import mark_payment_processed
+        mark_payment_processed(f"test:{user_id}:{uuid.uuid4().hex[:10]}", user_id, f"subscription:{user_id}", 0, purchased_at=paid_at or datetime.now(timezone.utc), is_test=True)
     before = trial_db.snapshot(user_id)                           # цена и день на момент оплаты — для учёта
-    until = record_subscription_payment(user_id, months=months)
+    until = record_subscription_payment(user_id, months=months, paid_at=paid_at)
+    from db import trial_protection
+    protection = trial_protection.apply_on_payment(user_id, paid_at)   # оплата в окне после триала возвращает серию, если день окна уже закрылся
     snap = trial_db.snapshot(user_id)
+    snap["protection"] = protection
     from db.tracking import track_server
     track_server(user_id, "subscription_paid", step=before["phase"] if before else None,
                  meta={"day": snap["day"], "price": before["price_stars"] if before else None, "streak": snap["streak"]})

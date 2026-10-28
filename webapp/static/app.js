@@ -8289,8 +8289,8 @@ const SIM_TRIAL = {
   renewal_price_stars: 461, intro_usd: "$1.99", renewal_usd: "$5.99", streak: 1, needed: 2, marked_today: false, marked_yesterday: true,
   channel_configured: true, channel_granted: false, channel_eligible: false,
 };
-const SIM_TRIAL_INTRO_EXPIRED = { ...SIM_TRIAL, day: 4, phase: "expired_intro", streak: 2, marked_today: false, marked_yesterday: true, channel_eligible: true };
-const SIM_TRIAL_FULL_EXPIRED = { ...SIM_TRIAL, day: 6, phase: "expired_full", intro_active: false, price_stars: 461, streak: 0, marked_yesterday: false, channel_eligible: false };
+const SIM_TRIAL_INTRO_EXPIRED = { ...SIM_TRIAL, day: 4, phase: "grace", state: "grace", read_only: true, ends_at_text: "29 октября, 00:00", streak: 2, marked_today: false, marked_yesterday: true, channel_eligible: true };
+const SIM_TRIAL_FULL_EXPIRED = { ...SIM_TRIAL, day: 6, phase: "expired", state: "expired", read_only: false, streak: 0, marked_yesterday: false, channel_eligible: false };
 let trialSheetData = null;        // снимок, который показывает окно «Мой пробный период»
 let trialDemo = false;            // симуляция: «Оформить» ничего не открывает
 let trialPayBusy = false;
@@ -8325,7 +8325,7 @@ function renderTrialCard() {
   const card = document.getElementById("trialCard");
   if (!card) return;
   const t = state?.access?.paywall ? state.access.trial : null;
-  const hide = !t || !t.scenario || String(t.phase).startsWith("expired") || (t.paid && (t.channel_granted || !t.channel_configured));
+  const hide = !t || !t.scenario || t.phase === "grace" || t.phase === "expired" || (t.paid && (t.channel_granted || !t.channel_configured));
   if (hide) { card.hidden = true; return; }
   const text = trialCardText(t);
   document.getElementById("trialCardVoice").innerHTML = adamVoiceHtml("md");
@@ -8450,17 +8450,24 @@ function showTrialPaywall(t, { demo = false } = {}) {
   trialDemo = demo;
   closeTrialSheet();
   document.getElementById("trialPaywallVoice").innerHTML = adamVoiceHtml("lg", "🔒");
-  document.getElementById("trialPaywallLead").textContent = t.channel_eligible
-    ? `Твой ударный режим — ${trialDays(t.streak)} подряд — сохранился. Вернись ко мне, пока он не пропал.`
-    : "Ударный режим начнётся, как только ты вернёшься.";
+  const grace = t.phase === "grace";
+  document.getElementById("trialPaywallTitle").textContent = grace ? "Пробный доступ завершён" : "Доступ пока закрыт";
+  const keep = t.streak > 0
+    ? `Заработанная серия — ${trialDays(t.streak)} подряд — сохранится, если продолжить до ${t.ends_at_text}.`
+    : `Серия начнётся, как только ты вернёшься. Продолжить можно до ${t.ends_at_text}.`;
+  document.getElementById("trialPaywallLead").textContent = grace
+    ? `Твоя история сохранена. ${keep}`
+    : "Твоя история сохранена. Подписка снова откроет привычки, планирование и разговор со мной.";
   const offer = t.intro_active
-    ? `<span class="trial-offer__tag">Последний день скидки</span><b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.intro_usd} за первый месяц, завтра — ${t.renewal_price_stars} ⭐ (${t.renewal_usd})`)}</small>`
+    ? `<b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.intro_usd} за первый месяц, дальше ${t.renewal_price_stars} ⭐ (${t.renewal_usd})`)}</small>`
     : `<b>${t.price_stars} ⭐</b><small>${escapeHtml(`≈ ${t.renewal_usd} за месяц доступа`)}</small>`;
   document.getElementById("trialPaywallOffer").innerHTML = offer;
   const pay = document.getElementById("trialPaywallPay");
   pay.textContent = trialPayLabel(t);
   pay.disabled = false;
-  document.getElementById("trialPaywallClose").hidden = !demo;
+  const closeBtn = document.getElementById("trialPaywallClose");
+  closeBtn.hidden = !demo && !t.read_only;                  // в дополнительном окне история видна: можно закрыть экран и посмотреть её
+  closeBtn.textContent = demo ? "Закрыть демо" : "Посмотреть историю";
   overlay.hidden = false;
   overlay.setAttribute("aria-hidden", "false");
   const loading = document.getElementById("loadingOverlay");
@@ -8476,6 +8483,15 @@ function closeTrialPaywall() {
   overlay.hidden = true;
   overlay.setAttribute("aria-hidden", "true");
   trialDemo = false;
+}
+
+// Дополнительное окно после триала: при открытии приложения человек сразу видит экран продолжения (история под ним доступна только для чтения).
+let graceScreenShown = false;
+function maybeShowGraceScreen() {
+  const access = state?.access;
+  if (graceScreenShown || !access || access.state !== "grace" || !access.trial) return;
+  graceScreenShown = true;
+  showTrialPaywall(access.trial);
 }
 
 // Симуляция «карточка на Главной»: подставляем демо-снимок в состояние (только в памяти страницы) и рисуем карточку.
@@ -12148,6 +12164,7 @@ async function boot() {
             initLanguageActions();
             initGenderActions();
             postBootstrapInitDone = true;
+            maybeShowGraceScreen();
             initLabMode();
             initSimMode();
             renderAdamIntroSettings();
