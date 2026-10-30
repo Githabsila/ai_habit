@@ -285,7 +285,8 @@ PLANNED_TIME_REMINDER_TEMPLATES = [
 ]
 
 def format_planned_time_reminder_message(title: str) -> str:
-    return pick(PLANNED_TIME_REMINDER_TEMPLATES, pool=SOFT_EMOJIS, title=title)
+    # Название привычки пишет человек, а сообщение уходит в HTML-режиме: «<» или «&» в нём без экранирования роняют отправку («can't parse entities»), и напоминания нет.
+    return pick(PLANNED_TIME_REMINDER_TEMPLATES, pool=SOFT_EMOJIS, title=html.escape(str(title), quote=False))
 
 
 def format_habit_checkpoint_10_message(incomplete_habits) -> str:
@@ -345,7 +346,7 @@ PLAN_TASK_REMINDER_TEMPLATES = [
 
 
 def format_plan_task_reminder_message(title: str) -> str:
-    return pick(PLAN_TASK_REMINDER_TEMPLATES, pool=TASK_EMOJIS, title=title)
+    return pick(PLAN_TASK_REMINDER_TEMPLATES, pool=TASK_EMOJIS, title=html.escape(str(title), quote=False))   # текст задачи пишет человек, см. выше
 
 
 # =====================================

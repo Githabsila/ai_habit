@@ -126,6 +126,9 @@ async def test_the_middleware_edits_messages_too_and_leaves_risky_ones_alone(adm
     assert with_entities.text == LONG, "у готовых entities сдвинулись бы смещения"
     _, channel = await _through(SendMessage(chat_id="@channel", text=LONG))
     assert channel.text == LONG
+    style_mode.set_mode("premium")
+    _, group = await _through(SendMessage(chat_id=-1001234567890, text=LONG))
+    assert group.text == LONG, "группы и каналы (id отрицательные) шапку не получают"
     _, inline = await _through(EditMessageText(inline_message_id="abc", text=LONG))
     assert inline.text == LONG
 

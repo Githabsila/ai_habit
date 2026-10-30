@@ -1,3 +1,4 @@
+import html
 import json
 import math
 import time
@@ -269,7 +270,8 @@ async def ai_chat(message: Message, state: FSMContext):
     if habit_reply is not None:
         add_ai_message(user_id, "user", text)
         add_ai_message(user_id, "assistant", habit_reply)
-        await message.answer(habit_reply, reply_markup=ai_keyboard())
+        # Бот шлёт в HTML-режиме: «<название>» из подсказки и «<», «&» из названий привычек иначе вызывают «can't parse entities», и человек не получает ответа.
+        await message.answer(html.escape(habit_reply, quote=False), reply_markup=ai_keyboard())
         return
 
     is_pro = has_pro_features(user_id)      # единая версия Pro: лимит и метка PRO у всех, у кого есть доступ (db/plans.py)

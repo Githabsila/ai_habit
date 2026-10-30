@@ -167,7 +167,8 @@ async def test_the_refund_command_is_for_admins_only(uid, monkeypatch):
     assert "Возвращено 153 ⭐" in admin.answer.await_args.args[0] and not has_active_subscription(uid)
     wrong = SimpleNamespace(from_user=SimpleNamespace(id=ADMIN), text="/refund", answer=AsyncMock(), bot=bot)
     await pay.refund_command(wrong)
-    assert "Формат: /refund" in wrong.answer.await_args.args[0]
+    hint = wrong.answer.await_args.args[0]
+    assert "Формат: /refund" in hint and "<" not in hint, "бот шлёт в HTML-режиме: угловые скобки в подсказке экранируются"
 
 
 # ---------------------------------------------------------------------------------------------------------------- закрытый доступ

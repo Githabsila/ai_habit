@@ -1,4 +1,5 @@
 import asyncio
+import html
 import logging
 from datetime import datetime, timezone
 
@@ -521,10 +522,10 @@ async def refund_command(message: Message):
         return
     parts = (message.text or "").split()
     if len(parts) != 2:
-        await message.answer("Формат: /refund <номер операции Stars (charge_id)>")
+        await message.answer("Формат: /refund &lt;номер операции Stars (charge_id)&gt;")      # бот шлёт в HTML-режиме: голые «<» и «>» дают «can't parse entities»
         return
     result = await refund_payment(message.bot, parts[1])
     if result.get("ok"):
         await message.answer(f"✅ Возвращено {result['amount']} ⭐ пользователю {result['user_id']}.")
     else:
-        await message.answer(f"Не получилось: {result['error']} {result.get('detail', '')}".strip())
+        await message.answer(html.escape(f"Не получилось: {result['error']} {result.get('detail', '')}".strip(), quote=False))

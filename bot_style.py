@@ -67,7 +67,9 @@ def _parse_mode_ok(method):
 async def royal_dress(make_request, bot, method):
     """Request-мидлварь: оформляет исходящие SendMessage/EditMessageText людям, у которых включено оформление, остальные вызовы пропускает без изменений."""
     try:
-        if isinstance(method, (SendMessage, EditMessageText)) and isinstance(getattr(method, "chat_id", None), int) and _parse_mode_ok(method):
+        chat_id = getattr(method, "chat_id", None)
+        # Только личные чаты (id людей положительные): группы и каналы получают сообщения как раньше.
+        if isinstance(method, (SendMessage, EditMessageText)) and isinstance(chat_id, int) and chat_id > 0 and _parse_mode_ok(method):
             new_text = dress(method.text)
             if new_text != method.text and active(method.chat_id):
                 method = method.model_copy(update={"text": new_text})
