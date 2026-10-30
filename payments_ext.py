@@ -21,6 +21,9 @@ ITEM_TYPES = ("frame_stars", "answer_pack_stars", "booster_stars", "diamond_pack
 PROVIDER_ERRORS = ("method_unavailable", "provider_error", "already_paid", "already_owned", "daily_limit_reached", "item_not_found", "invalid_request")
 
 
+STAR_USD_ESTIMATE = 0.0199          # что платит покупатель за одну звезду в магазине приложений (таблица Telegram: 100 ⭐ = $1,99); у нас остаётся $0,013 за звезду
+
+
 class PayError(Exception):
     def __init__(self, code):
         super().__init__(code)
@@ -58,7 +61,9 @@ def methods_for(user_id, kind, item_id=None):
         item = _check_item(user_id, item_id)
     else:
         raise PayError("invalid_request")
-    methods = [{"method": "stars", "label": "Звёздами", "price_text": f"{_stars_price(user_id, kind, item)} ⭐"}]
+    stars = _stars_price(user_id, kind, item)
+    # Рядом со звёздами — примерная сумма в долларах: в магазине приложений звезда стоит около $0,02, и человек не должен удивляться итогу (по таблице Telegram, 30.10).
+    methods = [{"method": "stars", "label": "Звёздами", "price_text": f"{stars} ⭐ ≈ ${round(stars * STAR_USD_ESTIMATE)}"}]
     cents = pay_orders.price_cents(kind, item["id"] if item else None, user_id)
     if cents:
         key = pay_orders.price_key(kind, item["id"] if item else None, user_id)

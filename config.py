@@ -90,6 +90,10 @@ SUPPORT_CONTACT = os.getenv("SUPPORT_CONTACT", "@floydddo, @AlxManagement").stri
 # Оплата картой через Tribute (pay_tribute.py, wiki.tribute.tg): ключ API из кабинета автора (Настройки → API Keys). Им же подписываются вебхуки. Задаёт владелец в Railway —
 # в код и в чат он не попадает. Пока не задан, способ «Картой» в приложении не показывается.
 TRIBUTE_API_KEY = os.getenv("TRIBUTE_API_KEY", "").strip()
+# Оплата картой и криптой ВНУТРИ бота и Mini App по умолчанию выключена: по условиям Telegram (§6.2, §7.4) цифровое там продаётся только за Stars, нарушение грозит
+# скрытием бота у мобильных и блокировкой. Выключатель прячет способы в приложении и боте и не даёт создать такой заказ; приём подтверждений оплаты по ссылке
+# с внешнего сайта (вебхуки) работает всегда. Включать только по решению владельца после ответа Telegram и юриста.
+EXTERNAL_PAYMENTS_ENABLED = os.getenv("EXTERNAL_PAYMENTS_ENABLED", "false").lower() == "true"
 # Оплата криптовалютой через Heleket (pay_providers.py, doc.heleket.com): merchant UUID и платёжный API-ключ задаёт владелец в Railway — в код и в чат они не попадают.
 # Пока не заданы, способ «Криптой» в приложении не показывается.
 HELEKET_MERCHANT_ID = os.getenv("HELEKET_MERCHANT_ID", "").strip()

@@ -121,6 +121,8 @@ PROVIDERS = {"heleket": Heleket()}
 
 def provider_for(method, price_key=None):
     """Настроенный сервис для способа оплаты ('crypto' | 'card'), который умеет принять именно эту покупку (price_key), или None."""
+    if not config.EXTERNAL_PAYMENTS_ENABLED:                 # внутри приложения и бота — только звёзды (см. config.py)
+        return None
     for provider in PROVIDERS.values():
         if provider.method == method and provider.configured() and provider.available_for(price_key):
             return provider

@@ -34,6 +34,10 @@ create_tables()
 from db import style_mode  # noqa: E402
 
 style_mode.set_mode("classic")
+# Оплата картой и криптой внутри приложения в проде выключена (config.EXTERNAL_PAYMENTS_ENABLED); у платёжных тестов способы включены, а выключенное состояние проверяет tests/test_external_payments_switch.py.
+import config  # noqa: E402
+
+config.EXTERNAL_PAYMENTS_ENABLED = True
 
 _uid_counter = itertools.count(900_000_000)
 

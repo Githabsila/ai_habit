@@ -106,9 +106,9 @@ def test_without_keys_only_stars_are_offered_and_with_keys_the_crypto_method_app
     monkeypatch.setattr(config, "HELEKET_API_KEY", "key")
     methods = payments_ext.methods_for(person, "subscription")
     assert [m["method"] for m in methods] == ["stars", "crypto"]
-    assert methods[0]["price_text"] == "153 ⭐" and methods[1]["price_text"] == "$1.99" and methods[1]["label"] == "Криптой"
+    assert methods[0]["price_text"] == "153 ⭐ ≈ $3" and methods[1]["price_text"] == "$1.99" and methods[1]["label"] == "Криптой"
     item_methods = payments_ext.methods_for(person, "item", 28)
-    assert item_methods[0]["price_text"] == "600 ⭐" and item_methods[1]["price_text"] == "$7.99"
+    assert item_methods[0]["price_text"] == "600 ⭐ ≈ $12" and item_methods[1]["price_text"] == "$7.99"
 
 
 def test_nothing_is_offered_for_unknown_items_or_after_the_purchase_is_done(uid, heleket):
