@@ -1,6 +1,6 @@
 """
 Оформление «Royal Gold» (решение владельца 28.10.2026): премиальная графика бота и приложения с возвратом «как было».
-Режимы classic / preview / premium (db/style_mode.py), золотая шапка и баннеры в чате (bot_style.py), перекраска приложения (royal.js / royal.css) только тем, кому включено.
+Режимы classic / preview / bot / premium (db/style_mode.py), золотая шапка и баннеры в чате (bot_style.py), перекраска приложения (royal.js / royal.css) только тем, кому включено.
 """
 import itertools
 import os
@@ -32,10 +32,10 @@ def _read(*parts):
 
 @pytest.fixture(autouse=True)
 def default_mode():
-    """Режим хранится в общей базе прогона — каждый тест начинает и заканчивает со значения по умолчанию."""
+    """Режим хранится в общей базе прогона: тест начинает с «предпросмотра», заканчивает «классикой» (как в tests/conftest.py, чтобы остальные тесты видели обычные сообщения)."""
     style_mode.set_mode("preview")
     yield
-    style_mode.set_mode("preview")
+    style_mode.set_mode("classic")
 
 
 @pytest.fixture
@@ -52,20 +52,22 @@ def _headers(person):
 
 # ---------------------------------------------------------------------------------------------------------------- режим
 
-def test_the_default_is_a_preview_for_admins_only_and_unknown_modes_are_refused(admin):
-    assert style_mode.get_mode() == "preview"
+def test_the_default_is_the_bot_for_everyone_and_unknown_modes_are_refused(admin):
+    assert style_mode.DEFAULT_MODE == "bot"
     assert style_mode.set_mode("neon") is False and style_mode.get_mode() == "preview"
     stranger = next(_ids)
     assert style_mode.premium_active(admin) is True and style_mode.premium_active(stranger) is False
-    assert style_mode.premium_active(None) is False and style_mode.premium_active(0) is False
+    assert style_mode.bot_active(admin) is True and style_mode.bot_active(stranger) is False
+    assert style_mode.premium_active(None) is False and style_mode.bot_active(0) is False
 
 
-def test_premium_is_for_everyone_and_classic_for_no_one(admin):
+def test_each_mode_says_who_gets_the_app_and_who_gets_the_bot(admin):
     stranger = next(_ids)
-    assert style_mode.set_mode("premium", admin) is True
-    assert style_mode.premium_active(stranger) is True and style_mode.premium_active(admin) is True
-    assert style_mode.set_mode("classic", admin) is True
-    assert style_mode.premium_active(admin) is False and style_mode.premium_active(stranger) is False
+    expected = {"classic": [(False, False), (False, False)], "preview": [(True, True), (False, False)],
+                "bot": [(True, True), (False, True)], "premium": [(True, True), (True, True)]}      # (приложение, бот) для админа и для чужого
+    for mode, (for_admin, for_stranger) in expected.items():
+        assert style_mode.set_mode(mode, admin) is True
+        assert [(style_mode.premium_active(p), style_mode.bot_active(p)) for p in (admin, stranger)] == [for_admin, for_stranger], mode
 
 
 # ---------------------------------------------------------------------------------------------------------------- шапка и списки
@@ -74,6 +76,7 @@ def test_a_long_message_gets_the_gold_header_once_and_short_ones_stay_as_they_ar
     dressed = bot_style.dress(LONG)
     assert dressed.startswith(bot_style.HEADER + "\n") and dressed.endswith(LONG.strip())
     assert bot_style.dress(dressed) == dressed, "повторно не оформляем"
+    assert bot_style.dress(bot_style.PLAIN_HEADER + "\n" + LONG) == bot_style.PLAIN_HEADER + "\n" + LONG, "хендлер вернул старый текст из message.text — шапка без тегов не дублируется"
     for short in ("Готово ✓", "Принято, спасибо!", ""):
         assert bot_style.dress(short) == short
     assert bot_style.dress(None) is None
@@ -103,9 +106,10 @@ async def test_the_middleware_dresses_messages_only_for_people_with_the_style(ad
     assert mine.text.startswith(bot_style.HEADER)
     _, other = await _through(SendMessage(chat_id=stranger, text=LONG))
     assert other.text == LONG, "в режиме предпросмотра чужие чаты не меняются"
-    style_mode.set_mode("premium")
-    _, everyone = await _through(SendMessage(chat_id=stranger, text=LONG))
-    assert everyone.text.startswith(bot_style.HEADER)
+    for mode in ("bot", "premium"):
+        style_mode.set_mode(mode)
+        _, everyone = await _through(SendMessage(chat_id=stranger, text=LONG))
+        assert everyone.text.startswith(bot_style.HEADER), mode
     style_mode.set_mode("classic")
     _, classic = await _through(SendMessage(chat_id=admin, text=LONG))
     assert classic.text == LONG, "«Классика» возвращает прежний вид целиком"
@@ -187,7 +191,7 @@ async def test_the_admin_can_read_and_switch_the_mode_and_nobody_else(client, ad
     assert (await client.get("/api/admin/style", headers=_headers(stranger))).status == 403
     assert (await client.get("/api/admin/style")).status == 401
     body = await (await client.get("/api/admin/style", headers=_headers(admin))).json()
-    assert body["mode"] == "preview" and [m["mode"] for m in body["modes"]] == ["classic", "preview", "premium"]
+    assert body["mode"] == "preview" and [m["mode"] for m in body["modes"]] == ["classic", "preview", "bot", "premium"]
     done = await client.post("/api/admin/style", headers=_headers(admin), json={"mode": "premium"})
     assert done.status == 200 and style_mode.get_mode() == "premium"
     assert (await client.post("/api/admin/style", headers=_headers(admin), json={"mode": "neon"})).status == 400
@@ -227,10 +231,10 @@ async def test_the_app_learns_from_bootstrap_whether_to_wear_the_style(client, a
     for person in (admin, stranger):
         add_user(person, f"u{person}", "Аня")
     flags = {}
-    for mode in ("classic", "preview", "premium"):
+    for mode in ("classic", "preview", "bot", "premium"):
         style_mode.set_mode(mode)
         flags[mode] = [(await (await client.get("/api/bootstrap", headers=_headers(p))).json())["premium_style"] for p in (admin, stranger)]
-    assert flags == {"classic": [False, False], "preview": [True, False], "premium": [True, True]}
+    assert flags == {"classic": [False, False], "preview": [True, False], "bot": [True, False], "premium": [True, True]}, "золотое приложение у чужих — только в «Премиум»"
 
 
 def test_the_app_pages_load_the_style_only_when_the_flag_is_set():

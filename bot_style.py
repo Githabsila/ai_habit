@@ -25,6 +25,7 @@ BANNER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp", 
 BANNER_KINDS = ("welcome", "trial", "paid")
 
 HEADER = "⚜️ ━━━ ✦ <b>ADAM</b> ✦ ━━━ ⚜️"
+PLAIN_HEADER = "⚜️ ━━━ ✦ ADAM ✦ ━━━ ⚜️"     # так шапка выглядит в message.text: хендлеры, правящие старое сообщение, возвращают её без тегов
 MIN_LEN = 70                       # короче — это «Готово ✓» и подобное, шапка там лишняя
 MAX_LEN = 3900                     # лимит Telegram 4096: шапка и перевод строки не должны его пробить
 CAPTION_LIMIT = 1024
@@ -35,7 +36,7 @@ _BULLET_ICON = re.compile(r"(?m)^([ \t]*)[-•] (?=[^\w\s])")      # «- 🎯 П
 
 def active(user_id):
     try:
-        return bool(user_id) and style_mode.premium_active(user_id)
+        return bool(user_id) and style_mode.bot_active(user_id)
     except Exception:
         logger.warning("Не удалось определить режим оформления для %s", user_id, exc_info=True)
         return False
@@ -47,7 +48,7 @@ def _bullets(text):
 
 def dress(text):
     """Текст сообщения → оформленный (HTML). Уже оформленный, короткий или слишком длинный возвращается как есть."""
-    if not isinstance(text, str) or text.startswith(HEADER):
+    if not isinstance(text, str) or text.startswith((HEADER, PLAIN_HEADER)):
         return text
     body = text.strip()
     if len(body) < MIN_LEN or len(body) + len(HEADER) + 1 > MAX_LEN:

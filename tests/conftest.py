@@ -30,6 +30,10 @@ import pytest  # noqa: E402
 from db.core import create_tables  # noqa: E402
 
 create_tables()
+# Золотое оформление бота (bot_style.py) по умолчанию включено у всех; в тестах оно выключено, чтобы остальные видели обычные сообщения. Его тесты включают нужный режим сами.
+from db import style_mode  # noqa: E402
+
+style_mode.set_mode("classic")
 
 _uid_counter = itertools.count(900_000_000)
 
