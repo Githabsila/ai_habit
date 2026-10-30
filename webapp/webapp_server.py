@@ -3478,8 +3478,17 @@ async def health(request):
 
 # ====================== СОЗДАНИЕ ПРИЛОЖЕНИЯ ======================
 
+async def _security_headers(request, response):
+    """Безопасные заголовки на каждый ответ (проверка 30.10): браузер не подменяет тип файла, не шлёт чужим сайтам полный адрес страницы и ходит к нам только по HTTPS.
+    X-Frame-Options и CSP с frame-ancestors не ставим: веб-версии Telegram открывают Mini App во фрейме, а список их адресов меняется."""
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+
+
 def create_app(bot=None):
     app = web.Application(middlewares=[error_middleware, usage_middleware])
+    app.on_response_prepare.append(_security_headers)
     app["bot"] = bot
     app.add_routes(routes)
     
