@@ -521,6 +521,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--violet">✉️</span>Сообщения бота</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Всё, что бот шлёт сам: напоминания, таймер, возврат в серию, канал, ответы. Собрано тем же кодом, что и настоящая рассылка, на твоих привычках. «Прислать мне» — придёт только тебе в Telegram, в базу ничего не пишется. Сообщения триала — в карточке «Триал».</div>' +
+        '<div id="botMsgBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--violet">🗣</span>Ответы Адама в чате</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Проверить, как Адам отвечает на типовые сообщения: живая модель, твой день и привычки (или любого человека по ID). В переписку ничего не пишется и лимит не тратится.</div>' +
         '<select class="field" id="adamChatPreset"><option value="">Выбрать типовое сообщение…</option></select>' +
@@ -581,6 +587,7 @@ textarea.field{resize:vertical;min-height:88px}
     loadActiveUsers();
     loadLab();
     loadSims();
+    loadBotMessages();
     loadAdamLab();
     loadAdamChatLab();
     loadReferrals();
@@ -866,6 +873,40 @@ textarea.field{resize:vertical;min-height:88px}
         items.map(function(s){
           return '<a class="btn" style="text-align:left;text-decoration:none" href="/?lab=' + encodeURIComponent(s.key) + '">🤝 ' + escapeHtml(s.title) + '</a>';
         }).join('') + '</div>';
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  // «Сообщения бота» (bot_catalog.py): текст как в Telegram (жирный/курсив) и «Прислать мне».
+  function tgHtml(text){
+    return escapeHtml(text || '').replace(/&lt;(\/?)(b|i|u|s|code)&gt;/g, '<$1$2>');
+  }
+  async function loadBotMessages(){
+    var box = document.getElementById('botMsgBox');
+    if (!box) return;
+    try{
+      var items = (await api('/api/admin/bot-messages')).items || [];
+      var group = null, html = '';
+      items.forEach(function(m){
+        if (m.group !== group){ group = m.group; html += '<div class="empty-note" style="padding:10px 0 4px;font-weight:700">' + escapeHtml(group) + '</div>'; }
+        html += '<div class="list-row" style="flex-direction:column;align-items:stretch;gap:6px">' +
+          '<div class="list-row-name"><b>' + escapeHtml(m.title) + '</b><small>' + escapeHtml(m.when) + '</small></div>' +
+          (m.error ? '<div class="empty-note" style="padding:0;color:#ff8a8a">Не собралось: ' + escapeHtml(m.error) + '</div>'
+            : '<div style="white-space:pre-wrap;background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.45">' + tgHtml(m.text) + '</div>' +
+              (m.buttons && m.buttons.length ? '<div class="empty-note" style="padding:0">Кнопки: ' + m.buttons.map(escapeHtml).join(' · ') + '</div>' : '') +
+              '<button class="btn" data-botmsg="' + escapeHtml(m.key) + '">📨 Прислать мне</button>') +
+        '</div>';
+      });
+      box.innerHTML = html || '<div class="empty-note">Пусто</div>';
+      box.querySelectorAll('[data-botmsg]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          btn.disabled = true;
+          try{ await api('/api/admin/bot-messages/send', { method: 'POST', body: JSON.stringify({ key: btn.dataset.botmsg }) }); showToast('Отправлено тебе в Telegram'); }
+          catch(e){ showToast('Не получилось отправить'); }
+          btn.disabled = false;
+        });
+      });
     }catch(e){
       box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }

@@ -93,6 +93,20 @@ def _countdown_keyboard():
     )
 
 
+COUNTDOWN_EXPIRED_TEXT = "⌛️ <b>Время вышло</b>\n\nДень закончился. Новый день — новый шанс: закрой привычку сегодня."
+COUNTDOWN_SAVED_TEXT = "🔥 <b>Ударный режим спасён!</b>\n\nПривычка закрыта вовремя. Хорошая работа."
+
+
+def countdown_text(minutes, shown_seconds):
+    """Текст живого таймера (одно сообщение, бот правит его раз в ~30 с). Отдельно — чтобы каталог сообщений в админке показывал ровно его."""
+    return (
+        "🚨 <b>ФИНИШНЫЙ ТАЙМЕР</b>\n\n"
+        "😡 Ударный режим под угрозой.\n"
+        f"⏱️ Осталось: <b>{minutes:02d}:{shown_seconds:02d}</b>\n\n"
+        "Закрой хотя бы одну привычку — и серия будет спасена."
+    )
+
+
 async def _run_countdown(bot, uid, message_id, tz_name, deadline):
     """Редактирует одно сообщение таймера раз в ~30 секунд до локальной полуночи.
     Редактирование не создаёт новые Telegram-уведомления, поэтому пользователь
@@ -111,7 +125,7 @@ async def _run_countdown(bot, uid, message_id, tz_name, deadline):
                     await bot.edit_message_text(
                         chat_id=uid,
                         message_id=message_id,
-                        text="⌛️ <b>Время вышло</b>\n\nДень закончился. Новый день — новый шанс: закрой привычку сегодня.",
+                        text=COUNTDOWN_EXPIRED_TEXT,
                         parse_mode="HTML",
                     )
                 except Exception:
@@ -122,12 +136,7 @@ async def _run_countdown(bot, uid, message_id, tz_name, deadline):
             # Чтобы сообщение не менялось слишком часто, округляем секунды до
             # ближайших 30 секунд. Пользователь всё равно видит живой отсчёт.
             shown_seconds = 30 if seconds > 15 else 0
-            text = (
-                "🚨 <b>ФИНИШНЫЙ ТАЙМЕР</b>\n\n"
-                "😡 Ударный режим под угрозой.\n"
-                f"⏱️ Осталось: <b>{minutes:02d}:{shown_seconds:02d}</b>\n\n"
-                "Закрой хотя бы одну привычку — и серия будет спасена."
-            )
+            text = countdown_text(minutes, shown_seconds)
             try:
                 await bot.edit_message_text(
                     chat_id=uid,
@@ -160,7 +169,7 @@ async def _run_countdown(bot, uid, message_id, tz_name, deadline):
                     await bot.edit_message_text(
                         chat_id=uid,
                         message_id=message_id,
-                        text="🔥 <b>Ударный режим спасён!</b>\n\nПривычка закрыта вовремя. Хорошая работа.",
+                        text=COUNTDOWN_SAVED_TEXT,
                         parse_mode="HTML",
                     )
                 except Exception:
