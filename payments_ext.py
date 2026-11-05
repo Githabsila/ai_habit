@@ -178,7 +178,8 @@ async def _grant_subscription(bot, order):
     if state == "duplicate":
         return None
     try:
-        text, _snap, _link = await subscription_flow.complete_subscription_payment(bot, order["user_id"], charge_id=charge_id)
+        # Карта и крипта — по календарным месяцам с якорным числом (db/subscription.py::add_calendar_months); у звёзд — 30 дней.
+        text, _snap, _link = await subscription_flow.complete_subscription_payment(bot, order["user_id"], charge_id=charge_id, calendar_months=True)
     except Exception as exc:
         shop.finish_payment(charge_id, False, error=f"{type(exc).__name__}: {exc}")
         raise

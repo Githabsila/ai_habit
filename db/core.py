@@ -183,6 +183,9 @@ def create_tables():
         cursor.execute("ALTER TABLE users ADD COLUMN subscription_first_payment_at TIMESTAMP")
     if "channel_access_granted_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN channel_access_granted_at TIMESTAMP")
+    # Число месяца, к которому привязаны продления при оплате картой (календарные месяцы): 31 января → 28/29 февраля → снова 31 марта.
+    if "subscription_anchor_day" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN subscription_anchor_day INTEGER")
 
     # ---------------- ДОСТУП: свободный / временный / сценарий триала (db/access.py) ----------------
     # access_mode: 'open' — как у первых тестировщиков (без ограничений, без триала и сообщений об оплате; так у всех по умолчанию),

@@ -61,7 +61,18 @@ def get_subscription_price_stars(user_id):
     return price_stars(user_id)
 
 
-def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None):
+def add_calendar_months(moment, months, anchor_day):
+    """Календарные месяцы с «якорным» числом: дата переезжает на тот же день через `months` месяцев, а если такого дня нет
+    (31 → февраль) — на последний день месяца. Якорь хранится отдельно, поэтому после короткого месяца срок возвращается к нему:
+    31.01 → 28.02 → 31.03, а не 28.03. Время суток сохраняется."""
+    import calendar
+    total = moment.month - 1 + int(months)
+    year, month = moment.year + total // 12, total % 12 + 1
+    day = min(int(anchor_day), calendar.monthrange(year, month)[1])
+    return moment.replace(year=year, month=month, day=day)
+
+
+def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None, calendar_months=False):
     """Продлевает подписку на `months` месяцев от текущего срока (если он ещё не истёк) или от момента оплаты (если истёк/не было).
     Если человек платит во время пробных дней, платный доступ включается сразу, а оставшееся бесплатное время добавляется к нему: ранняя покупка
     не отнимает бесплатных часов (ТЗ §6). paid_at — когда человек реально заплатил (по часам Telegram): запоздалое подтверждение не отнимает условий.
@@ -79,7 +90,16 @@ def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None
         free_left_from = _parse_dt(state["trial_ends_at"])
         if free_left_from and free_left_from > base:
             base = free_left_from
-    new_until = base + timedelta(days=30 * months)
+    anchor_day = None
+    if calendar_months:
+        # Оплата картой — по календарным месяцам (решение 05.11: «в коротком месяце доступ не обрезать»). Подписка продолжается —
+        # держим прежний якорь; началась заново (срока не было или он истёк) — якорь = число, с которого считаем.
+        stored = user["subscription_anchor_day"] if user and "subscription_anchor_day" in user.keys() else None
+        continuing = bool(current_until and current_until > moment)
+        anchor_day = int(stored) if (continuing and stored) else base.day
+        new_until = add_calendar_months(base, months, anchor_day)
+    else:
+        new_until = base + timedelta(days=30 * months)  # звёзды Telegram: подписка бывает только на 30 дней
     if expires_at is not None and expires_at > new_until:
         new_until = expires_at                         # подписка Stars: срок, который назвал Telegram, не короче того, что посчитали мы
 
@@ -88,9 +108,10 @@ def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None
     cursor.execute(
         """UPDATE users
            SET subscription_paid_until=?,
-               subscription_first_payment_at=COALESCE(subscription_first_payment_at, CURRENT_TIMESTAMP)
+               subscription_first_payment_at=COALESCE(subscription_first_payment_at, CURRENT_TIMESTAMP),
+               subscription_anchor_day=COALESCE(?, subscription_anchor_day)
            WHERE telegram_id=?""",
-        (new_until.isoformat(), user_id),
+        (new_until.isoformat(), anchor_day, user_id),
     )
     conn.commit()
     conn.close()
