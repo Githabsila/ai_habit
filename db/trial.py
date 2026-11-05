@@ -112,7 +112,7 @@ def _day_marks(user_id, days):
 def snapshot(user_id, now_utc=None):
     """Всё, что нужно знать о человеке в триале. None — человека нет."""
     from config import (
-        CLOSED_CHANNEL_ID, SUBSCRIPTION_INTRO_PRICE_STARS, SUBSCRIPTION_RENEWAL_PRICE_STARS, SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL,
+        CLOSED_CHANNEL_ID, SUBSCRIPTION_INTRO_PRICE_STARS, SUBSCRIPTION_RENEWAL_PRICE_STARS,
         SUBSCRIPTION_TRIAL_DAYS,
     )
     from .access import trial_scenario_for_user
@@ -135,7 +135,8 @@ def snapshot(user_id, now_utc=None):
     streak = int(user["streak"] or 0)
     if marked_today:
         streak = max(streak, marks[today_s][1])
-    needed = int(SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL)
+    from .subscription import channel_streak_needed
+    needed = int(channel_streak_needed(user))                 # 3, а после вылета из канала — 5 (решение 05.11)
     intro = intro_price_open(user_id, day, ever)
     phase = info["phase"] or "day1"
     return {

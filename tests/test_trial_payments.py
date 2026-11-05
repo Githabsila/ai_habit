@@ -77,9 +77,10 @@ async def test_payment_after_the_trial_has_no_free_days_note(uid):
 
 
 async def test_a_ready_streak_gets_the_channel_link_at_once_when_the_channel_is_connected(uid, monkeypatch):
-    _person(uid, 2)
-    _mark(uid, 1, 1)
-    _mark(uid, 0, 2)
+    _person(uid, 3)
+    _mark(uid, 2, 1)
+    _mark(uid, 1, 2)
+    _mark(uid, 0, 3)                                                          # решение 05.11: канал с 3 дней серии
     monkeypatch.setattr(config, "CLOSED_CHANNEL_ID", "-100123")
     grant = AsyncMock(return_value="https://t.me/+abc")
     monkeypatch.setattr(flow, "try_grant_channel_access", grant)

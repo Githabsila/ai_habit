@@ -184,6 +184,9 @@ def create_tables():
     if "channel_access_granted_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN channel_access_granted_at TIMESTAMP")
     # Число месяца, к которому привязаны продления при оплате картой (календарные месяцы): 31 января → 28/29 февраля → снова 31 марта.
+    # Когда бот убрал человека из закрытого канала (серия сгорела / подписка кончилась): вернуться можно с серией CHANNEL_REENTRY_STREAK_DAYS.
+    if "channel_removed_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN channel_removed_at TIMESTAMP")
     if "subscription_anchor_day" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN subscription_anchor_day INTEGER")
 
