@@ -1559,9 +1559,16 @@ body{
 
 /* Эмодзи — предпочитаем родной цветной шрифт устройства (на iPhone это
    и есть настоящие Apple-эмодзи), а не системный текстовый рендер. */
-.emoji-launcher,.emoji-panel,.message-bubble,.quick-icon,.header-title-icon,
-.icon-btn,.empty-icon,.welcome-prompts button,.quick-prompts button{
+.emoji-launcher,.emoji-panel,.quick-icon,.header-title-icon,
+.icon-btn,.empty-icon{
  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",'Inter',sans-serif !important;
+}
+/* Где есть обычный текст — сначала текстовый шрифт, эмодзи-шрифты после него.
+   Иначе пробелы (и цифры) брались из эмодзи-шрифта: в Noto Color Emoji
+   пробел ~1.3em — «План   на   день» и растянутые сообщения на Android.
+   Inter без эмодзи, поэтому сами эмодзи всё равно берутся из цветного шрифта. */
+.message-bubble,.welcome-prompts button,.quick-prompts button{
+ font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif !important;
 }
 
 /* =========================================================
