@@ -177,6 +177,19 @@ async def test_a_retry_after_a_failed_grant_reuses_the_same_order(client, uid, t
     assert unfulfilled == 0
 
 
+async def test_two_identical_webhooks_at_once_give_the_purchase_once(client, uid, tribute, bot):
+    import asyncio
+    person = _user(uid)
+    _map("sub_first", 902)
+    event = _event(person, 902, 199)
+    first, second = await asyncio.gather(_post(client, event), _post(client, event))
+    assert first.status == second.status == 200
+    count = _sql("SELECT COUNT(*) AS n FROM pay_orders WHERE user_id=? AND provider='tribute'", (person,))["n"]
+    assert count == 1, "одновременный повтор не должен заводить второй заказ"
+    texts = [c.args[1] for c in bot.send_message.call_args_list if c.args[0] == person and "Подписка активна" in c.args[1]]
+    assert len(texts) == 1
+
+
 async def test_a_purchase_from_a_link_outside_the_app_is_still_given(client, uid, tribute, bot):
     person = _user(uid)
     _map("item_28", 903)

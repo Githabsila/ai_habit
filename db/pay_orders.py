@@ -227,6 +227,26 @@ def event_seen(provider, event_id):
         conn.close()
 
 
+def claim_event(provider, event_id):
+    """Атомарно «занимает» событие: True только у первого из одновременных вебхуков с тем же номером. Если обработка упадёт — release_event, чтобы повтор прошёл."""
+    conn = connect()
+    try:
+        cursor = conn.execute("INSERT OR IGNORE INTO pay_events(provider, event_id, created_at) VALUES (?, ?, ?)", (provider, str(event_id), _now()))
+        conn.commit()
+        return cursor.rowcount == 1
+    finally:
+        conn.close()
+
+
+def release_event(provider, event_id):
+    conn = connect()
+    try:
+        conn.execute("DELETE FROM pay_events WHERE provider=? AND event_id=?", (provider, str(event_id)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def record_event(provider, event_id):
     conn = connect()
     try:

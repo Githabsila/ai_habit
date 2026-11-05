@@ -107,14 +107,20 @@ class Tribute:
             await _alert(bot, f"⚠️ Tribute: покупка {purchase_id} на другую сумму ({data.get('amount')} {data.get('currency')}, ждали {expected_cents} usd), человек {user_id}. "
                               "Покупка не выдана — проверь цену товара в Tribute.")
             return {"status": "ok", "ignored": True}
-        # Повтор после упавшего начисления: заказ под этот purchase_id уже есть (оплачен, не начислен) — доводим его, а не заводим второй.
-        order = pay_orders.find_by_provider_uuid(self.name, purchase_id) or pay_orders.find_open(user_id, self.name, kind, item_id)
-        if order is None:                                             # оплатили по ссылке не из приложения: заказ создаём уже оплаченным
-            order = pay_orders.create_order(user_id, self.name, self.method, kind, item_id, expected_cents, "USD", product["key"])
-        pay_orders.set_provider_uuid(order["order_id"], purchase_id)
-        paid = pay_orders.mark_paid(order["order_id"], "paid")
-        await payments_ext.fulfil(bot, paid)
-        pay_orders.record_event(self.name, f"p{purchase_id}")
+        event_id = f"p{purchase_id}"
+        if not pay_orders.claim_event(self.name, event_id):             # такой же вебхук пришёл одновременно и уже обрабатывается
+            return {"status": "ok", "duplicate": True}
+        try:
+            # Повтор после упавшего начисления: заказ под этот purchase_id уже есть (оплачен, не начислен) — доводим его, а не заводим второй.
+            order = pay_orders.find_by_provider_uuid(self.name, purchase_id) or pay_orders.find_open(user_id, self.name, kind, item_id)
+            if order is None:                                         # оплатили по ссылке не из приложения: заказ создаём уже оплаченным
+                order = pay_orders.create_order(user_id, self.name, self.method, kind, item_id, expected_cents, "USD", product["key"])
+            pay_orders.set_provider_uuid(order["order_id"], purchase_id)
+            paid = pay_orders.mark_paid(order["order_id"], "paid")
+            await payments_ext.fulfil(bot, paid)
+        except Exception:
+            pay_orders.release_event(self.name, event_id)              # начисление не прошло — Tribute повторит, и повтор должен пройти
+            raise
         return {"status": "ok"}
 
     async def _on_refund(self, data, bot):
