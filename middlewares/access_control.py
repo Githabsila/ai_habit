@@ -50,6 +50,23 @@ class AccessControlMiddleware(BaseMiddleware):
         if user_id in ADMIN_IDS:
             return await handler(event, data)
 
+        # 16+ (db/age_gate.py): в анкете ответил «Мне нет 16» — бот отвечает одним понятным текстом на всё, включая /start.
+        try:
+            from db import get_access_status
+            from db.age_gate import AGE_RESTRICTED, AGE_RESTRICTED_TEXT
+            age_blocked = get_access_status(user_id) == AGE_RESTRICTED
+        except Exception:
+            age_blocked = False
+        if age_blocked:
+            try:
+                if isinstance(event, CallbackQuery):
+                    await event.answer(AGE_RESTRICTED_TEXT, show_alert=True)
+                else:
+                    await event.answer(AGE_RESTRICTED_TEXT)
+            except Exception:
+                pass
+            return None
+
         # Сама оплата и переход к ней должны работать всегда — иначе
         # заблокированный пользователь не сможет купить подписку.
         if isinstance(event, Message) and event.successful_payment:

@@ -15439,3 +15439,6 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 @media (hover:hover) and (pointer:fine){
   html:has(.subpage-overlay:not([hidden])){overflow:hidden}
 }
+
+/* Стоп-экран 16+ в стартовой анкете (решение 05.11) — спокойный текст по центру вместо вариантов ответа. */
+.start-quiz-age-stop{margin:24px 4px 0;font-size:16px;line-height:1.5;color:rgba(255,255,255,.82);text-align:center}

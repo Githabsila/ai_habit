@@ -775,8 +775,8 @@ textarea.field{resize:vertical;min-height:88px}
         var name = u.username ? ('@' + escapeHtml(u.username)) : escapeHtml(u.first_name || '');
         return '<div class="list-row">' +
           '<span class="card-icon card-icon--violet" style="width:28px;height:28px;font-size:12px">👤</span>' +
-          '<div class="list-row-name"><b>' + name + '</b><small>ID ' + u.telegram_id + '</small></div>' +
-          '<button class="btn btn-accent" data-approve="' + u.telegram_id + '">✅ Одобрить</button>' +
+          '<div class="list-row-name"><b>' + name + '</b><small>ID ' + u.telegram_id + (u.age_restricted ? ' · 🔒 ответил «Мне нет 16»' : '') + '</small></div>' +
+          '<button class="btn btn-accent" data-approve="' + u.telegram_id + '">' + (u.age_restricted ? '✅ Открыть доступ' : '✅ Одобрить') + '</button>' +
         '</div>';
       }).join('');
       box.querySelectorAll('[data-approve]').forEach(function(btn){

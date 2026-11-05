@@ -124,12 +124,17 @@ async def admin_export_db_route(request):
 @routes.get("/api/admin/pending")
 async def admin_pending_route(request):
     await _authenticate_admin(request)
+    from db.age_gate import age_restricted_users
     users = get_pending_users(limit=30)
     return web.json_response({
         "users": [
             {"telegram_id": u["telegram_id"], "username": u["username"], "first_name": u["first_name"]}
             for u in users
-        ]
+        ] + [
+            # Ответили «Мне нет 16» (db/age_gate.py): «Одобрить» вернёт доступ, если человек ошибся с возрастом.
+            {"telegram_id": u["telegram_id"], "username": u["username"], "first_name": u["first_name"], "age_restricted": True}
+            for u in age_restricted_users()
+        ],
     })
 
 

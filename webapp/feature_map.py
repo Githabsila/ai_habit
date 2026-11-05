@@ -52,7 +52,7 @@ FEATURES = (
         "onboarding", "Знакомство: анкета, квиз, тур", "core", "2026-01-01",
         screens=("startQuiz", "appTour", "handleIntro", "streakOnboarding"),
         events=("survey_started", "survey_step", "survey_completed", "access_approved", "onb_streak_shown", "onb_streak_ok",
-                "quiz_start", "quiz_step", "quiz_done", "tour_start", "tour_step", "tour_skip", "tour_done",
+                "quiz_start", "quiz_step", "quiz_done", "age_stop", "tour_start", "tour_step", "tour_skip", "tour_done",
                 "handle_intro_shown", "handle_intro_done", "hint_shown", "hint_next", "hint_skip"),
         api=("POST /api/onboarding/start", "POST /api/onboarding/stage", "POST /api/onboarding/restart"),
         bot=("cmd:/start", "cmd:/survey_preview", "cb:survey:*", "cb:survey_*"),
