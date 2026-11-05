@@ -2057,5 +2057,13 @@ body:after{
 .scroll-down-btn{bottom:var(--scroll-down-bottom,62px)!important}
 @media(max-width:560px){.scroll-down-btn{bottom:var(--scroll-down-bottom,60px)!important}}
 </style>
+<style id="adam-wide-screen">
+/* ПК и развёрнутый режим Telegram (05.11): сообщения уже стояли колонкой по центру, а шапка, панель «Быстрые действия» и поле ввода
+   тянулись на всю ширину окна. Теперь весь чат — одна колонка до 640px по центру, как главное приложение. */
+@media (min-width:700px){
+  .app-container{max-width:640px !important;margin-inline:auto !important;
+    border-inline:1px solid rgba(255,255,255,.06);box-shadow:0 0 70px rgba(0,0,0,.45)}
+}
+</style>
 <!-- Оформление «Royal Gold» (db/style_mode.py): флаг ставит основное приложение (app.js::applyRoyalStyle). Стоит после всех стилей, чтобы royal.js увидел их целиком. -->
 <script>try{if(localStorage.getItem("adam_royal")==="1"){document.documentElement.classList.add("adam-royal");var rs=document.createElement("script");rs.src="/static/royal.js?v=20261028_ROYAL_V1";document.head.appendChild(rs);}}catch(e){}</script>

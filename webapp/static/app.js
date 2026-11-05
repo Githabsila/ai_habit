@@ -4542,7 +4542,10 @@
       return;
     }
 
-    const answerItems = items.filter(it => it.item_type === "answer_pack" || /ответ/i.test(it.name || ""));
+    // Пакеты ответов — по возрастанию количества (+10, +20, +50, +100): раньше шли в порядке с сервера и выходило +10, +50, +100, +20.
+    const packAmount = (it) => Number((String(it.payload || it.name || "").match(/(\d+)/) || [])[1] || 0);
+    const answerItems = items.filter(it => it.item_type === "answer_pack" || /ответ/i.test(it.name || ""))
+      .sort((a, b) => packAmount(a) - packAmount(b));
     const otherItems = items.filter(it => !answerItems.includes(it));
 
     const renderItem = (it) => {
