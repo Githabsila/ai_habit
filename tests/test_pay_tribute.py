@@ -158,6 +158,25 @@ async def test_a_purchase_gives_the_item_once_even_if_the_webhook_repeats(client
     assert status["fulfilled"] is True
 
 
+async def test_a_retry_after_a_failed_grant_reuses_the_same_order(client, uid, tribute, bot, monkeypatch):
+    """Начисление упало → вебхук ответил 500 → Tribute повторил. Повтор должен довести до конца ТОТ ЖЕ заказ, а не завести второй
+    (иначе первый висит «оплачен, не начислен», и ручная выдача из админки даёт покупку дважды)."""
+    person = _user(uid)
+    _map("item_28", 903)
+    event = _event(person, 903, 799)
+    before = get_user(person)["diamonds"]
+    real_grant = payments_ext._grant_item
+    monkeypatch.setattr(payments_ext, "_grant_item", lambda *a: (_ for _ in ()).throw(RuntimeError("база занята")))
+    assert (await _post(client, event)).status == 500
+    monkeypatch.setattr(payments_ext, "_grant_item", real_grant)
+    assert (await _post(client, event)).status == 200
+    assert get_user(person)["diamonds"] == before + 50
+    count = _sql("SELECT COUNT(*) AS n FROM pay_orders WHERE user_id=? AND provider='tribute'", (person,))["n"]
+    assert count == 1, "повтор вебхука не должен создавать второй заказ"
+    unfulfilled = _sql("SELECT COUNT(*) AS n FROM pay_orders WHERE user_id=? AND status='paid' AND fulfilled_at IS NULL", (person,))["n"]
+    assert unfulfilled == 0
+
+
 async def test_a_purchase_from_a_link_outside_the_app_is_still_given(client, uid, tribute, bot):
     person = _user(uid)
     _map("item_28", 903)

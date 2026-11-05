@@ -107,8 +107,9 @@ class Tribute:
             await _alert(bot, f"⚠️ Tribute: покупка {purchase_id} на другую сумму ({data.get('amount')} {data.get('currency')}, ждали {expected_cents} usd), человек {user_id}. "
                               "Покупка не выдана — проверь цену товара в Tribute.")
             return {"status": "ok", "ignored": True}
-        order = pay_orders.find_open(user_id, self.name, kind, item_id)
-        if order is None:                                               # оплатили по ссылке не из приложения: заказ создаём уже оплаченным
+        # Повтор после упавшего начисления: заказ под этот purchase_id уже есть (оплачен, не начислен) — доводим его, а не заводим второй.
+        order = pay_orders.find_by_provider_uuid(self.name, purchase_id) or pay_orders.find_open(user_id, self.name, kind, item_id)
+        if order is None:                                             # оплатили по ссылке не из приложения: заказ создаём уже оплаченным
             order = pay_orders.create_order(user_id, self.name, self.method, kind, item_id, expected_cents, "USD", product["key"])
         pay_orders.set_provider_uuid(order["order_id"], purchase_id)
         paid = pay_orders.mark_paid(order["order_id"], "paid")
