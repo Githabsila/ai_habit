@@ -105,6 +105,17 @@ async def _run_countdown(bot, uid, message_id, tz_name, deadline):
             end_dt = datetime.combine(deadline, time(0, 0), tzinfo=tz) + timedelta(days=1)
             remaining = int((end_dt - now).total_seconds())
             if remaining <= 0:
+                # Без этой правки сообщение навсегда оставалось «Осталось: 00:00 … серия будет спасена» с кнопкой, хотя день кончился.
+                # Про сброс серии не пишем: её могла сохранить заморозка.
+                try:
+                    await bot.edit_message_text(
+                        chat_id=uid,
+                        message_id=message_id,
+                        text="⌛️ <b>Время вышло</b>\n\nДень закончился. Новый день — новый шанс: закрой привычку сегодня.",
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    logger.info("Не удалось закрыть таймер для %s", uid)
                 break
 
             minutes, seconds = divmod(remaining, 60)

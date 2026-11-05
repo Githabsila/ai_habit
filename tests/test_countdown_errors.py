@@ -53,6 +53,20 @@ async def test_a_blocked_bot_stops_the_countdown(monkeypatch, caplog):
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
+async def test_when_time_runs_out_the_timer_says_so_instead_of_freezing_at_zero(monkeypatch):
+    """Было в живом чате: в полночь сообщение навсегда оставалось «Осталось: 00:00 … Закрой хотя бы одну привычку — и серия
+    будет спасена» с кнопкой, хотя день уже кончился. Теперь последняя правка — итог без призыва и без кнопки."""
+    from datetime import timedelta
+    monkeypatch.setattr(ss, "has_completed_today", lambda uid: False)
+    bot = SimpleNamespace(edit_message_text=AsyncMock())
+    yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)       # полночь уже прошла
+    await ss._run_countdown(bot, 848_000_002, 78, "UTC", yesterday)
+    assert bot.edit_message_text.await_count == 1
+    final = bot.edit_message_text.await_args.kwargs
+    assert "Время вышло" in final["text"] and "будет спасена" not in final["text"]
+    assert final.get("reply_markup") is None
+
+
 async def test_other_errors_are_still_reported(monkeypatch, caplog):
     caplog.set_level(logging.WARNING)
     bot, sleeps = await _run(monkeypatch, RuntimeError("что-то новое"), done_after_sleeps=1)
