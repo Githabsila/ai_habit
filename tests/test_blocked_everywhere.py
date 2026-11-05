@@ -263,3 +263,20 @@ async def test_streak_jobs_exclude_blocked_users(monkeypatch, job_name):
 
     assert calls
     assert all(kw == {"include_blocked": False} for kw in calls)
+
+
+async def test_reengagement_after_a_short_break_comes_at_10_and_16_but_not_21(monkeypatch, uid):
+    """Не больше 5 напоминаний в день (решение владельца 05.11): «вернись в серию» после 1–3 пропущенных дней — в 10:00 и 16:00;
+    21:00 убрали — через два часа всё равно придут «Последний час» (23:00) и финишный таймер (23:30)."""
+    import streak_scheduler
+
+    add_user(uid, "u", "U")
+    add_habit(uid, "Пить воду")
+    sent_at = {}
+    for hour in (10, 16, 21):
+        _patch_streak(monkeypatch, uid, hour, 0)
+        monkeypatch.setattr(streak_scheduler, "get_streak_reengagement_state", lambda _uid: {"inactive_days": 2, "has_history": True})
+        bot = FakeBot()
+        await streak_scheduler.run_streak_reengagement_notifications(bot)
+        sent_at[hour] = len(bot.sent)
+    assert sent_at == {10: 1, 16: 1, 21: 0}

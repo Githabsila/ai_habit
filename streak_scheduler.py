@@ -404,7 +404,8 @@ async def run_streak_reengagement_notifications(bot):
             # определяется однозначно, а повтор в пределах окна всё равно
             # блокируется claim_notification ниже.
             if inactive <= 3:
-                slot = next((h for h in ("10", "16", "21") if in_time_window(now, hour=int(h))), None)
+                # Без 21:00 (решение владельца 05.11, не больше 5 в день): в 23:00 и 23:30 всё равно придут «Последний час» и таймер.
+                slot = next((h for h in ("10", "16") if in_time_window(now, hour=int(h))), None)
                 if slot is None:
                     continue
             elif inactive <= 7:

@@ -210,9 +210,11 @@ def test_diagnosis_of_a_healthy_account_says_the_checkpoints_should_come(uid):
     report = rd.diagnose_user(user, NOW)
     assert report["name"] == "Александр" and report["timezone"] == "Europe/Moscow" and report["local_time"] == "14:53"
     assert all(a["ok"] for a in report["account"])
-    assert [c["hour"] for c in report["checkpoints"]] == [10, 12, 17, 22] and all(c["will_send"] for c in report["checkpoints"])
+    # 10:00 больше нет; в пустой день 22:00 уступает место 23:00 и 23:30 (не больше 5 напоминаний в день)
+    assert [c["hour"] for c in report["checkpoints"]] == [12, 17, 22] and [c["will_send"] for c in report["checkpoints"]] == [True, True, False]
+    assert "23:00" in report["checkpoints"][2]["rule"]
     assert report["habits"] == {"total": 2, "open": 2} and "должны приходить" in report["summary"]
-    assert report["checkpoints"][0]["actual"].startswith("час прошёл") and report["checkpoints"][2]["actual"] == "ещё впереди"
+    assert report["checkpoints"][0]["actual"].startswith("час прошёл") and report["checkpoints"][1]["actual"] == "ещё впереди"
 
 
 def test_diagnosis_names_every_switch_that_silences_the_bot(uid):
@@ -227,7 +229,7 @@ def test_diagnosis_names_every_switch_that_silences_the_bot(uid):
     set_quiet_hours(quiet, 9, 13)
     report = rd.diagnose_user(quiet, NOW)
     assert _by_label(report, "Тихие часы")["detail"] == "бот молчит 09:00–13:00"
-    assert [c["will_send"] for c in report["checkpoints"]] == [False, False, True, True]       # 10:00 и 12:00 — в тихих часах
+    assert [c["will_send"] for c in report["checkpoints"]] == [False, True, False]       # 12:00 — в тихих часах; 22:00 в пустой день — не шлётся
 
     set_timezone(utc, "UTC")
     zone = _by_label(rd.diagnose_user(utc, NOW), "Часовой пояс")
@@ -252,13 +254,13 @@ def test_diagnosis_shows_a_missed_day_as_the_reason(uid):
 def test_diagnosis_shows_what_was_actually_sent_and_skipped(uid):
     user = _person(uid)
     add_habit(user, "Проверка")
-    _sql("INSERT INTO notification_log(user_id, category, title, sent_at) VALUES (?,?,?,?)", (user, "habit_checkpoint_10", "x", "2026-10-16 07:01:12"))
-    record_skip(user, "2026-10-16", "habit_checkpoint_12", "quiet_hours")
+    _sql("INSERT INTO notification_log(user_id, category, title, sent_at) VALUES (?,?,?,?)", (user, "habit_checkpoint_12", "x", "2026-10-16 09:01:12"))
+    record_skip(user, "2026-10-16", "habit_checkpoint_17", "quiet_hours")
     report = rd.diagnose_user(user, NOW)
     by_hour = {c["hour"]: c for c in report["checkpoints"]}
-    assert by_hour[10]["actual"] == "сегодня отправлено в 10:01" and by_hour[10]["sent"]
-    assert by_hour[12]["actual"].startswith("сегодня пропущено: тихие часы") and by_hour[12]["skipped"]
-    assert any("10:01" in r["when"] for r in report["recent"]) and report["recent"][0]["when"].startswith("16.10")
+    assert by_hour[12]["actual"] == "сегодня отправлено в 12:01" and by_hour[12]["sent"]
+    assert by_hour[17]["actual"].startswith("сегодня пропущено: тихие часы") and by_hour[17]["skipped"]
+    assert any("12:01" in r["when"] for r in report["recent"]) and report["recent"][0]["when"].startswith("16.10")
 
 
 def test_unknown_person_has_no_diagnosis(uid):
@@ -277,7 +279,7 @@ async def test_admin_route_is_admin_only_and_returns_the_report(client, uid, mon
     assert (await client.get("/api/admin/user/oops/reminders", headers=headers(admin))).status == 400
     ok = await client.get(f"/api/admin/user/{person}/reminders", headers=headers(admin))
     data = await ok.json()
-    assert ok.status == 200 and data["user_id"] == person and len(data["checkpoints"]) == 4 and data["account"]
+    assert ok.status == 200 and data["user_id"] == person and len(data["checkpoints"]) == 3 and data["account"]
 
 
 def test_admin_card_has_the_reminders_section():
