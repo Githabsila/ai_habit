@@ -1145,7 +1145,8 @@ async def share_link(request):
     # Без username не отправляем пользователя на голый https://t.me:
     # это и было причиной некрасивого превью. Публичный URL Mini App
     # остаётся безопасным запасным вариантом.
-    fallback = (WEBAPP_URL or "").strip().rstrip("/") or request.url.origin()
+    # str(): origin() — объект yarl.URL, json его не сериализует (был 500 вместо ссылки).
+    fallback = (WEBAPP_URL or "").strip().rstrip("/") or str(request.url.origin())
     return web.json_response({
         "ok": False,
         "bot_username": None,
