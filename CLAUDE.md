@@ -37,8 +37,9 @@ CI (`.github/workflows/tests.yml`): pytest + `pip-audit` на каждый push/
 
 - **Рабочие файлы — только в `webapp/static/`** (`index.html`, `app.js`, `style.css`, `ai_coach.js`, `ai_miniapp_styled.html` и др.).
   `app.js`, `index.html`, `style.css` в КОРНЕ репозитория — устаревшие копии, сервер их не отдаёт. Не правь их.
-- Скрипты и стили подключены с `?v=...` в `webapp/static/index.html`, а сервер кэширует их надолго. **Изменил JS/CSS — подними
-  версию в `?v=`**, иначе у пользователей останется старый файл.
+- Скрипты и стили подключены с `?v=...` в `webapp/static/index.html`. Сервер отдаёт `/`, `/api/*` и `/static/*` с `no-cache`
+  (`error_middleware` в `webapp_server.py`; комментарий там про «long caching» устарел), но WebView Telegram и прокси бывают
+  упрямыми — **изменил JS/CSS, подними версию в `?v=`**, это принятое в проекте правило.
 - Без сборщика: один большой `app.js` (ES-модуль), чат ADAM — React без JSX (`ai_coach.js`, `React.createElement`).
 - Проверка в браузере: Playwright + Chromium уже установлены. Вход как пользователь — подписать initData тем же
   `BOT_TOKEN`, что у локального сервера (`tests/conftest.py::sign_init_data`), и подменить `https://telegram.org/js/telegram-web-app.js`
