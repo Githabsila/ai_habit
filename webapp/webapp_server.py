@@ -1017,7 +1017,8 @@ async def subscription_invoice_route(request):
     snap = snapshot(telegram_id)
     if snap is None:
         return web.json_response({"error": "not_available"}, status=403)
-    if snap["paid"]:
+    from subscription_flow import invoice_spec
+    if snap["paid"] and invoice_spec(telegram_id) is None:   # подписка идёт и автопродление включено — платить нечего; без него — продлить заранее
         return web.json_response({"error": "already_paid"}, status=400)
     bot = request.app.get("bot")
     if bot is None:

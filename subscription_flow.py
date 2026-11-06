@@ -114,8 +114,10 @@ def invoice_spec(user_id):
     с автопродлением по полной цене, если включён флаг SUBSCRIPTION_AUTORENEW_ENABLED, иначе тоже разовый счёт («продление вручную»)."""
     from config import SUBSCRIPTION_AUTORENEW_ENABLED
     snap = trial_db.snapshot(user_id)
-    if snap is None or snap["paid"]:                       # платить может любой, кто захотел (решение владельца 28.10), не только тот, у кого идёт сценарий триала
+    if snap is None:
         return None
+    if snap["paid"]:                                       # платить может любой, кто захотел (решение владельца 28.10), не только тот, у кого идёт сценарий триала
+        return _renewal_spec(user_id, snap, SUBSCRIPTION_AUTORENEW_ENABLED)
     price = int(snap["price_stars"])
     renewal = snap["renewal_price_stars"]
     recurring = bool(SUBSCRIPTION_AUTORENEW_ENABLED and not snap["intro_active"])
@@ -128,6 +130,26 @@ def invoice_spec(user_id):
         description = "Привычки, план дня и разговор со мной на 30 дней. Продление вручную: само ничего не спишется."
     return {"title": "ADAM Pro — 30 дней", "description": description[:255], "price": price, "recurring": recurring,
             "period": SUBSCRIPTION_PERIOD_SECONDS if recurring else None, "snapshot": snap, "payload": f"subscription:{user_id}"}
+
+
+def _renewal_spec(user_id, snap, autorenew_enabled):
+    """Подписка уже идёт (решение 05.11: «автопродление очень важно, на удержании всё строим»). Без автопродления — можно включить его заранее
+    или продлить вручную; новый срок добавляется к концу текущего (db/subscription.py::record_subscription_payment), дни не пропадают.
+    С включённым автопродлением платить нечего — None."""
+    from db.subscription import auto_renew_active, subscription_overview
+    from db.users import get_user
+    if auto_renew_active(get_user(user_id)):
+        return None
+    price = int(snap["renewal_price_stars"])
+    until = (subscription_overview(user_id) or {}).get("paid_until_text") or ""
+    after = f" Новый срок начнётся после текущего{(' (до ' + until + ')') if until else ''} — оплаченные дни не пропадут."
+    if autorenew_enabled:
+        description = f"Автопродление: каждые 30 дней спишется {price} ⭐, отключить можно в любой момент.{after}"
+        return {"title": "ADAM Pro — автопродление", "description": description[:255], "price": price, "recurring": True,
+                "period": SUBSCRIPTION_PERIOD_SECONDS, "snapshot": snap, "payload": f"subscription:{user_id}"}
+    description = f"Ещё 30 дней привычек, плана дня и разговора со мной.{after} Продление вручную: само ничего не спишется."
+    return {"title": "ADAM Pro — ещё 30 дней", "description": description[:255], "price": price, "recurring": False,
+            "period": None, "snapshot": snap, "payload": f"subscription:{user_id}"}
 
 
 async def create_invoice_link(bot, user_id):

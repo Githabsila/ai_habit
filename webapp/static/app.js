@@ -8749,8 +8749,10 @@ function renderSubscriptionScreen(t, ov) {
   offer.hidden = !!t.paid;
   const pay = document.getElementById("trialPaywallPay");
   const pending = !!(t.payment_pending || ov?.payment_pending);
-  pay.hidden = !!t.paid;
-  pay.textContent = trialPayLabel();
+  // Подписка идёт без автопродления — можно включить его или продлить заранее (subscription_flow._renewal_spec): дни не пропадают.
+  const canExtend = !!t.paid && !!ov && !ov.auto_renew;
+  pay.hidden = !!t.paid && !canExtend;
+  pay.textContent = canExtend ? (ov.autorenew_available ? "Включить автопродление" : "Продлить на 30 дней") : trialPayLabel();
   pay.disabled = pending;
   document.getElementById("trialPaywallRenewal").textContent = subRenewalText(t, ov);
   const pendingEl = document.getElementById("trialPaywallPending");
