@@ -633,6 +633,7 @@ async def bootstrap(request):
                 else None
             ),
             "public_profile_enabled": bool(user["public_profile_enabled"]) if user and "public_profile_enabled" in user.keys() else False,
+            "rating_hidden": bool(user["rating_hidden"]) if user and "rating_hidden" in user.keys() else False,
             "long_term_goals": get_long_term_goals(telegram_id),
         },
         "daily_plan": _shape_daily_plan(daily_plan),
@@ -2103,6 +2104,20 @@ async def set_quiet_hours_route(request):
     if not set_quiet_hours(telegram_id, start, end):
         return web.json_response({"error": "invalid_quiet_hours"}, status=400)
     return web.json_response({"ok": True, "quiet_hours": {"start": int(start), "end": int(end)}})
+
+
+@routes.post("/api/settings/rating-hidden")
+async def set_rating_hidden_route(request):
+    """«Скрыть меня из рейтинга»: человека не видно в рейтинге и сезоне у других; сам рейтинг он видит. body: {"hidden": true|false}."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    hidden = bool(body.get("hidden"))
+    from db.users import set_rating_hidden
+    set_rating_hidden(telegram_id, hidden)
+    return web.json_response({"ok": True, "hidden": hidden})
 
 
 @routes.post("/api/settings/public-profile")

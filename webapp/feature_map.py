@@ -268,7 +268,8 @@ FEATURES = (
         clicks=("tab-bar__item=profile", "playerBadge", "userHandleSaveBtn", "archetype-quiz-*"),
         events=("username_changed",),
         api=("POST /api/profile/name", "POST /api/profile/avatar", "POST /api/settings/handle", "POST /api/settings/archetype",
-             "POST /api/settings/public-profile", "POST /api/settings/share-habits", "POST /api/settings/stats-visibility"),
+             "POST /api/settings/public-profile", "POST /api/settings/share-habits", "POST /api/settings/stats-visibility",
+             "POST /api/settings/rating-hidden"),
         bot=("cb:profile",),
     ),
     Feature(

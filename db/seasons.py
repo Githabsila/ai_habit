@@ -36,7 +36,7 @@ def _fetch_full_season_leaderboard():
                SUM(s.gained_xp) as season_xp
         FROM statistics s
         JOIN users u ON u.telegram_id = s.user_id
-        WHERE s.stat_date >= date('now', 'start of month') AND u.banned=0
+        WHERE s.stat_date >= date('now', 'start of month') AND u.banned=0 AND COALESCE(u.rating_hidden, 0)=0
         GROUP BY s.user_id
         ORDER BY season_xp DESC
     """)

@@ -12527,6 +12527,27 @@ function initGoalsActions() {
 
 // Roadmap #17 — публичный шаринг-профиль: тумблер + кнопка "скопировать
 // ссылку" в настройках, плюс лента полученных реакций (roadmap #19) там же.
+// «Скрыть меня из рейтинга» (юридический минимум, 06.11): другие тебя в рейтинге и сезоне не видят, сам рейтинг ты видишь.
+function initRatingHiddenToggle() {
+  const toggle = document.getElementById("ratingHiddenToggle");
+  if (!toggle || toggle.dataset.bound) return;
+  toggle.dataset.bound = "1";
+  const paint = (on) => { toggle.setAttribute("aria-pressed", on ? "true" : "false"); toggle.textContent = on ? "Вкл" : "Выкл"; };
+  paint(!!(state.settings && state.settings.rating_hidden));
+  toggle.addEventListener("click", async () => {
+    const next = toggle.getAttribute("aria-pressed") !== "true";
+    try {
+      await api("/api/settings/rating-hidden", { method: "POST", body: JSON.stringify({ hidden: next }) });
+      if (state.settings) state.settings.rating_hidden = next;
+      paint(next);
+      haptic("light");
+      showToast(next ? "Тебя больше не видно в рейтинге" : "Ты снова в рейтинге", "success");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
 function initPublicProfileActions() {
   const toggle = document.getElementById("publicProfileToggle");
   const row = document.getElementById("publicProfileRow");
@@ -12901,6 +12922,7 @@ async function boot() {
             // (см. комментарий над loadBootstrap() выше) и вся остальная
             // инициализация после падения просто не происходит.
             initPublicProfileActions();
+            initRatingHiddenToggle();
             initUserHandleActions();
             initIdentityEditor();
             initGoalsActions();
