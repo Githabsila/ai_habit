@@ -138,7 +138,7 @@ def test_each_row_shows_a_locked_ready_or_opened_chest():
     assert "aria-label" in side, "сундуки подписаны для скринридера"
     assert "daily-quest__progress" in side, "у невыполненного квеста по-прежнему видно «1/2»"
     svg = APP_JS[APP_JS.index("function questChestSvg("):][:1400]
-    assert "qc-lock" in svg and "qc-glow" in svg, "закрытый — с замком, открытый — со свечением внутри"
+    assert "qc-ribbon" in svg and "qc-seam" in svg and "qc-glow" in svg, "закрытый — с лентой и бантом («Обсидиан»), открытый — со свечением внутри"
 
 
 def test_finishing_a_quest_wakes_its_chest_and_invites_a_tap():
@@ -150,7 +150,7 @@ def test_finishing_a_quest_wakes_its_chest_and_invites_a_tap():
     assert 'el.animate' in invite and "transform" in invite
 
 
-def test_tapping_a_ready_chest_runs_the_three_taps_and_asks_the_server_after_them():
+def test_tapping_a_ready_chest_opens_the_charge_window_and_asks_the_server_after_it():
     assert "if (chest) { openQuestChest(chest.dataset.chest, chest); return; }" in APP_JS
     opener = APP_JS[APP_JS.index("async function openQuestChest("):][:2300]
     assert "openChestReveal({" in opener and 'tone: kind' in opener and 'eyebrow: "ТВОЙ СУНДУК"' in opener
@@ -158,10 +158,10 @@ def test_tapping_a_ready_chest_runs_the_three_taps_and_asks_the_server_after_the
     assert "applyActionPatch(res)" in opener, "состояние квестов обновляется после закрытия окна"
     assert "questChestBusy" in opener, "второй тап по сундуку, пока окно открыто, ничего не запускает"
     assert "if (result === null) btn.disabled = false;" in opener, "«Не сейчас» оставляет сундук ждать"
-    assert "const CHEST_TAPS = 3;" in APP_JS
-    reveal = APP_JS[APP_JS.index("async function openChestReveal("):][:5200]
-    assert 'tone = ""' in reveal and "card.dataset.tone" in reveal
-    assert reveal.index("await new Promise((resolve) => {") < reveal.rindex("result = await request();"), "запрос уходит только после тапов"
+    assert "const CHEST_CHARGE_MS = 1200;" in APP_JS
+    reveal = APP_JS[APP_JS.index("async function openChestReveal("):][:9800]
+    assert 'tone = ""' in reveal and "card.dataset.kind = kind;" in reveal
+    assert reveal.index("await new Promise((resolve) => {") < reveal.rindex("result = await request();"), "запрос уходит только после заряда"
 
 
 def test_the_demo_never_talks_to_the_server_from_the_chest():
@@ -205,7 +205,7 @@ def test_chest_styles_are_light_and_sit_before_the_chest_window_block():
     block = CSS[start:chest_window]
     assert "filter" not in block and "infinite" not in block and "animation" not in block and "will-change" not in block and "backface" not in block
     for kind in ("wood", "blue", "gold"):
-        assert f".chest-card[data-tone=\"{kind}\"]" in CSS or kind == "wood"
+        assert f".chest-card[data-kind=\"{kind}\"]" in CSS
     assert ".quest-chest--blue{" in block and ".quest-chest--gold{" in block
     assert ".quest-chest.is-pop{transform:scale(.2);opacity:0}" in block
 

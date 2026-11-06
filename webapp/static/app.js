@@ -5699,7 +5699,9 @@ let chestRevealBusy = false;
 const QUEST_STRAY_TAP_MS = 700;
 let chestClosedAt = 0;
 const questTapIsStray = () => Date.now() - chestClosedAt < QUEST_STRAY_TAP_MS;
-const CHEST_TAPS = 3;
+const CHEST_CHARGE_MS = 1200;             // «Заряд»: сколько держать сундук, чтобы кольцо заполнилось
+const CHEST_DRAIN_MS = 500;               // отпустил раньше — заряд спадает за полсекунды
+const CHEST_STEPS = 3;                    // на трети, двух третях и полном заряде — удар со звуком и вибрацией
 const CHEST_SHAKE_MS = 700;
 
 function playChestSound(phase, n = 1) {
@@ -5716,7 +5718,7 @@ function playChestSound(phase, n = 1) {
     ];
     const notes = phase === "open"
       ? [[523, 0, .2, "sine", .13], [659, .09, .2, "sine", .13], [784, .18, .22, "sine", .13], [1047, .28, .45, "sine", .14]]
-      : knock[Math.min(Math.max(n, 1), CHEST_TAPS) - 1];
+      : knock[Math.min(Math.max(n, 1), CHEST_STEPS) - 1];
     let end = 0;
     notes.forEach(([freq, at, dur, type, vol]) => {
       const osc = ctx.createOscillator();
@@ -5735,7 +5737,7 @@ function playChestSound(phase, n = 1) {
   } catch (_) {}
 }
 
-// Тап по сундуку: n = 1..3. Вибро — от тихого к заметному (см. haptics.js::knock).
+// Шаг заряда сундука: n = 1..3. Вибро — от тихого к заметному (см. haptics.js::knock).
 function hapticKnock(n) {
   if (window.AdamHaptics && window.AdamHaptics.knock) window.AdamHaptics.knock(n);
   else haptic("light");
@@ -5768,10 +5770,27 @@ function hideChestOverlay(overlay) {
   setTimeout(() => { if (!chestRevealBusy) overlay.hidden = true; }, 240);
 }
 
-const CHEST_TAP_HINTS = ["Тапни 3 раза", "Ещё 2 раза", "Ещё один!"];
+const CHEST_HINTS = { idle: "Зажми и держи", hold: "Держи…", early: "Почти! Держи дольше" };
+
+// Цвет ценности сундука. Задаём из скрипта (инлайн --acc), а не только в style.css: оформление «Royal Gold» (royal.js) перекрашивает
+// синие и фиолетовые цвета таблиц стилей в золото — и сталь, и сундук месяца становились золотыми, как золотой квест.
+const CHEST_ACCENTS = { wood: "#D08A4C", blue: "#B9CDE8", gold: "#FFCF4A", month: "#A98BFF", final: "#FF5A5F", pair: "#3FE0C5" };
+
+// Знак на крышке (стиль «Обсидиан»): ценность сундука — нашивки квестов (1–3), луна месяца, корона финала, два звена парного.
+function chestMarkSvg(kind) {
+  const chev = (y) => `<path d="M92 ${y}l8 5 8-5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="square"/>`;
+  const marks = {
+    wood: chev(80), blue: chev(76) + chev(84), gold: chev(72) + chev(80) + chev(88),
+    month: '<circle cx="100" cy="84" r="7.5" fill="none" stroke="currentColor" stroke-width="2.8"/><path d="M100 76.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/>',
+    final: '<path d="M91 90V78l4.5 4.5L100 76l4.5 6.5L109 78v12z" fill="currentColor"/>',
+    pair: '<g fill="none" stroke="currentColor" stroke-width="2.8"><rect x="90" y="79" width="11" height="10"/><rect x="99" y="79" width="11" height="10"/></g>',
+  };
+  return marks[kind] || marks.month;
+}
 
 // request — функция, делающая запрос на открытие (вернёт ответ с reward; её зовут только после третьего тапа); onDone(result) — когда окно
 // закрыли. Ошибку запроса окно не глотает: закрывается и пробрасывает её вызывающему (там показывают тост). «Не сейчас» → null, запроса не было.
+// tone — вид сундука: wood / blue / gold (квесты дня), pair (парный); без tone — сундук месяца, final — главный сундук месяца.
 async function openChestReveal({ eyebrow, caption = "", final = false, tone = "", request, onDone }) {
   const overlay = document.getElementById("chestOverlay");
   const card = document.getElementById("chestCard");
@@ -5787,15 +5806,23 @@ async function openChestReveal({ eyebrow, caption = "", final = false, tone = ""
   const prizes = document.getElementById("chestPrizes");
   const closeBtn = document.getElementById("chestClose");
   chestRevealBusy = true;
+  const kind = final ? "final" : (["wood", "blue", "gold", "pair"].includes(tone) ? tone : "month");
   card.classList.toggle("is-final", !!final);
-  card.dataset.tone = tone || "";          // цвет сундука квеста (wood / blue / gold), см. .chest-card[data-tone]
+  card.dataset.kind = kind;                // цвет ценности (.chest-card[data-kind]) и знак на крышке
+  card.style.setProperty("--acc", CHEST_ACCENTS[kind]);
   card.dataset.phase = "wait";
-  card.dataset.taps = "0";
+  card.dataset.charging = "0";
   card.dataset.ready = "0";
+  card.style.setProperty("--charge", "0");
+  const mark = document.getElementById("chestMark");
+  if (mark) mark.innerHTML = chestMarkSvg(kind);
+  const ringParts = [...overlay.querySelectorAll(".chest-ring__fg, .chest-ring__halo")];
+  const setRing = (k) => ringParts.forEach((c) => c.setAttribute("stroke-dashoffset", String(289 * (1 - k))));
+  setRing(0);
   document.getElementById("chestEyebrow").textContent = eyebrow;
   title.textContent = "Тебя ждёт награда";
   sub.textContent = caption;
-  hint.textContent = CHEST_TAP_HINTS[0];
+  hint.textContent = CHEST_HINTS.idle;
   prizes.innerHTML = "";
   closeBtn.textContent = "Не сейчас";
   closeBtn.disabled = false;
@@ -5805,36 +5832,78 @@ async function openChestReveal({ eyebrow, caption = "", final = false, tone = ""
   overlay.classList.add("show");
   haptic("light");
 
-  // Ждём три тапа по сундуку (или «Не сейчас»).
+  // «Заряд»: ждём, пока сундук продержат зажатым CHEST_CHARGE_MS (или «Не сейчас»). Пальцем — pointer capture, чтобы лёгкий сдвиг
+  // не обрывал заряд; с клавиатуры — держать Enter или Пробел. Тряска — из скрипта (CSS-анимации здесь конечные).
+  const reduceHold = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const outcome = await new Promise((resolve) => {
-    let taps = 0;
+    let charge = 0, holding = false, step = 0, last = 0, raf = 0, done = false;
+    const box = stage.querySelector(".chest-box");
     const finish = (value) => {
-      stage.removeEventListener("click", onTap);
+      if (done) return;
+      done = true;
+      cancelAnimationFrame(raf);
+      if (box) box.style.transform = "";
+      stage.removeEventListener("pointerdown", onDown);
+      ["pointerup", "pointercancel", "lostpointercapture"].forEach((ev) => stage.removeEventListener(ev, onUp));
+      stage.removeEventListener("contextmenu", onMenu);
       overlay.removeEventListener("click", onWaitClick);
       document.removeEventListener("keydown", onWaitKey);
+      document.removeEventListener("keyup", onKeyUp);
       resolve(value);
     };
-    function onTap() {
-      if (taps >= CHEST_TAPS) return;
-      taps += 1;
-      card.dataset.taps = String(taps);
-      stage.style.setProperty("--kn", String(taps));
-      stage.classList.remove("is-knock");
-      void stage.offsetWidth;                 // перезапуск анимации удара
-      stage.classList.add("is-knock");
-      hapticKnock(taps);
-      playChestSound("tap", taps);
-      hint.textContent = CHEST_TAP_HINTS[taps] || "";
-      if (taps >= CHEST_TAPS) finish("tapped");
+    function frame(now) {
+      if (done) return;
+      const dt = Math.min(50, now - (last || now));
+      last = now;
+      charge = Math.max(0, Math.min(1, charge + (holding ? dt / CHEST_CHARGE_MS : -dt / CHEST_DRAIN_MS)));
+      card.style.setProperty("--charge", charge.toFixed(3));
+      setRing(charge);
+      if (box) box.style.transform = holding && !reduceHold
+        ? `translate(${((Math.random() - .5) * 7 * charge).toFixed(1)}px,${((Math.random() - .5) * 4 * charge).toFixed(1)}px) scale(${(1 + .04 * charge).toFixed(3)},${(1 - .04 * charge).toFixed(3)})`
+        : "";
+      const reached = Math.floor(charge * CHEST_STEPS + 1e-6);
+      if (holding && reached > step) {
+        step = reached;
+        hapticKnock(step);
+        playChestSound("tap", step);
+      } else if (!holding) step = Math.min(step, reached);
+      if (charge >= 1) { finish("charged"); return; }
+      if (holding || charge > 0) raf = requestAnimationFrame(frame);
+      else { last = 0; raf = 0; }
     }
+    const start = () => {
+      if (done || holding) return;
+      holding = true;
+      card.dataset.charging = "1";
+      hint.textContent = CHEST_HINTS.hold;
+      if (!raf) { last = 0; raf = requestAnimationFrame(frame); }
+    };
+    const stop = () => {
+      if (done || !holding) return;
+      holding = false;
+      if (charge < 1) hint.textContent = CHEST_HINTS.early;
+      if (!raf) { last = 0; raf = requestAnimationFrame(frame); }
+    };
+    function onDown(e) {
+      if (e.button > 0) return;
+      e.preventDefault();
+      try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+      start();
+    }
+    function onUp() { stop(); }
+    function onMenu(e) { e.preventDefault(); }
     function onWaitClick(e) { if (e.target === overlay || e.target.closest("#chestClose")) finish("later"); }
     function onWaitKey(e) {
       if (e.key === "Escape") finish("later");
-      else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap(); }
+      else if ((e.key === "Enter" || e.key === " ") && document.activeElement === stage) { e.preventDefault(); if (!e.repeat) start(); }
     }
-    stage.addEventListener("click", onTap);
+    function onKeyUp(e) { if (e.key === "Enter" || e.key === " ") stop(); }
+    stage.addEventListener("pointerdown", onDown);
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach((ev) => stage.addEventListener(ev, onUp));
+    stage.addEventListener("contextmenu", onMenu);
     overlay.addEventListener("click", onWaitClick);
     document.addEventListener("keydown", onWaitKey);
+    document.addEventListener("keyup", onKeyUp);
   });
   if (outcome === "later") {
     chestRevealBusy = false;
@@ -5975,30 +6044,29 @@ function questsPlanReady() {
 
 // Сундук в конце полоски (как в Duolingo, у каждого квеста свой цвет: дерево / синий / золото). Форма — здесь, цвета — в CSS (.quest-chest--*).
 // Три состояния: закрыт и тусклый (квест не выполнен) → готов, на него можно тапнуть (выполнен) → открыт, с галочкой.
+// Маленький сундук в строке квеста — тот же «Обсидиан», что и в окне: чёрный корпус, лента и щель цвета ценности (--acc, style.css).
 function questChestSvg(open) {
-  const body = '<rect class="qc-body qc-line" x="4" y="17" width="36" height="19" rx="4"/>';
+  const body = '<path class="qc-body" d="M8 21h28l3 3v11l-3 2H8l-3-2V24z"/><rect class="qc-ribbon" x="20" y="21" width="4" height="16"/>';
   if (open) {
-    return `<svg class="quest-chest__svg" viewBox="0 0 44 38" aria-hidden="true" focusable="false">${body}` +
-      '<ellipse class="qc-glow" cx="22" cy="18" rx="15" ry="3"/>' +
-      '<path class="qc-body qc-line" d="M7 15L10 3C17 0 27 0 34 3L37 15z"/>' +
-      '<rect class="qc-band qc-line" x="12" y="17" width="5" height="19"/><rect class="qc-band qc-line" x="27" y="17" width="5" height="19"/></svg>';
+    return `<svg class="quest-chest__svg" viewBox="0 0 44 40" aria-hidden="true" focusable="false"><ellipse class="qc-glow" cx="22" cy="20" rx="15" ry="4"/>${body}` +
+      '<path class="qc-lid" d="M6 15l5-11h22l5 11z" transform="rotate(-14 6 15)"/><rect class="qc-seam" x="5" y="20" width="34" height="1.6"/></svg>';
   }
-  return `<svg class="quest-chest__svg" viewBox="0 0 44 38" aria-hidden="true" focusable="false">${body}` +
-    '<path class="qc-body qc-line" d="M4 19V14C4 7 12 3 22 3s18 4 18 11v5z"/>' +
-    '<rect class="qc-band qc-line" x="12" y="4" width="5" height="32"/><rect class="qc-band qc-line" x="27" y="4" width="5" height="32"/>' +
-    '<rect class="qc-lock qc-line" x="18" y="15" width="8" height="9" rx="2"/></svg>';
+  return `<svg class="quest-chest__svg" viewBox="0 0 44 40" aria-hidden="true" focusable="false">${body}` +
+    '<path class="qc-lid" d="M5 21v-7l5-6h24l5 6v7z"/><path class="qc-top" d="M10 8h24l3 4H7z"/>' +
+    '<rect class="qc-ribbon" x="20" y="8" width="4" height="13"/><path class="qc-ribbon" d="M22 8l-6-4v6zM22 8l6-4v6z"/>' +
+    '<rect class="qc-seam" x="4" y="20" width="36" height="1.8"/></svg>';
 }
 
 function questSideHtml(q, shown) {
   const kind = q.chest || shown.chest || "wood";
   if (!shown.completed) {
     const note = q.key === "talk_adam" ? "" : `<small class="daily-quest__progress">${shown.progress}/${q.target}</small>`;
-    return `<span class="quest-chest quest-chest--${kind} is-locked" aria-hidden="true">${questChestSvg(false)}</span>${note}`;
+    return `<span class="quest-chest quest-chest--${kind} is-locked" style="--acc:${CHEST_ACCENTS[kind] || CHEST_ACCENTS.wood}" aria-hidden="true">${questChestSvg(false)}</span>${note}`;
   }
   if (shown.chest_opened) {
-    return `<span class="quest-chest quest-chest--${kind} is-opened" role="img" aria-label="Сундук открыт">${questChestSvg(true)}<i class="quest-chest__tick">${ICON_CHECK}</i></span>`;
+    return `<span class="quest-chest quest-chest--${kind} is-opened" style="--acc:${CHEST_ACCENTS[kind] || CHEST_ACCENTS.wood}" role="img" aria-label="Сундук открыт">${questChestSvg(true)}<i class="quest-chest__tick">${ICON_CHECK}</i></span>`;
   }
-  return `<button type="button" class="quest-chest quest-chest--${kind} is-ready" data-chest="${q.key}" aria-label="Открыть сундук: ${escapeHtml(q.title)}">${questChestSvg(false)}</button>`;
+  return `<button type="button" class="quest-chest quest-chest--${kind} is-ready" style="--acc:${CHEST_ACCENTS[kind] || CHEST_ACCENTS.wood}" data-chest="${q.key}" aria-label="Открыть сундук: ${escapeHtml(q.title)}">${questChestSvg(false)}</button>`;
 }
 
 function questPartsHtml(q, shown) {
@@ -10336,10 +10404,10 @@ async function pairCardAction(button) {
   button.disabled = true;
   try {
     if (act === "claim") {
-      // Окно «Сундук»: три тапа по сундуку, потом запрос; данные применяем, когда окно закрыли.
+      // Окно «Сундук»: «Заряд» (зажми и держи), потом запрос; данные применяем, когда окно закрыли.
       const opened = await openChestReveal({
         eyebrow: "СУНДУК НА ДВОИХ",
-        caption: "За парное задание",
+        caption: "За парное задание", tone: "pair",
         request: () => api(`/api/pair-quest/${id}/claim`, { method: "POST" }),
         onDone: (result) => applyActionPatch(result),       // обновит монеты/алмазы, месяц и саму карточку
       });
@@ -10507,7 +10575,7 @@ const SIM_SCENES = {
     request: simReply({ reward: { at: 60, coins: 150, diamonds: 1, badge: "Октябрь 2026" } }),
   }),
   chest_pair: () => openChestReveal({
-    eyebrow: "СУНДУК НА ДВОИХ", caption: "За парное задание",
+    eyebrow: "СУНДУК НА ДВОИХ", caption: "За парное задание", tone: "pair",
     request: simReply({ reward: { coins: 60, diamonds: 1, month_points: 3 } }),
   }),
   chest_quest: () => openChestReveal({

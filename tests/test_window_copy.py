@@ -108,7 +108,7 @@ def test_the_chest_window_names_the_chest_once():
     eyebrows = re.findall(r'eyebrow: ([^,]+),', APP_JS)
     assert any("СУНДУК МЕСЯЦА" in e for e in eyebrows)
     waiting = re.search(r'title\.textContent = "([^"]+)";\n\s*sub\.textContent = caption;', APP_JS).group(1)
-    hints = re.search(r"const CHEST_TAP_HINTS = \[([^\]]+)\]", APP_JS).group(1)
+    hints = re.search(r"const CHEST_HINTS = \{([^}]+)\}", APP_JS).group(1)
     opened = re.search(r'title\.textContent = final \? "([^"]+)" : "([^"]+)";', APP_JS).groups()
     captions = re.findall(r'caption: (?:`([^`]+)`|"([^"]+)")', APP_JS)
     assert len(captions) >= 4
