@@ -1,6 +1,6 @@
 """
-Окно «Сундук» (22.10, п.2 владельца): открытие сундука месяца и парного задания — закрытый сундук трясётся, пока идёт запрос, потом
-крышка откидывается, вылетают искры, появляются награды и «Забрать». Плюс маленькая галочка на уже открытом сундуке дорожки месяца:
+Окно «Сундук» (22.10, п.2 владельца; 07.11 — стиль «Обсидиан» и открытие «Заряд»): сундук зажимают и держат, пока кольцо не заполнится,
+потом он трясётся, пока идёт запрос, крышка откидывается, вылетают искры, появляются награды и «Забрать». Плюс маленькая галочка на уже открытом сундуке дорожки месяца:
 узел непрозрачный, жёлтая полоса сквозь него не просвечивает. Браузера в тестах нет — разметку, скрипт и стили держат проверки по тексту,
 событие учёта — через настоящий маршрут.
 """
@@ -56,20 +56,20 @@ def test_chest_window_markup_is_a_hidden_dialog_with_all_parts():
     block = INDEX[INDEX.index('id="chestOverlay"'):]
     block = block[:block.index("</ul>")]
     assert re.search(r'<div class="chest-overlay" id="chestOverlay" hidden aria-hidden="true" role="dialog" aria-modal="true"', INDEX)
-    for needle in ('id="chestCard"', 'data-phase="wait"', 'data-taps="0"', 'id="chestEyebrow"', 'class="chest-box"', 'class="chest-body"', 'class="chest-lid"',
+    for needle in ('id="chestCard"', 'data-phase="wait"', 'data-charging="0"', 'id="chestEyebrow"', 'class="chest-box"', 'class="chest-body"', 'class="chest-lid"',
+                   'class="chest-ring"', 'class="chest-ring__fg"', 'class="chest-seam"', 'class="chest-ribbon"', 'class="chest-bow"', 'id="chestMark"',
                    'id="chestTitle"', 'id="chestSub"', 'id="chestHint"', 'id="chestPrizes"'):
         assert needle in block, needle
     assert 'id="chestClose"' in INDEX and "Не сейчас" in INDEX[INDEX.index('id="chestClose"'):][:80], "в ожидании тапов кнопка — «Не сейчас», «Забрать» она становится после открытия"
     stage = INDEX[INDEX.index('id="chestStage"') - 40:][:260]
-    assert 'role="button"' in stage and 'tabindex="0"' in stage and "три раза" in stage, "сундук — кнопка: тап, Enter и Пробел"
-    assert block.count("<i></i>") == 3, "шкала из трёх точек"
-    assert block.index('id="chestStage"') < block.index('class="chest-pips"') < block.index('id="chestTitle"') < block.index('id="chestHint"')
+    assert 'role="button"' in stage and 'tabindex="0"' in stage and "держи" in stage, "сундук — кнопка: зажать пальцем или держать Enter/Пробел"
+    assert block.index('id="chestStage"') < block.index('class="chest-ring"') < block.index('id="chestTitle"') < block.index('id="chestHint"')
     assert block.count('class="chest-spark') >= 8, "искры вылетают при открытии"
     assert INDEX.index('id="chestOverlay"') > INDEX.index('id="dailyQuestsOverlay"'), "окно лежит в документе после квестов дня"
 
 
 def test_script_and_style_versions_follow_the_release():
-    assert "style.css?v=20261106_HUB_V94" in INDEX and "app.js?v=20261106_HUB_V109" in INDEX
+    assert "style.css?v=20261107_HUB_V95" in INDEX and "app.js?v=20261107_HUB_V110" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- скрипт
@@ -85,12 +85,12 @@ def test_both_chests_open_through_the_window_and_apply_data_when_it_closes():
     assert "Сундук открыт: +" not in APP_JS, "вместо тоста — окно с наградами"
 
 
-def test_window_waits_for_three_taps_then_asks_the_server_shows_prizes_and_hands_errors_back():
-    body = APP_JS[APP_JS.index("async function openChestReveal("):][:7200]
-    assert "const CHEST_TAPS = 3;" in APP_JS and "CHEST_SHAKE_MS" in body
-    # запрос уходит только после трёх тапов: до этого «Не сейчас» закрывает окно, ничего не списывая
+def test_window_waits_for_a_full_charge_then_asks_the_server_shows_prizes_and_hands_errors_back():
+    body = APP_JS[APP_JS.index("async function openChestReveal("):][:9800]
+    assert "const CHEST_CHARGE_MS = 1200;" in APP_JS and "const CHEST_DRAIN_MS = 500;" in APP_JS and "CHEST_SHAKE_MS" in body
+    # запрос уходит только после полного заряда: до этого «Не сейчас» закрывает окно, ничего не списывая
     shake = body.index('card.dataset.phase = "shake";')
-    assert body.index("await new Promise((resolve) => {") < body.index('finish("tapped")') < shake < body.index("result = await request();", shake)
+    assert body.index("await new Promise((resolve) => {") < body.index('finish("charged")') < shake < body.index("result = await request();", shake)
     assert 'card.dataset.phase = "wait";' in body and 'card.dataset.phase = "shake";' in body
     assert 'if (outcome === "later") {' in body and "return null;" in body, "«Не сейчас» — без запроса и без награды"
     assert body.index('if (outcome === "later")') < shake
@@ -103,18 +103,37 @@ def test_window_waits_for_three_taps_then_asks_the_server_shows_prizes_and_hands
     assert "reduceMotion" in body, "при «уменьшить движение» ждём недолго"
 
 
-def test_every_tap_knocks_with_its_own_sound_and_vibration_and_the_hint_counts_down():
-    body = APP_JS[APP_JS.index("async function openChestReveal("):][:7200]
-    tap = body[body.index("function onTap() {"):][:900]
-    assert "taps += 1;" in tap and 'card.dataset.taps = String(taps);' in tap
-    assert "hapticKnock(taps);" in tap and 'playChestSound("tap", taps);' in tap
-    assert 'stage.classList.add("is-knock")' in tap and "void stage.offsetWidth" in tap, "каждый удар перезапускает анимацию"
-    assert "if (taps >= CHEST_TAPS) finish(\"tapped\");" in tap
-    assert 'CHEST_TAP_HINTS = ["Тапни 3 раза", "Ещё 2 раза", "Ещё один!"]' in APP_JS
-    assert 'e.key === "Enter" || e.key === " "' in body, "с клавиатуры тоже три нажатия"
+def test_holding_charges_the_ring_and_letting_go_drains_it():
+    body = APP_JS[APP_JS.index("async function openChestReveal("):][:9800]
+    hold = body[body.index("function frame(now) {"):][:1800]
+    assert "charge + (holding ? dt / CHEST_CHARGE_MS : -dt / CHEST_DRAIN_MS)" in hold, "держишь — растёт, отпустил — спадает"
+    assert 'card.style.setProperty("--charge", charge.toFixed(3));' in hold and "setRing(charge);" in hold
+    assert "hapticKnock(step);" in hold and 'playChestSound("tap", step);' in hold, "на трети, двух третях и полном заряде — удар"
+    assert "if (charge >= 1) { finish(\"charged\"); return; }" in hold
+    assert "stage.setPointerCapture(e.pointerId)" in body, "лёгкий сдвиг пальца не обрывает заряд"
+    assert '"pointerup", "pointercancel", "lostpointercapture"' in body
+    assert 'stage.addEventListener("contextmenu", onMenu);' in body, "долгое нажатие не открывает меню"
+    assert '(e.key === "Enter" || e.key === " ") && document.activeElement === stage' in body and "if (!e.repeat) start();" in body, "с клавиатуры — держать Enter или Пробел"
+    assert 'CHEST_HINTS = { idle: "Зажми и держи", hold: "Держи…", early: "Почти! Держи дольше" }' in APP_JS
     sound = APP_JS[APP_JS.index("function playChestSound("):][:1800]
-    assert sound.count('"triangle"') >= 6 and "knock[Math.min(Math.max(n, 1), CHEST_TAPS) - 1]" in sound, "у каждого из трёх ударов свой звук"
+    assert sound.count('"triangle"') >= 6 and "knock[Math.min(Math.max(n, 1), CHEST_STEPS) - 1]" in sound, "у каждого из трёх шагов свой звук"
     assert "window.AdamHaptics.knock(n)" in APP_JS[APP_JS.index("function hapticKnock("):][:200]
+
+
+def test_each_chest_kind_has_its_own_colour_and_mark_that_the_royal_theme_cannot_repaint():
+    """07.11: «Royal Gold» (royal.js) перекрашивает синие и фиолетовые цвета таблиц стилей в золото — сталь и сундук месяца становились
+    золотыми, как золотой квест. Цвет ценности задаётся инлайн из скрипта, его royal.js не трогает."""
+    assert 'const CHEST_ACCENTS = { wood: "#D08A4C", blue: "#B9CDE8", gold: "#FFCF4A", month: "#A98BFF", final: "#FF5A5F", pair: "#3FE0C5" };' in APP_JS
+    body = APP_JS[APP_JS.index("async function openChestReveal("):][:3000]
+    assert 'const kind = final ? "final" : (["wood", "blue", "gold", "pair"].includes(tone) ? tone : "month");' in body
+    assert 'card.style.setProperty("--acc", CHEST_ACCENTS[kind]);' in body and "mark.innerHTML = chestMarkSvg(kind);" in body
+    marks = APP_JS[APP_JS.index("function chestMarkSvg("):][:1200]
+    for kind in ("wood:", "blue:", "gold:", "month:", "final:", "pair:"):
+        assert kind in marks, kind
+    side = APP_JS[APP_JS.index("function questSideHtml("):][:1400]
+    assert side.count('style="--acc:${CHEST_ACCENTS[kind] || CHEST_ACCENTS.wood}"') == 3, "маленькие сундуки квестов — тоже инлайн"
+    pair = APP_JS[APP_JS.index("async function pairCardAction"):][:2400]
+    assert 'tone: "pair"' in pair
 
 
 def test_cancelling_leaves_the_chest_waiting_and_gives_the_pair_button_back():
@@ -157,15 +176,15 @@ def test_month_nodes_are_opaque_so_the_progress_bar_does_not_shine_through():
 
 def test_chest_styles_cover_the_waiting_knocking_and_opening_phases():
     css = _chest_css()
-    for name in ("chestDrop", "chestInvite", "chestKnock"):
+    for name in ("chestDrop", "chestInvite", "chestBurst"):
         assert f"@keyframes {name}" in css, name
-    assert ".chest-stage.is-knock{animation:chestKnock" in css and "var(--kn,1)" in css, "сила удара растёт с номером тапа"
     assert ".chest-card[data-phase=\"wait\"] .chest-box{animation:chestDrop" in css, "сундук «появляется»"
-    assert "data-taps=\"1\"] .chest-pips i:nth-child(-n+1)" in css and "data-taps=\"3\"] .chest-pips i{" in css, "шкала заполняется"
+    assert "opacity:calc(.1 + var(--charge) * .45)" in css and ".chest-seam{opacity:calc(.55 + var(--charge) * .45)}" in css, "свечение и щель растут с зарядом"
+    assert ".chest-ring__fg{stroke:var(--acc)" in css, "кольцо заряда — цвета ценности сундука"
     assert ".chest-card:not([data-phase=\"open\"]) .chest-prizes{display:none}" in css
-    assert "cursor:pointer" in css[css.index(".chest-stage{"):][:400] and "touch-action:manipulation" in css[css.index(".chest-stage{"):][:400]
-    assert ".chest-card[data-phase=\"wait\"] .chest-btn{opacity:1" in css, "«Не сейчас» видна, пока ждём тапы"
-    assert ".chest-stage.is-knock" in css[css.index("@media (prefers-reduced-motion: reduce)"):], "при «уменьшить движение» удары не трясут"
+    stage = css[css.index(".chest-stage{"):][:400]
+    assert "cursor:pointer" in stage and "touch-action:none" in stage and "-webkit-touch-callout:none" in stage, "долгое нажатие не листает и не выделяет"
+    assert ".chest-card[data-phase=\"wait\"] .chest-btn{opacity:1" in css, "«Не сейчас» видна, пока ждём заряд"
     assert re.search(r"chestInvite 1\.1s ease-in-out 1s 3\}", css), "подсказка-«приглашение» конечная: три раза"
 
 
@@ -175,13 +194,11 @@ def test_the_button_does_not_flash_gold_while_the_chest_shakes_and_the_card_does
     css = _chest_css()
     ghost = re.search(r'\.chest-card\[data-phase="wait"\] \.chest-btn,\.chest-card\[data-phase="shake"\] \.chest-btn\{([^}]*)\}', css)
     assert ghost, "пока сундук трясётся, кнопка всё ещё «Не сейчас»: бесцветная и гаснет"
-    assert "background:transparent" in ghost.group(1) and "color:#B9B3D6" in ghost.group(1)
+    assert "background:transparent" in ghost.group(1) and "color:#A8A6B8" in ghost.group(1)
     base = re.search(r"\.chest-btn\{([^}]*)\}", css).group(1)
     assert "border:0" in base and "opacity:0" in base, "обычная (золотая) кнопка скрыта, пока не готова"
     assert "border:" not in ghost.group(1).replace("border-radius", ""), "рамка — тенью: высота кнопки не меняется между фазами"
     assert "inset 0 0 0 1px" in ghost.group(1)
-    assert '.chest-card[data-phase="open"] .chest-pips{visibility:hidden}' in css, "шкала держит место, карточка не схлопывается"
-    assert 'data-phase="open"] .chest-pips,' not in css and not re.search(r'\.chest-pips\{[^}]*display:none', css)
     assert '.chest-card[data-phase="open"] .chest-hint{display:none}' in css, "подсказку заменяют награды той же высоты"
     assert re.search(r"\.chest-hint\{[^}]*min-height:96px", css) and re.search(r"\.chest-prizes\{[^}]*min-height:96px", css)
     # золотая «Забрать» появляется только после того, как всё показано (data-ready)
@@ -193,7 +210,7 @@ def test_chest_styles_are_light_for_weak_webviews():
     assert not re.search(r"(?<![\w-])(?:-webkit-)?filter\s*:", css) and "backdrop-filter" not in css
     assert "infinite" not in css, "все анимации окна конечные"
     assert ".chest-overlay[hidden]{display:none !important}" in css
-    for name in ("chestShake", "chestLid", "chestSpark", "chestPrize", "chestGlow"):
+    for name in ("chestShake", "chestLid", "chestSpark", "chestPrize", "chestBurst"):
         assert f"@keyframes {name}" in css
     assert "@media (prefers-reduced-motion: reduce)" in css
     assert ".chest-card.is-final{" in css, "главный сундук отличается цветом"

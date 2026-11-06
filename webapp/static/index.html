@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261106_HUB_V94">
+<link rel="stylesheet" href="/static/style.css?v=20261107_HUB_V95">
 <!-- Оформление «Royal Gold» (db/style_mode.py): подключается только если режим включён для человека — app.js::applyRoyalStyle запоминает это в localStorage, чтобы не мелькало фиолетовое. -->
 <script>try{if(localStorage.getItem("adam_royal")==="1"){document.documentElement.classList.add("adam-royal");var rs=document.createElement("script");rs.src="/static/royal.js?v=20261028_ROYAL_V1";document.head.appendChild(rs);}}catch(e){}</script>
 </head>
@@ -1565,41 +1565,43 @@ class="habit-add-form__submit">
 </div>
 
 <div class="chest-overlay" id="chestOverlay" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="chestTitle">
-  <div class="chest-card" id="chestCard" data-phase="wait" data-taps="0" data-ready="0">
+  <div class="chest-card" id="chestCard" data-phase="wait" data-kind="month" data-charging="0" data-ready="0">
     <div class="chest-eyebrow" id="chestEyebrow">СУНДУК МЕСЯЦА</div>
-    <div class="chest-stage" id="chestStage" role="button" tabindex="0" aria-label="Нажми на сундук три раза, чтобы открыть">
+    <div class="chest-stage" id="chestStage" role="button" tabindex="0" aria-label="Зажми сундук и держи, чтобы открыть">
       <span class="chest-glow"></span>
-      <span class="chest-ring"></span>
+      <svg class="chest-ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+        <circle class="chest-ring__bg" cx="50" cy="50" r="46"/>
+        <circle class="chest-ring__halo" cx="50" cy="50" r="46" stroke-dasharray="289" stroke-dashoffset="289"/>
+        <circle class="chest-ring__fg" cx="50" cy="50" r="46" stroke-dasharray="289" stroke-dashoffset="289"/>
+      </svg>
+      <span class="chest-burst"></span>
       <div class="chest-box">
-        <svg class="chest-body" viewBox="0 0 160 96" width="160" height="96">
+        <svg class="chest-svg" viewBox="0 0 200 200" aria-hidden="true" focusable="false">
           <defs>
-            <linearGradient id="chestWood" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" style="stop-color:var(--chest-wood-1,#D88A3A)"/>
-              <stop offset="1" style="stop-color:var(--chest-wood-2,#92501A)"/>
-            </linearGradient>
-            <linearGradient id="chestGold" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" style="stop-color:var(--chest-gold-1,#FFE59A)"/>
-              <stop offset="1" style="stop-color:var(--chest-gold-2,#F2A81D)"/>
-            </linearGradient>
+            <radialGradient id="chestIn" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFFBE6"/><stop offset=".45" stop-color="#FFE27A" stop-opacity=".9"/><stop offset="1" stop-color="#FFB52E" stop-opacity="0"/></radialGradient>
+            <linearGradient id="chestSeam" x1="0" y1="0" x2="1" y2="0"><stop offset="0" style="stop-color:var(--acc);stop-opacity:0"/><stop offset=".5" style="stop-color:var(--acc)"/><stop offset="1" style="stop-color:var(--acc);stop-opacity:0"/></linearGradient>
           </defs>
-          <rect x="8" y="0" width="144" height="40" rx="12" fill="#1d0f04"/>
-          <ellipse class="chest-inside" cx="80" cy="12" rx="62" ry="9" fill="#FFE08A"/>
-          <rect x="8" y="12" width="144" height="82" rx="12" fill="url(#chestWood)" stroke="#5b2f0d" stroke-width="3"/>
-          <path d="M11 44h138M11 68h138" stroke="#5b2f0d" stroke-opacity=".32" stroke-width="2"/>
-          <rect x="8" y="12" width="144" height="11" rx="5" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
-          <rect x="30" y="12" width="14" height="82" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
-          <rect x="116" y="12" width="14" height="82" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
-          <rect x="8" y="84" width="144" height="10" rx="5" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
-        </svg>
-        <svg class="chest-lid" viewBox="0 0 160 70" width="160" height="70">
-          <path d="M8 66V38C8 16 40 4 80 4s72 12 72 34v28z" fill="url(#chestWood)" stroke="#5b2f0d" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M22 36C24 22 46 13 80 13" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="4" stroke-linecap="round"/>
-          <rect x="30" y="8" width="14" height="58" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
-          <rect x="116" y="8" width="14" height="58" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
-          <rect x="8" y="56" width="144" height="12" rx="5" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="1.5"/>
-          <rect class="chest-lock" x="67" y="46" width="26" height="24" rx="6" fill="url(#chestGold)" stroke="#8a5a0a" stroke-width="2"/>
-          <circle cx="80" cy="56" r="3.6" fill="#5b2f0d"/>
-          <rect x="78.4" y="57" width="3.2" height="7" rx="1.4" fill="#5b2f0d"/>
+          <ellipse cx="100" cy="190" rx="80" ry="6" fill="#000" opacity=".55"/>
+          <g class="chest-body">
+            <g class="chest-treasure"><ellipse cx="100" cy="88" rx="96" ry="38" fill="url(#chestIn)"/><ellipse cx="54" cy="96" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="72" cy="92" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="90" cy="89" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="110" cy="89" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="128" cy="92" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="146" cy="96" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="63" cy="99" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="82" cy="97" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="100" cy="95" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="118" cy="97" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><ellipse cx="137" cy="99" rx="10" ry="4.6" fill="#FFD34D" stroke="#C98A0A" stroke-width="1.2"/><path d="M100 76l8 8-8 10-8-10z" class="chest-gem"/></g>
+            <path d="M28 104h144l8 8v66l-8 8H28l-8-8v-66z" fill="#141418"/>
+            <path d="M20 112l8-8v82l-8-8zM180 112l-8-8v82l8-8z" fill="#0B0B0E"/>
+            <path d="M28 104h144v6H28z" fill="#fff" opacity=".04"/>
+            <rect class="chest-ribbon" x="88" y="104" width="24" height="82"/>
+            <path class="chest-accent-line" d="M28 186h144"/>
+          </g>
+          <rect class="chest-seam-halo" x="14" y="100" width="172" height="12" fill="url(#chestSeam)"/>
+          <rect class="chest-seam" x="16" y="104.5" width="168" height="2.4" fill="url(#chestSeam)"/>
+          <g class="chest-lid">
+            <path d="M20 104V74l20-22h120l20 22v30z" fill="#18181D"/>
+            <path d="M40 52h120l12 14H28z" fill="#25252C"/>
+            <path d="M20 74l20-22v52H20zM180 74l-20-22v52h20z" fill="#0E0E12" opacity=".7"/>
+            <rect class="chest-ribbon" x="88" y="52" width="24" height="52"/>
+            <path class="chest-bow" d="M100 51l-26-15v24zM100 51l26-15v24z"/>
+            <rect class="chest-bow-knot" x="93" y="45" width="14" height="12" rx="2"/>
+            <path class="chest-outline" d="M40 52h120l20 22v30H20V74z"/>
+            <g class="chest-mark" id="chestMark"></g>
+          </g>
         </svg>
       </div>
       <i class="chest-spark" style="--dx:-92px;--dy:-74px;--delay:0s"></i>
@@ -1613,10 +1615,9 @@ class="habit-add-form__submit">
       <i class="chest-spark" style="--dx:-84px;--dy:8px;--delay:.09s"></i>
       <i class="chest-spark chest-spark--w" style="--dx:82px;--dy:10px;--delay:.02s"></i>
     </div>
-    <div class="chest-pips" aria-hidden="true"><i></i><i></i><i></i></div>
-    <h2 class="chest-title" id="chestTitle" aria-live="polite">Тапни по сундуку</h2>
+    <h2 class="chest-title" id="chestTitle" aria-live="polite">Тебя ждёт награда</h2>
     <p class="chest-sub" id="chestSub"></p>
-    <p class="chest-hint" id="chestHint" aria-live="polite">Нажми на сундук 3 раза</p>
+    <p class="chest-hint" id="chestHint" aria-live="polite">Зажми и держи</p>
     <ul class="chest-prizes" id="chestPrizes"></ul>
     <button class="chest-btn" id="chestClose" type="button">Не сейчас</button>
   </div>
@@ -1835,7 +1836,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261106_HUB_V109"></script>
+<script type="module" src="/static/app.js?v=20261107_HUB_V110"></script>
 
 </body>
 </html>

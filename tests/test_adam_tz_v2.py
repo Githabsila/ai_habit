@@ -400,14 +400,15 @@ def test_the_prompt_lists_recent_reasons_the_task_history_and_the_time_left():
 
 def test_task_history_counts_the_last_seven_days(uid):
     _user(uid)
+    from db.daily_plan import _effective_plan_date
+    today = datetime.strptime(_effective_plan_date(uid), "%Y-%m-%d").date()   # день плана сменяется в 03:00: с полуночи до трёх «сегодня» — ещё вчера
     conn = connect()
     for back, (main, done, n, d) in enumerate([("Отчёт", 1, 3, 2), ("Лендинг", 0, 2, 0), ("", 0, 1, 1), ("Презентация", 1, 0, 0)], start=1):
-        day = (datetime.now(TZ).date() - timedelta(days=back)).isoformat()
+        day = (today - timedelta(days=back)).isoformat()
         cur = conn.execute("INSERT INTO daily_plans(user_id, plan_date, main_goal, main_goal_completed) VALUES (?,?,?,?)", (uid, day, main, done))
         for i in range(n):
             conn.execute("INSERT INTO daily_plan_tasks(plan_id, text, completed) VALUES (?,?,?)", (cur.lastrowid, f"Задача {i}", 1 if i < d else 0))
     conn.commit(); conn.close()
-    from db.daily_plan import _effective_plan_date
     hist = ac._task_history(uid, _effective_plan_date(uid))
     assert hist["days_with_main"] == 3 and hist["main_done_days"] == 2 and hist["tasks_set"] == 6 and hist["tasks_done"] == 3
 

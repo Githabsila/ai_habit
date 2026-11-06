@@ -53,6 +53,10 @@ class FakeBot:
 
 def _user(uid_, name="Анна", days_old=3):
     add_user(uid_, f"u{uid_}", name)
+    # Часовой пояс человека — тот же, в котором тесты считают «местное время» (TZ). Без него Mini App считал день по UTC, и с 00:00 до 03:00
+    # по Москве «сегодня» у Адама (7-е) и у приложения (6-е) расходились — тест падал каждую ночь.
+    from db.streak import set_timezone
+    set_timezone(uid_, "Europe/Moscow")
     conn = connect()
     conn.execute("UPDATE users SET created_at=datetime('now', ?), access_status='approved' WHERE telegram_id=?", (f"-{days_old} days", uid_))
     conn.commit()
