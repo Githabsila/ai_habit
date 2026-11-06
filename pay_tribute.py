@@ -18,6 +18,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 
 import aiohttp
 
@@ -175,6 +176,47 @@ class Tribute:
             return {"error": "not_approved", "detail": f"товар в Tribute пока «{product.get('status')}»"}
         pay_orders.set_tribute_product(key, product["id"], product.get("name") or "", expected, "USD", product.get("link"), product.get("webLink"))
         return {"ok": True}
+
+    async def auto_link(self):
+        """«Привязать автоматически»: каждой ещё не привязанной цене ищем в Tribute ровно один товар с той же ценой в USD и подходящим
+        названием (у трёх товаров одна цена $1.99 — различаем по словам). Нашли один — привязываем через register_product (там же проверка
+        цены и одобрения), нашли ноль или два — не трогаем, владелец привяжет руками. [{"key", "status": linked|already|not_found|ambiguous|error, ...}]"""
+        remote = [p for p in await self.list_products() if str(p.get("currency") or "").upper() == "USD"]
+        mapped = {row["key"]: row for row in pay_orders.tribute_products()}
+        taken = {int(row["product_id"]) for row in mapped.values() if row["product_id"]}
+        results = []
+        for key, label, cents in pay_orders.all_price_keys():
+            if key in mapped:
+                results.append({"key": key, "label": label, "status": "already", "product_id": mapped[key]["product_id"]})
+                continue
+            pattern = AUTO_LINK_NAMES.get(key)
+            found = [p for p in remote if int(p.get("amount") or 0) == cents and int(p.get("id") or 0) not in taken
+                     and pattern and re.search(pattern, str(p.get("name") or ""), re.IGNORECASE)]
+            if len(found) != 1:
+                results.append({"key": key, "label": label, "status": "not_found" if not found else "ambiguous",
+                                "candidates": [int(p.get("id") or 0) for p in found]})
+                continue
+            product_id = int(found[0]["id"])
+            outcome = await self.register_product(key, product_id)
+            if outcome.get("ok"):
+                taken.add(product_id)
+                results.append({"key": key, "label": label, "status": "linked", "product_id": product_id, "name": found[0].get("name") or ""})
+            else:
+                results.append({"key": key, "label": label, "status": "error", "product_id": product_id, "error": outcome.get("error"), "detail": outcome.get("detail")})
+        return results
+
+
+# Слова в названии товара Tribute для автопривязки (цена совпадает отдельно). Названия владелец пишет сам, поэтому шаблоны мягкие.
+AUTO_LINK_NAMES = {
+    "sub_first": r"перв|first",
+    "sub_renewal": r"pro|подписк|30\s*дн",
+    "item_22": r"(^|\D)50\s*ответ",
+    "item_23": r"100\s*ответ",
+    "item_24": r"буст|boost|[xх]\s*2",
+    "item_27": r"(^|\D)10\s*алмаз",
+    "item_28": r"(^|\D)50\s*алмаз",
+    "item_7": r"рамк|double\s*gold",
+}
 
 
 async def _alert(bot, text):

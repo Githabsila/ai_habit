@@ -307,5 +307,65 @@ async def test_the_admin_routes_list_what_is_needed_and_link_or_unlink_products(
 def test_the_admin_panel_has_the_payment_card_with_tribute_products_and_promos():
     from pathlib import Path
     panel = (Path(__file__).resolve().parent.parent / "webapp" / "static" / "admin_panel.html").read_text(encoding="utf-8")
-    for needle in ("Оплата: карта, крипта, акции", 'id="payAdminBox"', "loadPayAdmin", "/api/admin/pay/tribute", "/api/admin/pay/tribute/products", "/api/admin/pay/promos", "data-tribute-save", "promoAddBtn"):
+    for needle in ("Оплата: карта, крипта, акции", 'id="payAdminBox"', "loadPayAdmin", "/api/admin/pay/tribute", "/api/admin/pay/tribute/products", "/api/admin/pay/promos", "data-tribute-save", "promoAddBtn", "tributeAutoLinkBtn", "/api/admin/pay/tribute/auto-link"):
         assert needle in panel, needle
+
+
+async def test_auto_link_matches_each_price_to_one_product_by_price_and_name(client, uid, tribute, monkeypatch):
+    """«Привязать автоматически»: 8 товаров владельца (как на скриншоте 06.11) встают на свои цены, хотя у трёх одна цена $1.99."""
+    import webapp.routes_admin as routes_admin
+    admin = _user(uid)
+    monkeypatch.setattr(routes_admin, "ADMIN_IDS", [admin])
+    for key, *_ in pay_orders.all_price_keys():
+        pay_orders.remove_tribute_product(key)
+    remote = [
+        {"id": 101, "name": "ADAM PRO - доступ первый месяц", "amount": 199},
+        {"id": 102, "name": "ADAM Pro - 30 дней", "amount": 599},
+        {"id": 103, "name": "+50 ответов Adam", "amount": 199},
+        {"id": 104, "name": "+100 ответов Adam", "amount": 399},
+        {"id": 105, "name": "Бустер X2 Adam coin на 24 часа", "amount": 129},
+        {"id": 106, "name": "10 алмазов", "amount": 199},
+        {"id": 107, "name": "50 алмазов", "amount": 799},
+        {"id": 108, "name": "Рамка Double Gold", "amount": 399},
+        {"id": 109, "name": "Черновик без цены", "amount": 999},
+    ]
+    for p in remote:
+        p.update(currency="USD", status="approved", link=f"https://t.me/tribute/app?startapp=p{p['id']}", webLink="https://web")
+
+    async def fake_list(size=100):
+        return remote
+
+    async def fake_fetch(product_id):
+        found = [p for p in remote if p["id"] == product_id]
+        return (found[0], None) if found else (None, "нет")
+
+    monkeypatch.setattr(tribute, "list_products", fake_list)
+    monkeypatch.setattr(tribute, "fetch_product", fake_fetch)
+    resp = await client.post("/api/admin/pay/tribute/auto-link", headers=_headers(admin))
+    assert resp.status == 200
+    report = {row["key"]: row for row in (await resp.json())["results"]}
+    expected = {"sub_first": 101, "sub_renewal": 102, "item_22": 103, "item_23": 104, "item_24": 105, "item_27": 106, "item_28": 107, "item_7": 108}
+    for key, product_id in expected.items():
+        assert report[key]["status"] == "linked", (key, report[key])
+        assert pay_orders.tribute_product(key)["product_id"] == product_id
+    # повторный запуск ничего не трогает
+    again = {row["key"]: row["status"] for row in (await (await client.post("/api/admin/pay/tribute/auto-link", headers=_headers(admin))).json())["results"]}
+    assert set(again.values()) == {"already"}
+    assert (await client.post("/api/admin/pay/tribute/auto-link", headers=_headers(_user(uid + 1)))).status == 403
+
+
+async def test_auto_link_skips_prices_with_no_or_two_matching_products(tribute, monkeypatch):
+    for key, *_ in pay_orders.all_price_keys():
+        pay_orders.remove_tribute_product(key)
+    remote = [{"id": 201, "name": "10 алмазов", "amount": 199}, {"id": 202, "name": "10 алмазов (копия)", "amount": 199},
+              {"id": 203, "name": "Рамка Double Gold", "amount": 499}]
+    for p in remote:
+        p.update(currency="USD", status="approved")
+
+    async def fake_list(size=100):
+        return remote
+
+    monkeypatch.setattr(tribute, "list_products", fake_list)
+    report = {row["key"]: row["status"] for row in await tribute.auto_link()}
+    assert report["item_27"] == "ambiguous" and report["item_7"] == "not_found" and report["sub_first"] == "not_found"
+    assert pay_orders.tribute_product("item_27") is None and pay_orders.tribute_product("item_7") is None
