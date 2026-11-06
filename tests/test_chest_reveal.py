@@ -69,7 +69,7 @@ def test_chest_window_markup_is_a_hidden_dialog_with_all_parts():
 
 
 def test_script_and_style_versions_follow_the_release():
-    assert "style.css?v=20261107_HUB_V95" in INDEX and "app.js?v=20261107_HUB_V110" in INDEX
+    assert "style.css?v=20261107_HUB_V96" in INDEX and "app.js?v=20261107_HUB_V111" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- скрипт
@@ -110,6 +110,9 @@ def test_holding_charges_the_ring_and_letting_go_drains_it():
     assert 'card.style.setProperty("--charge", charge.toFixed(3));' in hold and "setRing(charge);" in hold
     assert "hapticKnock(step);" in hold and 'playChestSound("tap", step);' in hold, "на трети, двух третях и полном заряде — удар"
     assert "if (charge >= 1) { finish(\"charged\"); return; }" in hold
+    assert "phase += dt * (0.010 + 0.030 * charge * charge);" in hold and "const amp = reduceHold ? 1.2 : 1.5 + 4.5 * charge;" in hold, \
+        "пока держишь, сундук качается — к концу чаще и сильнее (07.11: просьба владельца, раньше стоял статично)"
+    assert ".chest-card[data-phase=\"wait\"] .chest-box{animation" not in CSS, "анимация с fill на .chest-box перекрыла бы тряску из скрипта"
     assert "stage.setPointerCapture(e.pointerId)" in body, "лёгкий сдвиг пальца не обрывает заряд"
     assert '"pointerup", "pointercancel", "lostpointercapture"' in body
     assert 'stage.addEventListener("contextmenu", onMenu);' in body, "долгое нажатие не открывает меню"
@@ -178,7 +181,7 @@ def test_chest_styles_cover_the_waiting_knocking_and_opening_phases():
     css = _chest_css()
     for name in ("chestDrop", "chestInvite", "chestBurst"):
         assert f"@keyframes {name}" in css, name
-    assert ".chest-card[data-phase=\"wait\"] .chest-box{animation:chestDrop" in css, "сундук «появляется»"
+    assert ".chest-card[data-phase=\"wait\"] .chest-svg{animation:chestDrop" in css, "сундук «появляется» (у рисунка, не у .chest-box — иначе тряска заряда не видна)"
     assert "opacity:calc(.1 + var(--charge) * .45)" in css and ".chest-seam{opacity:calc(.55 + var(--charge) * .45)}" in css, "свечение и щель растут с зарядом"
     assert ".chest-ring__fg{stroke:var(--acc)" in css, "кольцо заряда — цвета ценности сундука"
     assert ".chest-card:not([data-phase=\"open\"]) .chest-prizes{display:none}" in css
