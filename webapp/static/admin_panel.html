@@ -1589,7 +1589,8 @@ textarea.field{resize:vertical;min-height:88px}
       var orderRows = orders.slice(0, 10).map(function(o){ return '<div class="empty-note" style="padding:1px 0">' + escapeHtml(String(o.created_at).slice(5, 16)) + ' · ' + o.user_id + ' · ' + escapeHtml(o.provider) + ' · ' + escapeHtml(o.price) + ' · ' + escapeHtml(o.status) + (o.fulfilled ? ' · выдано' : (o.status === 'paid' ? ' · <b>не выдано</b>' : '')) + '</div>'; }).join('');
       box.innerHTML =
         '<div class="empty-note" style="padding:0 0 6px">Ключ Tribute: <b>' + (t.configured ? 'задан' : 'не задан') + '</b>. Адрес вебхука для Tribute (кабинет → Настройки → API Keys): <b>' + escapeHtml(t.webhook_url) + '</b></div>' +
-        '<div class="section-label" style="margin:8px 2px 6px">Товары Tribute под наши цены</div>' + rows +
+        '<div class="section-label" style="margin:8px 2px 6px">Товары Tribute под наши цены</div>' +
+        (t.configured ? '<div class="btn-row"><button class="btn btn-accent" id="tributeAutoLinkBtn">Привязать автоматически</button></div><div id="tributeAutoLinkReport"></div>' : '') + rows +
         (remote ? '<div class="section-label" style="margin:10px 2px 6px">Товары в твоём Tribute</div>' + remote : '') +
         '<div class="section-label" style="margin:14px 2px 6px">Акции в окне «Покупки»</div>' + (promoRows || '<div class="empty-note">Акций нет</div>') +
         '<div class="btn-row"><input type="text" id="promoTitle" placeholder="заголовок" style="width:140px"><input type="text" id="promoText" placeholder="текст" style="width:200px"><input type="text" id="promoUntil" placeholder="до ГГГГ-ММ-ДД" style="width:110px"><button class="btn btn-accent" id="promoAddBtn">Добавить</button></div>' +
@@ -1600,6 +1601,18 @@ textarea.field{resize:vertical;min-height:88px}
           try{ await api('/api/admin/pay/tribute/products', { method: 'POST', body: JSON.stringify({ key: btn.dataset.tributeSave, product_id: input.value.trim() }) }); haptic('light'); showToast('Сохранено'); loadPayAdmin(); }
           catch(e){ showToast(PAY_ADMIN_ERRORS[e && e.data && e.data.error] || 'Ошибка'); }
         });
+      });
+      var auto = document.getElementById('tributeAutoLinkBtn');
+      if (auto) auto.addEventListener('click', async function(){
+        auto.disabled = true;
+        try{
+          var res = (await api('/api/admin/pay/tribute/auto-link', { method: 'POST', body: '{}' })).results || [];
+          var words = { linked: '✅ привязан', already: '✓ уже был', not_found: '— нет товара с такой ценой и названием', ambiguous: '⚠️ подходят несколько: ', error: '⚠️ ' };
+          var report = res.map(function(r){ var extra = r.status === 'ambiguous' ? (r.candidates || []).join(', ') : (r.status === 'error' ? (PAY_ADMIN_ERRORS[r.error] || r.error || '') + (r.detail ? ' (' + r.detail + ')' : '') : '');
+            return '<div class="empty-note" style="padding:1px 0">' + escapeHtml(r.label) + ': ' + escapeHtml(words[r.status] || r.status) + escapeHtml(extra) + (r.product_id && r.status === 'linked' ? ' №' + r.product_id : '') + '</div>'; }).join('');
+          haptic('light'); await loadPayAdmin();
+          var box2 = document.getElementById('tributeAutoLinkReport'); if (box2) box2.innerHTML = report;
+        }catch(e){ auto.disabled = false; showToast(PAY_ADMIN_ERRORS[e && e.data && e.data.error] || 'Ошибка'); }
       });
       box.querySelectorAll('[data-promo-remove]').forEach(function(btn){
         btn.addEventListener('click', async function(){ try{ await api('/api/admin/pay/promos/' + btn.dataset.promoRemove + '/remove', { method: 'POST', body: '{}' }); loadPayAdmin(); }catch(e){ showToast('Ошибка'); } });

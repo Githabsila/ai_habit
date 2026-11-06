@@ -165,6 +165,17 @@ async def admin_tribute_register_route(request):
     return web.json_response(result, status=200 if result.get("ok") else 400)
 
 
+
+@routes.post("/api/admin/pay/tribute/auto-link")
+async def admin_tribute_auto_link_route(request):
+    """Привязать товары Tribute к нашим ценам автоматически (по цене и названию). Что не нашлось однозначно — остаётся для ручной привязки."""
+    from webapp.routes_admin import _authenticate_admin
+    await _authenticate_admin(request)
+    provider = pay_providers.PROVIDERS["tribute"]
+    if not provider.configured():
+        return web.json_response({"error": "not_configured"}, status=409)
+    return web.json_response({"results": await provider.auto_link()})
+
 @routes.get("/api/admin/pay/promos")
 async def admin_promos_route(request):
     from webapp.routes_admin import _authenticate_admin
