@@ -28,14 +28,21 @@ MAX_DAILY_TASKS = 9
 MAX_DAILY_TASK_TEXT_LENGTH = 80
 
 
-def _effective_plan_date():
-    now = datetime.now()
+def _effective_plan_date(user_id=None):
+    """Дата «сегодняшнего» плана: по МЕСТНОМУ времени человека, до 03:00 ночи — ещё вчерашний день. Раньше считалось по часам сервера
+    (UTC): в Казахстане до 08:00, в Новосибирске до 10:00 утра человек видел вчерашний план. Без user_id — по UTC (как раньше)."""
+    from zoneinfo import ZoneInfo
+    tz_name = "UTC"
+    if user_id is not None:
+        from .streak import get_timezone
+        tz_name = get_timezone(user_id)
+    now = datetime.now(ZoneInfo(tz_name))
     effective = now if now.hour >= PLAN_DAY_ROLLOVER_HOUR else now - timedelta(days=1)
     return str(effective.date())
 
 
 def get_daily_plan(user_id, plan_date=None):
-    plan_date = plan_date or _effective_plan_date()
+    plan_date = plan_date or _effective_plan_date(user_id)
 
     conn = connect()
     cursor = conn.cursor()
@@ -122,11 +129,18 @@ def toggle_daily_main_goal(user_id):
     conn.close()
 
 
-def add_daily_task(user_id, text, max_tasks=MAX_DAILY_TASKS):
+def tomorrow_plan_date(user_id):
+    """Дата завтрашнего плана (по местному «сегодня» плана + 1 день) — для «на завтра» из чата бота и переноса задач."""
+    from datetime import date
+    return str(date.fromisoformat(_effective_plan_date(user_id)) + timedelta(days=1))
+
+
+def add_daily_task(user_id, text, max_tasks=MAX_DAILY_TASKS, plan_date=None):
+    """plan_date — в план другого дня (например, завтрашний); по умолчанию сегодняшний."""
     text = (text or "").strip()[:MAX_DAILY_TASK_TEXT_LENGTH]
     if not text:
         return None
-    plan = get_daily_plan(user_id)
+    plan = get_daily_plan(user_id, plan_date)
     if len(plan["tasks"]) >= max_tasks:
         raise ValueError("task_limit")
 
@@ -236,7 +250,7 @@ def get_plan_tasks_needing_reminder(user_id, hours=2):
           AND t.completed=0
           AND t.reminder_sent=0
           AND t.created_at <= datetime('now', ?)
-    """, (user_id, _effective_plan_date(), f"-{hours} hours"))
+    """, (user_id, _effective_plan_date(user_id), f"-{hours} hours"))
     tasks = cursor.fetchall()
     conn.close()
     return tasks
@@ -267,7 +281,7 @@ def get_plans_needing_goal_reminder(user_id, hours=2):
               SELECT 1 FROM daily_plan_tasks t
               WHERE t.plan_id = p.id AND t.completed = 1
           )
-    """, (user_id, _effective_plan_date(), f"-{hours} hours"))
+    """, (user_id, _effective_plan_date(user_id), f"-{hours} hours"))
     plans = cursor.fetchall()
     conn.close()
     return plans
@@ -279,3 +293,47 @@ def mark_goal_reminder_sent(plan_id):
     cursor.execute("UPDATE daily_plans SET goal_reminder_sent=1 WHERE id=?", (plan_id,))
     conn.commit()
     conn.close()
+
+
+def carry_over_unfinished(user_id):
+    """Перенос незакрытого на завтра (план, волна 1, п.4): копии незакрытых пунктов сегодняшнего плана — в завтрашний.
+    Сегодняшний план не трогаем: незакрытое так и остаётся незакрытым в истории дня (честная статистика), повторный перенос не дублирует.
+    Незакрытая главная задача становится главной на завтра, если там пусто, иначе — обычной задачей. Лимит MAX_DAILY_TASKS соблюдается.
+    Возвращает {"moved": сколько перенесено, "skipped": не влезло в лимит, "main": стала ли главной на завтра}."""
+    today = get_daily_plan(user_id)
+    tomorrow_date = tomorrow_plan_date(user_id)
+    tomorrow = get_daily_plan(user_id, tomorrow_date)
+    have = {t["text"].strip().lower() for t in tomorrow["tasks"]}
+    if tomorrow["main_goal"]:
+        have.add(tomorrow["main_goal"].strip().lower())
+    moved = skipped = 0
+    main_moved = False
+    pending = []
+    if today["main_goal"].strip() and not today["main_goal_completed"]:
+        pending.append(("main", today["main_goal"].strip()))
+    pending += [("task", t["text"].strip()) for t in today["tasks"] if not t["completed"] and t["text"].strip()]
+    conn = connect()
+    try:
+        free = MAX_DAILY_TASKS - len(tomorrow["tasks"])
+        for kind, text in pending:
+            if text.lower() in have:
+                continue
+            if kind == "main" and not tomorrow["main_goal"].strip():
+                conn.execute("UPDATE daily_plans SET main_goal=?, main_goal_completed=0, goal_reminder_sent=0 WHERE id=?", (text, tomorrow["id"]))
+                main_moved = True
+            elif free > 0:
+                conn.execute("INSERT INTO daily_plan_tasks(plan_id, text, created_at, reminder_sent) VALUES (?, ?, CURRENT_TIMESTAMP, 0)",
+                             (tomorrow["id"], text))
+                free -= 1
+            else:
+                skipped += 1
+                continue
+            have.add(text.lower())
+            moved += 1
+        conn.commit()
+    finally:
+        conn.close()
+    if moved:
+        from .tracking import track_server
+        track_server(user_id, "plan_carried_over", meta={"moved": moved})
+    return {"moved": moved, "skipped": skipped, "main": main_moved}

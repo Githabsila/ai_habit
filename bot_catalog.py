@@ -100,6 +100,23 @@ def _fallback(user_id):
     return FALLBACK_TEXT, adam_chat_markup()
 
 
+def _evening_plan(user_id):
+    from adam_messages import format_day_progress_message
+    from handlers.plan_bot import carry_keyboard
+    text = format_day_progress_message(1, 3, ["главная: «Сдать отчёт»", "второстепенная: «Позвонить маме»"])
+    return text, carry_keyboard()
+
+
+def _carry_result(user_id):
+    from handlers.plan_bot import carry_result_text
+    return carry_result_text({"moved": 2, "skipped": 0, "main": True}), None
+
+
+def _capture(user_id):
+    from handlers.fallback import capture_keyboard, capture_question
+    return capture_question("Купить подарок маме"), capture_keyboard()
+
+
 def _age(user_id):
     from db.age_gate import AGE_RESTRICTED_TEXT
     return AGE_RESTRICTED_TEXT, None
@@ -121,6 +138,9 @@ CATALOG = (
     CatalogItem("channel_streak", "Закрытый канал", "Вылет: серия погасла", "Когда канал подключён", _channel_removed("streak")),
     CatalogItem("channel_subscription", "Закрытый канал", "Вылет: подписка закончилась", "Когда канал подключён", _channel_removed("subscription")),
     CatalogItem("fallback", "Ответы бота", "Ответ на обычный текст", "Человек написал боту что-то вне режимов", _fallback),
+    CatalogItem("evening_plan", "План дня", "Вечерняя сверка плана", "19:00 · если в плане есть незакрытое; кнопка переноса — у админов и по флагу plan_carry_over", _evening_plan),
+    CatalogItem("carry_result", "План дня", "Итог переноса на завтра", "После кнопки «Перенести незакрытое на завтра»", _carry_result),
+    CatalogItem("capture", "Ответы бота", "Задача из чата: «Добавить в план?»", "Человек написал боту текст (админы и флаг bot_quick_capture)", _capture),
     CatalogItem("age", "Ответы бота", "Сервис для 16+", "Ответил в анкете «Мне нет 16»", _age),
 )
 BY_KEY = {item.key: item for item in CATALOG}

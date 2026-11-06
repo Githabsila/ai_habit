@@ -408,7 +408,7 @@ def test_task_history_counts_the_last_seven_days(uid):
             conn.execute("INSERT INTO daily_plan_tasks(plan_id, text, completed) VALUES (?,?,?)", (cur.lastrowid, f"Задача {i}", 1 if i < d else 0))
     conn.commit(); conn.close()
     from db.daily_plan import _effective_plan_date
-    hist = ac._task_history(uid, _effective_plan_date())
+    hist = ac._task_history(uid, _effective_plan_date(uid))
     assert hist["days_with_main"] == 3 and hist["main_done_days"] == 2 and hist["tasks_set"] == 6 and hist["tasks_done"] == 3
 
 

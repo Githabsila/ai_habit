@@ -183,6 +183,14 @@ def main_menu(is_admin=False):
 ADAM_CHAT_BUTTON = "Написать мне 📩"
 
 
+def open_plan_markup():
+    """Кнопка «Открыть план» (Mini App) — после задачи, добавленной из чата бота. Без WEBAPP_URL — без кнопки."""
+    if not WEBAPP_URL:
+        return None
+    url = WEBAPP_URL + ("&" if "?" in WEBAPP_URL else "?") + "from=bot_capture"
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📋 Открыть план", web_app=WebAppInfo(url=url))]])
+
+
 def adam_chat_markup():
     """Кнопка под сообщениями, которые Адам пишет сам: от первого лица («Написать мне»), чтобы было ощущение живого разговора, а не рассылки.
     Открывает чат с ним в приложении (страница /coach). Нет адреса приложения — без кнопки."""

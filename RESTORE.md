@@ -88,3 +88,14 @@ docker run -d --name adam --restart unless-stopped -p 8080:8080 -v adam-data:/da
 - «не прошла проверку целостности»: возьми предыдущую копию (в Telegram их много) и повтори.
 - «нет таблицы users»: это не та база; проверь, что файл пришёл от бота ADAM.
 - Бот молчит после смены токена: в логах Railway будет `Unauthorized`. Значит, в `BOT_TOKEN` лежит не тот токен.
+
+## Зашифрованные копии (с 06.11.2026)
+
+Если в Railway задан `BACKUP_ENCRYPTION_KEY`, бот присылает копию базы как `….db.gz.enc`, а раз в неделю — архив кода `adam-code-….zip.enc`.
+Без ключа их не открыть, поэтому **копию ключа храни отдельно от Railway** (менеджер паролей).
+
+- Новый ключ: `python tools/make_backup_key.py` → вставить в Railway → Variables как `BACKUP_ENCRYPTION_KEY`.
+- Проверить копию: `python backups/restore.py КОПИЯ.db.gz.enc --check --key КЛЮЧ` (или задать переменную `BACKUP_ENCRYPTION_KEY`).
+- Восстановить: `python backups/restore.py КОПИЯ.db.gz.enc --to /data/users.db --key КЛЮЧ`.
+- Нужен пакет `cryptography` (`pip install cryptography`); для обычной копии `….db.gz` по-прежнему ничего ставить не нужно.
+- Архив кода: расшифровать тем же ключом — `python -c "from backups.crypto import decrypt_file; decrypt_file('adam-code-….zip.enc', 'code.zip', 'КЛЮЧ')"`.

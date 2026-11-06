@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ADAM · Просмотр на телефонах</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{--bg:#0d0b14;--card:#17141f;--text:#f2f0f7;--muted:#a49fb3;--line:rgba(255,255,255,.08);--accent:#8b6cff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif}
+  header{position:sticky;top:0;z-index:2;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  header h1{font-size:16px;margin:0 8px 0 0}
+  select,button,a.btn{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;text-decoration:none}
+  button{cursor:pointer}
+  label{color:var(--muted);display:flex;align-items:center;gap:6px}
+  .note{color:var(--muted);padding:8px 16px 0;font-size:12px}
+  .row{display:flex;gap:18px;overflow-x:auto;padding:16px;align-items:flex-start}
+  .dev{flex:0 0 auto}
+  .dev b{display:block;font-size:12px;margin-bottom:6px}
+  .dev small{color:var(--muted)}
+  .frame{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#000;position:relative}
+  .frame iframe{border:0;transform-origin:0 0;position:absolute;left:0;top:0;background:#0d0b14}
+  .gate{padding:40px 16px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>📱 Просмотр на телефонах</h1>
+  <select id="screen"><option value="/">Главная</option><option value="/coach">Чат с Адамом</option></select>
+  <label>Масштаб <select id="scale"><option value="0.5">50%</option><option value="0.65" selected>65%</option><option value="0.8">80%</option><option value="1">100%</option></select></label>
+  <button id="reload">↻ Обновить все</button>
+  <a class="btn" href="/admin">← Админка</a>
+</header>
+<div class="note">Каждая рамка — настоящее приложение с твоим входом. Сцены из «Окон и анимаций» — на демо-данных, ничего не сохраняется; на «Главной» действия настоящие.</div>
+<div id="root" class="row"><div class="gate">Загружаю…</div></div>
+<script>
+(function(){
+  // Размеры экранов (CSS-пиксели) — самые частые у аудитории + окно Telegram на ПК.
+  var DEVICES = [
+    { name: "Android", size: "360×800", w: 360, h: 800 },
+    { name: "iPhone SE", size: "375×667", w: 375, h: 667 },
+    { name: "iPhone 15", size: "393×852", w: 393, h: 852 },
+    { name: "iPhone Pro Max", size: "430×932", w: 430, h: 932 },
+    { name: "Telegram на ПК", size: "480×700", w: 480, h: 700 },
+  ];
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var initData = (tg && tg.initData) || "";
+  var root = document.getElementById("root");
+  var screenSel = document.getElementById("screen");
+  var scaleSel = document.getElementById("scale");
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+  if (!initData){
+    root.innerHTML = '<div class="gate">Открой эту страницу из админки внутри Telegram — нужен твой вход.</div>';
+    return;
+  }
+
+  // Вход внутрь рамки — так же, как Telegram передаёт его во встроенное окно: #tgWebAppData=… (app.js::initData читает его оттуда).
+  function src(path){
+    var hash = "tgWebAppData=" + encodeURIComponent(initData) + "&tgWebAppVersion=8.0&tgWebAppPlatform=ios&tgWebAppThemeParams=%7B%7D";
+    return path + "#" + hash;
+  }
+
+  function render(){
+    var scale = parseFloat(scaleSel.value) || 0.65;
+    var path = screenSel.value;
+    root.innerHTML = DEVICES.map(function(d){
+      return '<div class="dev"><b>' + esc(d.name) + ' <small>' + esc(d.size) + '</small></b>' +
+        '<div class="frame" style="width:' + Math.round(d.w * scale) + 'px;height:' + Math.round(d.h * scale) + 'px">' +
+        '<iframe title="' + esc(d.name) + '" data-src="' + esc(src(path)) + '" style="width:' + d.w + 'px;height:' + d.h + 'px;transform:scale(' + scale + ')"></iframe>' +
+        '</div></div>';
+    }).join("");
+    // По одной рамке с паузой: пять копий приложения разом — это всплеск запросов (у сервера ограничение частоты).
+    var token = ++renderToken;
+    root.querySelectorAll("iframe[data-src]").forEach(function(frame, i){
+      setTimeout(function(){ if (token === renderToken) frame.src = frame.dataset.src; }, i * 1500);
+    });
+  }
+  var renderToken = 0;
+
+  async function loadScenes(){
+    try{
+      var res = await fetch("/api/admin/lab/sims", { headers: { "Authorization": "tma " + initData } });
+      if (!res.ok) throw new Error(String(res.status));
+      var scenes = (await res.json()).scenes || [];
+      var group = document.createElement("optgroup");
+      group.label = "Окна и анимации (демо)";
+      scenes.forEach(function(s){
+        var o = document.createElement("option");
+        o.value = "/?sim=" + encodeURIComponent(s.key);
+        o.textContent = s.icon + " " + s.title;
+        group.appendChild(o);
+      });
+      screenSel.appendChild(group);
+    }catch(e){
+      if (String(e.message) === "403"){ root.innerHTML = '<div class="gate">Только для админов.</div>'; throw e; }
+    }
+  }
+
+  var wanted = new URLSearchParams(location.search).get("screen");
+  loadScenes().then(function(){
+    if (wanted){ screenSel.value = wanted; }
+    render();
+  }).catch(function(){});
+  screenSel.addEventListener("change", render);
+  scaleSel.addEventListener("change", render);
+  document.getElementById("reload").addEventListener("click", render);
+  if (tg){ try { tg.ready(); tg.expand(); } catch(_){} }
+})();
+</script>
+</body>
+</html>

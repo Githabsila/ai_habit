@@ -335,6 +335,12 @@ def checkpoint_verdict(telegram_id, settings, now, target_hour, check_window=Tru
         out["reason"] = "outside_window"
         return out
 
+    # Эксперимент «до 5 или до 7 в день» (db/reminder_experiment.py): точка в 10:00 — только группе «7».
+    from db.reminder_experiment import in_group_7
+    if check_window and target_hour == 10 and not in_group_7(telegram_id):
+        out["reason"] = "outside_window"                  # не наша группа — не пропуск, в журнал не пишется
+        return out
+
     # Найдено при разборе мониторинга ошибок: без этой проверки каждый прогон (и у всех 4 habit_checkpoint_*, и у morning_ping) заново
     # пытался писать уже заблокировавшим бота — Telegram отвечает Forbidden на КАЖДУЮ такую попытку, это не временный сбой.
     if is_bot_blocked(telegram_id):
@@ -374,7 +380,8 @@ def checkpoint_verdict(telegram_id, settings, now, target_hour, check_window=Tru
 
     # Не больше 5 напоминаний в день: если за день не отмечено ничего, через час придут «Последний час» (23:00) и финишный таймер (23:30,
     # streak_scheduler.run_streak_risk_notifications). Точка в 22:00 тогда третье сообщение за полтора часа — пропускаем её.
-    if target_hour == 22 and reminder_category_enabled(settings, "streak") and not has_completed_today(telegram_id):
+    if (target_hour == 22 and not in_group_7(telegram_id) and reminder_category_enabled(settings, "streak")
+            and not has_completed_today(telegram_id)):
         out["reason"] = "risk_next"
         return out
 
@@ -607,6 +614,7 @@ async def run_day_progress_check(bot):
                         open_items,
                     ),
                     parse_mode="HTML",
+                    reply_markup=_carry_markup(telegram_id),
                 )
             except Exception:
                 # Резерв освобождаем, только если реально не отправили — иначе
@@ -621,6 +629,15 @@ async def run_day_progress_check(bot):
 
     if sent:
         logger.info(f"Вечерняя сверка плана дня (19:00): отправлено {sent} сообщений")
+
+
+def _carry_markup(telegram_id):
+    """Под вечерней сверкой — «Перенести незакрытое на завтра» (handlers/plan_bot.py): пока у админов и по флагу plan_carry_over."""
+    try:
+        from handlers.plan_bot import carry_enabled, carry_keyboard
+        return carry_keyboard() if carry_enabled(telegram_id) else None
+    except Exception:
+        return None
 
 
 # Старую отдельную вечернюю сверку 22:30 намеренно не запускаем:

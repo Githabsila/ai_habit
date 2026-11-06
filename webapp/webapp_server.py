@@ -158,14 +158,19 @@ RATE_LIMIT_MAX_REQUESTS = 40  # с запасом на нормальную ра
 _rate_limit_buckets = defaultdict(deque)
 
 
-def _check_rate_limit(telegram_id):
+# Админам — в 5 раз больше: «Просмотр на телефонах» (/admin/devices) открывает пять копий приложения сразу, иначе ловили 429.
+ADMIN_RATE_LIMIT_MULTIPLIER = 5
+
+
+def _check_rate_limit(telegram_id, is_admin=False):
     """True, если запрос разрешён; попутно чистит устаревшие метки времени,
     чтобы _rate_limit_buckets не рос бесконечно для активных пользователей."""
     now = time.monotonic()
     bucket = _rate_limit_buckets[telegram_id]
     while bucket and now - bucket[0] > RATE_LIMIT_WINDOW_SECONDS:
         bucket.popleft()
-    if len(bucket) >= RATE_LIMIT_MAX_REQUESTS:
+    limit = RATE_LIMIT_MAX_REQUESTS * (ADMIN_RATE_LIMIT_MULTIPLIER if is_admin else 1)
+    if len(bucket) >= limit:
         return False
     bucket.append(now)
     return True
@@ -190,7 +195,7 @@ async def _authenticate(request, allow_locked=False):
     is_admin = telegram_id in ADMIN_IDS
     usage_db.request_user.set(telegram_id)        # для учёта вызовов API по людям (usage_middleware)
 
-    if not _check_rate_limit(telegram_id):
+    if not _check_rate_limit(telegram_id, is_admin):
         raise web.HTTPTooManyRequests(
             text=json.dumps({"error": "rate_limited"}),
             content_type="application/json",
@@ -3137,6 +3142,17 @@ async def delete_main_goal_route(request):
     delete_daily_main_goal(telegram_id)
     return web.json_response({"ok": True})
 
+@routes.post("/api/plan/carry-over")
+async def plan_carry_over_route(request):
+    """Перенос незакрытого на завтра (db.daily_plan.carry_over_unfinished). Пока у админов и по флагу plan_carry_over."""
+    telegram_id, _ = await _authenticate(request)
+    from handlers.plan_bot import carry_enabled
+    if not carry_enabled(telegram_id):
+        return web.json_response({"error": "not_available"}, status=403)
+    from db.daily_plan import carry_over_unfinished
+    return web.json_response({"ok": True, **carry_over_unfinished(telegram_id)})
+
+
 @routes.post("/api/plan/task")
 async def add_plan_task_route(request):
     telegram_id, _ = await _authenticate(request)
@@ -3600,6 +3616,15 @@ async def static_ai_coach_js(request):
 @routes.get("/coach")
 async def coach(request):
     return _serve_gzip_asset(request, BASE_DIR / "static" / "ai_miniapp_styled.html", "text/html")
+
+
+@routes.get("/admin/devices")
+async def admin_devices_page(request):
+    """«Просмотр на телефонах» (admin_panel → кнопка): любой экран или сцену — сразу в рамках пяти устройств. Страница отдаётся всем,
+    но работает только со входом админа: список сцен — /api/admin/lab/sims (проверка админа), внутри рамок — вход самого смотрящего."""
+    response = web.FileResponse(BASE_DIR / "static" / "devices.html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @routes.get("/admin")

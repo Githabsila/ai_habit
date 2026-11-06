@@ -414,7 +414,9 @@ async def run_streak_reengagement_notifications(bot):
             # блокируется claim_notification ниже.
             if inactive <= 3:
                 # Без 21:00 (решение владельца 05.11, не больше 5 в день): в 23:00 и 23:30 всё равно придут «Последний час» и таймер.
-                slot = next((h for h in ("10", "16") if in_time_window(now, hour=int(h))), None)
+                from db.reminder_experiment import in_group_7
+                slots = ("10", "16", "21") if in_group_7(uid) else ("10", "16")   # эксперимент «до 5 или до 7» (db/reminder_experiment.py)
+                slot = next((h for h in slots if in_time_window(now, hour=int(h))), None)
                 if slot is None:
                     continue
             elif inactive <= 7:

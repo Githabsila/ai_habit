@@ -128,4 +128,8 @@ def test_the_script_needs_nothing_from_the_project():
             modules |= {alias.name.split(".")[0] for alias in node.names}
         elif isinstance(node, ast.ImportFrom) and node.module:
             modules.add(node.module.split(".")[0])
-    assert modules <= {"argparse", "gzip", "os", "shutil", "sqlite3", "sys", "datetime", "pathlib"}, modules
+    # cryptography — только для зашифрованной копии «….enc» (импорт внутри функции _decrypt); обычная копия по-прежнему без зависимостей.
+    assert modules <= {"argparse", "gzip", "os", "shutil", "sqlite3", "sys", "datetime", "pathlib", "cryptography"}, modules
+    top_level = {alias.name.split(".")[0] for node in tree.body if isinstance(node, ast.Import) for alias in node.names}
+    top_level |= {node.module.split(".")[0] for node in tree.body if isinstance(node, ast.ImportFrom) and node.module}
+    assert "cryptography" not in top_level, "cryptography не должна требоваться для обычной копии"

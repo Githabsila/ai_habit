@@ -22,7 +22,7 @@ from streak_scheduler import run_streak_rollover, run_streak_risk_notifications,
 from coach import (
     run_weekly_report,
     run_weekly_habit_analysis, run_monthly_habit_analysis, run_task_reminder_check,
-    run_habit_checkpoint_12, run_habit_checkpoint_17, run_habit_checkpoint_22,
+    run_habit_checkpoint_10, run_habit_checkpoint_12, run_habit_checkpoint_17, run_habit_checkpoint_22,
     run_day_progress_check,
     run_week_start_ping, run_week_end_ping, run_month_start_ping, run_month_end_ping,
     run_planned_time_reminders,
@@ -40,7 +40,7 @@ from subscription_flow import retry_failed_payments
 from partner_scheduler import run_partner_jobs
 from admin_digest_scheduler import run_admin_daily_digest, DIGEST_HOUR_UTC
 from error_alert_scheduler import run_error_spike_check
-from backups.backup import start_backup_scheduler, send_offsite_backup
+from backups.backup import start_backup_scheduler, send_offsite_backup, send_code_archive
 from middlewares.access_control import AccessControlMiddleware
 from middlewares.usage import UsageMiddleware
 from db import usage as usage_db
@@ -65,6 +65,7 @@ from handlers.shop import router as shop_router
 from handlers.achievements import router as achievements_router
 from handlers.daily import router as daily_router
 from handlers.community import router as community_router
+from handlers.plan_bot import router as plan_bot_router
 from handlers.fallback import router as fallback_router
 
 # ====================== НАСТРОЙКА ЛОГГИРОВАНИЯ ======================
@@ -133,6 +134,7 @@ async def main():
     dp.include_router(achievements_router)
     dp.include_router(daily_router)
     dp.include_router(community_router)
+    dp.include_router(plan_bot_router)
     dp.include_router(fallback_router)                 # строго последним: только текст, который никто выше не взял
 
     # --- ПЛАНИРОВЩИК ---
@@ -186,8 +188,9 @@ async def main():
     scheduler.add_job(award_season_rewards, "cron", day=1, hour=6, minute=0)
 
     # --- Умные напоминания ---
-    # Не больше 5 напоминаний по привычкам в день (решение владельца 05.11): точки 10:00 больше нет — утро закрывает
-    # «Доброе утро» в 06:00 (morning_ping.py), следующая точка в 12:00. run_habit_checkpoint_10 оставлена в coach.py, но не запускается.
+    # Не больше 5 напоминаний по привычкам в день (решение владельца 05.11): точка 10:00 — только группе «7» эксперимента
+    # «до 5 или до 7» (db/reminder_experiment.py, флаг reminders_7). Пока флаг выключен, она никому не уходит.
+    scheduler.add_job(run_habit_checkpoint_10, "interval", minutes=1, args=[bot])
     # 12:00 — дневная проверка привычек. Отдельные 2-часовые пинги по привычкам
     # отключены: здесь одно сводное сообщение только по невыполненным привычкам.
     scheduler.add_job(run_habit_checkpoint_12, "interval", minutes=1, args=[bot])
@@ -240,6 +243,8 @@ async def main():
     # (см. backups/backup.py::send_offsite_backup): 05:00 UTC, вне пиковых job'ов.
     # Раньше уходила раз в неделю — при потере тома терялась до недели данных.
     scheduler.add_job(send_offsite_backup, "cron", hour=5, minute=0, args=[bot], max_instances=1, coalesce=True)
+    # Архив кода — вторая копия кода вне GitHub (backups/backup.py::send_code_archive): проверка каждый день, уходит раз в 7 дней.
+    scheduler.add_job(send_code_archive, "cron", hour=5, minute=20, args=[bot], max_instances=1, coalesce=True)
     # И через две минуты после каждого запуска процесса — но только если за последние
     # 20 часов копия не уходила (отметка лежит на томе): после простоя или деплоя
     # копия не ждёт утра, а серия перезапусков не засыпает админа файлами.

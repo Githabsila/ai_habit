@@ -4,7 +4,8 @@
 Работает на любом компьютере с Python 3.9+, БЕЗ зависимостей проекта (только стандартная
 библиотека), чтобы им можно было воспользоваться, когда всё остальное уже не запускается.
 
-Копию присылает бот в Telegram (раз в сутки, файл «….db.gz»). Либо берётся с тома: папка backups/.
+Копию присылает бот в Telegram (раз в сутки, файл «….db.gz» или зашифрованный «….db.gz.enc»). Либо берётся с тома: папка backups/.
+Зашифрованная копия: нужен ключ (BACKUP_ENCRYPTION_KEY или --key) и пакет cryptography — остальное только стандартная библиотека.
 
     python backups/restore.py КОПИЯ.db.gz --check              # только проверить: копия цела и открывается
     python backups/restore.py КОПИЯ.db.gz --to /data/users.db  # положить на место базы
@@ -35,12 +36,49 @@ def default_target():
     return os.path.join(base, DB_NAME)
 
 
+_KEY = None                   # ключ из --key (иначе — BACKUP_ENCRYPTION_KEY из окружения)
+
+
+def _decrypt(src):
+    """Зашифрованная копия «….enc» (backups/crypto.py) → временный расшифрованный файл рядом. Нужен ключ и пакет cryptography."""
+    key = _KEY or os.environ.get("BACKUP_ENCRYPTION_KEY", "").strip()
+    if not key:
+        raise RestoreError("Копия зашифрована: нужен ключ — переменная BACKUP_ENCRYPTION_KEY или параметр --key")
+    try:
+        from cryptography.fernet import Fernet, InvalidToken
+    except ImportError as e:
+        raise RestoreError("Для зашифрованной копии нужен пакет cryptography: pip install cryptography") from e
+    plain = str(src)[: -len(".enc")] + ".decrypted"
+    with open(src, "rb") as fi:
+        data = fi.read()
+    try:
+        out = Fernet(key.encode()).decrypt(data)
+    except (InvalidToken, ValueError) as e:
+        raise RestoreError("Не удалось расшифровать: ключ не тот или файл повреждён") from e
+    with open(plain, "wb") as fo:
+        fo.write(out)
+    return plain
+
+
 def _unpack(src, dest):
-    """Кладёт обычный файл базы в dest: распаковывает .gz или просто копирует."""
+    """Кладёт обычный файл базы в dest: расшифровывает «.enc», распаковывает .gz или просто копирует."""
     if not os.path.isfile(src):
         raise RestoreError(f"Файл не найден: {src}")
+    if str(src).lower().endswith(".enc"):
+        plain = _decrypt(src)
+        try:
+            return _unpack_plain(plain, dest, gz=str(src).lower().endswith(".gz.enc"))
+        finally:
+            try:
+                os.remove(plain)
+            except OSError:
+                pass
+    return _unpack_plain(src, dest, gz=str(src).lower().endswith(".gz"))
+
+
+def _unpack_plain(src, dest, gz):
     try:
-        if str(src).lower().endswith(".gz"):
+        if gz:
             with gzip.open(src, "rb") as fi, open(dest, "wb") as fo:
                 shutil.copyfileobj(fi, fo)
         else:
@@ -138,7 +176,10 @@ def main(argv=None):
     parser.add_argument("--check", action="store_true", help="только проверить копию, ничего не записывать")
     parser.add_argument("--to", dest="dest", default=None, help="куда положить базу (по умолчанию — место базы проекта)")
     parser.add_argument("--force", action="store_true", help="заменить уже существующую базу (старая сохранится рядом)")
+    parser.add_argument("--key", default=None, help="ключ для зашифрованной копии «….enc» (иначе — из BACKUP_ENCRYPTION_KEY)")
     args = parser.parse_args(argv)
+    global _KEY
+    _KEY = args.key
 
     try:
         if args.check:
