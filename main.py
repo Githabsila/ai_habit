@@ -22,7 +22,7 @@ from streak_scheduler import run_streak_rollover, run_streak_risk_notifications,
 from coach import (
     run_weekly_report,
     run_weekly_habit_analysis, run_monthly_habit_analysis, run_task_reminder_check,
-    run_habit_checkpoint_10, run_habit_checkpoint_12, run_habit_checkpoint_17, run_habit_checkpoint_22,
+    run_habit_checkpoint_12, run_habit_checkpoint_17, run_habit_checkpoint_22,
     run_day_progress_check,
     run_week_start_ping, run_week_end_ping, run_month_start_ping, run_month_end_ping,
     run_planned_time_reminders,
@@ -45,6 +45,7 @@ from middlewares.access_control import AccessControlMiddleware
 from middlewares.usage import UsageMiddleware
 from db import usage as usage_db
 from analyst_scheduler import run_weekly_analyst
+from channel_sync import run_channel_sync
 
 # ====================== ИМПОРТЫ ХЕНДЛЕРОВ ======================
 from handlers.admin import router as admin_router
@@ -64,6 +65,7 @@ from handlers.shop import router as shop_router
 from handlers.achievements import router as achievements_router
 from handlers.daily import router as daily_router
 from handlers.community import router as community_router
+from handlers.fallback import router as fallback_router
 
 # ====================== НАСТРОЙКА ЛОГГИРОВАНИЯ ======================
 setup_logging()
@@ -131,6 +133,7 @@ async def main():
     dp.include_router(achievements_router)
     dp.include_router(daily_router)
     dp.include_router(community_router)
+    dp.include_router(fallback_router)                 # строго последним: только текст, который никто выше не взял
 
     # --- ПЛАНИРОВЩИК ---
     # Счётчики использования (вызовы API и действия в боте) копятся в памяти — раз в минуту сбрасываем в базу (db/usage.py).
@@ -159,6 +162,8 @@ async def main():
     # у кого наступил новый локальный день.
     scheduler.add_job(run_streak_rollover, "interval", minutes=1)
     scheduler.add_job(run_streak_risk_notifications, "interval", minutes=1, args=[bot])
+    # Закрытый канал: серия сгорела или подписка кончилась — убрать (channel_sync.py). Без CLOSED_CHANNEL_ID ничего не делает.
+    scheduler.add_job(run_channel_sync, "interval", minutes=15, args=[bot], max_instances=1, coalesce=True)
     # Возврат в ударный режим: 10:00 / 16:00 / 21:00 после срыва, затем
     # постепенно реже для тех, кто пропал надолго. Проверка каждую минуту
     # учитывает локальный час пользователя и останавливается после первого
@@ -181,9 +186,8 @@ async def main():
     scheduler.add_job(award_season_rewards, "cron", day=1, hour=6, minute=0)
 
     # --- Умные напоминания ---
-    # 10:00 — единая контрольная точка по привычкам (локальное время каждого пользователя).
-    # Job тикает каждую минуту, а сама функция пропускает всех, кто не в своём 10:00.
-    scheduler.add_job(run_habit_checkpoint_10, "interval", minutes=1, args=[bot])
+    # Не больше 5 напоминаний по привычкам в день (решение владельца 05.11): точки 10:00 больше нет — утро закрывает
+    # «Доброе утро» в 06:00 (morning_ping.py), следующая точка в 12:00. run_habit_checkpoint_10 оставлена в coach.py, но не запускается.
     # 12:00 — дневная проверка привычек. Отдельные 2-часовые пинги по привычкам
     # отключены: здесь одно сводное сообщение только по невыполненным привычкам.
     scheduler.add_job(run_habit_checkpoint_12, "interval", minutes=1, args=[bot])

@@ -15424,3 +15424,21 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
    а полоса опыта снова во всю ширину. Отсчёт от низа карточки (а не сверху): при полноэкранном режиме Telegram верх сдвигается, низ — нет. */
 .player-card__admin-btn{bottom:74px !important}
 .player-card.has-admin-btn .xp-bar,.player-card.has-admin-btn .xp-bar__label{margin-right:0 !important}
+/* ПК и развёрнутый режим Telegram (05.11). Главные вкладки и так в колонке #app до 600px, а окна-подразделы (Магазин, Прогресс,
+   Настройки…) растягивались на всю ширину: огромные кнопки, вытянутые поля и график. Теперь — та же колонка по центру.
+   Без transform: внутри окон бывают position:fixed, а transform сделал бы их привязанными к панели. */
+@media (min-width:640px){
+  .subpage-overlay__panel{
+    left:0;right:0;width:auto;max-width:600px;margin-inline:auto;
+    border-inline:1px solid rgba(255,255,255,.07);
+    box-shadow:0 0 70px rgba(0,0,0,.5);
+  }
+}
+/* Пока окно открыто, страница под ним не прокручивается — на ПК справа больше нет второй полосы прокрутки рядом с полосой окна.
+   Только для мыши: на телефонах полос не видно, а прокрутку фона там уже держит само окно (overscroll-behavior). */
+@media (hover:hover) and (pointer:fine){
+  html:has(.subpage-overlay:not([hidden])){overflow:hidden}
+}
+
+/* Стоп-экран 16+ в стартовой анкете (решение 05.11) — спокойный текст по центру вместо вариантов ответа. */
+.start-quiz-age-stop{margin:24px 4px 0;font-size:16px;line-height:1.5;color:rgba(255,255,255,.82);text-align:center}

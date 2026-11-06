@@ -40,7 +40,8 @@ def support_line():
     return SUPPORT_CONTACT or SUPPORT_EMAIL
 
 
-async def complete_subscription_payment(bot, user_id, months=1, paid_at=None, test=False, charge_id=None, recurring=False, expires_at=None):
+async def complete_subscription_payment(bot, user_id, months=1, paid_at=None, test=False, charge_id=None, recurring=False, expires_at=None,
+                                        calendar_months=False):
     """Продлевает подписку и собирает сообщение после оплаты. Возвращает (текст, состояние триала, ссылка в канал или None)."""
     from db import shop
     paid_at = _naive_utc(paid_at)
@@ -52,7 +53,7 @@ async def complete_subscription_payment(bot, user_id, months=1, paid_at=None, te
     if charge_id and shop.is_credited(charge_id):                 # этот платёж уже начислен (повтор после сбоя): срок второй раз не добавляем
         until = _paid_until(user_id)
     else:
-        until = record_subscription_payment(user_id, months=months, paid_at=paid_at, expires_at=_naive_utc(expires_at))
+        until = record_subscription_payment(user_id, months=months, paid_at=paid_at, expires_at=_naive_utc(expires_at), calendar_months=calendar_months)
         shop.mark_credited(charge_id)
     from db import trial_protection
     try:

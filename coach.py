@@ -372,6 +372,12 @@ def checkpoint_verdict(telegram_id, settings, now, target_hour, check_window=Tru
         # Не блокируем обычное напоминание, если дополнительная проверка состояния возврата временно недоступна.
         pass
 
+    # Не больше 5 напоминаний в день: если за день не отмечено ничего, через час придут «Последний час» (23:00) и финишный таймер (23:30,
+    # streak_scheduler.run_streak_risk_notifications). Точка в 22:00 тогда третье сообщение за полтора часа — пропускаем её.
+    if target_hour == 22 and reminder_category_enabled(settings, "streak") and not has_completed_today(telegram_id):
+        out["reason"] = "risk_next"
+        return out
+
     incomplete = get_incomplete_habits(telegram_id)
     out["incomplete"] = incomplete
     if not incomplete:

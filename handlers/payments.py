@@ -519,6 +519,12 @@ async def terms(message: Message):
 async def refund_command(message: Message):
     """Админ: /refund <номер операции Stars> — вернуть платёж (подписка при этом снимается)."""
     if message.from_user.id not in ADMIN_IDS:
+        # Раньше — молчание: человек просит вернуть деньги, а бот будто сломан. Возврат делает админ, человеку — куда написать.
+        await message.answer(
+            "↩️ <b>Возврат оплаты</b>\n\n"
+            f"Напиши в поддержку на <b>{SUPPORT_EMAIL}</b>: укажи свой @ник и время оплаты — я проверю и верну Stars, если это положено по /terms. "
+            "Все контакты — /paysupport."
+        )
         return
     parts = (message.text or "").split()
     if len(parts) != 2:

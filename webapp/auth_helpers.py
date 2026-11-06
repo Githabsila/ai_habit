@@ -66,9 +66,10 @@ async def authenticate(init_data):
             set_access_status(telegram_id, "approved")
             status = "approved"
         if status != "approved":
+            from db.age_gate import AGE_RESTRICTED, AGE_RESTRICTED_TEXT
             raise _error(
                 web.HTTPForbidden, f"access_{status}",
-                "Доступ к приложению пока ожидает подтверждения",
+                AGE_RESTRICTED_TEXT if status == AGE_RESTRICTED else "Доступ к приложению пока ожидает подтверждения",
             )
         if not bot_access_allowed(telegram_id):
             from db import get_subscription_status

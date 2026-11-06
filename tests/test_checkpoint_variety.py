@@ -105,6 +105,7 @@ async def test_the_scheduler_job_sends_different_checkpoints_and_never_a_score_f
     add_user(uid, "u", "Test")
     add_habit(uid, "Читать 20 минут")
     _patch_user(monkeypatch, uid)
+    monkeypatch.setattr(coach, "has_completed_today", lambda _uid: True)   # иначе 22:00 уступает место 23:00/23:30 (не больше 5 в день)
     bot = FakeBot()
     for hour, job in ((12, coach.run_habit_checkpoint_12), (17, coach.run_habit_checkpoint_17), (22, coach.run_habit_checkpoint_22)):
         _freeze(monkeypatch, hour, 0)

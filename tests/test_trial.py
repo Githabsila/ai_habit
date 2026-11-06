@@ -117,7 +117,9 @@ def test_the_snapshot_reads_marks_streak_and_channel_state(uid):
     assert snap["marked_yesterday"] and not snap["marked_today"] and snap["streak"] == 0 and not snap["channel_eligible"]
     _mark(uid, 0, streak_after=2)
     snap = trial_db.snapshot(uid)
-    assert snap["marked_today"] and snap["streak"] == 2 and snap["channel_eligible"] and snap["needed"] == 2
+    assert snap["marked_today"] and snap["streak"] == 2 and not snap["channel_eligible"] and snap["needed"] == 3   # решение 05.11: канал с 3 дней
+    _sql("UPDATE users SET streak=3 WHERE telegram_id=?", (uid,))
+    assert trial_db.snapshot(uid)["channel_eligible"]
     assert snap["channel_configured"] is bool(config.CLOSED_CHANNEL_ID) and snap["channel_granted"] is False
     _sql("UPDATE users SET channel_access_granted_at=CURRENT_TIMESTAMP WHERE telegram_id=?", (uid,))
     assert trial_db.snapshot(uid)["channel_granted"] is True

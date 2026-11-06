@@ -77,6 +77,36 @@ async def _authenticate_admin(request):
     return telegram_id
 
 
+# ---------------------------------------------------------------- каталог сообщений бота (bot_catalog.py)
+
+@routes.get("/api/admin/bot-messages")
+async def admin_bot_messages_route(request):
+    """Все сообщения, которые бот шлёт сам, — собранные тем же кодом, что и рассылка, на данных админа (привычки, род)."""
+    admin_id = await _authenticate_admin(request)
+    import bot_catalog
+    return web.json_response({"items": bot_catalog.catalog_for(admin_id)})
+
+
+@routes.post("/api/admin/bot-messages/send")
+async def admin_bot_message_send_route(request):
+    """body: {"key": ...} — прислать сообщение из каталога в Telegram САМОМУ админу (никому больше; в базу ничего не пишется)."""
+    admin_id = await _authenticate_admin(request)
+    import bot_catalog
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    key = str(body.get("key") or "")
+    if key not in bot_catalog.BY_KEY:
+        return web.json_response({"error": "unknown_message"}, status=400)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "bot_unavailable"}, status=503)
+    text, markup = bot_catalog.render(key, admin_id)
+    await bot.send_message(admin_id, text, parse_mode="HTML", reply_markup=markup)
+    return web.json_response({"ok": True})
+
+
 @routes.get("/api/admin/stats")
 async def admin_stats_route(request):
     await _authenticate_admin(request)
@@ -124,12 +154,17 @@ async def admin_export_db_route(request):
 @routes.get("/api/admin/pending")
 async def admin_pending_route(request):
     await _authenticate_admin(request)
+    from db.age_gate import age_restricted_users
     users = get_pending_users(limit=30)
     return web.json_response({
         "users": [
             {"telegram_id": u["telegram_id"], "username": u["username"], "first_name": u["first_name"]}
             for u in users
-        ]
+        ] + [
+            # Ответили «Мне нет 16» (db/age_gate.py): «Одобрить» вернёт доступ, если человек ошибся с возрастом.
+            {"telegram_id": u["telegram_id"], "username": u["username"], "first_name": u["first_name"], "age_restricted": True}
+            for u in age_restricted_users()
+        ],
     })
 
 

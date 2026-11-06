@@ -1714,7 +1714,9 @@
       key: "age_range",
       title: "Сколько тебе лет?",
       options: [
-        ["До 18", "under18"],
+        // 16+ (решение владельца 05.11): «Мне нет 16» — стоп-экран, доступ закрывается на сервере (/api/start-quiz/seen).
+        ["Мне нет 16", "under16"],
+        ["16–17", "16-17"],
         ["18–24", "18-24"],
         ["25–34", "25-34"],
         ["35–44", "35-44"],
@@ -2032,6 +2034,21 @@
     openStartQuiz();
   }
 
+  // Стоп-экран 16+: сервер закрывает доступ (access_status=age_restricted), дальше анкеты не идём. Ошибка сети не открывает доступ —
+  // при следующем входе человек снова попадёт на вопрос о возрасте.
+  const AGE_STOP_TEXT = "ADAM — для тех, кому уже исполнилось 16. Возвращайся, когда будет 16: мы тебя дождёмся 🙌";
+  function showAgeStop() {
+    trk("age_stop", null, {});
+    api("/api/start-quiz/seen", { method: "POST", body: JSON.stringify({ age_range: "under16", goal: null }) }).catch(() => {});
+    const title = document.getElementById("startQuizTitle");
+    const options = document.getElementById("startQuizOptions");
+    if (title) title.textContent = "Сервис для 16+";
+    if (options) options.innerHTML = `<p class="start-quiz-age-stop">${escapeHtml(AGE_STOP_TEXT)}</p>`;
+    ["startQuizContinue", "startQuizBack"].forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });
+    const fill = document.getElementById("startQuizProgressFill");
+    if (fill) fill.style.width = "100%";
+  }
+
   function initStartQuiz() {
     document.getElementById("startQuizBack")?.addEventListener("click", () => {
       if (startQuizStep === 0) return;
@@ -2044,6 +2061,10 @@
       if (!step) return;
       if (step.type === "choice" && !startQuizAnswers[step.key]) return;
       haptic("light");
+      if (step.key === "age_range" && startQuizAnswers.age_range === "under16") {
+        showAgeStop();
+        return;
+      }
       if (startQuizStep < START_QUIZ_STEPS.length - 1) {
         startQuizStep++;
         renderStartQuizStep();
@@ -4542,7 +4563,10 @@
       return;
     }
 
-    const answerItems = items.filter(it => it.item_type === "answer_pack" || /ответ/i.test(it.name || ""));
+    // Пакеты ответов — по возрастанию количества (+10, +20, +50, +100): раньше шли в порядке с сервера и выходило +10, +50, +100, +20.
+    const packAmount = (it) => Number((String(it.payload || it.name || "").match(/(\d+)/) || [])[1] || 0);
+    const answerItems = items.filter(it => it.item_type === "answer_pack" || /ответ/i.test(it.name || ""))
+      .sort((a, b) => packAmount(a) - packAmount(b));
     const otherItems = items.filter(it => !answerItems.includes(it));
 
     const renderItem = (it) => {
@@ -7312,6 +7336,7 @@ function initPlanActions() {
         daily_limit_reached: "Этот пакет уже куплен сегодня — доступен снова завтра",
         habit_add_locked: "Сегодня уже была отметка и удаление привычки — добавление новых открыто с 00:00",
         access_expired: "Тестовый доступ закончился. Напиши администратору — он продлит.",
+        access_age_restricted: AGE_STOP_TEXT,
         trial_expired: "Пробный период закончился",
         invalid_init_data: "Telegram не передал данные авторизации. Закрой Mini App и открой его снова.",
         request_failed: "Не удалось связаться с сервером. Проверь соединение и попробуй ещё раз.",
@@ -12904,6 +12929,7 @@ async function boot() {
     } catch (err) {
         console.error("boot() failed:", err);
         if (err?.data?.error === "trial_expired") return;      // пробный период закончился: окно оплаты уже открыто (api() выше)
+        const ageStop = err?.data?.error === "access_age_restricted";   // 16+: повтор не поможет — кнопку «Повторить» прячем
         // Улучшение #60: если ПЕРВЫЙ bootstrap так и не смог загрузиться
         // (state всё ещё пуст — значит рендерить вообще нечего), обычный
         // toast — тупик: он исчезнет через пару секунд, а пользователь
@@ -12916,6 +12942,13 @@ async function boot() {
             const banner = document.getElementById("bootRetryBanner");
             const bannerText = banner?.querySelector(".boot-retry-banner__text");
             if (bannerText) bannerText.textContent = friendlyError(err) || "Не удалось загрузить данные";
+            if (ageStop) {
+              banner?.querySelectorAll("button").forEach((b) => { b.hidden = true; });
+              const icon = banner?.querySelector(".boot-retry-banner__icon");
+              const head = banner?.querySelector(".boot-retry-banner__title");
+              if (icon) icon.textContent = "🔒";
+              if (head) head.textContent = "Сервис для 16+";
+            }
             if (banner) banner.hidden = false;
         } else {
             showToast(friendlyError(err) || "Не удалось загрузить данные", "error");

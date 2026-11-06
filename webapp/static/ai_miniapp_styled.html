@@ -1559,9 +1559,16 @@ body{
 
 /* Эмодзи — предпочитаем родной цветной шрифт устройства (на iPhone это
    и есть настоящие Apple-эмодзи), а не системный текстовый рендер. */
-.emoji-launcher,.emoji-panel,.message-bubble,.quick-icon,.header-title-icon,
-.icon-btn,.empty-icon,.welcome-prompts button,.quick-prompts button{
+.emoji-launcher,.emoji-panel,.quick-icon,.header-title-icon,
+.icon-btn,.empty-icon{
  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",'Inter',sans-serif !important;
+}
+/* Где есть обычный текст — сначала текстовый шрифт, эмодзи-шрифты после него.
+   Иначе пробелы (и цифры) брались из эмодзи-шрифта: в Noto Color Emoji
+   пробел ~1.3em — «План   на   день» и растянутые сообщения на Android.
+   Inter без эмодзи, поэтому сами эмодзи всё равно берутся из цветного шрифта. */
+.message-bubble,.welcome-prompts button,.quick-prompts button{
+ font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif !important;
 }
 
 /* =========================================================
@@ -2049,6 +2056,14 @@ body:after{
    набираемый текст её не перекрывает; пока поле в фокусе, стрелки нет вовсе (21.10). Должен идти после остальных правил кнопки. */
 .scroll-down-btn{bottom:var(--scroll-down-bottom,62px)!important}
 @media(max-width:560px){.scroll-down-btn{bottom:var(--scroll-down-bottom,60px)!important}}
+</style>
+<style id="adam-wide-screen">
+/* ПК и развёрнутый режим Telegram (05.11): сообщения уже стояли колонкой по центру, а шапка, панель «Быстрые действия» и поле ввода
+   тянулись на всю ширину окна. Теперь весь чат — одна колонка до 640px по центру, как главное приложение. */
+@media (min-width:700px){
+  .app-container{max-width:640px !important;margin-inline:auto !important;
+    border-inline:1px solid rgba(255,255,255,.06);box-shadow:0 0 70px rgba(0,0,0,.45)}
+}
 </style>
 <!-- Оформление «Royal Gold» (db/style_mode.py): флаг ставит основное приложение (app.js::applyRoyalStyle). Стоит после всех стилей, чтобы royal.js увидел их целиком. -->
 <script>try{if(localStorage.getItem("adam_royal")==="1"){document.documentElement.classList.add("adam-royal");var rs=document.createElement("script");rs.src="/static/royal.js?v=20261028_ROYAL_V1";document.head.appendChild(rs);}}catch(e){}</script>

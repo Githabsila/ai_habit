@@ -14,7 +14,7 @@ from db.notification_skips import REASON_LABELS, recent_skips
 from db.push_access import push_allowed_sql
 from db.streak import get_notification_history, get_streak_reengagement_state
 
-CHECK_HOURS = (10, 12, 17, 22)
+CHECK_HOURS = (12, 17, 22)                         # 10:00 больше не рассылается (не больше 5 напоминаний в день)
 HISTORY_DAYS = 3
 
 
@@ -106,12 +106,13 @@ def diagnose_user(user_id, now_utc=None):
         else:
             actual = "ещё впереди"
         checkpoints.append({
-            "hour": hour, "will_send": rule is None, "rule": REASON_LABELS.get(rule) if rule else None, "actual": actual,
+            "hour": hour, "will_send": rule is None, "rule": REASON_LABELS.get(rule) if rule else None, "reason": rule, "actual": actual,
             "sent": kind in sent_today, "skipped": kind in skips_today,
         })
 
     habits_total = len(coach.get_habits(user_id))
-    first = next((c for c in checkpoints if not c["will_send"]), None)
+    # risk_next — плановая замена 22:00 на 23:00/23:30 (не больше 5 напоминаний в день), не поломка: в итог не выносим.
+    first = next((c for c in checkpoints if not c["will_send"] and c["reason"] != "risk_next"), None)
     return {
         "user_id": user_id, "name": user["first_name"] or user["username"], "timezone": tz_name, "local_time": f"{now_local:%H:%M}",
         "account": account, "checkpoints": checkpoints, "habits": {"total": habits_total, "open": len(coach.get_incomplete_habits(user_id))},

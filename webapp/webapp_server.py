@@ -14,6 +14,7 @@ from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 
 from config import BOT_TOKEN, ADMIN_IDS, WEBAPP_URL
+from db.age_gate import AGE_RESTRICTED, AGE_RESTRICTED_TEXT, AGE_UNDER_16
 from webapp.telegram_auth import validate_init_data
 from webapp.services.ai_coach import ask_ai
 from adam_messages import (
@@ -220,7 +221,7 @@ async def _authenticate(request, allow_locked=False):
             raise web.HTTPForbidden(
                 text=json.dumps({
                     "error": f"access_{status}",
-                    "message": "Доступ к приложению пока ожидает подтверждения"
+                    "message": AGE_RESTRICTED_TEXT if status == AGE_RESTRICTED else "Доступ к приложению пока ожидает подтверждения"
                 }),
                 content_type="application/json",
             )
@@ -1145,7 +1146,8 @@ async def share_link(request):
     # Без username не отправляем пользователя на голый https://t.me:
     # это и было причиной некрасивого превью. Публичный URL Mini App
     # остаётся безопасным запасным вариантом.
-    fallback = (WEBAPP_URL or "").strip().rstrip("/") or request.url.origin()
+    # str(): origin() — объект yarl.URL, json его не сериализует (был 500 вместо ссылки).
+    fallback = (WEBAPP_URL or "").strip().rstrip("/") or str(request.url.origin())
     return web.json_response({
         "ok": False,
         "bot_username": None,
@@ -1817,6 +1819,11 @@ async def start_quiz_seen(request):
     age_range = body.get("age_range")
     goal = body.get("goal")
     mark_start_quiz_seen(telegram_id, age_range=age_range, goal=goal)
+    # 16+ (решение владельца 05.11): «Мне нет 16» закрывает доступ — приложение (403 access_age_restricted), бот и рассылки
+    # (push_allowed_sql пропускает только approved). Если человек ошибся, админ вернёт доступ в его карточке.
+    if age_range == AGE_UNDER_16 and telegram_id not in ADMIN_IDS:
+        set_access_status(telegram_id, AGE_RESTRICTED)
+        return web.json_response({"ok": True, "age_restricted": True})
     return web.json_response({"ok": True})
 
 

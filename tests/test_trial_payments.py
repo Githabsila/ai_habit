@@ -77,9 +77,10 @@ async def test_payment_after_the_trial_has_no_free_days_note(uid):
 
 
 async def test_a_ready_streak_gets_the_channel_link_at_once_when_the_channel_is_connected(uid, monkeypatch):
-    _person(uid, 2)
-    _mark(uid, 1, 1)
-    _mark(uid, 0, 2)
+    _person(uid, 3)
+    _mark(uid, 2, 1)
+    _mark(uid, 1, 2)
+    _mark(uid, 0, 3)                                                          # решение 05.11: канал с 3 дней серии
     monkeypatch.setattr(config, "CLOSED_CHANNEL_ID", "-100123")
     grant = AsyncMock(return_value="https://t.me/+abc")
     monkeypatch.setattr(flow, "try_grant_channel_access", grant)
@@ -161,7 +162,9 @@ async def test_the_refund_command_is_for_admins_only(uid, monkeypatch):
     bot = _bot()
     stranger = SimpleNamespace(from_user=SimpleNamespace(id=uid), text=f"/refund charge_c{uid}", answer=AsyncMock(), bot=bot)
     await pay.refund_command(stranger)
-    assert stranger.answer.await_count == 0 and bot.refund_star_payment.await_count == 0
+    # Найдено в живом чате: обычный человек писал /refund и не получал ничего. Теперь — куда обратиться; сам возврат по-прежнему только у админа.
+    assert bot.refund_star_payment.await_count == 0 and has_active_subscription(uid)
+    assert stranger.answer.await_count == 1 and "/paysupport" in stranger.answer.await_args.args[0]
     admin = SimpleNamespace(from_user=SimpleNamespace(id=ADMIN), text=f"/refund charge_c{uid}", answer=AsyncMock(), bot=bot)
     await pay.refund_command(admin)
     assert "Возвращено 153 ⭐" in admin.answer.await_args.args[0] and not has_active_subscription(uid)

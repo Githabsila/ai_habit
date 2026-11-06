@@ -75,11 +75,13 @@ async def test_checkpoint_17_fires_when_habit_still_open(monkeypatch, uid):
 
 
 async def test_checkpoint_22_fires_when_habit_still_open(monkeypatch, uid):
+    """22:00 — для дня, где что-то уже отмечено (часть привычек закрыта): 23:00/23:30 такому человеку не придут."""
     import coach
 
     add_user(uid, "u", "Test")
     add_habit(uid, "Пить воду")
     _patch_user(monkeypatch, uid)
+    monkeypatch.setattr(coach, "has_completed_today", lambda _uid: True)
     _freeze(monkeypatch, 22, 0)
 
     bot = FakeBot()
@@ -87,6 +89,33 @@ async def test_checkpoint_22_fires_when_habit_still_open(monkeypatch, uid):
 
     assert len(bot.sent) == 1
     assert bot.sent[0][0] == uid
+
+
+async def test_checkpoint_22_is_skipped_on_an_empty_day_because_23_and_23_30_follow(monkeypatch, uid):
+    """Не больше 5 напоминаний в день (решение владельца 05.11): в пустой день через час придут «Последний час» (23:00) и финишный
+    таймер (23:30) — точка в 22:00 была бы третьим сообщением за полтора часа. Причина пропуска пишется и видна в админке."""
+    import coach
+    from db.notification_skips import recent_skips
+
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Пить воду")
+    _patch_user(monkeypatch, uid)
+    monkeypatch.setattr(coach, "has_completed_today", lambda _uid: False)
+    _freeze(monkeypatch, 22, 0)
+
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_22(bot)
+
+    assert bot.sent == []
+    assert [(s["kind"], s["reason"]) for s in recent_skips(uid, since_day="2026-01-01")] == [("habit_checkpoint_22", "risk_next")]
+
+
+def test_the_10_oclock_checkpoint_is_no_longer_scheduled():
+    """Не больше 5 напоминаний в день: точку в 10:00 убрали из расписания — утро закрывает «Доброе утро» в 06:00."""
+    from pathlib import Path
+    main_py = (Path(__file__).resolve().parent.parent / "main.py").read_text(encoding="utf-8")
+    assert "add_job(run_habit_checkpoint_10" not in main_py
+    assert "add_job(run_habit_checkpoint_12" in main_py and "add_job(run_habit_checkpoint_22" in main_py
 
 
 async def test_checkpoint_17_still_fires_after_partial_completion(monkeypatch, uid):
@@ -284,6 +313,7 @@ async def test_checkpoint_17_and_22_use_independent_dedup_keys(monkeypatch, uid)
     assert len(bot17.sent) == 1
 
     _freeze(monkeypatch, 22, 0)
+    monkeypatch.setattr(coach, "has_completed_today", lambda _uid: True)     # часть дня сделана — 22:00 приходит (в пустой день его заменяют 23:00/23:30)
     bot22 = FakeBot()
     await coach.run_habit_checkpoint_22(bot22)
     assert len(bot22.sent) == 1

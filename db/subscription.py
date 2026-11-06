@@ -61,7 +61,18 @@ def get_subscription_price_stars(user_id):
     return price_stars(user_id)
 
 
-def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None):
+def add_calendar_months(moment, months, anchor_day):
+    """Календарные месяцы с «якорным» числом: дата переезжает на тот же день через `months` месяцев, а если такого дня нет
+    (31 → февраль) — на последний день месяца. Якорь хранится отдельно, поэтому после короткого месяца срок возвращается к нему:
+    31.01 → 28.02 → 31.03, а не 28.03. Время суток сохраняется."""
+    import calendar
+    total = moment.month - 1 + int(months)
+    year, month = moment.year + total // 12, total % 12 + 1
+    day = min(int(anchor_day), calendar.monthrange(year, month)[1])
+    return moment.replace(year=year, month=month, day=day)
+
+
+def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None, calendar_months=False):
     """Продлевает подписку на `months` месяцев от текущего срока (если он ещё не истёк) или от момента оплаты (если истёк/не было).
     Если человек платит во время пробных дней, платный доступ включается сразу, а оставшееся бесплатное время добавляется к нему: ранняя покупка
     не отнимает бесплатных часов (ТЗ §6). paid_at — когда человек реально заплатил (по часам Telegram): запоздалое подтверждение не отнимает условий.
@@ -79,7 +90,16 @@ def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None
         free_left_from = _parse_dt(state["trial_ends_at"])
         if free_left_from and free_left_from > base:
             base = free_left_from
-    new_until = base + timedelta(days=30 * months)
+    anchor_day = None
+    if calendar_months:
+        # Оплата картой — по календарным месяцам (решение 05.11: «в коротком месяце доступ не обрезать»). Подписка продолжается —
+        # держим прежний якорь; началась заново (срока не было или он истёк) — якорь = число, с которого считаем.
+        stored = user["subscription_anchor_day"] if user and "subscription_anchor_day" in user.keys() else None
+        continuing = bool(current_until and current_until > moment)
+        anchor_day = int(stored) if (continuing and stored) else base.day
+        new_until = add_calendar_months(base, months, anchor_day)
+    else:
+        new_until = base + timedelta(days=30 * months)  # звёзды Telegram: подписка бывает только на 30 дней
     if expires_at is not None and expires_at > new_until:
         new_until = expires_at                         # подписка Stars: срок, который назвал Telegram, не короче того, что посчитали мы
 
@@ -88,9 +108,10 @@ def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None
     cursor.execute(
         """UPDATE users
            SET subscription_paid_until=?,
-               subscription_first_payment_at=COALESCE(subscription_first_payment_at, CURRENT_TIMESTAMP)
+               subscription_first_payment_at=COALESCE(subscription_first_payment_at, CURRENT_TIMESTAMP),
+               subscription_anchor_day=COALESCE(?, subscription_anchor_day)
            WHERE telegram_id=?""",
-        (new_until.isoformat(), user_id),
+        (new_until.isoformat(), anchor_day, user_id),
     )
     conn.commit()
     conn.close()
@@ -220,7 +241,7 @@ def subscription_overview(user_id):
 
 def get_subscription_status(user_id):
     """Единая сводка для UI/сообщений."""
-    from config import SUBSCRIPTION_TRIAL_DAYS, SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL
+    from config import SUBSCRIPTION_TRIAL_DAYS
     user = get_user(user_id)
     streak = int(user["streak"] or 0) if user else 0
     trial_day = get_trial_day(user_id)
@@ -238,11 +259,41 @@ def get_subscription_status(user_id):
         "ever_paid": has_ever_paid(user_id),
         "access_allowed": bot_access_allowed(user_id),
         "streak": streak,
-        "streak_needed_for_channel": SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL,
-        "channel_eligible": streak >= SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL,
+        "streak_needed_for_channel": channel_streak_needed(user),
+        "channel_eligible": streak >= channel_streak_needed(user),
         "channel_granted": bool(user and user["channel_access_granted_at"]) if user and "channel_access_granted_at" in user.keys() else False,
         "price_stars": get_subscription_price_stars(user_id),
     }
+
+
+def channel_streak_needed(user):
+    """Сколько дней серии нужно для входа в закрытый канал: обычно SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL (3), а если бот уже убирал человека
+    из канала — CHANNEL_REENTRY_STREAK_DAYS (5)."""
+    from config import CHANNEL_REENTRY_STREAK_DAYS, SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL
+    removed = user["channel_removed_at"] if user is not None and "channel_removed_at" in user.keys() else None
+    return CHANNEL_REENTRY_STREAK_DAYS if removed else SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL
+
+
+def channel_removal_reason(user_id):
+    """Почему человеку больше не место в канале: 'subscription' — подписка кончилась, 'streak' — серия сгорела (после заморозок, защиты
+    и помощи друга), None — всё в порядке или он и не в канале."""
+    user = get_user(user_id)
+    if user is None or not ("channel_access_granted_at" in user.keys() and user["channel_access_granted_at"]):
+        return None
+    if not has_active_subscription(user_id):
+        return "subscription"
+    if int(user["streak"] or 0) <= 0:
+        return "streak"
+    return None
+
+
+def mark_channel_removed(user_id):
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET channel_access_granted_at=NULL, channel_removed_at=CURRENT_TIMESTAMP WHERE telegram_id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def mark_channel_access_granted(user_id):

@@ -170,3 +170,16 @@ out.coach = coach.textContent;
     assert out["opened"] is True and out["again"] is True and out["tracked"] == 1
     assert out["next"] == 1 and out["hidden"] is True and out["stateShow"] is False and out["afterClose"] is False
     assert "Привет" in out["coach"]
+
+
+async def test_back_to_main_menu_keeps_the_open_app_button(web_url):
+    """Найдено в живом чате @aihabbit_bot: «⬅️ Главное меню» показывало одну кнопку «Умные напоминания» — из меню бота было не
+    попасть в приложение (тупик: только обратно в напоминания). Теперь там то же меню, что после /start."""
+    import handlers.menu as menu_handler
+    message = SimpleNamespace(edit_text=AsyncMock())
+    callback = SimpleNamespace(message=message, from_user=SimpleNamespace(id=1), answer=AsyncMock())
+    await menu_handler.back_menu(callback)
+    markup = message.edit_text.await_args.kwargs["reply_markup"]
+    first = markup.inline_keyboard[0][0]
+    assert first.web_app is not None and "Открыть ADAM" in first.text
+    assert "reminders_menu" in {b.callback_data for b in _buttons(markup)}
