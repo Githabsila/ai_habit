@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+import config
 
 from db import add_user, start_trial_mode
 from db.access import shift_trial_day
@@ -106,7 +107,11 @@ async def test_testers_and_payers_cannot_get_an_invoice(client, uid):
     payer = _person(uid + 1, day=2)
     _sql("UPDATE users SET subscription_paid_until=datetime('now', '+20 days') WHERE telegram_id=?", (payer,))
     resp = await client.post("/api/subscription/invoice", headers=_headers(payer))
-    assert resp.status == 400 and (await resp.json())["error"] == "already_paid"
+    assert resp.status == 200 and (await resp.json())["price_stars"] == config.SUBSCRIPTION_RENEWAL_PRICE_STARS, \
+        "решение 05.11: подписка идёт без автопродления — можно продлить заранее (или включить автопродление), дни не пропадут"
+    _sql("UPDATE users SET subscription_auto_renew=1, subscription_charge_id='ch' WHERE telegram_id=?", (payer,))
+    resp = await client.post("/api/subscription/invoice", headers=_headers(payer))
+    assert resp.status == 400 and (await resp.json())["error"] == "already_paid", "автопродление уже включено — платить нечего"
     no_bot = _person(uid + 2, day=2)
     client.app["bot"] = None
     resp = await client.post("/api/subscription/invoice", headers=_headers(no_bot))
@@ -184,7 +189,7 @@ def test_the_styles_are_light_and_the_block_sits_before_the_chest():
     for forbidden in ("filter", "backdrop-filter", "infinite", "animation"):
         assert forbidden not in css, forbidden
     assert "Окно «Сундук»" not in css.split("*/", 1)[1]
-    assert "style.css?v=20261105_HUB_V91" in INDEX and "app.js?v=20261105_HUB_V106" in INDEX
+    assert "style.css?v=20261106_HUB_V92" in INDEX and "app.js?v=20261106_HUB_V107" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- тексты (Node на заглушках DOM)

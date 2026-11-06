@@ -17,7 +17,7 @@ from aiogram.types import (
 )
 
 from bot_style import send_banner_reply
-from config import PREMIUM_PRICE_STARS, ADMIN_IDS, SUPPORT_EMAIL, WEBAPP_URL
+from config import PREMIUM_PRICE_STARS, ADMIN_IDS, WEBAPP_URL
 from db import (
     give_premium_admin, set_cosmetic, get_shop_item, add_ai_bonus_answers, log_stars_purchase,
     get_subscription_price_stars, record_subscription_payment, get_subscription_status,
@@ -489,12 +489,11 @@ async def _credit_payment(message: Message, payment, payload: str):
 
 @router.message(Command("paysupport"))
 async def paysupport(message: Message):
-    from config import SUPPORT_CONTACT
-    contact = f"<b>{SUPPORT_CONTACT}</b> или на <b>{SUPPORT_EMAIL}</b>" if SUPPORT_CONTACT else f"<b>{SUPPORT_EMAIL}</b>"
+    from support_contacts import contacts_text
     await message.answer(
         "💳 <b>Вопросы по оплате</b>\n\n"
-        "Оплата идёт через Telegram Stars. Если Stars списались, а доступ не открылся, или платёж прошёл по ошибке — "
-        f"напиши на {contact}: укажи свой @ник и время оплаты. Я проверю и, если нужно, верну Stars. Повторно платить не нужно.\n\n"
+        "Если оплата прошла, а доступ не открылся, или платёж прошёл по ошибке — "
+        f"напиши: {contacts_text()}. Укажи свой @ник и время оплаты. Я проверю и, если нужно, верну оплату. Повторно платить не нужно.\n\n"
         "Условия оплаты и возврата — /terms."
     )
 
@@ -506,11 +505,13 @@ async def terms(message: Message):
     renewal = ("Первый месяц — разовая оплата по вводной цене, дальше — подписка Stars с автопродлением: отключить её можно в приложении "
                "(раздел «Подписка») или в настройках Telegram."
                if SUBSCRIPTION_AUTORENEW_ENABLED else "Подписка не продлевается сама: срок заканчивается, и нужно оплатить заново.")
+    from support_contacts import contacts_text
     await message.answer(
         "📄 <b>Условия</b>\n\n"
-        "Первые 3 календарных дня — бесплатно, считая день первого открытия приложения. Потом — подписка Pro: первый месяц по вводной цене для первой покупки "
-        f"(в любой день), затем полная. {renewal} Если оплатить во время пробных дней, оставшиеся бесплатные дни добавятся к сроку. "
-        f"Возврат — по правилам Telegram Stars или через поддержку: {SUPPORT_EMAIL} (/paysupport)."
+        "Первые 3 календарных дня — бесплатно, считая день первого открытия приложения. Потом — подписка Pro на 30 дней: первый период по вводной цене "
+        f"для первой покупки (в любой день), затем полная. {renewal} Если оплатить во время пробных дней, оставшиеся бесплатные дни добавятся к сроку; "
+        "продлить можно заранее — новый срок начнётся после текущего, дни не пропадут.\n\n"
+        f"Возврат — через администратора: {contacts_text(bold=False)} (/paysupport)."
         + (f"\n\nПолный текст: {link}" if link else "")
     )
 
@@ -520,9 +521,10 @@ async def refund_command(message: Message):
     """Админ: /refund <номер операции Stars> — вернуть платёж (подписка при этом снимается)."""
     if message.from_user.id not in ADMIN_IDS:
         # Раньше — молчание: человек просит вернуть деньги, а бот будто сломан. Возврат делает админ, человеку — куда написать.
+        from support_contacts import contacts_text
         await message.answer(
             "↩️ <b>Возврат оплаты</b>\n\n"
-            f"Напиши в поддержку на <b>{SUPPORT_EMAIL}</b>: укажи свой @ник и время оплаты — я проверю и верну Stars, если это положено по /terms. "
+            f"Возврат — через администратора: {contacts_text()}. Укажи свой @ник и время оплаты — проверим и вернём, если это положено по /terms. "
             "Все контакты — /paysupport."
         )
         return

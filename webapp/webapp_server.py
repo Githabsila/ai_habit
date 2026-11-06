@@ -633,6 +633,7 @@ async def bootstrap(request):
                 else None
             ),
             "public_profile_enabled": bool(user["public_profile_enabled"]) if user and "public_profile_enabled" in user.keys() else False,
+            "rating_hidden": bool(user["rating_hidden"]) if user and "rating_hidden" in user.keys() else False,
             "long_term_goals": get_long_term_goals(telegram_id),
         },
         "daily_plan": _shape_daily_plan(daily_plan),
@@ -1017,7 +1018,8 @@ async def subscription_invoice_route(request):
     snap = snapshot(telegram_id)
     if snap is None:
         return web.json_response({"error": "not_available"}, status=403)
-    if snap["paid"]:
+    from subscription_flow import invoice_spec
+    if snap["paid"] and invoice_spec(telegram_id) is None:   # подписка идёт и автопродление включено — платить нечего; без него — продлить заранее
         return web.json_response({"error": "already_paid"}, status=400)
     bot = request.app.get("bot")
     if bot is None:
@@ -1814,6 +1816,15 @@ async def handle_intro_seen(request):
     mark_handle_intro_seen(telegram_id)
     return web.json_response({"ok": True})
 
+@routes.post("/api/consent")
+async def consent_route(request):
+    """Согласие на обработку данных с первого экрана анкеты (db/consent.py): запоминаем версию документов и время."""
+    telegram_id, _ = await _authenticate(request)
+    from db.consent import CONSENT_VERSION, record_consent
+    record_consent(telegram_id, CONSENT_VERSION)
+    return web.json_response({"ok": True, "version": CONSENT_VERSION})
+
+
 @routes.post("/api/start-quiz/seen")
 async def start_quiz_seen(request):
     telegram_id, _ = await _authenticate(request)
@@ -2102,6 +2113,20 @@ async def set_quiet_hours_route(request):
     if not set_quiet_hours(telegram_id, start, end):
         return web.json_response({"error": "invalid_quiet_hours"}, status=400)
     return web.json_response({"ok": True, "quiet_hours": {"start": int(start), "end": int(end)}})
+
+
+@routes.post("/api/settings/rating-hidden")
+async def set_rating_hidden_route(request):
+    """«Скрыть меня из рейтинга»: человека не видно в рейтинге и сезоне у других; сам рейтинг он видит. body: {"hidden": true|false}."""
+    telegram_id, _ = await _authenticate(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    hidden = bool(body.get("hidden"))
+    from db.users import set_rating_hidden
+    set_rating_hidden(telegram_id, hidden)
+    return web.json_response({"ok": True, "hidden": hidden})
 
 
 @routes.post("/api/settings/public-profile")
@@ -3646,6 +3671,9 @@ async def privacy_policy_page(request):
     return web.FileResponse(BASE_DIR / "static" / "privacy.html")
 
 
+TERMS_REFUND = ("<strong>Возврат средств</strong> — через администратора: {contacts}. Укажите свой @ник в Telegram и время оплаты. "
+                "Если возврат положен, администратор возвращает звёзды через Telegram "
+                "(они приходят на тот же аккаунт), а доступ по этой оплате закрывается.")
 TERMS_RENEWAL_MANUAL = ("Подписка <strong>не продлевается автоматически</strong> — это разовая оплата за период; чтобы продолжить пользоваться Сервисом после "
                         "его истечения, нужно оплатить заново.")
 TERMS_RENEWAL_AUTO = ("Первый месяц — разовая оплата по вводной цене. Дальше доступ продлевается <strong>подпиской Telegram Stars с автоматическим списанием "
@@ -3659,4 +3687,6 @@ async def terms_page(request):
     import config
     page = (BASE_DIR / "static" / "terms.html").read_text(encoding="utf-8")
     page = page.replace("<!--RENEWAL-->", TERMS_RENEWAL_AUTO if config.SUBSCRIPTION_AUTORENEW_ENABLED else TERMS_RENEWAL_MANUAL)
+    from support_contacts import contacts_html                  # возвраты — через администратора (решение 05.11)
+    page = page.replace("<!--REFUND-->", TERMS_REFUND.format(contacts=contacts_html()))
     return web.Response(text=page, content_type="text/html", charset="utf-8")

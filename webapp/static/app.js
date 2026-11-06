@@ -1808,7 +1808,9 @@
         ["✅", "Привычки и задачи дня", "Отмечаются одним нажатием — всё главное на одном экране."],
         ["🔥", "Серия и статусы", "Чем дольше серия, тем выше статус и ярче рамка."],
         [UI_SPARK, "Я в чате", "Подскажу, как спланировать день и не сорваться."],
-      ])}`;
+      ])}
+      <p class="start-quiz-consent">Нажимая «Поехали», ты соглашаешься с <a href="/terms" target="_blank" rel="noopener">Условиями</a> и
+        <a href="/privacy" target="_blank" rel="noopener">Политикой конфиденциальности</a> и даёшь согласие на обработку своих данных.</p>`;
   }
 
   // Шаг вместо прежних «отзывов» Насти, Игоря и Марины: это были придуманные люди, а продукт ещё никому не показывали.
@@ -2061,6 +2063,9 @@
       if (!step) return;
       if (step.type === "choice" && !startQuizAnswers[step.key]) return;
       haptic("light");
+      if (step.type === "welcome") {
+        api("/api/consent", { method: "POST", body: "{}" }).catch(() => {});   // согласие с первого экрана (db/consent.py)
+      }
       if (step.key === "age_range" && startQuizAnswers.age_range === "under16") {
         showAgeStop();
         return;
@@ -8749,8 +8754,10 @@ function renderSubscriptionScreen(t, ov) {
   offer.hidden = !!t.paid;
   const pay = document.getElementById("trialPaywallPay");
   const pending = !!(t.payment_pending || ov?.payment_pending);
-  pay.hidden = !!t.paid;
-  pay.textContent = trialPayLabel();
+  // Подписка идёт без автопродления — можно включить его или продлить заранее (subscription_flow._renewal_spec): дни не пропадают.
+  const canExtend = !!t.paid && !!ov && !ov.auto_renew;
+  pay.hidden = !!t.paid && !canExtend;
+  pay.textContent = canExtend ? (ov.autorenew_available ? "Включить автопродление" : "Продлить на 30 дней") : trialPayLabel();
   pay.disabled = pending;
   document.getElementById("trialPaywallRenewal").textContent = subRenewalText(t, ov);
   const pendingEl = document.getElementById("trialPaywallPending");
@@ -12525,6 +12532,27 @@ function initGoalsActions() {
 
 // Roadmap #17 — публичный шаринг-профиль: тумблер + кнопка "скопировать
 // ссылку" в настройках, плюс лента полученных реакций (roadmap #19) там же.
+// «Скрыть меня из рейтинга» (юридический минимум, 06.11): другие тебя в рейтинге и сезоне не видят, сам рейтинг ты видишь.
+function initRatingHiddenToggle() {
+  const toggle = document.getElementById("ratingHiddenToggle");
+  if (!toggle || toggle.dataset.bound) return;
+  toggle.dataset.bound = "1";
+  const paint = (on) => { toggle.setAttribute("aria-pressed", on ? "true" : "false"); toggle.textContent = on ? "Вкл" : "Выкл"; };
+  paint(!!(state.settings && state.settings.rating_hidden));
+  toggle.addEventListener("click", async () => {
+    const next = toggle.getAttribute("aria-pressed") !== "true";
+    try {
+      await api("/api/settings/rating-hidden", { method: "POST", body: JSON.stringify({ hidden: next }) });
+      if (state.settings) state.settings.rating_hidden = next;
+      paint(next);
+      haptic("light");
+      showToast(next ? "Тебя больше не видно в рейтинге" : "Ты снова в рейтинге", "success");
+    } catch (err) {
+      showToast(friendlyError(err), "error");
+    }
+  });
+}
+
 function initPublicProfileActions() {
   const toggle = document.getElementById("publicProfileToggle");
   const row = document.getElementById("publicProfileRow");
@@ -12899,6 +12927,7 @@ async function boot() {
             // (см. комментарий над loadBootstrap() выше) и вся остальная
             // инициализация после падения просто не происходит.
             initPublicProfileActions();
+            initRatingHiddenToggle();
             initUserHandleActions();
             initIdentityEditor();
             initGoalsActions();

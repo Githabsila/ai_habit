@@ -112,6 +112,27 @@ def _carry_result(user_id):
     return carry_result_text({"moved": 2, "skipped": 0, "main": True}), None
 
 
+def _renew_manual(days):
+    def render(user_id):
+        import subscription_renewal as sr
+        from config import SUBSCRIPTION_AUTORENEW_ENABLED, SUBSCRIPTION_RENEWAL_PRICE_STARS
+        return (sr.manual_text(days, "5 декабря, 14:00", SUBSCRIPTION_AUTORENEW_ENABLED),
+                sr.renewal_keyboard(SUBSCRIPTION_AUTORENEW_ENABLED, SUBSCRIPTION_RENEWAL_PRICE_STARS))
+    return render
+
+
+def _renew_auto(user_id):
+    import subscription_renewal as sr
+    from config import SUBSCRIPTION_RENEWAL_PRICE_STARS
+    return sr.auto_notice_text("5 декабря, 14:00", SUBSCRIPTION_RENEWAL_PRICE_STARS), None
+
+
+def _renew_failed(user_id):
+    import subscription_renewal as sr
+    from config import SUBSCRIPTION_RENEWAL_PRICE_STARS
+    return sr.failed_text(SUBSCRIPTION_RENEWAL_PRICE_STARS), sr.renewal_keyboard(False, SUBSCRIPTION_RENEWAL_PRICE_STARS)
+
+
 def _capture(user_id):
     from handlers.fallback import capture_keyboard, capture_question
     return capture_question("Купить подарок маме"), capture_keyboard()
@@ -135,6 +156,11 @@ CATALOG = (
     CatalogItem("reengage_10", "Возврат в серию", "Вернись в серию, 10:00", "1–3 дня без отметок", _reengage("10", 2)),
     CatalogItem("reengage_16", "Возврат в серию", "Вернись в серию, 16:00", "1–3 дня без отметок", _reengage("16", 2)),
     CatalogItem("reengage_long", "Возврат в серию", "Вернись в серию, долгий перерыв", "4+ дней без отметок", _reengage("long", 8)),
+    CatalogItem("renew_7", "Подписка", "Конец срока: за 7 дней", "12:00 · без автопродления", _renew_manual(7)),
+    CatalogItem("renew_1", "Подписка", "Конец срока: завтра", "12:00 · без автопродления (также за 3 дня)", _renew_manual(1)),
+    CatalogItem("renew_0", "Подписка", "Конец срока: сегодня", "12:00 · без автопродления", _renew_manual(0)),
+    CatalogItem("renew_auto", "Подписка", "Автопродление: предупреждение", "12:00 · за 3 дня до списания", _renew_auto),
+    CatalogItem("renew_failed", "Подписка", "Автопродление не прошло", "Через 3 часа после конца срока, если списания нет", _renew_failed),
     CatalogItem("channel_streak", "Закрытый канал", "Вылет: серия погасла", "Когда канал подключён", _channel_removed("streak")),
     CatalogItem("channel_subscription", "Закрытый канал", "Вылет: подписка закончилась", "Когда канал подключён", _channel_removed("subscription")),
     CatalogItem("fallback", "Ответы бота", "Ответ на обычный текст", "Человек написал боту что-то вне режимов", _fallback),

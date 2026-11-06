@@ -40,11 +40,32 @@ def is_in_trial(user_id):
     return bool(info and info["state"] in (STATE_NOT_STARTED, STATE_TRIAL))
 
 
-def has_active_subscription(user_id):
-    user = get_user(user_id)
-    if not user or "subscription_paid_until" not in user.keys():
+# Автопродление: Telegram присылает подтверждение списания примерно в момент окончания срока. Чтобы доступ не «моргнул», пока оно идёт,
+# у подписки с автопродлением доступ держится ещё RENEWAL_GRACE_HOURS после конца срока. Не пришло — через сутки доступ закрывается как обычно.
+RENEWAL_GRACE_HOURS = 24
+
+
+def auto_renew_active(user):
+    """У подписки включено автопродление Stars (есть платёж, по которому Telegram продлевает, и человек его не отключил)."""
+    if user is None:
         return False
+    keys = user.keys()
+    return bool("subscription_auto_renew" in keys and user["subscription_auto_renew"]
+                and "subscription_charge_id" in keys and user["subscription_charge_id"])
+
+
+def paid_access_until(user):
+    """До какого момента открыт платный доступ: конец срока, а при автопродлении — плюс RENEWAL_GRACE_HOURS на подтверждение списания."""
+    if user is None or "subscription_paid_until" not in user.keys():
+        return None
     until = _parse_dt(user["subscription_paid_until"])
+    if until and auto_renew_active(user):
+        until = until + timedelta(hours=RENEWAL_GRACE_HOURS)
+    return until
+
+
+def has_active_subscription(user_id):
+    until = paid_access_until(get_user(user_id))
     return bool(until and until > datetime.now(timezone.utc).replace(tzinfo=None))
 
 

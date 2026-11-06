@@ -268,7 +268,8 @@ FEATURES = (
         clicks=("tab-bar__item=profile", "playerBadge", "userHandleSaveBtn", "archetype-quiz-*"),
         events=("username_changed",),
         api=("POST /api/profile/name", "POST /api/profile/avatar", "POST /api/settings/handle", "POST /api/settings/archetype",
-             "POST /api/settings/public-profile", "POST /api/settings/share-habits", "POST /api/settings/stats-visibility"),
+             "POST /api/settings/public-profile", "POST /api/settings/share-habits", "POST /api/settings/stats-visibility",
+             "POST /api/settings/rating-hidden"),
         bot=("cb:profile",),
     ),
     Feature(
@@ -302,7 +303,7 @@ PASSIVE_API = (
     "GET /api/bootstrap", "GET /api/bootstrap-secondary", "GET /api/quests", "GET /api/pair-quest", "GET /api/pair-quest/candidates",
     "GET /api/pet", "GET /api/season", "GET /api/team", "GET /api/changelog/unseen", "GET /api/streak/status",
     "POST /api/streak/onboarding/seen", "POST /api/admin-gift/seen", "POST /api/tour/seen", "POST /api/handle-intro/seen",
-    "POST /api/start-quiz/seen", "POST /api/client-error", "POST /api/perf/report", "POST /api/track", "GET /",
+    "POST /api/start-quiz/seen", "POST /api/consent", "POST /api/client-error", "POST /api/perf/report", "POST /api/track", "GET /",
     "GET /health", "GET /static/*", "GET /coach", "GET /admin", "GET /privacy", "GET /terms", "GET /media/avatars/{filename}",
     "GET /analytics", "GET /static/style.css", "GET /static/app.js", "GET /static/ai_coach.js",
     # загрузки данных разделов и «просмотрено» — приходят вместе с открытием экрана, осознанным действием не считаются

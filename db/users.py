@@ -882,10 +882,10 @@ def get_rating(user_id, limit=10):
     max_streak = league["max_streak"]
     while floor_index > 0:
         if max_streak is None:
-            cursor.execute("SELECT COUNT(*) FROM users WHERE banned=0 AND streak >= ?", (min_streak,))
+            cursor.execute("SELECT COUNT(*) FROM users WHERE banned=0 AND COALESCE(rating_hidden, 0)=0 AND streak >= ?", (min_streak,))
         else:
             cursor.execute(
-                "SELECT COUNT(*) FROM users WHERE banned=0 AND streak BETWEEN ? AND ?",
+                "SELECT COUNT(*) FROM users WHERE banned=0 AND COALESCE(rating_hidden, 0)=0 AND streak BETWEEN ? AND ?",
                 (min_streak, max_streak),
             )
         if cursor.fetchone()[0] >= MIN_RATING_LEAGUE_SIZE:
@@ -905,7 +905,7 @@ def get_rating(user_id, limit=10):
                    sm.temp_frame, sm.temp_status
             FROM users u
             LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id
-            WHERE u.banned=0 AND u.streak >= ?
+            WHERE u.banned=0 AND COALESCE(u.rating_hidden, 0)=0 AND u.streak >= ?
             ORDER BY u.streak DESC, u.xp DESC
         """, (min_streak,))
     else:
@@ -915,7 +915,7 @@ def get_rating(user_id, limit=10):
                    sm.temp_frame, sm.temp_status
             FROM users u
             LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id
-            WHERE u.banned=0 AND u.streak BETWEEN ? AND ?
+            WHERE u.banned=0 AND COALESCE(u.rating_hidden, 0)=0 AND u.streak BETWEEN ? AND ?
             ORDER BY u.streak DESC, u.xp DESC
         """, (min_streak, max_streak))
 
@@ -923,6 +923,22 @@ def get_rating(user_id, limit=10):
     conn.close()
     _RATING_CACHE[league["index"]] = {"data": data, "at": now, "league": league}
     return league, data[:limit]
+
+
+def set_rating_hidden(user_id, hidden):
+    """«Скрыть меня из рейтинга» (настройки). Кэши рейтинга сбрасываем, чтобы человек пропал/появился сразу."""
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET rating_hidden=? WHERE telegram_id=?", (1 if hidden else 0, user_id))
+        conn.commit()
+    finally:
+        conn.close()
+    _RATING_CACHE.clear()
+    try:
+        from .seasons import clear_season_leaderboard_cache
+        clear_season_leaderboard_cache()
+    except Exception:
+        pass
 
 
 def get_user_rank(user_id):

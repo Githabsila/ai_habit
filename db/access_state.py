@@ -215,7 +215,9 @@ def access_state(user_id, now_utc=None):
     day = local_day_number(bounds["started"], tz, now) if bounds else None
 
     ends_at = None
-    if paid_until and paid_until > now:
+    from .subscription import paid_access_until
+    access_paid_until = paid_access_until(user)             # при автопродлении — сутки запаса на подтверждение списания
+    if access_paid_until and access_paid_until > now:
         state, ends_at = STATE_PAID, paid_until
     elif mode == MODE_TIMED and not scenario:
         active = free_period_active(user)

@@ -89,6 +89,9 @@ SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "egormatancev12@gmail.com")
 # Запасной способ связи, который видит человек, если оплата прошла, а доступ не открылся (ТЗ 28.10 §19): контакты в Telegram. Решение владельца 28.10: оба аккаунта.
 # Можно переопределить переменной окружения SUPPORT_CONTACT на Railway (пустое значение уберёт Telegram-контакты, останется почта выше).
 SUPPORT_CONTACT = os.getenv("SUPPORT_CONTACT", "@floydddo, @AlxManagement").strip()
+# Instagram для возвратов и вопросов по оплате (решение 05.11: «возвраты пока только через админа — Telegram или Instagram»).
+# Ник без @ или ссылка; пусто — в текстах только Telegram и почта. Задаёт владелец в Railway.
+SUPPORT_INSTAGRAM = os.getenv("SUPPORT_INSTAGRAM", "").strip().lstrip("@")
 # Оплата картой через Tribute (pay_tribute.py, wiki.tribute.tg): ключ API из кабинета автора (Настройки → API Keys). Им же подписываются вебхуки. Задаёт владелец в Railway —
 # в код и в чат он не попадает. Пока не задан, способ «Картой» в приложении не показывается.
 TRIBUTE_API_KEY = os.getenv("TRIBUTE_API_KEY", "").strip()
