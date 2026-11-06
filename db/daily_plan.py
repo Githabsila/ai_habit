@@ -28,14 +28,21 @@ MAX_DAILY_TASKS = 9
 MAX_DAILY_TASK_TEXT_LENGTH = 80
 
 
-def _effective_plan_date():
-    now = datetime.now()
+def _effective_plan_date(user_id=None):
+    """Дата «сегодняшнего» плана: по МЕСТНОМУ времени человека, до 03:00 ночи — ещё вчерашний день. Раньше считалось по часам сервера
+    (UTC): в Казахстане до 08:00, в Новосибирске до 10:00 утра человек видел вчерашний план. Без user_id — по UTC (как раньше)."""
+    from zoneinfo import ZoneInfo
+    tz_name = "UTC"
+    if user_id is not None:
+        from .streak import get_timezone
+        tz_name = get_timezone(user_id)
+    now = datetime.now(ZoneInfo(tz_name))
     effective = now if now.hour >= PLAN_DAY_ROLLOVER_HOUR else now - timedelta(days=1)
     return str(effective.date())
 
 
 def get_daily_plan(user_id, plan_date=None):
-    plan_date = plan_date or _effective_plan_date()
+    plan_date = plan_date or _effective_plan_date(user_id)
 
     conn = connect()
     cursor = conn.cursor()
@@ -236,7 +243,7 @@ def get_plan_tasks_needing_reminder(user_id, hours=2):
           AND t.completed=0
           AND t.reminder_sent=0
           AND t.created_at <= datetime('now', ?)
-    """, (user_id, _effective_plan_date(), f"-{hours} hours"))
+    """, (user_id, _effective_plan_date(user_id), f"-{hours} hours"))
     tasks = cursor.fetchall()
     conn.close()
     return tasks
@@ -267,7 +274,7 @@ def get_plans_needing_goal_reminder(user_id, hours=2):
               SELECT 1 FROM daily_plan_tasks t
               WHERE t.plan_id = p.id AND t.completed = 1
           )
-    """, (user_id, _effective_plan_date(), f"-{hours} hours"))
+    """, (user_id, _effective_plan_date(user_id), f"-{hours} hours"))
     plans = cursor.fetchall()
     conn.close()
     return plans

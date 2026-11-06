@@ -602,7 +602,7 @@ def build_checkin_state(user_id, now_local=None, with_pace=True):
     last_mark_min, last_mark_title = last_mark_info(user_id)
     progress = get_progress(user_id) or {}
     profile = activity_profile(user_id, now_local) if with_pace else EMPTY_PROFILE
-    plan_date = _effective_plan_date()
+    plan_date = _effective_plan_date(user_id)
     state = {
         "user_id": user_id,
         "first_name": _short((user["first_name"] if user else "") or "", 40),
