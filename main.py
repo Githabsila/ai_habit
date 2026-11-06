@@ -40,7 +40,7 @@ from subscription_flow import retry_failed_payments
 from partner_scheduler import run_partner_jobs
 from admin_digest_scheduler import run_admin_daily_digest, DIGEST_HOUR_UTC
 from error_alert_scheduler import run_error_spike_check
-from backups.backup import start_backup_scheduler, send_offsite_backup
+from backups.backup import start_backup_scheduler, send_offsite_backup, send_code_archive
 from middlewares.access_control import AccessControlMiddleware
 from middlewares.usage import UsageMiddleware
 from db import usage as usage_db
@@ -243,6 +243,8 @@ async def main():
     # (см. backups/backup.py::send_offsite_backup): 05:00 UTC, вне пиковых job'ов.
     # Раньше уходила раз в неделю — при потере тома терялась до недели данных.
     scheduler.add_job(send_offsite_backup, "cron", hour=5, minute=0, args=[bot], max_instances=1, coalesce=True)
+    # Архив кода — вторая копия кода вне GitHub (backups/backup.py::send_code_archive): проверка каждый день, уходит раз в 7 дней.
+    scheduler.add_job(send_code_archive, "cron", hour=5, minute=20, args=[bot], max_instances=1, coalesce=True)
     # И через две минуты после каждого запуска процесса — но только если за последние
     # 20 часов копия не уходила (отметка лежит на томе): после простоя или деплоя
     # копия не ждёт утра, а серия перезапусков не засыпает админа файлами.

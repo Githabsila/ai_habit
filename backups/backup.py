@@ -287,6 +287,14 @@ async def send_offsite_backup(bot, min_interval_hours=None):
 
         packed = source + ".gz"
         await asyncio.to_thread(_gzip_file, source, packed)
+        # Шифрование (backups/crypto.py): с ключом в Railway файл уходит как «….db.gz.enc», без ключа — как раньше и с предупреждением.
+        from backups.crypto import ENC_SUFFIX, backup_key, encrypt_file
+        key = backup_key()
+        if key:
+            plain = packed
+            packed = plain + ENC_SUFFIX
+            await asyncio.to_thread(encrypt_file, plain, packed, key)
+            os.remove(plain)
         size = os.path.getsize(packed)
 
         if size > TELEGRAM_FILE_LIMIT:
@@ -307,7 +315,8 @@ async def send_offsite_backup(bot, min_interval_hours=None):
         await bot.send_document(
             chat_id=ADMIN_ID,
             document=FSInputFile(packed),
-            caption=f"💾 Копия базы · {name[:10]} · {max(size / 1024 / 1024, 0.1):.1f} МБ · целостность проверена",
+            caption=(f"💾 Копия базы · {name[:10]} · {max(size / 1024 / 1024, 0.1):.1f} МБ · целостность проверена · "
+                     + ("🔒 зашифрована" if key else "⚠️ без шифрования — задай BACKUP_ENCRYPTION_KEY (RESTORE.md)")),
             disable_notification=True,
         )
         _write_offsite_marker()
@@ -323,5 +332,85 @@ async def send_offsite_backup(bot, min_interval_hours=None):
         if packed:
             try:
                 os.remove(packed)
+            except Exception:
+                pass
+
+
+# =====================================
+# АРХИВ КОДА (план Б, решение 05.11: «главное — весь код и алгоритмы сохранить на запас»)
+# =====================================
+# Код живёт на GitHub. Вторая независимая копия — раз в неделю архивом админу в Telegram (рядом с копиями базы), зашифрованная тем же
+# ключом, если он задан. Берём исходники (код, разметку, тексты, настройки), без базы, копий, журналов и тяжёлых видео.
+
+CODE_SUFFIXES = (".py", ".js", ".html", ".css", ".md", ".txt", ".json", ".ini", ".yml", ".yaml", ".toml", ".svg", ".example")
+CODE_NAMES = ("Procfile",)
+CODE_SKIP_DIRS = {".git", "__pycache__", "backups", "node_modules", ".pytest_cache", "logs", ".claude"}
+CODE_MARKER = ".code_archive_last"
+CODE_ARCHIVE_DAYS = 7
+
+
+def build_code_archive(root, dest):
+    """Zip исходников проекта из root в dest. Возвращает число файлов."""
+    import zipfile
+    count = 0
+    with zipfile.ZipFile(dest, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+        for folder, dirs, files in os.walk(root):
+            dirs[:] = sorted(d for d in dirs if d not in CODE_SKIP_DIRS and not d.startswith("."))
+            for name in sorted(files):
+                if not (name.endswith(CODE_SUFFIXES) or name in CODE_NAMES):
+                    continue
+                if name.startswith(".env") and name != ".env.example":
+                    continue                                   # секреты не архивируем никогда
+                path = os.path.join(folder, name)
+                zf.write(path, os.path.relpath(path, root))
+                count += 1
+    return count
+
+
+async def send_code_archive(bot, force=False):
+    """Раз в CODE_ARCHIVE_DAYS дней — архив кода админу в Telegram (зашифрован, если задан ключ)."""
+    from aiogram.types import FSInputFile
+
+    from backups.crypto import ENC_SUFFIX, backup_key, encrypt_file
+    from config import ADMIN_ID
+    marker = os.path.join(BACKUP_FOLDER, CODE_MARKER)
+    if not force:
+        try:
+            with open(marker, encoding="utf-8") as f:
+                last = datetime.fromisoformat(f.read().strip())
+            if (datetime.now(timezone.utc) - last).total_seconds() < CODE_ARCHIVE_DAYS * 86400:
+                return False
+        except Exception:
+            pass
+    os.makedirs(BACKUP_FOLDER, exist_ok=True)
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    archive = os.path.join(BACKUP_FOLDER, f"adam-code-{stamp}.zip")
+    to_send = archive
+    try:
+        files = await asyncio.to_thread(build_code_archive, root, archive)
+        key = backup_key()
+        if key:
+            to_send = archive + ENC_SUFFIX
+            await asyncio.to_thread(encrypt_file, archive, to_send, key)
+        size = os.path.getsize(to_send)
+        if size > TELEGRAM_FILE_LIMIT:
+            logger.warning(f"Архив кода больше лимита Telegram: {size} байт")
+            return False
+        await bot.send_document(
+            chat_id=ADMIN_ID, document=FSInputFile(to_send), disable_notification=True,
+            caption=f"🗂 Архив кода · {stamp} · {files} файлов · {max(size / 1024 / 1024, 0.1):.1f} МБ · "
+                    + ("🔒 зашифрован" if key else "⚠️ без шифрования — задай BACKUP_ENCRYPTION_KEY"),
+        )
+        with open(marker, "w", encoding="utf-8") as f:
+            f.write(datetime.now(timezone.utc).isoformat())
+        return True
+    except Exception as e:
+        logger.warning(f"Не удалось отправить архив кода: {e}")
+        return False
+    finally:
+        for path in {archive, to_send}:
+            try:
+                os.remove(path)
             except Exception:
                 pass
