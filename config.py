@@ -85,7 +85,7 @@ SUBSCRIPTION_STREAK_DAYS_FOR_CHANNEL = int(os.getenv("SUBSCRIPTION_STREAK_DAYS_F
 # Вылетел из канала (серия сгорела или подписка кончилась) — вернуться можно с серией от стольких дней (решение 05.11: 5, было задумано 7).
 CHANNEL_REENTRY_STREAK_DAYS = int(os.getenv("CHANNEL_REENTRY_STREAK_DAYS", "5"))
 # Куда писать по вопросам оплаты и возвратов (/paysupport, требование Telegram для ботов с платежами); тот же адрес указан в /terms.
-SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "egormatancev12@gmail.com")
+SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "eto424968@gmail.com")
 # Запасной способ связи, который видит человек, если оплата прошла, а доступ не открылся (ТЗ 28.10 §19): контакты в Telegram. Решение владельца 28.10: оба аккаунта.
 # Можно переопределить переменной окружения SUPPORT_CONTACT на Railway (пустое значение уберёт Telegram-контакты, останется почта выше).
 SUPPORT_CONTACT = os.getenv("SUPPORT_CONTACT", "@floydddo, @AlxManagement").strip()
