@@ -5836,7 +5836,7 @@ async function openChestReveal({ eyebrow, caption = "", final = false, tone = ""
   // не обрывал заряд; с клавиатуры — держать Enter или Пробел. Тряска — из скрипта (CSS-анимации здесь конечные).
   const reduceHold = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const outcome = await new Promise((resolve) => {
-    let charge = 0, holding = false, step = 0, last = 0, raf = 0, done = false;
+    let charge = 0, holding = false, step = 0, last = 0, raf = 0, done = false, phase = 0;
     const box = stage.querySelector(".chest-box");
     const finish = (value) => {
       if (done) return;
@@ -5858,9 +5858,18 @@ async function openChestReveal({ eyebrow, caption = "", final = false, tone = ""
       charge = Math.max(0, Math.min(1, charge + (holding ? dt / CHEST_CHARGE_MS : -dt / CHEST_DRAIN_MS)));
       card.style.setProperty("--charge", charge.toFixed(3));
       setRing(charge);
-      if (box) box.style.transform = holding && !reduceHold
-        ? `translate(${((Math.random() - .5) * 7 * charge).toFixed(1)}px,${((Math.random() - .5) * 4 * charge).toFixed(1)}px) scale(${(1 + .04 * charge).toFixed(3)},${(1 - .04 * charge).toFixed(3)})`
-        : "";
+      // Тряска заряда: качание, которое с зарядом становится чаще и сильнее (в начале — лёгкое покачивание, к концу — дрожь перед открытием).
+      // При «уменьшить движение» — только лёгкое покачивание без сдвига.
+      if (box) {
+        if (charge > 0.001) {
+          phase += dt * (0.010 + 0.030 * charge * charge);
+          const amp = reduceHold ? 1.2 : 1.5 + 4.5 * charge;
+          const rot = Math.sin(phase) * amp;
+          const dx = reduceHold ? 0 : Math.sin(phase * 1.7) * 2.2 * charge;
+          const sq = reduceHold ? 0 : 0.035 * charge;
+          box.style.transform = `translateX(${dx.toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${(1 + sq).toFixed(3)},${(1 - sq).toFixed(3)})`;
+        } else box.style.transform = "";
+      }
       const reached = Math.floor(charge * CHEST_STEPS + 1e-6);
       if (holding && reached > step) {
         step = reached;

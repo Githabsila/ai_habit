@@ -15231,7 +15231,7 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .chest-ring__halo{stroke:var(--acc);stroke-opacity:.25;stroke-width:9;stroke-linecap:round}
 .chest-ring__fg{stroke:var(--acc);stroke-width:3;stroke-linecap:round}
 .chest-burst{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;border:4px solid var(--acc);opacity:0;pointer-events:none}
-.chest-box{position:absolute;left:28px;top:24px;width:164px;height:164px}
+.chest-box{position:absolute;left:35px;top:25px;width:150px;height:150px;transform-origin:50% 75%}
 .chest-svg{display:block;width:100%;height:100%;overflow:visible}
 .chest-lid{transform-box:fill-box;transform-origin:6% 92%}
 .chest-treasure{opacity:0}
@@ -15269,7 +15269,8 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
    Рамка — внутренней тенью, а не border: высота кнопки одна во всех фазах, окно не дёргается. */
 .chest-card[data-phase="wait"] .chest-btn,.chest-card[data-phase="shake"] .chest-btn{color:#A8A6B8;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);font-weight:700}
 
-.chest-card[data-phase="wait"] .chest-box{animation:chestDrop .6s cubic-bezier(.2,1.25,.4,1) both}
+/* Появление — у самого рисунка: анимация с fill на .chest-box перекрывала тряску заряда из скрипта (inline transform), и сундук стоял неподвижно. */
+.chest-card[data-phase="wait"] .chest-svg{animation:chestDrop .6s cubic-bezier(.2,1.25,.4,1) both}
 .chest-card[data-phase="wait"][data-charging="0"] .chest-lid{animation:chestInvite 1.1s ease-in-out 1s 3}
 .chest-card[data-phase="shake"] .chest-box{animation:chestShake .4s ease-in-out 3}
 .chest-card[data-phase="shake"],.chest-card[data-phase="open"]{--charge:1}
@@ -15289,7 +15290,7 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 @keyframes chestSpark{0%{opacity:0;transform:translate(0,0) scale(.3) rotate(0)}15%{opacity:1}100%{opacity:0;transform:translate(var(--dx,0),var(--dy,0)) scale(1) rotate(200deg)}}
 @keyframes chestPrize{from{opacity:0;transform:translateY(14px) scale(.6)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){
-  .chest-card[data-phase] .chest-box,.chest-card[data-phase] .chest-lid,.chest-card[data-phase] .chest-burst,.chest-card[data-phase] .chest-spark{animation:none}
+  .chest-card[data-phase] .chest-box,.chest-card[data-phase] .chest-svg,.chest-card[data-phase] .chest-lid,.chest-card[data-phase] .chest-burst,.chest-card[data-phase] .chest-spark{animation:none}
   .chest-card[data-phase="open"] .chest-lid{transform:translate(-4px,-40px) rotate(-32deg)}
   .chest-card[data-phase="open"] .chest-prize{animation:none;opacity:1}
 }
