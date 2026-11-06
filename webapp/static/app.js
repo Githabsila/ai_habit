@@ -1808,7 +1808,9 @@
         ["✅", "Привычки и задачи дня", "Отмечаются одним нажатием — всё главное на одном экране."],
         ["🔥", "Серия и статусы", "Чем дольше серия, тем выше статус и ярче рамка."],
         [UI_SPARK, "Я в чате", "Подскажу, как спланировать день и не сорваться."],
-      ])}`;
+      ])}
+      <p class="start-quiz-consent">Нажимая «Поехали», ты соглашаешься с <a href="/terms" target="_blank" rel="noopener">Условиями</a> и
+        <a href="/privacy" target="_blank" rel="noopener">Политикой конфиденциальности</a> и даёшь согласие на обработку своих данных.</p>`;
   }
 
   // Шаг вместо прежних «отзывов» Насти, Игоря и Марины: это были придуманные люди, а продукт ещё никому не показывали.
@@ -2061,6 +2063,9 @@
       if (!step) return;
       if (step.type === "choice" && !startQuizAnswers[step.key]) return;
       haptic("light");
+      if (step.type === "welcome") {
+        api("/api/consent", { method: "POST", body: "{}" }).catch(() => {});   // согласие с первого экрана (db/consent.py)
+      }
       if (step.key === "age_range" && startQuizAnswers.age_range === "under16") {
         showAgeStop();
         return;

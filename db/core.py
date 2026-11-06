@@ -186,6 +186,11 @@ def create_tables():
     # Число месяца, к которому привязаны продления при оплате картой (календарные месяцы): 31 января → 28/29 февраля → снова 31 марта.
     # Когда бот убрал человека из закрытого канала (серия сгорела / подписка кончилась): вернуться можно с серией CHANNEL_REENTRY_STREAK_DAYS.
     # «Скрыть меня из рейтинга» (настройки): человека не видно в списках рейтинга и сезона, сам он рейтинг видит; призы сезона не трогает.
+    # Согласие на обработку данных (db/consent.py): версия документов и когда человек согласился.
+    if "consent_version" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN consent_version TEXT")
+    if "consent_at" not in users_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN consent_at TIMESTAMP")
     if "rating_hidden" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN rating_hidden INTEGER DEFAULT 0")
     if "channel_removed_at" not in users_columns:

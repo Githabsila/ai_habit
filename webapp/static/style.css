@@ -15442,3 +15442,7 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 
 /* Стоп-экран 16+ в стартовой анкете (решение 05.11) — спокойный текст по центру вместо вариантов ответа. */
 .start-quiz-age-stop{margin:24px 4px 0;font-size:16px;line-height:1.5;color:rgba(255,255,255,.82);text-align:center}
+
+/* Согласие на обработку данных на первом экране анкеты (db/consent.py) — мелко и спокойно, ссылки различимы. */
+.start-quiz-consent{margin:14px 4px 0;font-size:12px;line-height:1.45;color:rgba(255,255,255,.55);text-align:center}
+.start-quiz-consent a{color:rgba(196,181,253,.95);text-decoration:underline}

@@ -1816,6 +1816,15 @@ async def handle_intro_seen(request):
     mark_handle_intro_seen(telegram_id)
     return web.json_response({"ok": True})
 
+@routes.post("/api/consent")
+async def consent_route(request):
+    """Согласие на обработку данных с первого экрана анкеты (db/consent.py): запоминаем версию документов и время."""
+    telegram_id, _ = await _authenticate(request)
+    from db.consent import CONSENT_VERSION, record_consent
+    record_consent(telegram_id, CONSENT_VERSION)
+    return web.json_response({"ok": True, "version": CONSENT_VERSION})
+
+
 @routes.post("/api/start-quiz/seen")
 async def start_quiz_seen(request):
     telegram_id, _ = await _authenticate(request)
