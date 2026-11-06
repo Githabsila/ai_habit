@@ -79,7 +79,7 @@ FEATURES = (
     Feature(
         "daily_plan", "План дня: главная и второстепенные задачи", "core", "2026-01-01",
         clicks=("saveMainGoalBtn", "addPlanTaskTrigger", "plan-icon-btn*"),
-        events=("main_goal_set", "main_goal_done", "task_added", "task_done"),
+        events=("main_goal_set", "main_goal_done", "task_added", "task_done", "task_captured_in_bot"),
         api=("POST /api/plan/save", "POST /api/plan/task/toggle", "POST /api/plan/main/save", "POST /api/plan/main/toggle",
              "DELETE /api/plan/main", "POST /api/plan/task", "PUT /api/plan/task/{task_id}", "DELETE /api/plan/task/{task_id}"),
     ),

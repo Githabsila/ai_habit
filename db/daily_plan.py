@@ -129,11 +129,18 @@ def toggle_daily_main_goal(user_id):
     conn.close()
 
 
-def add_daily_task(user_id, text, max_tasks=MAX_DAILY_TASKS):
+def tomorrow_plan_date(user_id):
+    """Дата завтрашнего плана (по местному «сегодня» плана + 1 день) — для «на завтра» из чата бота и переноса задач."""
+    from datetime import date
+    return str(date.fromisoformat(_effective_plan_date(user_id)) + timedelta(days=1))
+
+
+def add_daily_task(user_id, text, max_tasks=MAX_DAILY_TASKS, plan_date=None):
+    """plan_date — в план другого дня (например, завтрашний); по умолчанию сегодняшний."""
     text = (text or "").strip()[:MAX_DAILY_TASK_TEXT_LENGTH]
     if not text:
         return None
-    plan = get_daily_plan(user_id)
+    plan = get_daily_plan(user_id, plan_date)
     if len(plan["tasks"]) >= max_tasks:
         raise ValueError("task_limit")
 

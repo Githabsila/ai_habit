@@ -56,6 +56,7 @@ def _sent_texts(bot):
 
 async def test_plain_text_gets_a_way_into_the_chat_with_adam(dp, monkeypatch):
     monkeypatch.setattr(keyboards, "WEBAPP_URL", "https://example.test")
+    monkeypatch.setattr(fallback, "capture_enabled", lambda _uid: False)         # захват задач выключен — прежний ответ
     bot = _RecordingBot()
     await dp.feed_update(bot, _update(871_000_001, "привет, как добавить привычку?"))
     sent = [c for c in bot.calls if isinstance(c, SendMessage)]
@@ -84,3 +85,65 @@ async def test_groups_are_left_alone(dp):
     bot = _RecordingBot()
     await dp.feed_update(bot, _update(871_000_004, "всем привет", chat_type="supergroup"))
     assert _sent_texts(bot) == []
+
+
+# ---------------------------------------------------------------- захват задач из чата (план, волна 1, п.2)
+
+def _callback(user_id, data, message_id):
+    from aiogram.types import CallbackQuery
+    chat = Chat(id=user_id, type="private")
+    msg = Message(message_id=message_id, date=datetime.now(), chat=chat, text="Добавить в план?",
+                  from_user=User(id=1, is_bot=True, first_name="ADAM"))
+    return Update(update_id=next(_ids), callback_query=CallbackQuery(id=str(next(_ids)), from_user=User(id=user_id, is_bot=False, first_name="Аня"),
+                                                                       chat_instance="ci", data=data, message=msg))
+
+
+async def test_capture_adds_the_text_to_today_or_tomorrow(dp, monkeypatch, uid):
+    from aiogram.methods import EditMessageText
+    from db import add_user
+    from db.daily_plan import get_daily_plan, tomorrow_plan_date
+    add_user(uid, "a", "Аня")
+    monkeypatch.setattr(fallback, "capture_enabled", lambda _uid: True)
+    bot = _RecordingBot()
+    await dp.feed_update(bot, _update(uid, "Купить подарок маме"))
+    question = [c for c in bot.calls if isinstance(c, SendMessage)][-1]
+    assert "Добавить в план?" in question.text and "Купить подарок маме" in question.text
+    assert [b.callback_data for row in question.reply_markup.inline_keyboard for b in row] == ["capture:today", "capture:tomorrow", "capture:no"]
+
+    await dp.feed_update(bot, _callback(uid, "capture:today", 50))
+    assert [t["text"] for t in get_daily_plan(uid)["tasks"]] == ["Купить подарок маме"]
+    edited = [c for c in bot.calls if isinstance(c, EditMessageText)][-1]
+    assert "В плане на сегодня" in edited.text
+
+    await dp.feed_update(bot, _update(uid, "Записаться к врачу"))
+    await dp.feed_update(bot, _callback(uid, "capture:tomorrow", 51))
+    assert [t["text"] for t in get_daily_plan(uid, tomorrow_plan_date(uid))["tasks"]] == ["Записаться к врачу"]
+    assert len(get_daily_plan(uid)["tasks"]) == 1
+
+    await dp.feed_update(bot, _callback(uid, "capture:today", 52))            # повторное нажатие — второй раз не добавляет
+    assert len(get_daily_plan(uid)["tasks"]) == 1
+
+
+async def test_capture_can_be_declined_and_commands_are_not_captured(dp, monkeypatch, uid):
+    from db import add_user
+    from db.daily_plan import get_daily_plan
+    add_user(uid, "a", "Аня")
+    monkeypatch.setattr(fallback, "capture_enabled", lambda _uid: True)
+    bot = _RecordingBot()
+    await dp.feed_update(bot, _update(uid, "Позвонить"))
+    await dp.feed_update(bot, _callback(uid, "capture:no", 60))
+    assert get_daily_plan(uid)["tasks"] == []
+    await dp.feed_update(bot, _update(uid, "/unknowncmd"))
+    assert _sent_texts(bot)[-1] == fallback.FALLBACK_TEXT
+
+
+def test_capture_is_admins_only_until_the_flag_is_on(uid, monkeypatch):
+    from db.feature_flags import set_feature_flag
+    monkeypatch.setattr(fallback, "ADMIN_IDS", [uid])
+    assert fallback.capture_enabled(uid) is True
+    assert fallback.capture_enabled(uid + 1) is False
+    set_feature_flag(fallback.CAPTURE_FLAG, True, 100)
+    try:
+        assert fallback.capture_enabled(uid + 1) is True
+    finally:
+        set_feature_flag(fallback.CAPTURE_FLAG, False, 100)

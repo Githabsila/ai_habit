@@ -100,6 +100,11 @@ def _fallback(user_id):
     return FALLBACK_TEXT, adam_chat_markup()
 
 
+def _capture(user_id):
+    from handlers.fallback import capture_keyboard, capture_question
+    return capture_question("Купить подарок маме"), capture_keyboard()
+
+
 def _age(user_id):
     from db.age_gate import AGE_RESTRICTED_TEXT
     return AGE_RESTRICTED_TEXT, None
@@ -121,6 +126,7 @@ CATALOG = (
     CatalogItem("channel_streak", "Закрытый канал", "Вылет: серия погасла", "Когда канал подключён", _channel_removed("streak")),
     CatalogItem("channel_subscription", "Закрытый канал", "Вылет: подписка закончилась", "Когда канал подключён", _channel_removed("subscription")),
     CatalogItem("fallback", "Ответы бота", "Ответ на обычный текст", "Человек написал боту что-то вне режимов", _fallback),
+    CatalogItem("capture", "Ответы бота", "Задача из чата: «Добавить в план?»", "Человек написал боту текст (админы и флаг bot_quick_capture)", _capture),
     CatalogItem("age", "Ответы бота", "Сервис для 16+", "Ответил в анкете «Мне нет 16»", _age),
 )
 BY_KEY = {item.key: item for item in CATALOG}
