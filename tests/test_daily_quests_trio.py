@@ -487,7 +487,7 @@ def test_the_simulation_scenes_use_the_same_titles_as_the_server_and_are_registe
     assert block.count("openQuestsWindow({") == 5
     for forbidden in ("api(", "fetch(", "applyActionPatch", "bootstrap", "claim"):
         assert forbidden not in block, forbidden
-    assert "closeQuestsOverlay();" in APP_JS[APP_JS.index("function playSimScene()"):][:700]
+    assert '["dailyQuestsOverlay", () => closeQuestsOverlay()]' in APP_JS[APP_JS.index("const SIM_CLOSERS = ["):][:1500]   # сброс перед сценой (resetSimStage)
 
 
 def test_hints_and_chips_do_not_repeat_the_words_of_the_window_title():

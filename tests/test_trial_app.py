@@ -176,8 +176,10 @@ def test_the_simulations_are_listed_and_run_the_real_windows():
                    "trial_paywall_intro: () => showTrialPaywall(SIM_TRIAL_INTRO_EXPIRED, { demo: true }),",
                    "trial_paywall_full: () => showTrialPaywall(SIM_TRIAL_FULL_EXPIRED, { demo: true }),", "openSubscriptionScreen({ source: \"sim\"", "showTrialSummary()"):
         assert needle in APP_JS, needle
-    play = APP_JS[APP_JS.index("function playSimScene() {"):][:260]
-    assert "closeTrialPaywall();" in play, "окна триала не перекрывают следующую сцену"
+    play = APP_JS[APP_JS.index("async function playSimScene() {"):][:400]
+    assert "await resetSimStage();" in play, "перед сценой закрывается всё от прошлых (06.11: окна копились)"
+    closers = APP_JS[APP_JS.index("const SIM_CLOSERS = ["):][:1500]
+    assert '["trialPaywallOverlay", () => closeTrialPaywall()]' in closers, "окна триала не перекрывают следующую сцену"
     assert "z-index:10300" in CSS[CSS.index(".lab-bar{"):][:200], "панель симуляций выше блокирующего окна"
 
 
@@ -189,7 +191,7 @@ def test_the_styles_are_light_and_the_block_sits_before_the_chest():
     for forbidden in ("filter", "backdrop-filter", "infinite", "animation"):
         assert forbidden not in css, forbidden
     assert "Окно «Сундук»" not in css.split("*/", 1)[1]
-    assert "style.css?v=20261106_HUB_V92" in INDEX and "app.js?v=20261106_HUB_V107" in INDEX
+    assert "style.css?v=20261106_HUB_V93" in INDEX and "app.js?v=20261106_HUB_V108" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- тексты (Node на заглушках DOM)

@@ -104,6 +104,34 @@ const SIM_TRIAL_MESSAGES = [
       trialOffer: { key: 'summary_ask', text: 'Показать короткую сводку?', yes: 'Да', later: 'Не сейчас', terms: 'Условия подписки' } },
 ];
 const SIM_TRIAL_SUMMARY = 'Коротко за 3 дня с Адамом\n\nПривычки: отмечено 5 раз в 3 из 3 дней.\n\nЧаще всего повторялась «Зарядка» — 3 раза.';
+// Панель «Окон и анимаций» на странице чата (найдено 06.11: листание сцен обрывалось на этой сцене — со страницы чата не было пути
+// ни к следующему окну, ни обратно). Соседние сцены приходят в адресе (?prev=…&next=…), панель — простая, вне React.
+if (SIM_TRIAL_CHAT) {
+    try {
+        const q = new URLSearchParams(location.search);
+        const go = (key) => { if (key) window.location.href = '/?sim=' + encodeURIComponent(key); };
+        const bar = document.createElement('div');
+        bar.id = 'simChatBar';
+        // Сверху и во всю ширину: снизу панель закрывала блок «Показать короткую сводку?» — то, ради чего сцена.
+        bar.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px) + 8px);z-index:9999;'
+            + 'display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:16px;background:rgba(22,18,30,.96);border:1px solid rgba(245,197,66,.45);'
+            + 'box-shadow:0 10px 30px rgba(0,0,0,.45);font:600 12px/1.3 Inter,-apple-system,sans-serif;color:#f4f1fa;max-width:560px;margin:0 auto';
+        const btn = (label, title, onClick) => {
+            const b = document.createElement('button');
+            b.type = 'button'; b.textContent = label; b.setAttribute('aria-label', title);
+            b.style.cssText = 'min-width:36px;height:36px;border-radius:11px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:inherit;font:inherit;cursor:pointer';
+            b.addEventListener('click', onClick);
+            return b;
+        };
+        const label = document.createElement('div');
+        label.style.cssText = 'flex:1;min-width:0;text-align:center;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        label.innerHTML = '<b style="color:#f5c542">🎬 Окно ' + (Number(q.get('n')) || '') + '/' + (Number(q.get('of')) || '') + '</b><br><small>Вопрос Адама и сводка в чате</small>';
+        bar.append(btn('‹', 'Предыдущее окно', () => go(q.get('prev'))), label, btn('›', 'Следующее окно', () => go(q.get('next'))),
+                   btn('✕', 'Выйти в админку', () => { window.location.href = '/admin'; }));
+        const mount = () => document.body.appendChild(bar);
+        if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
+    } catch (e) { }
+}
 function goHome() {
     if (window.AdamHaptics) {
         window.AdamHaptics.tap();
