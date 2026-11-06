@@ -92,7 +92,8 @@ def diagnose_user(user_id, now_utc=None):
     skips_today = {s["kind"]: s for s in recent_skips(user_id, since_day=today) if s["day"] == today}
 
     checkpoints = []
-    for hour in CHECK_HOURS:
+    from db.reminder_experiment import in_group_7
+    for hour in ((10,) + CHECK_HOURS if in_group_7(user_id) else CHECK_HOURS):   # группа «7» эксперимента получает и 10:00
         kind = f"habit_checkpoint_{hour}"
         at = now_local.replace(hour=hour, minute=0, second=0, microsecond=0)
         verdict = coach.checkpoint_verdict(user_id, settings, at, hour, check_window=False, check_fresh_mark=False)

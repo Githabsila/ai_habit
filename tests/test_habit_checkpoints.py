@@ -110,12 +110,34 @@ async def test_checkpoint_22_is_skipped_on_an_empty_day_because_23_and_23_30_fol
     assert [(s["kind"], s["reason"]) for s in recent_skips(uid, since_day="2026-01-01")] == [("habit_checkpoint_22", "risk_next")]
 
 
-def test_the_10_oclock_checkpoint_is_no_longer_scheduled():
-    """Не больше 5 напоминаний в день: точку в 10:00 убрали из расписания — утро закрывает «Доброе утро» в 06:00."""
-    from pathlib import Path
-    main_py = (Path(__file__).resolve().parent.parent / "main.py").read_text(encoding="utf-8")
-    assert "add_job(run_habit_checkpoint_10" not in main_py
-    assert "add_job(run_habit_checkpoint_12" in main_py and "add_job(run_habit_checkpoint_22" in main_py
+async def test_the_10_oclock_checkpoint_goes_only_to_the_7_group(monkeypatch, uid):
+    """Не больше 5 напоминаний в день: точка в 10:00 — только группе «7» эксперимента (флаг reminders_7, db/reminder_experiment.py)."""
+    import coach
+    import db.reminder_experiment as rx
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Пить воду")
+    _patch_user(monkeypatch, uid)
+    _freeze(monkeypatch, 10, 0)
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_10(bot)
+    assert bot.sent == [], "группа «5» (по умолчанию) в 10:00 ничего не получает"
+    monkeypatch.setattr(rx, "in_group_7", lambda _uid: True)
+    await coach.run_habit_checkpoint_10(bot)
+    assert len(bot.sent) == 1
+
+
+async def test_the_7_group_gets_22_even_on_an_empty_day(monkeypatch, uid):
+    import coach
+    import db.reminder_experiment as rx
+    add_user(uid, "u", "Test")
+    add_habit(uid, "Пить воду")
+    _patch_user(monkeypatch, uid)
+    monkeypatch.setattr(coach, "has_completed_today", lambda _uid: False)
+    monkeypatch.setattr(rx, "in_group_7", lambda _uid: True)
+    _freeze(monkeypatch, 22, 0)
+    bot = FakeBot()
+    await coach.run_habit_checkpoint_22(bot)
+    assert len(bot.sent) == 1
 
 
 async def test_checkpoint_17_still_fires_after_partial_completion(monkeypatch, uid):

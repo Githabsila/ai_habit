@@ -522,6 +522,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--teal">🧪</span>Эксперимент: 5 или 7 напоминаний</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Группа «5» — 06, 12, 17, 22 (если что-то отмечено), 23, 23:30. Группа «7» — плюс 10:00, 22:00 и в пустой день, «вернись в серию» в 21:00. Прочтение Telegram боту не сообщает — смотрим, отметил ли человек привычку в течение часа после напоминания, выключил ли напоминания, заблокировал ли бота.</div>' +
+        '<div id="remindExpBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--violet">✉️</span>Сообщения бота</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Всё, что бот шлёт сам: напоминания, таймер, возврат в серию, канал, ответы. Собрано тем же кодом, что и настоящая рассылка, на твоих привычках. «Прислать мне» — придёт только тебе в Telegram, в базу ничего не пишется. Сообщения триала — в карточке «Триал».</div>' +
         '<div id="botMsgBox"><div class="empty-note">Загружаю…</div></div>' +
@@ -589,6 +595,7 @@ textarea.field{resize:vertical;min-height:88px}
     loadLab();
     loadSims();
     loadBotMessages();
+    loadReminderExperiment();
     loadAdamLab();
     loadAdamChatLab();
     loadReferrals();
@@ -874,6 +881,40 @@ textarea.field{resize:vertical;min-height:88px}
         items.map(function(s){
           return '<a class="btn" style="text-align:left;text-decoration:none" href="/?lab=' + encodeURIComponent(s.key) + '">🤝 ' + escapeHtml(s.title) + '</a>';
         }).join('') + '</div>';
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  // Эксперимент «до 5 или до 7 напоминаний» (db/reminder_experiment.py): группы по флагу reminders_7.
+  async function loadReminderExperiment(){
+    var box = document.getElementById('remindExpBox');
+    if (!box) return;
+    try{
+      var d = await api('/api/admin/reminder-experiment?days=14');
+      var f = d.flag || {};
+      var state = f.enabled ? ('идёт: в группе «7» ' + f.rollout_pct + '% людей') : 'выключен — все в группе «5»';
+      function v(x, suffix){ return (x === null || x === undefined) ? '—' : (x + (suffix || '')); }
+      function col(name, g){
+        return '<div class="list-row" style="flex-direction:column;align-items:stretch;gap:2px"><b>Группа «' + name + '» · ' + g.users + ' чел.</b>' +
+          '<small>в среднем за день: ' + v(g.per_day) + ' · всего ' + g.reminders + '</small>' +
+          '<small>после напоминания отметили в течение часа: <b>' + v(g.followed_pct, '%') + '</b></small>' +
+          '<small>выключили напоминания: ' + v(g.reminders_off_pct, '%') + ' · заблокировали бота: ' + v(g.blocked_pct, '%') + '</small></div>';
+      }
+      box.innerHTML = '<div class="empty-note" style="padding:0 0 6px">Статус: <b>' + escapeHtml(state) + '</b> · за ' + d.days + ' дней</div>' +
+        col('5', d.groups['5']) + col('7', d.groups['7']) +
+        '<div class="btn-row" style="margin-top:8px"><button class="btn btn-accent" data-rx="50">Запустить 50/50</button><button class="btn" data-rx="0">Остановить</button></div>';
+      box.querySelectorAll('[data-rx]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          var pct = parseInt(btn.dataset.rx, 10);
+          btn.disabled = true;
+          try{
+            await api('/api/admin/flags', { method: 'POST', body: JSON.stringify({ key: 'reminders_7', enabled: pct > 0, rollout_pct: pct || 0, description: 'Эксперимент: до 7 напоминаний в день (группа «7»)' }) });
+            showToast(pct ? 'Эксперимент запущен: половина людей в группе «7»' : 'Эксперимент остановлен: все в группе «5»');
+            loadReminderExperiment();
+          }catch(e){ showToast('Не получилось'); btn.disabled = false; }
+        });
+      });
     }catch(e){
       box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }

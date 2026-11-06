@@ -77,6 +77,8 @@ def _skips(user_id, kind="habit_checkpoint_10"):
 
 
 async def _run10(monkeypatch, user_id, hour=10):
+    import db.reminder_experiment as rx
+    monkeypatch.setattr(rx, "in_group_7", lambda _uid: True)       # 10:00 — только группе «7» эксперимента «до 5 или до 7»
     _only(monkeypatch, user_id)
     _freeze(monkeypatch, hour)
     bot = FakeBot()

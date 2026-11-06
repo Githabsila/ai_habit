@@ -891,6 +891,18 @@ async def admin_user_trial_action_route(request):
     return web.json_response({"ok": True, **result, **(_trial_state(telegram_id) or {}), "access": get_access(telegram_id)})
 
 
+@routes.get("/api/admin/reminder-experiment")
+async def admin_reminder_experiment_route(request):
+    """Эксперимент «до 5 или до 7 напоминаний» (db/reminder_experiment.py): цифры по группам за ?days= дней (по умолчанию 14)."""
+    await _authenticate_admin(request)
+    from db import reminder_experiment
+    try:
+        days = max(1, min(90, int(request.rel_url.query.get("days", "14"))))
+    except ValueError:
+        days = 14
+    return web.json_response(reminder_experiment.stats(days))
+
+
 @routes.get("/api/admin/flags")
 async def admin_flags_list_route(request):
     """Roadmap #41 — feature flags."""
