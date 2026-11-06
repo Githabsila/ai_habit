@@ -322,7 +322,7 @@ def test_no_trial_text_looks_raw_gendered_or_formal(uid):
 def test_a_name_with_html_is_escaped(uid):
     _person(uid, day=3, name="<b>Аня</b>")
     text = tm.render("d3_end", _at(uid, 19))
-    assert "<b>" not in text and "&lt;b&gt;Аня&lt;/b&gt;" in text
+    assert "<b>Аня</b>" not in text and "&lt;b&gt;Аня&lt;/b&gt;" in text      # имя экранировано; жирная цена (с 05.11) — наша разметка
 
 
 def test_the_text_after_payment_names_the_term_the_free_days_and_the_renewal():
