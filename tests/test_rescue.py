@@ -549,7 +549,7 @@ def test_both_scenes_are_in_the_simulation_lab():
     assert "rescue_help_sent: () => openRescueHelp({ sim: true, friend: SIM_RESCUE_FRIEND, sent: true, restored: 13 })," in block
     for forbidden in ("api(", "fetch(", "applyActionPatch", "bootstrap", "claim"):
         assert forbidden not in block, forbidden
-    assert "closeRescueHelp(true);" in APP_JS[APP_JS.index("function playSimScene()"):][:400]
+    assert '["rescueHelpOverlay", () => closeRescueHelp(true)]' in APP_JS[APP_JS.index("const SIM_CLOSERS = ["):][:1500]   # сброс перед сценой (resetSimStage)
 
 
 def test_styles_are_light_for_weak_webviews_and_sit_before_the_chest_block():

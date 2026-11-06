@@ -1087,12 +1087,17 @@
     renderHeroWidget();
     const bw = state?.bonus_window;
     setBonusWindow(bw && bw.active ? bw.until : null);
-    maybeShowStartQuiz();
-    maybeShowStreakOnboarding();
-    maybeShowAdamIntro();
+    // «Окна и анимации» (?sim=…): окна, которые всплывают сами (анкета, тур, знакомство, «Адам написал», подарок), перекрывали сцены.
+    if (!SIM_REQUESTED) {
+      maybeShowStartQuiz();
+      maybeShowStreakOnboarding();
+      maybeShowAdamIntro();
+    }
     stabilizeFirstPaint();
-    maybeScheduleEveningAdamNudge();
-    scheduleAdminGift();
+    if (!SIM_REQUESTED) {
+      maybeScheduleEveningAdamNudge();
+      scheduleAdminGift();
+    }
     // Warm the profile data in the background. This makes a later tap on
     // "Профиль" instant without adding anything to the initial critical path.
     scheduleProfilePrefetch();
@@ -3372,6 +3377,7 @@
 
   // Ждём тишины (праздничные экраны, шторки, подсказки тура) и показываем.
   function scheduleAdamNudge({ delayMs = 0 } = {}) {
+    if (typeof SIM_REQUESTED !== "undefined" && SIM_REQUESTED) return;   // режим сцен: «Я написал тебе в чат» не должен всплывать поверх
     const nudge = state?.ai_nudge;
     if (!nudge?.eligible || nudge.hint_shown_today || state?.show_app_tour) return;
     if (delayMs > 0) {
@@ -8598,7 +8604,7 @@ const SIM_TRIAL_LAST = { ...SIM_TRIAL, day: 3, phase: "day3", ends_at_text: "30 
 const SIM_TRIAL_INTRO_EXPIRED = { ...SIM_TRIAL, day: 4, phase: "grace", state: "grace", read_only: true, ends_at_text: "29 октября, 00:00", streak: 2, marked_today: false, marked_yesterday: true, timer_demo_ms: 14 * 3600000 + 5 * 60000 };
 const SIM_TRIAL_FULL_EXPIRED = { ...SIM_TRIAL, day: 6, phase: "expired", state: "expired", read_only: false, streak: 0, marked_yesterday: false };
 const SIM_TRIAL_PAID = { ...SIM_TRIAL, phase: "paid", state: "paid", paid: true, intro_active: false };
-const SIM_SUB_OVERVIEW = { auto_renew: false, can_toggle: false, autorenew_available: false, paid_until_text: "30 ноября, 00:00", payment_pending: false, support: "@egor_support" };
+const SIM_SUB_OVERVIEW = { auto_renew: false, can_toggle: false, autorenew_available: false, paid_until_text: "30 ноября, 00:00", payment_pending: false, support: "@floydddo, @AlxManagement" };
 const SIM_SUB_AUTO = { ...SIM_SUB_OVERVIEW, auto_renew: true, can_toggle: true, autorenew_available: true };
 const SIM_SUMMARY = {
   title: "Коротко за 3 дня с Адамом", enough: true,
@@ -10488,6 +10494,9 @@ const simMonth = (points) => ({
   ],
 });
 
+// Открыто «Окно и анимация» из админки — окна, которые всплывают сами, не показываем (см. рендер после загрузки и scheduleAdamNudge).
+const SIM_REQUESTED = (() => { try { return new URLSearchParams(location.search).has("sim"); } catch (_) { return false; } })();
+
 const SIM_SCENES = {
   chest_month: () => openChestReveal({
     eyebrow: "СУНДУК МЕСЯЦА", caption: "30 из 60 заданий",
@@ -10519,8 +10528,19 @@ const SIM_SCENES = {
   pay_methods: () => { closePayChoice(); openPayChoice(SIM_PAY_METHODS, { demo: true, kind: "subscription", title: "Подписка на Адама", methods: SIM_PAY_METHODS }); },
   partner_screen: () => openPartnerScreen({ demo: SIM_PARTNER }),
   inviter_card: () => renderInviterCard(SIM_INVITER, { demo: true }),
-  trial_offer_app: () => { closeTrialPaywall(); showTrialOffer(SIM_OFFER, { demo: true }); },
-  trial_chat_offer: () => { window.location.href = "/coach?sim=trial_offer"; },
+  trial_offer_app: () => {
+    closeTrialPaywall();
+    showTrialOffer(SIM_OFFER, { demo: true });
+    document.getElementById("trialOfferCard")?.scrollIntoView({ block: "center", behavior: "smooth" });   // карточка ниже первого экрана
+  },
+  trial_chat_offer: () => {
+    // Сцена живёт на странице чата: передаём соседние сцены, чтобы там была панель «← / → / в админку» (раньше листание на ней обрывалось).
+    const list = simMode?.list || [];
+    const i = simMode ? simMode.index : 0;
+    const prev = list.length ? list[(i - 1 + list.length) % list.length].key : "";
+    const next = list.length ? list[(i + 1) % list.length].key : "";
+    window.location.href = `/coach?sim=trial_offer&prev=${encodeURIComponent(prev)}&next=${encodeURIComponent(next)}&n=${i + 1}&of=${list.length}`;
+  },
   sub_paid: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: SIM_TRIAL_PAID, overview: SIM_SUB_AUTO }); },
   sub_pending: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: { ...SIM_TRIAL, payment_pending: true }, overview: { ...SIM_SUB_OVERVIEW, payment_pending: true } }); },
   sub_summary: () => { closeTrialPaywall(); openSubscriptionScreen({ source: "sim", demo: SIM_TRIAL }).then(() => showTrialSummary()); },
@@ -10579,6 +10599,7 @@ async function initSimMode() {
     const list = ((await api("/api/admin/lab/sims")).scenes || []).filter((item) => SIM_SCENES[item.key]);
     if (!list.length) return;
     simMode = { list, index: Math.max(0, list.findIndex((item) => item.key === key)) };
+    try { simRealAccess = state.access ? JSON.parse(JSON.stringify(state.access)) : state.access; } catch (_) { simRealAccess = state.access; }
     renderSimBar();
     setTimeout(playSimScene, 500);
   } catch (err) {
@@ -10587,11 +10608,77 @@ async function initSimMode() {
   }
 }
 
-function playSimScene() {
-  closeTrialPaywall();                      // окна триала от прошлой сцены не должны перекрывать следующую
-  closeTrialSheet();
-  closeRescueHelp(true);                    // и «Серию можно спасти»: повтор той же сцены заново запускает анимацию значка
-  if (document.getElementById("dailyQuestsOverlay")?.classList.contains("is-open")) closeQuestsOverlay();   // окно «Квесты дня» от прошлой сцены
+// Перед каждой сценой — закрыть всё, что могли открыть прошлые (найдено 06.11: к 15-й сцене на экране висели 6 окон сразу,
+// и «Напомнить друзьям» показывало «Давай познакомимся» из 5-й; сундук после «повторить» не открывался — висел флаг «занято»).
+// Закрывашки зовём ТОЛЬКО для открытых окон (многие прячут окно с задержкой 220–430 мс — вызов на уже закрытом окне потом гасил
+// новую сцену), ждём, пока задержки отработают, добиваем всё, что осталось, и только тогда запускаем сцену. На сервер ничего не пишет.
+const SIM_EXTRA_OVERLAYS = ["remindFriendsSheet", "dailyQuestsOverlay", "levelupOverlay", "streakCelebrationOverlay", "productOnboardingHint", "onboardingSpotlight"];
+const SIM_CLOSERS = [
+  ["trialPaywallOverlay", () => closeTrialPaywall()],
+  ["rescueHelpOverlay", () => closeRescueHelp(true)],
+  ["dailyQuestsOverlay", () => closeQuestsOverlay()],
+  ["shopHubOverlay", () => closeShopHub()],
+  ["payMethodOverlay", () => closePayChoice()],
+  ["partnerOverlay", () => closePartnerScreen()],
+  ["inboxOverlay", () => closeInbox()],
+  ["remindFriendsSheet", () => closeRemindSheet()],
+  ["habitEditSheet", () => closeHabitEdit()],
+  ["habitUndoSheet", () => closeHabitUndo()],
+  ["freezeHelpOverlay", () => closeFreezeHelp()],
+  ["streakCelebrationOverlay", () => closeStreakCelebration()],
+  ["statusLadderOverlay", () => closeStatusLadder()],
+  ["adamIntroOverlay", () => closeAdamIntro()],
+  ["productOnboardingHint", () => hideProductHint()],
+];
+const SIM_SETTLE_MS = 480;                      // дольше самой долгой задержки закрывашек (430 мс у «Квестов дня»)
+let simRunToken = 0;
+const simIsOpen = (id) => { const el = document.getElementById(id); return !!el && !el.hidden; };
+
+let simRealAccess;                             // state.access до первой сцены: демо-карточки триала его подменяют
+
+// Демо на Главной (карточка триала и таймер, «Тебя пригласили», предложение подписки) и очередь уведомлений «Голоса Адама»
+// переживали переход к следующей сцене: последние тосты доезжали в чужую сцену, карточки висели до конца листания.
+function resetSimHome() {
+  const quiet = (fn) => { try { fn(); } catch (_) {} };
+  quiet(() => {
+    toastQueue.length = 0;
+    clearTimeout(toastTimer);
+    toastActive = false;
+    document.getElementById("toast")?.classList.remove("is-visible");
+  });
+  quiet(() => { if (simRealAccess !== undefined) { state.access = simRealAccess ? JSON.parse(JSON.stringify(simRealAccess)) : simRealAccess; renderTrialCard(); } });
+  quiet(() => renderInviterCard());
+  quiet(() => hideTrialOffer());
+}
+
+function forceHideSimOverlays() {
+  [...REMIND_BLOCKING_OVERLAYS, ...SIM_EXTRA_OVERLAYS].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el || el.hidden) return;
+    el.classList.remove("is-open", "show", "active", "visible");
+    el.hidden = true;
+    el.setAttribute("aria-hidden", "true");
+  });
+  document.body.classList.remove("onboarding-scroll-lock", "modal-open", "no-scroll");
+  document.body.style.top = "";
+}
+
+async function resetSimStage() {
+  const quiet = (fn) => { try { fn(); } catch (_) {} };
+  // Сундук ждёт три тапа и держит флаг «занято» — закрываем его как кнопкой «Не сейчас»; если он уже открывается — даём доиграть.
+  if (chestRevealBusy && simIsOpen("chestOverlay")) document.getElementById("chestClose")?.click();
+  SIM_CLOSERS.forEach(([id, close]) => { if (simIsOpen(id)) quiet(close); });
+  quiet(() => closeTrialSheet());
+  await new Promise((resolve) => setTimeout(resolve, SIM_SETTLE_MS));
+  for (let waited = 0; chestRevealBusy && waited < 6000; waited += 100) await new Promise((resolve) => setTimeout(resolve, 100));
+  forceHideSimOverlays();
+  resetSimHome();
+}
+
+async function playSimScene() {
+  const token = ++simRunToken;                  // быстрые «→ → →» — запускается только последняя сцена
+  await resetSimStage();
+  if (token !== simRunToken) return;
   const item = simMode?.list[simMode.index];
   const run = item && SIM_SCENES[item.key];
   if (!run) return;
@@ -10612,6 +10699,13 @@ function renderSimBar() {
       if (!act || !simMode) return;
       haptic("light");
       if (act === "exit") { window.location.href = "/admin"; return; }
+      if (act === "move") {                          // панель закрывала кнопки внизу окон («Не сейчас» у подписки) — переносим наверх и обратно
+        const top = !bar.classList.contains("lab-bar--top");
+        bar.classList.toggle("lab-bar--top", top);
+        document.body.classList.toggle("has-sim-bar-top", top);
+        try { localStorage.setItem("adam_sim_bar_top", top ? "1" : "0"); } catch (_) {}
+        return;
+      }
       if (act !== "replay") {
         const n = simMode.list.length;
         simMode.index = (simMode.index + (act === "next" ? 1 : n - 1)) % n;
@@ -10620,12 +10714,18 @@ function renderSimBar() {
       playSimScene();
     });
   }
+  document.body.classList.add("has-sim-bar");      // уведомления поднимаются над панелью (style.css), иначе панель их закрывала
+  let simBarTop = false;
+  try { simBarTop = localStorage.getItem("adam_sim_bar_top") === "1"; } catch (_) {}
+  bar.classList.toggle("lab-bar--top", simBarTop);
+  document.body.classList.toggle("has-sim-bar-top", simBarTop);
   const item = simMode.list[simMode.index];
   bar.innerHTML = `
     <button type="button" class="lab-bar__btn" data-sim="prev" aria-label="Предыдущее окно">${LAB_ICON_PREV}</button>
     <button type="button" class="lab-bar__btn" data-sim="replay" aria-label="Повторить">${SIM_ICON_REPLAY}</button>
     <div class="lab-bar__text"><b>🎬 Окно ${simMode.index + 1}/${simMode.list.length}</b><small>${escapeHtml(item.title)}</small></div>
     <button type="button" class="lab-bar__btn" data-sim="next" aria-label="Следующее окно">${LAB_ICON_NEXT}</button>
+    <button type="button" class="lab-bar__btn" data-sim="move" aria-label="Перенести панель вверх или вниз">⇅</button>
     <button type="button" class="lab-bar__btn lab-bar__btn--exit" data-sim="exit" aria-label="Выйти в админку">${ICON_X}</button>`;
 }
 

@@ -15446,3 +15446,10 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 /* Согласие на обработку данных на первом экране анкеты (db/consent.py) — мелко и спокойно, ссылки различимы. */
 .start-quiz-consent{margin:14px 4px 0;font-size:12px;line-height:1.45;color:rgba(255,255,255,.55);text-align:center}
 .start-quiz-consent a{color:rgba(196,181,253,.95);text-decoration:underline}
+
+/* «Окна и анимации»: панель сцен стоит внизу поверх уведомлений — пока она открыта, уведомления поднимаем над ней
+   (найдено 06.11: в сцене «Голос Адама» тосты целиком прятались под панелью). */
+body.has-sim-bar:not(.has-sim-bar-top) .toast{bottom:calc(env(safe-area-inset-bottom,0px) + 168px) !important}
+/* Панель сцен можно перенести наверх кнопкой «⇅»: внизу она закрывала кнопки окон («Не сейчас» у подписки). Уведомления тогда — на обычном месте. */
+.lab-bar.lab-bar--top{top:calc(env(safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px) + 8px);bottom:auto}
+.lab-bar__btn[data-sim="move"]{font-size:17px;font-weight:700;line-height:1}
