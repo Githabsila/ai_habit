@@ -41,3 +41,16 @@ def test_the_bar_can_move_and_toasts_stay_visible():
     assert 'data-sim="move"' in APP and 'act === "move"' in APP and "adam_sim_bar_top" in APP
     assert ".lab-bar.lab-bar--top{" in CSS
     assert "body.has-sim-bar:not(.has-sim-bar-top) .toast{" in CSS
+
+
+def test_sim_bar_is_low_and_overlays_shrink_above_it():
+    """Панель сцен — у самого низа; окна сцен и нижнее меню ужимаются над ней, чтобы она не закрывала кнопки."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "webapp" / "static"
+    css = (root / "style.css").read_text(encoding="utf-8")
+    js = (root / "app.js").read_text(encoding="utf-8")
+    assert 'bar.className = "lab-bar lab-bar--sim";' in js
+    assert ".lab-bar.lab-bar--sim{bottom:calc(env(safe-area-inset-bottom,0px) + 6px)" in css
+    for overlay in ("#chestOverlay", "#trialPaywallOverlay", "#habitEditSheet", "#rescueHelpOverlay", "#dailyQuestsOverlay"):
+        assert overlay in css.split("bottom:var(--sim-bar-space) !important")[0].rsplit("\n", 1)[-1]
+    assert "body.has-sim-bar:not(.has-sim-bar-top) .tab-bar{bottom:calc(var(--sim-bar-space) + 4px)" in css

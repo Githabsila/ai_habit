@@ -128,7 +128,11 @@ if (SIM_TRIAL_CHAT) {
         label.innerHTML = '<b style="color:#f5c542">🎬 Окно ' + (Number(q.get('n')) || '') + '/' + (Number(q.get('of')) || '') + '</b><br><small>Вопрос Адама и сводка в чате</small>';
         bar.append(btn('‹', 'Предыдущее окно', () => go(q.get('prev'))), label, btn('›', 'Следующее окно', () => go(q.get('next'))),
                    btn('✕', 'Выйти в админку', () => { window.location.href = '/admin'; }));
-        const mount = () => document.body.appendChild(bar);
+        // Чат сдвигается вниз под панель — иначе она закрывала кнопки шапки чата (🧹, 🏠).
+        const shift = document.createElement('style');
+        shift.textContent = '#root{box-sizing:border-box;padding-top:calc(env(safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px) + 64px)}'
+            + '#root .app-container{height:100% !important;min-height:0 !important}';
+        const mount = () => { document.head.appendChild(shift); document.body.appendChild(bar); };
         if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
     } catch (e) { }
 }
