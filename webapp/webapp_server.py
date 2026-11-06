@@ -3647,6 +3647,9 @@ async def privacy_policy_page(request):
     return web.FileResponse(BASE_DIR / "static" / "privacy.html")
 
 
+TERMS_REFUND = ("<strong>Возврат средств</strong> — через администратора: {contacts}. Укажите свой @ник в Telegram и время оплаты. "
+                "Если возврат положен, администратор возвращает звёзды через Telegram "
+                "(они приходят на тот же аккаунт), а доступ по этой оплате закрывается.")
 TERMS_RENEWAL_MANUAL = ("Подписка <strong>не продлевается автоматически</strong> — это разовая оплата за период; чтобы продолжить пользоваться Сервисом после "
                         "его истечения, нужно оплатить заново.")
 TERMS_RENEWAL_AUTO = ("Первый месяц — разовая оплата по вводной цене. Дальше доступ продлевается <strong>подпиской Telegram Stars с автоматическим списанием "
@@ -3660,4 +3663,6 @@ async def terms_page(request):
     import config
     page = (BASE_DIR / "static" / "terms.html").read_text(encoding="utf-8")
     page = page.replace("<!--RENEWAL-->", TERMS_RENEWAL_AUTO if config.SUBSCRIPTION_AUTORENEW_ENABLED else TERMS_RENEWAL_MANUAL)
+    from support_contacts import contacts_html                  # возвраты — через администратора (решение 05.11)
+    page = page.replace("<!--REFUND-->", TERMS_REFUND.format(contacts=contacts_html()))
     return web.Response(text=page, content_type="text/html", charset="utf-8")

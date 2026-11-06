@@ -117,7 +117,8 @@ async def test_someone_elses_payload_changes_nothing(uid):
 # ---------------------------------------------------------------------------------------------------------------- команды и возврат
 
 async def test_paysupport_and_terms_commands_answer(monkeypatch):
-    monkeypatch.setattr(pay, "SUPPORT_EMAIL", "help@example.com")
+    monkeypatch.setattr(config, "SUPPORT_EMAIL", "help@example.com")
+    monkeypatch.setattr(config, "SUPPORT_INSTAGRAM", "adam_support")          # решение 05.11: возвраты — через админа в Telegram или Instagram
     monkeypatch.setattr(pay, "WEBAPP_URL", "https://example.com/")
     support, terms = SimpleNamespace(answer=AsyncMock()), SimpleNamespace(answer=AsyncMock())
     await pay.paysupport(support)
@@ -126,6 +127,7 @@ async def test_paysupport_and_terms_commands_answer(monkeypatch):
     text = terms.answer.await_args.args[0]
     assert "Первые 3 календарных дня — бесплатно" in text and "вводной цене" in text and "https://example.com/terms" in text and "help@example.com" in text
     assert "Подписка не продлевается сама" in text, "пока автопродление не включено, условия честно говорят про продление вручную"
+    assert "instagram.com/adam_support" in support.answer.await_args.args[0] and "30 дней" in text and "через администратора" in text
 
 
 def _bot(refund=None):
