@@ -75,7 +75,7 @@ def test_sim_bar_walks_replays_and_exits():
     for act in ("prev", "replay", "next", "exit"):
         assert f'data-sim="{act}"' in bar, act
     assert 'window.location.href = "/admin"' in bar
-    assert 'bar.className = "lab-bar"' in bar, "панель в том же стиле, что у лаборатории парных заданий"
+    assert 'bar.className = "lab-bar lab-bar--sim"' in bar, "панель в том же стиле, что у лаборатории парных заданий (+ компактная низкая)"
 
 
 # ---------------------------------------------------------------------------------------------------------------- админка

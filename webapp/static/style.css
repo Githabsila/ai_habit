@@ -14097,6 +14097,20 @@ button.up-count:active{opacity:.75}
 
 /* Клавиатура открыта (app.js, html.kb-open): нижняя панель не должна всплывать над
    клавиатурой поверх поля ввода, а карточка подсказки — перекрывать то, что набирают. */
+/* «Окна и анимации»: панель сцен — у самого низа и компактная, а окна сцен, нижнее меню и уведомления ужимаются/поднимаются над ней,
+   чтобы она не закрывала ни одной кнопки. Сверху (⇅) — то же самое с верхним краем. */
+body.has-sim-bar{--sim-bar-h:58px;--sim-bar-space:calc(env(safe-area-inset-bottom,0px) + var(--sim-bar-h));--sim-bar-space-top:calc(env(safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px) + var(--sim-bar-h))}
+.lab-bar.lab-bar--sim{bottom:calc(env(safe-area-inset-bottom,0px) + 6px);left:8px;right:8px;max-width:560px;margin:0 auto;padding:5px;gap:6px;border-radius:15px}
+.lab-bar.lab-bar--sim.lab-bar--top{top:calc(env(safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px) + 6px);bottom:auto}
+.lab-bar--sim .lab-bar__btn{width:36px;height:36px;border-radius:11px}
+.lab-bar--sim .lab-bar__text b{font-size:11.5px}
+.lab-bar--sim .lab-bar__text small{font-size:11px}
+body.has-sim-bar:not(.has-sim-bar-top) :is(#chestOverlay,#adamIntroOverlay,#inboxOverlay,#habitEditSheet,#habitUndoSheet,#trialPaywallOverlay,#shopHubOverlay,#payMethodOverlay,#partnerOverlay,#remindFriendsSheet,#freezeHelpOverlay,#rescueHelpOverlay,#dailyQuestsOverlay,#levelupOverlay,#streakCelebrationOverlay,#statusLadderOverlay){bottom:var(--sim-bar-space) !important}
+body.has-sim-bar.has-sim-bar-top :is(#chestOverlay,#adamIntroOverlay,#inboxOverlay,#habitEditSheet,#habitUndoSheet,#trialPaywallOverlay,#shopHubOverlay,#payMethodOverlay,#partnerOverlay,#remindFriendsSheet,#freezeHelpOverlay,#rescueHelpOverlay,#dailyQuestsOverlay,#levelupOverlay,#streakCelebrationOverlay,#statusLadderOverlay){top:var(--sim-bar-space-top) !important}
+body.has-sim-bar:not(.has-sim-bar-top) .tab-bar{bottom:calc(var(--sim-bar-space) + 4px) !important}
+body.has-sim-bar:not(.has-sim-bar-top) .toast{bottom:calc(var(--sim-bar-space) + 96px) !important}
+body.has-sim-bar:not(.has-sim-bar-top){padding-bottom:var(--sim-bar-space)}
+body.has-sim-bar.has-sim-bar-top{padding-top:var(--sim-bar-space-top)}
 html.kb-open .tab-bar{display:none !important}
 html.kb-open .product-onboarding-hint{opacity:0 !important;pointer-events:none !important}
 
@@ -15447,9 +15461,7 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .start-quiz-consent{margin:14px 4px 0;font-size:12px;line-height:1.45;color:rgba(255,255,255,.55);text-align:center}
 .start-quiz-consent a{color:rgba(196,181,253,.95);text-decoration:underline}
 
-/* «Окна и анимации»: панель сцен стоит внизу поверх уведомлений — пока она открыта, уведомления поднимаем над ней
-   (найдено 06.11: в сцене «Голос Адама» тосты целиком прятались под панелью). */
-body.has-sim-bar:not(.has-sim-bar-top) .toast{bottom:calc(env(safe-area-inset-bottom,0px) + 168px) !important}
 /* Панель сцен можно перенести наверх кнопкой «⇅»: внизу она закрывала кнопки окон («Не сейчас» у подписки). Уведомления тогда — на обычном месте. */
 .lab-bar.lab-bar--top{top:calc(env(safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px) + 8px);bottom:auto}
 .lab-bar__btn[data-sim="move"]{font-size:17px;font-weight:700;line-height:1}
+

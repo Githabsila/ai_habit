@@ -10692,7 +10692,7 @@ function renderSimBar() {
   if (!bar) {
     bar = document.createElement("div");
     bar.id = "simBar";
-    bar.className = "lab-bar";
+    bar.className = "lab-bar lab-bar--sim";       // низкая компактная панель; окна сцен ужимаются над ней (style.css → --sim-bar-space)
     document.body.appendChild(bar);
     bar.addEventListener("click", (e) => {
       const act = e.target.closest("[data-sim]")?.dataset.sim;
