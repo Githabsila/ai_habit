@@ -170,6 +170,9 @@ async def main():
     # Конец оплаченного срока: за 7/3/1 день и в день окончания — продлить или включить автопродление; при автопродлении — честное
     # предупреждение за 3 дня и «не получилось продлить» (subscription_renewal.py).
     scheduler.add_job(run_renewal_reminders, "interval", minutes=2, args=[bot], max_instances=1, coalesce=True)
+    # Автоудаление неактивных (db/inactive_purge.py): выключено, пока не задан INACTIVE_PURGE_MONTHS; за 30 дней — предупреждение.
+    from db.inactive_purge import run_inactive_purge
+    scheduler.add_job(run_inactive_purge, "cron", hour=4, minute=40, args=[bot], max_instances=1, coalesce=True)
     # Возврат в ударный режим: 10:00 / 16:00 / 21:00 после срыва, затем
     # постепенно реже для тех, кто пропал надолго. Проверка каждую минуту
     # учитывает локальный час пользователя и останавливается после первого
