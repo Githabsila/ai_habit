@@ -293,3 +293,47 @@ def mark_goal_reminder_sent(plan_id):
     cursor.execute("UPDATE daily_plans SET goal_reminder_sent=1 WHERE id=?", (plan_id,))
     conn.commit()
     conn.close()
+
+
+def carry_over_unfinished(user_id):
+    """Перенос незакрытого на завтра (план, волна 1, п.4): копии незакрытых пунктов сегодняшнего плана — в завтрашний.
+    Сегодняшний план не трогаем: незакрытое так и остаётся незакрытым в истории дня (честная статистика), повторный перенос не дублирует.
+    Незакрытая главная задача становится главной на завтра, если там пусто, иначе — обычной задачей. Лимит MAX_DAILY_TASKS соблюдается.
+    Возвращает {"moved": сколько перенесено, "skipped": не влезло в лимит, "main": стала ли главной на завтра}."""
+    today = get_daily_plan(user_id)
+    tomorrow_date = tomorrow_plan_date(user_id)
+    tomorrow = get_daily_plan(user_id, tomorrow_date)
+    have = {t["text"].strip().lower() for t in tomorrow["tasks"]}
+    if tomorrow["main_goal"]:
+        have.add(tomorrow["main_goal"].strip().lower())
+    moved = skipped = 0
+    main_moved = False
+    pending = []
+    if today["main_goal"].strip() and not today["main_goal_completed"]:
+        pending.append(("main", today["main_goal"].strip()))
+    pending += [("task", t["text"].strip()) for t in today["tasks"] if not t["completed"] and t["text"].strip()]
+    conn = connect()
+    try:
+        free = MAX_DAILY_TASKS - len(tomorrow["tasks"])
+        for kind, text in pending:
+            if text.lower() in have:
+                continue
+            if kind == "main" and not tomorrow["main_goal"].strip():
+                conn.execute("UPDATE daily_plans SET main_goal=?, main_goal_completed=0, goal_reminder_sent=0 WHERE id=?", (text, tomorrow["id"]))
+                main_moved = True
+            elif free > 0:
+                conn.execute("INSERT INTO daily_plan_tasks(plan_id, text, created_at, reminder_sent) VALUES (?, ?, CURRENT_TIMESTAMP, 0)",
+                             (tomorrow["id"], text))
+                free -= 1
+            else:
+                skipped += 1
+                continue
+            have.add(text.lower())
+            moved += 1
+        conn.commit()
+    finally:
+        conn.close()
+    if moved:
+        from .tracking import track_server
+        track_server(user_id, "plan_carried_over", meta={"moved": moved})
+    return {"moved": moved, "skipped": skipped, "main": main_moved}

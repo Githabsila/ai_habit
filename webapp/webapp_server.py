@@ -3137,6 +3137,17 @@ async def delete_main_goal_route(request):
     delete_daily_main_goal(telegram_id)
     return web.json_response({"ok": True})
 
+@routes.post("/api/plan/carry-over")
+async def plan_carry_over_route(request):
+    """Перенос незакрытого на завтра (db.daily_plan.carry_over_unfinished). Пока у админов и по флагу plan_carry_over."""
+    telegram_id, _ = await _authenticate(request)
+    from handlers.plan_bot import carry_enabled
+    if not carry_enabled(telegram_id):
+        return web.json_response({"error": "not_available"}, status=403)
+    from db.daily_plan import carry_over_unfinished
+    return web.json_response({"ok": True, **carry_over_unfinished(telegram_id)})
+
+
 @routes.post("/api/plan/task")
 async def add_plan_task_route(request):
     telegram_id, _ = await _authenticate(request)

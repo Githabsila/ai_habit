@@ -607,6 +607,7 @@ async def run_day_progress_check(bot):
                         open_items,
                     ),
                     parse_mode="HTML",
+                    reply_markup=_carry_markup(telegram_id),
                 )
             except Exception:
                 # Резерв освобождаем, только если реально не отправили — иначе
@@ -621,6 +622,15 @@ async def run_day_progress_check(bot):
 
     if sent:
         logger.info(f"Вечерняя сверка плана дня (19:00): отправлено {sent} сообщений")
+
+
+def _carry_markup(telegram_id):
+    """Под вечерней сверкой — «Перенести незакрытое на завтра» (handlers/plan_bot.py): пока у админов и по флагу plan_carry_over."""
+    try:
+        from handlers.plan_bot import carry_enabled, carry_keyboard
+        return carry_keyboard() if carry_enabled(telegram_id) else None
+    except Exception:
+        return None
 
 
 # Старую отдельную вечернюю сверку 22:30 намеренно не запускаем:

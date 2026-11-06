@@ -65,6 +65,7 @@ from handlers.shop import router as shop_router
 from handlers.achievements import router as achievements_router
 from handlers.daily import router as daily_router
 from handlers.community import router as community_router
+from handlers.plan_bot import router as plan_bot_router
 from handlers.fallback import router as fallback_router
 
 # ====================== НАСТРОЙКА ЛОГГИРОВАНИЯ ======================
@@ -133,6 +134,7 @@ async def main():
     dp.include_router(achievements_router)
     dp.include_router(daily_router)
     dp.include_router(community_router)
+    dp.include_router(plan_bot_router)
     dp.include_router(fallback_router)                 # строго последним: только текст, который никто выше не взял
 
     # --- ПЛАНИРОВЩИК ---
