@@ -514,7 +514,7 @@ async def get_ai_history_miniapp(request):
     init_data = request.rel_url.query.get("init_data", "")
     limit = int(request.rel_url.query.get("limit", "50"))
 
-    user_id, _is_admin = await authenticate(init_data)
+    user_id, _is_admin = await authenticate(init_data, read_only_ok=True)
     try:                                     # чат открыт — человек видит всё, что писал Адам: колокольчик это уже не «новое»
         from db import inbox as inbox_db
         inbox_db.mark_adam_seen(user_id)

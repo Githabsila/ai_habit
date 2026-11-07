@@ -18,6 +18,7 @@ from db.subscription import channel_removal_reason, mark_channel_removed
 logger = logging.getLogger(__name__)
 
 REMOVED_TEXT = {
+    "banned": "🚫 Аккаунт заблокирован администрацией — доступ в закрытый канал закрыт.",
     "streak": ("🔥 Серия погасла — доступ в закрытый канал закрыт.\n\n"
                "Вернуться можно: набери {days} дней ударного режима подряд — ссылка придёт сама."),
     "subscription": ("⏳ Подписка закончилась — доступ в закрытый канал закрыт.\n\n"
@@ -83,3 +84,16 @@ async def run_channel_sync(bot):
         except Exception:
             logger.exception("Не удалось проверить участие в канале %s", user_id)
     return removed
+
+
+async def remove_banned_now(bot, user_id):
+    """Решение владельца 07.11: забаненного убираем из канала сразу при бане, не дожидаясь прохода раз в 15 минут. Ошибки — в лог:
+    бан в базе уже стоит, следующий проход run_channel_sync уберёт его ещё раз."""
+    from config import CLOSED_CHANNEL_ID
+    if not bot or not CLOSED_CHANNEL_ID or channel_removal_reason(user_id) != "banned":
+        return False
+    try:
+        return await remove_from_channel(bot, user_id, "banned")
+    except Exception:
+        logger.exception("Не удалось сразу убрать забаненного %s из канала", user_id)
+        return False

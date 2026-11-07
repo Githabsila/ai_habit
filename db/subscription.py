@@ -317,6 +317,8 @@ def channel_removal_reason(user_id):
     user = get_user(user_id)
     if user is None or not ("channel_access_granted_at" in user.keys() and user["channel_access_granted_at"]):
         return None
+    if int(user["banned"] or 0) == 1:
+        return "banned"                                    # решение владельца 07.11: бан закрывает всё, что связано с ADAM, и канал тоже
     if not has_active_subscription(user_id):
         return "subscription"
     if int(user["streak"] or 0) <= 0:

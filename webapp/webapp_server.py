@@ -285,7 +285,7 @@ async def _push(app, telegram_id, text):
     промт п.3 и п.7). Молча пропускаем, если бот недоступен или пользователь
     закрыл чат с ботом — это не должно ронять сам API-запрос."""
     bot = app.get("bot")
-    if not bot:
+    if not bot or is_banned(telegram_id):                # забаненному ничего от ADAM не приходит (решение владельца 07.11)
         return
     try:
         await bot.send_message(telegram_id, text, parse_mode="HTML")

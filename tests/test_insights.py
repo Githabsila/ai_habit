@@ -2,6 +2,7 @@
 Roadmap #10 (коллекционные бейджи), #24 (месячный AI-разбор), #29 ("я
 сейчас vs я месяц назад"), #30 (прогноз следующего рубежа серии).
 """
+import pytest
 from datetime import date, timedelta
 
 from db import (
@@ -13,6 +14,15 @@ from db import (
 from db.core import connect
 
 from tests.conftest import sign_init_data
+
+
+@pytest.fixture(autouse=True)
+def _digest_moment_is_now(monkeypatch):
+    """С 07.11 сводки уходят по местному времени человека (coach._local_due). Эти тесты проверяют не время, а дедуп и тексты —
+    считаем, что у всех сейчас нужный момент."""
+    from datetime import datetime as _dt, timezone as _tz
+    import coach
+    monkeypatch.setattr(coach, "_local_due", lambda telegram_id, now_utc=None, **_due: _dt.now(_tz.utc))
 
 
 async def _headers(uid_):

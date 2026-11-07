@@ -1079,6 +1079,8 @@ async def admin_ban_route(request):
     await _authenticate_admin(request)
     telegram_id = int(request.match_info["telegram_id"])
     ban_user(telegram_id)
+    from channel_sync import remove_banned_now
+    await remove_banned_now(request.app.get("bot"), telegram_id)        # бан закрывает и закрытый канал — сразу (решение 07.11)
     return web.json_response({"ok": True, "banned": True})
 
 

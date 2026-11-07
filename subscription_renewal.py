@@ -69,7 +69,8 @@ def _paid_people():
     from db.core import connect
     conn = connect()
     try:
-        return conn.execute("SELECT telegram_id FROM users WHERE subscription_paid_until IS NOT NULL AND COALESCE(bot_blocked_at, '') = ''").fetchall()
+        return conn.execute("SELECT telegram_id FROM users WHERE subscription_paid_until IS NOT NULL AND COALESCE(bot_blocked_at, '') = '' "
+                            "AND COALESCE(banned, 0) = 0").fetchall()
     finally:
         conn.close()
 

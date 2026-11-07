@@ -173,3 +173,24 @@ async def test_review_parallel_grants_make_one_link(uid, channel):
     bot.create_chat_invite_link = AsyncMock(side_effect=slow_link)
     results = await asyncio.gather(*[try_grant_channel_access(bot, uid) for _ in range(5)])
     assert bot.create_chat_invite_link.await_count == 1 and sum(1 for r in results if r) == 1
+
+
+async def test_a_ban_removes_from_the_channel_at_once_and_the_link_stops_working(client, uid, channel, monkeypatch):
+    """Решение владельца 07.11: «как только пользователь банится, ему закрывается вообще всё, что связано с проектом ADAM» — и канал."""
+    import webapp.routes_admin as routes_admin
+    from handlers.channel_join import on_join_request
+    from tests.conftest import sign_init_data
+    admin = uid + 900
+    add_user(admin, "adm", "Админ")
+    monkeypatch.setattr(routes_admin, "ADMIN_IDS", [admin])
+    _paid(uid, 3)
+    bot = _bot_join()
+    client.app["bot"] = bot
+    await try_grant_channel_access(bot, uid)
+    r = await client.post(f"/api/admin/user/{uid}/ban", headers={"Authorization": f"tma {sign_init_data(admin)}"})
+    assert r.status == 200
+    bot.ban_chat_member.assert_awaited_once()
+    bot.revoke_chat_invite_link.assert_awaited_once()
+    assert "заблокирован" in bot.send_message.await_args.args[1]
+    await on_join_request(_request(uid, f"user_{uid}"), bot)
+    assert bot.approve_chat_join_request.await_count == 0

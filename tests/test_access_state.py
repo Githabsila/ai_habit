@@ -276,3 +276,13 @@ async def test_a_test_payment_from_the_admin_never_reaches_the_real_numbers(uid)
     from db import trial as trial_db
     trial_db.clear_test_payment(uid)
     assert _sql("SELECT COUNT(*) AS n FROM stars_payments WHERE user_id=?", (uid,))["n"] == 0
+
+
+async def test_the_chat_history_with_adam_is_visible_in_the_window_but_writing_is_closed(client, uid):
+    """Решение владельца 07.11: в сутки после триала история чата с Адамом видна («так люди будут видеть, что он полезен»), писать нельзя."""
+    _person(uid, tz="UTC", started=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=3, hours=1))
+    init = sign_init_data(uid)
+    history = await client.get("/api/ai/history", params={"init_data": init})
+    assert history.status == 200
+    chat = await client.post("/api/ai/chat", json={"init_data": init, "message": "привет"})
+    assert chat.status == 403

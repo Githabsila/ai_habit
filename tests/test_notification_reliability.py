@@ -9,6 +9,7 @@ run_weekly_habit_analysis) вообще не защищались claim_notifica
 минуту, или (б) отправить один и тот же текст дважды. Эти тесты закрывают
 оба сценария после фикса.
 """
+import pytest
 from datetime import datetime
 
 from db import (
@@ -48,6 +49,15 @@ class FailingBot:
 # =====================================
 # db.streak.in_time_window
 # =====================================
+
+@pytest.fixture(autouse=True)
+def _digest_moment_is_now(monkeypatch):
+    """С 07.11 сводки уходят по местному времени человека (coach._local_due). Эти тесты проверяют не время, а дедуп и тексты —
+    считаем, что у всех сейчас нужный момент."""
+    from datetime import datetime as _dt, timezone as _tz
+    import coach
+    monkeypatch.setattr(coach, "_local_due", lambda telegram_id, now_utc=None, **_due: _dt.now(_tz.utc))
+
 
 def test_in_time_window_matches_exact_start():
     from db.streak import in_time_window
@@ -401,4 +411,40 @@ async def test_goal_feedback_marks_sent_when_feedback_actually_delivered(monkeyp
     await goal_feedback.run_goal_feedback(bot)
 
     assert marked == [uid]
+    assert len(bot.sent) == 1
+
+
+async def test_digests_go_out_by_the_persons_local_time_not_the_servers(monkeypatch, uid):
+    """Решение владельца 07.11: недельный отчёт — в воскресенье 19:00 по местному времени человека. Раньше один cron по UTC слал его
+    во Владивосток в 5 утра. Проверяем настоящий coach._local_due (без подмены из фикстуры)."""
+    from datetime import timezone as _tz
+    import coach
+    monkeypatch.undo()                                                    # снимаем подмену _local_due из фикстуры
+    from db.streak import set_timezone
+    add_user(uid, "v", "Влад")
+    set_timezone(uid, "Asia/Vladivostok")                                 # UTC+10
+    sunday_19_vlad = datetime(2026, 11, 8, 9, 5, tzinfo=_tz.utc)         # вс 19:05 во Владивостоке
+    sunday_19_utc = datetime(2026, 11, 8, 19, 5, tzinfo=_tz.utc)         # вс 19:05 по UTC = пн 05:05 во Владивостоке
+    assert coach._local_due(uid, sunday_19_vlad, weekday=6, hour=19) is not None
+    assert coach._local_due(uid, sunday_19_utc, weekday=6, hour=19) is None, "в 5 утра понедельника отчёт не уходит"
+    assert coach._local_due(uid, datetime(2026, 11, 30, 8, 35, tzinfo=_tz.utc), last_day=True, hour=18, minute=30) is not None, "30 ноября 18:35 местного"
+    assert coach._local_due(uid, datetime(2026, 11, 29, 8, 35, tzinfo=_tz.utc), last_day=True, hour=18, minute=30) is None
+
+
+async def test_the_weekly_report_waits_for_the_local_evening(monkeypatch, uid):
+    """Сам отчёт: во Владивостоке в 5 утра понедельника (19:05 UTC воскресенья) — не уходит, в 19:05 местного воскресенья — уходит."""
+    from datetime import timezone as _tz
+    import coach
+    monkeypatch.undo()
+    from db.streak import set_timezone
+    add_user(uid, "v", "Влад")
+    set_timezone(uid, "Asia/Vladivostok")
+    monkeypatch.setattr(coach, "get_all_users", lambda **_kw: [{"telegram_id": uid}])
+    monkeypatch.setattr(coach, "get_settings", lambda _uid: {"reminders": 1})
+    monkeypatch.setattr(coach, "get_weekly_summary", lambda _uid: {"active_days": 3})
+    monkeypatch.setattr(coach, "format_weekly_report", lambda summary: "Неделя")
+    bot = FakeBot()
+    await coach.run_weekly_report(bot, now_utc=datetime(2026, 11, 8, 19, 5, tzinfo=_tz.utc))
+    assert len(bot.sent) == 0
+    await coach.run_weekly_report(bot, now_utc=datetime(2026, 11, 8, 9, 5, tzinfo=_tz.utc))
     assert len(bot.sent) == 1
