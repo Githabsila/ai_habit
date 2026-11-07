@@ -12,8 +12,9 @@ coach.py
 существующие new_day/send_reminders.
 """
 
+import html
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -115,7 +116,36 @@ def format_weekly_report(summary: dict) -> str:
     )
 
 
-async def run_weekly_report(bot):
+
+# =====================================
+# СВОДКИ ПО МЕСТНОМУ ВРЕМЕНИ (решение владельца 07.11)
+# =====================================
+# Раньше недельные и месячные рассылки шли одним cron по часам сервера (UTC): во Владивостоке отчёт недели приходил в 5 утра.
+# Теперь задачи проверяются каждые 15 минут (main.py), и каждому человеку сообщение уходит, когда у него наступило нужное местное
+# время (окно — час после него), не в тихие часы. Ключ «уже отправлено» — местная неделя/месяц человека.
+
+DIGEST_WINDOW_MINUTES = 60
+
+
+def _local_due(telegram_id, now_utc=None, *, weekday=None, day=None, last_day=False, hour=0, minute=0):
+    """Местное время человека, если сейчас у него момент отправки (weekday: 0=пн…6=вс, day: число месяца, last_day: последний день
+    месяца; hour:minute — начало часового окна), иначе None."""
+    now_utc = now_utc or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    local = now_utc.astimezone(ZoneInfo(get_timezone(telegram_id)))
+    if weekday is not None and local.weekday() != weekday:
+        return None
+    if day is not None and local.day != day:
+        return None
+    if last_day and (local + timedelta(days=1)).month == local.month:
+        return None
+    start = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if not (start <= local < start + timedelta(minutes=DIGEST_WINDOW_MINUTES)):
+        return None
+    return local
+
+async def run_weekly_report(bot, now_utc=None):
     """Раз в неделю — короткий шаблонный отчёт по каждому пользователю.
     Специально без вызова OpenAI (см. этап 4): данных для персонализации
     текста тут достаточно и без LLM, а недельная рассылка по всем
@@ -126,17 +156,20 @@ async def run_weekly_report(bot):
     # Глобальный cron (один момент времени для всех, не по локальному часу
     # пользователя), поэтому ключ дедупликации — просто текущая неделя, а
     # не локальная дата пользователя.
-    week_key = datetime.now().strftime("%G-W%V")
     scope = notification_scope(bot)
 
     for user in users:
         telegram_id = user["telegram_id"]
+        local = _local_due(telegram_id, now_utc, weekday=6, hour=19)          # воскресенье 19:00 по местному времени
+        if local is None:
+            continue
+        week_key = local.strftime("%G-W%V")
 
         # Раньше здесь не было проверки настройки напоминаний — недельный
         # отчёт уходил даже тем, кто отключил уведомления в настройках.
         # Категория "digests" — сводки и отчёты (см. db/settings.py).
         settings = get_settings(telegram_id)
-        if not reminder_category_enabled(settings, "digests"):
+        if not reminder_category_enabled(settings, "digests") or in_quiet_hours(settings, local):
             continue
 
         summary = get_weekly_summary(telegram_id)
@@ -601,7 +634,7 @@ async def run_day_progress_check(bot):
                 continue
 
             open_items = [
-                f"{item['kind']}: «{item['text']}»"
+                f"{item['kind']}: «{html.escape(str(item['text']), quote=False)}»"      # текст задачи пишет человек (прогон 07.11)
                 for item in items if not item["completed"]
             ]
 
@@ -720,7 +753,7 @@ async def run_ai_welcome_nudge(bot):
 # (начало/конец недели, начало/конец месяца) — промт п.8
 # =====================================
 
-async def _broadcast(bot, text_fn, job_name, day_key):
+async def _broadcast(bot, text_fn, job_name, key_fmt, now_utc=None, **due):
     """day_key — ключ дедупликации claim_notification (неделя или месяц,
     в зависимости от job'а). Раньше здесь не было вообще никакой защиты от
     дубля: любое повторное/наложившееся срабатывание cron-job'а (напр. на
@@ -732,9 +765,13 @@ async def _broadcast(bot, text_fn, job_name, day_key):
 
     for user in users:
         telegram_id = user["telegram_id"]
+        local = _local_due(telegram_id, now_utc, **due)
+        if local is None:
+            continue
+        day_key = local.strftime(key_fmt)                  # местная неделя / месяц человека
 
         settings = get_settings(telegram_id)
-        if not reminder_category_enabled(settings, "digests"):
+        if not reminder_category_enabled(settings, "digests") or in_quiet_hours(settings, local):
             continue
 
         if not claim_notification(telegram_id, day_key, job_name, scope):
@@ -751,25 +788,27 @@ async def _broadcast(bot, text_fn, job_name, day_key):
         logger.info(f"{job_name}: отправлено {sent} сообщений")
 
 
-async def run_week_start_ping(bot):
-    week_key = datetime.now().strftime("%G-W%V")
-    await _broadcast(bot, format_week_start_message, "week_start_ping", week_key)
+async def run_week_start_ping(bot, now_utc=None):
+    await _broadcast(bot, format_week_start_message, "week_start_ping", "%G-W%V", now_utc, weekday=0, hour=7)         # пн 07:00
 
 
-async def run_week_end_ping(bot):
+async def run_week_end_ping(bot, now_utc=None):
     """Конец недели — персонализируем по сегодняшнему прогрессу: если все
     привычки за день уже закрыты, хвалим за финиш, а не подгоняем "сделать
     ещё шаг" (см. format_week_end_message)."""
-    week_key = datetime.now().strftime("%G-W%V")
     users = get_all_users(include_blocked=False)
     sent = 0
     scope = notification_scope(bot)
 
     for user in users:
         telegram_id = user["telegram_id"]
+        local = _local_due(telegram_id, now_utc, weekday=6, hour=18)          # воскресенье 18:00 по местному времени
+        if local is None:
+            continue
+        week_key = local.strftime("%G-W%V")
 
         settings = get_settings(telegram_id)
-        if not reminder_category_enabled(settings, "digests"):
+        if not reminder_category_enabled(settings, "digests") or in_quiet_hours(settings, local):
             continue
 
         if not claim_notification(telegram_id, week_key, "week_end_ping", scope):
@@ -790,14 +829,12 @@ async def run_week_end_ping(bot):
     logger.info(f"week_end_ping: отправлено {sent} сообщений")
 
 
-async def run_month_start_ping(bot):
-    month_key = datetime.now().strftime("%Y-%m")
-    await _broadcast(bot, format_month_start_message, "month_start_ping", month_key)
+async def run_month_start_ping(bot, now_utc=None):
+    await _broadcast(bot, format_month_start_message, "month_start_ping", "%Y-%m", now_utc, day=1, hour=7, minute=30)   # 1-го 07:30
 
 
-async def run_month_end_ping(bot):
-    month_key = datetime.now().strftime("%Y-%m")
-    await _broadcast(bot, format_month_end_message, "month_end_ping", month_key)
+async def run_month_end_ping(bot, now_utc=None):
+    await _broadcast(bot, format_month_end_message, "month_end_ping", "%Y-%m", now_utc, last_day=True, hour=18, minute=30)   # последний день 18:30
 
 
 # =====================================
@@ -830,27 +867,30 @@ def _fallback_habit_feedback(breakdown, period_phrase="на этой недел�
 
     return (
         f"📊 <b>{heading}</b>\n\n"
-        f"{period_phrase.capitalize()} привычка «{worst['habit_title']}» пропущена {worst['missed']} {day_word(worst['missed'])}. "
+        f"{period_phrase.capitalize()} привычка «{html.escape(str(worst['habit_title']), quote=False)}» пропущена {worst['missed']} {day_word(worst['missed'])}. "
         "Попробуй на первое время сделать её полегче или покороче — "
         "чтобы было проще вернуться в ритм, чем совсем бросить 🌱"
     )
 
 
-async def run_weekly_habit_analysis(bot):
+async def run_weekly_habit_analysis(bot, now_utc=None):
     """Раз в неделю — смотрим не на общий агрегат, а на КАЖДУЮ привычку
     отдельно (habit_logs, см. db/habits.py) и просим AI дать конкретную
     персонализированную обратную связь по самой проседающей привычке —
     например предложить сократить время, чтобы вернуться в ритм."""
     users = get_all_users(include_blocked=False)
     sent = 0
-    week_key = datetime.now().strftime("%G-W%V")
     scope = notification_scope(bot)
 
     for user in users:
         telegram_id = user["telegram_id"]
+        local = _local_due(telegram_id, now_utc, weekday=6, hour=19, minute=15)          # воскресенье 19:15 по местному времени
+        if local is None:
+            continue
+        week_key = local.strftime("%G-W%V")
 
         settings = get_settings(telegram_id)
-        if not reminder_category_enabled(settings, "digests"):
+        if not reminder_category_enabled(settings, "digests") or in_quiet_hours(settings, local):
             continue
 
         breakdown = get_weekly_habit_breakdown(telegram_id)
@@ -873,7 +913,7 @@ async def run_weekly_habit_analysis(bot):
                 ai_text = await generate_weekly_habit_feedback(breakdown_text, style)
 
             if ai_text:
-                text = "📊 <b>Мой разбор твоей недели по привычкам</b>\n\n" + ai_text
+                text = "📊 <b>Мой разбор твоей недели по привычкам</b>\n\n" + html.escape(ai_text, quote=False)
             else:
                 text = _fallback_habit_feedback(breakdown)
 
@@ -890,20 +930,23 @@ async def run_weekly_habit_analysis(bot):
 # ЕЖЕМЕСЯЧНЫЙ AI-РАЗБОР ПО ПРИВЫЧКАМ (roadmap #24)
 # =====================================
 
-async def run_monthly_habit_analysis(bot):
+async def run_monthly_habit_analysis(bot, now_utc=None):
     """Раз в месяц (1-го числа, см. main.py) — тот же разбор, что и
     еженедельный, но с фокусом на месячный тренд, а не на один провальный
     день недели."""
     users = get_all_users(include_blocked=False)
     sent = 0
-    month_key = datetime.now().strftime("%Y-%m")
     scope = notification_scope(bot)
 
     for user in users:
         telegram_id = user["telegram_id"]
+        local = _local_due(telegram_id, now_utc, day=1, hour=8)          # 1-го 08:00 по местному времени
+        if local is None:
+            continue
+        month_key = local.strftime("%Y-%m")
 
         settings = get_settings(telegram_id)
-        if not reminder_category_enabled(settings, "digests"):
+        if not reminder_category_enabled(settings, "digests") or in_quiet_hours(settings, local):
             continue
 
         breakdown = get_monthly_habit_breakdown(telegram_id)
@@ -921,7 +964,7 @@ async def run_monthly_habit_analysis(bot):
                 ai_text = await generate_monthly_habit_feedback(breakdown_text, style)
 
             if ai_text:
-                text = "📊 <b>Мой разбор твоего месяца по привычкам</b>\n\n" + ai_text
+                text = "📊 <b>Мой разбор твоего месяца по привычкам</b>\n\n" + html.escape(ai_text, quote=False)
             else:
                 text = _fallback_habit_feedback(
                     breakdown, period_phrase="за этот месяц", heading="Мой разбор месяца по привычкам"

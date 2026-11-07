@@ -145,6 +145,8 @@ async def ban(message: Message, state: FSMContext):
         return
 
     ban_user(user_id)
+    from channel_sync import remove_banned_now
+    await remove_banned_now(message.bot, user_id)                       # бан закрывает и закрытый канал — сразу (решение 07.11)
     await state.clear()
 
     await message.answer(

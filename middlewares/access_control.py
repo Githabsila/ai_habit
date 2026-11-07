@@ -50,6 +50,26 @@ class AccessControlMiddleware(BaseMiddleware):
         if user_id in ADMIN_IDS:
             return await handler(event, data)
 
+        # Списанные звёзды (в т.ч. автопродление) начисляем при любом состоянии — раньше проверка 16+ стояла выше и платёж терялся (прогон 07.11).
+        if isinstance(event, Message) and event.successful_payment:
+            return await handler(event, data)
+
+        # Бан (прогон 07.11, A2): раньше проверялся только в /start — забаненный жал кнопки и говорил с ИИ.
+        try:
+            from db import is_banned
+            banned = bool(is_banned(user_id))
+        except Exception:
+            banned = False
+        if banned:
+            try:
+                if isinstance(event, CallbackQuery):
+                    await event.answer("🚫 Твой аккаунт заблокирован администрацией.", show_alert=True)
+                else:
+                    await event.answer("🚫 Твой аккаунт заблокирован администрацией.")
+            except Exception:
+                pass
+            return None
+
         # 16+ (db/age_gate.py): в анкете ответил «Мне нет 16» — бот отвечает одним понятным текстом на всё, включая /start.
         try:
             from db import get_access_status

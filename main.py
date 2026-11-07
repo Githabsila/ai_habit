@@ -67,6 +67,7 @@ from handlers.achievements import router as achievements_router
 from handlers.daily import router as daily_router
 from handlers.community import router as community_router
 from handlers.plan_bot import router as plan_bot_router
+from handlers.channel_join import router as channel_join_router
 from handlers.fallback import router as fallback_router
 
 # ====================== НАСТРОЙКА ЛОГГИРОВАНИЯ ======================
@@ -118,6 +119,7 @@ async def main():
     dp.callback_query.outer_middleware(AccessControlMiddleware())
 
     # Роутеры
+    dp.include_router(channel_join_router)          # заявки в закрытый канал (прогон 07.11)
     dp.include_router(admin_router)
     dp.include_router(shop_router)
     dp.include_router(calendar_router)
@@ -150,12 +152,12 @@ async def main():
     # Контрольная точка проверяется каждую минуту и сама учитывает
     # локальный часовой пояс каждого пользователя. Это важно на Railway,
     # где timezone контейнера может отличаться от timezone пользователя.
-    scheduler.add_job(run_weekly_report, "cron", day_of_week="sun", hour=19, minute=0, args=[bot])
-    scheduler.add_job(run_weekly_habit_analysis, "cron", day_of_week="sun", hour=19, minute=15, args=[bot])
+    scheduler.add_job(run_weekly_report, "interval", minutes=15, args=[bot])            # по местному времени человека (coach._local_due, 07.11)
+    scheduler.add_job(run_weekly_habit_analysis, "interval", minutes=15, args=[bot])
     # Roadmap #24: тот же разбор, но раз в месяц (1-го числа) — сдвинут по
     # минутам от run_month_start_ping (7:30), чтобы не бить по OpenAI и
     # Telegram API одним и тем же пользователям одновременно.
-    scheduler.add_job(run_monthly_habit_analysis, "cron", day=1, hour=8, minute=0, args=[bot])
+    scheduler.add_job(run_monthly_habit_analysis, "interval", minutes=15, args=[bot])
     # Утреннее приветствие — в 06:00, не в 12:00/08:00 (промт п.12)
     scheduler.add_job(run_morning_ping, "interval", minutes=1, args=[bot])
     scheduler.add_job(run_goal_feedback, "cron", day_of_week="mon", hour=10, minute=0, args=[bot])
@@ -223,10 +225,10 @@ async def main():
     scheduler.add_job(run_abuse_alerts, "interval", minutes=3, args=[bot], max_instances=1, coalesce=True)
 
     # --- Промт п.8: начало/конец недели и месяца ---
-    scheduler.add_job(run_week_start_ping, "cron", day_of_week="mon", hour=7, minute=0, args=[bot])
-    scheduler.add_job(run_week_end_ping, "cron", day_of_week="sun", hour=18, minute=0, args=[bot])
-    scheduler.add_job(run_month_start_ping, "cron", day=1, hour=7, minute=30, args=[bot])
-    scheduler.add_job(run_month_end_ping, "cron", day="last", hour=18, minute=30, args=[bot])
+    scheduler.add_job(run_week_start_ping, "interval", minutes=15, args=[bot])            # все четыре — по местному времени (07.11)
+    scheduler.add_job(run_week_end_ping, "interval", minutes=15, args=[bot])
+    scheduler.add_job(run_month_start_ping, "interval", minutes=15, args=[bot])
+    scheduler.add_job(run_month_end_ping, "interval", minutes=15, args=[bot])
 
     # --- Пром 13: напоминания триала → подписки (сам гейт по умолчанию
     # выключен, см. config.SUBSCRIPTION_GATE_ENABLED) ---

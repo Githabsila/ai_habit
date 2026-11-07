@@ -92,6 +92,27 @@ def _looks_like_habit_action(text: str) -> bool:
 
 # ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ============
 
+# Прогон 07.11: совет дня и «Показать напоминание» (greet demo) вызывают платную модель на каждый запрос, а общий лимит запросов
+# сюда не доходит (он в webapp_server._authenticate, а эти маршруты проходят auth_helpers.authenticate). Без ограничения цикл из
+# консоли WebView тратил деньги владельца. Окно: не больше AI_BURST_LIMIT вызовов за AI_BURST_WINDOW секунд на человека и вид.
+AI_BURST_LIMIT = 6
+AI_BURST_WINDOW = 600
+_ai_burst = {}
+
+
+def _ai_burst_exceeded(user_id: int, kind: str) -> bool:
+    import time
+    now = time.monotonic()
+    key = (int(user_id), kind)
+    recent = [t for t in _ai_burst.get(key, []) if now - t < AI_BURST_WINDOW]
+    if len(recent) >= AI_BURST_LIMIT:
+        _ai_burst[key] = recent
+        return True
+    recent.append(now)
+    _ai_burst[key] = recent
+    return False
+
+
 def _is_throttled(user_id: int) -> float | None:
     """Возвращает, сколько секунд осталось ждать, или None, если можно слать."""
     last_str = get_last_ai_message_at(user_id)
@@ -493,7 +514,7 @@ async def get_ai_history_miniapp(request):
     init_data = request.rel_url.query.get("init_data", "")
     limit = int(request.rel_url.query.get("limit", "50"))
 
-    user_id, _is_admin = await authenticate(init_data)
+    user_id, _is_admin = await authenticate(init_data, read_only_ok=True)
     try:                                     # чат открыт — человек видит всё, что писал Адам: колокольчик это уже не «новое»
         from db import inbox as inbox_db
         inbox_db.mark_adam_seen(user_id)
@@ -539,6 +560,8 @@ async def ai_greet_miniapp(request):
         data = {}
     user_id, _is_admin = await authenticate(data.get("init_data", ""))
     demo = bool(data.get("demo"))
+    if demo and _ai_burst_exceeded(user_id, "greet_demo"):
+        return web.json_response({"error": "too_many_requests"}, status=429)
     slot = begin_ai_greeting(user_id, demo=demo)
     if slot is None:
         return web.json_response({"greeting": None})
@@ -718,6 +741,9 @@ async def ai_daily_tip_miniapp(request):
 
     init_data = data.get("init_data", "")
     user_id, _is_admin = await authenticate(init_data)
+
+    if _ai_burst_exceeded(user_id, "tip"):
+        return web.json_response({"error": "too_many_requests", "message": "Совет уже обновлялся — попробуй через несколько минут"}, status=429)
 
     # Не кэшируем совет: каждый тап получает свежий снимок задач и привычек.
     # Утренний ответ не должен жить до вечера, если пользователь уже закрыл

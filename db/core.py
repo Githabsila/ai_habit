@@ -195,6 +195,8 @@ def create_tables():
         cursor.execute("ALTER TABLE users ADD COLUMN rating_hidden INTEGER DEFAULT 0")
     if "channel_removed_at" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN channel_removed_at TIMESTAMP")
+    if "channel_invite_link" not in users_columns:                 # прогон 07.11: ссылка-заявка в канал — чтобы отозвать её при вылете
+        cursor.execute("ALTER TABLE users ADD COLUMN channel_invite_link TEXT")
     if "subscription_anchor_day" not in users_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN subscription_anchor_day INTEGER")
 

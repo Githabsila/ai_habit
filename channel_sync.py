@@ -18,6 +18,7 @@ from db.subscription import channel_removal_reason, mark_channel_removed
 logger = logging.getLogger(__name__)
 
 REMOVED_TEXT = {
+    "banned": "🚫 Аккаунт заблокирован администрацией — доступ в закрытый канал закрыт.",
     "streak": ("🔥 Серия погасла — доступ в закрытый канал закрыт.\n\n"
                "Вернуться можно: набери {days} дней ударного режима подряд — ссылка придёт сама."),
     "subscription": ("⏳ Подписка закончилась — доступ в закрытый канал закрыт.\n\n"
@@ -33,6 +34,24 @@ def _members():
         conn.close()
 
 
+async def _revoke_link(bot, user_id):
+    """Прогон 07.11 (A1): личная ссылка-заявка отзывается при вылете — по старой больше не войти (новая придёт при возврате)."""
+    from config import CLOSED_CHANNEL_ID
+    conn = connect()
+    try:
+        row = conn.execute("SELECT channel_invite_link FROM users WHERE telegram_id=?", (user_id,)).fetchone()
+        link = row["channel_invite_link"] if row is not None else None
+        conn.execute("UPDATE users SET channel_invite_link=NULL WHERE telegram_id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    if link:
+        try:
+            await bot.revoke_chat_invite_link(chat_id=CLOSED_CHANNEL_ID, invite_link=link)
+        except Exception:                                      # отзыв — подстраховка: не мешает убрать человека из канала
+            logger.warning("Не удалось отозвать ссылку в канал у %s", user_id)
+
+
 async def remove_from_channel(bot, user_id, reason):
     """Убирает из канала и отмечает это в базе. True — убрали (или его там уже не было)."""
     from config import CHANNEL_REENTRY_STREAK_DAYS, CLOSED_CHANNEL_ID
@@ -42,6 +61,7 @@ async def remove_from_channel(bot, user_id, reason):
     except TelegramBadRequest as exc:
         if "not found" not in str(exc).lower() and "participant" not in str(exc).lower():
             raise                                         # что-то другое (нет прав у бота) — пусть видно в логах, человека не трогаем
+    await _revoke_link(bot, user_id)
     mark_channel_removed(user_id)
     try:
         await bot.send_message(user_id, REMOVED_TEXT[reason].format(days=CHANNEL_REENTRY_STREAK_DAYS))
@@ -64,3 +84,16 @@ async def run_channel_sync(bot):
         except Exception:
             logger.exception("Не удалось проверить участие в канале %s", user_id)
     return removed
+
+
+async def remove_banned_now(bot, user_id):
+    """Решение владельца 07.11: забаненного убираем из канала сразу при бане, не дожидаясь прохода раз в 15 минут. Ошибки — в лог:
+    бан в базе уже стоит, следующий проход run_channel_sync уберёт его ещё раз."""
+    from config import CLOSED_CHANNEL_ID
+    if not bot or not CLOSED_CHANNEL_ID or channel_removal_reason(user_id) != "banned":
+        return False
+    try:
+        return await remove_from_channel(bot, user_id, "banned")
+    except Exception:
+        logger.exception("Не удалось сразу убрать забаненного %s из канала", user_id)
+        return False

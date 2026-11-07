@@ -70,3 +70,16 @@ def test_subscribers_and_admins_are_never_purged(uid, monkeypatch):
     _sql("UPDATE users SET subscription_paid_until=datetime('now', '+5 days') WHERE telegram_id=?", (payer,))
     plan = ip.candidates(NOW)
     assert admin not in plan["warn"] + plan["purge"] and payer not in plan["warn"] + plan["purge"]
+
+
+async def test_review_the_promised_30_days_pass_before_deletion(uid, monkeypatch):
+    """Прогон 07.11, находка A4: давно неактивного (старше срока) предупреждали «через 30 дней удалю», а удаляли на следующий день."""
+    monkeypatch.setenv("INACTIVE_PURGE_MONTHS", "12")
+    monkeypatch.setattr(config, "ADMIN_IDS", [])
+    uid = uid + 77_000                                                   # соседние тесты занимают uid+1 (подписчик)
+    _person(uid, NOW - timedelta(days=400))
+    bot = SimpleNamespace(send_message=AsyncMock())
+    await ip.run_inactive_purge(bot, NOW)
+    assert uid not in ip.candidates(NOW + timedelta(days=1))["purge"], "назавтра — ещё рано"
+    assert uid not in ip.candidates(NOW + timedelta(days=29))["purge"]
+    assert uid in ip.candidates(NOW + timedelta(days=31))["purge"], "через обещанные 30 дней — можно"

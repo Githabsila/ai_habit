@@ -145,7 +145,8 @@ async def test_the_checkout_refuses_a_subscription_invoice_of_another_person(uid
     wrong = SimpleNamespace(invoice_payload=f"subscription:{uid + 1}", from_user=SimpleNamespace(id=uid), answer=AsyncMock())
     await pay.pre_checkout(wrong)
     assert wrong.answer.await_args.kwargs["ok"] is False and wrong.answer.await_args.kwargs["error_message"]
-    right = SimpleNamespace(invoice_payload=f"subscription:{uid}", from_user=SimpleNamespace(id=uid), answer=AsyncMock())
+    _person(uid)
+    right = SimpleNamespace(invoice_payload=f"subscription:{uid}", total_amount=flow.invoice_spec(uid)["price"], from_user=SimpleNamespace(id=uid), answer=AsyncMock())
     await pay.pre_checkout(right)
     assert right.answer.await_args.kwargs["ok"] is True
 
@@ -274,3 +275,35 @@ async def test_the_admin_sees_failed_payments_and_can_retry_them(client, uid, mo
     assert any(item["charge_id"] == f"stuck_{uid}" for item in body["failed"])
     retried = await client.post("/api/admin/payments/retry", headers=headers)
     assert retried.status == 200 and (await retried.json())["credited"] >= 1 and has_active_subscription(uid)
+
+
+async def test_review_the_checkout_refuses_a_saved_intro_invoice_after_the_first_payment(uid):
+    """Прогон 07.11, находка P1: ссылку createInvoiceLink можно оплатить повторно, а pre_checkout не сверял сумму — сохранённая ссылка
+    по вводной цене продлевала подписку каждый месяц за 153 ⭐ вместо 461 ⭐."""
+    _person(uid)
+    intro = flow.invoice_spec(uid)["price"]
+    await pay.successful_payment(_message(uid, f"charge_i{uid}", amount=intro))
+    renewal = flow.invoice_spec(uid)
+    stale = SimpleNamespace(invoice_payload=f"subscription:{uid}", total_amount=intro, from_user=SimpleNamespace(id=uid), answer=AsyncMock())
+    await pay.pre_checkout(stale)
+    assert renewal is None or renewal["price"] != intro
+    assert stale.answer.await_args.kwargs["ok"] is False, "старая ссылка по вводной цене больше не принимается"
+
+
+async def test_review_the_checkout_takes_the_current_price(uid):
+    _person(uid)
+    spec = flow.invoice_spec(uid)
+    q = SimpleNamespace(invoice_payload=f"subscription:{uid}", total_amount=spec["price"], from_user=SimpleNamespace(id=uid), answer=AsyncMock())
+    await pay.pre_checkout(q)
+    assert q.answer.await_args.kwargs["ok"] is True
+
+
+@pytest.mark.parametrize("payload", ["avatar_frame:{other}", "answer_pack_stars:22:{other}", "diamond_pack_stars:27:{other}", "booster:24:{other}"])
+async def test_review_the_checkout_refuses_a_shop_invoice_of_another_person(uid, payload):
+    """Прогон 07.11, находка P-low: ссылку на товар магазина с чужим id мог оплатить другой — звёзды списывались, а покупка молча не выдавалась."""
+    q = SimpleNamespace(invoice_payload=payload.format(other=uid + 1), total_amount=150, from_user=SimpleNamespace(id=uid), answer=AsyncMock())
+    await pay.pre_checkout(q)
+    assert q.answer.await_args.kwargs["ok"] is False
+    own = SimpleNamespace(invoice_payload=payload.format(other=uid), total_amount=150, from_user=SimpleNamespace(id=uid), answer=AsyncMock())
+    await pay.pre_checkout(own)
+    assert own.answer.await_args.kwargs["ok"] is True

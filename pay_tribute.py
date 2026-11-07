@@ -108,6 +108,14 @@ class Tribute:
             await _alert(bot, f"⚠️ Tribute: покупка {purchase_id} на другую сумму ({data.get('amount')} {data.get('currency')}, ждали {expected_cents} usd), человек {user_id}. "
                               "Покупка не выдана — проверь цену товара в Tribute.")
             return {"status": "ok", "ignored": True}
+        # Прогон 07.11 (P2): товар «первый месяц» — одна ссылка на всех; уже платившему он не продлевает подписку по вводной цене.
+        # Повтор после упавшего начисления (заказ под этот purchase_id уже есть) проходит как раньше.
+        if product["key"] == "sub_first" and pay_orders.find_by_provider_uuid(self.name, purchase_id) is None:
+            from db import trial as trial_db
+            if not trial_db.intro_price_open(user_id):
+                await _alert(bot, f"⚠️ Tribute: покупка {purchase_id} — «первый месяц» ($1.99) от человека {user_id}, который уже платил. "
+                                  "Подписка не продлена: верни деньги в Tribute или выдай месяц вручную.")
+                return {"status": "ok", "ignored": True}
         event_id = f"p{purchase_id}"
         if not pay_orders.claim_event(self.name, event_id):             # такой же вебхук пришёл одновременно и уже обрабатывается
             return {"status": "ok", "duplicate": True}

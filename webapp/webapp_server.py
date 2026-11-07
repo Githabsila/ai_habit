@@ -285,7 +285,7 @@ async def _push(app, telegram_id, text):
     промт п.3 и п.7). Молча пропускаем, если бот недоступен или пользователь
     закрыл чат с ботом — это не должно ронять сам API-запрос."""
     bot = app.get("bot")
-    if not bot:
+    if not bot or is_banned(telegram_id):                # забаненному ничего от ADAM не приходит (решение владельца 07.11)
         return
     try:
         await bot.send_message(telegram_id, text, parse_mode="HTML")
@@ -2492,7 +2492,7 @@ async def user_report_route(request):
             message += f"\n\n{str(comment).strip()[:500]}"
         for admin_id in ADMIN_IDS:
             try:
-                await bot.send_message(chat_id=admin_id, text=message)
+                await bot.send_message(chat_id=admin_id, text=message, parse_mode=None)   # имена и комментарий пишут люди (прогон 07.11)
             except Exception:
                 logger.warning(f"Не удалось доставить жалобу админу {admin_id}")
     return web.json_response({"ok": True})
@@ -2877,7 +2877,7 @@ async def feedback_route(request):
     delivered = 0
     for admin_id in ADMIN_IDS:
         try:
-            await bot.send_message(chat_id=admin_id, text=message)
+            await bot.send_message(chat_id=admin_id, text=message, parse_mode=None)   # текст пишет человек; HTML ломался на «<» (прогон 07.11)
             delivered += 1
         except Exception:
             logger.warning(f"Не удалось доставить фидбек админу {admin_id}")
@@ -3369,6 +3369,9 @@ async def equip_cosmetic(request):
 AVATAR_MAX_DIMENSION = 512  # сторона в пикселях — аватарка в интерфейсе нигде не показывается крупнее
 
 
+AVATAR_MAX_PIXELS = 25_000_000          # 5000×5000 — с запасом для любого фото с телефона
+
+
 @routes.post("/api/profile/avatar")
 async def upload_avatar(request):
     telegram_id, _ = await _authenticate(request)
@@ -3401,8 +3404,12 @@ async def upload_avatar(request):
         img = Image.open(BytesIO(bytes(raw)))
         img.verify()
         img = Image.open(BytesIO(bytes(raw)))  # verify() портит объект — открываем заново
+        # Прогон 07.11: однотонный PNG в 170 КБ может быть 13 000×13 000 — convert() развернул бы ~0,7 ГБ и уронил процесс бота и
+        # Mini App. Число пикселей проверяем ДО декодирования (размер берётся из заголовка).
+        if img.width * img.height > AVATAR_MAX_PIXELS:
+            return web.json_response({"error": "unsupported_image"}, status=400)
         img = img.convert("RGB") if img.mode != "RGB" else img
-    except (UnidentifiedImageError, OSError, ValueError):
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
         return web.json_response({"error": "unsupported_image"}, status=400)
 
     # Фидбек: не-квадратные фото (вертикальные/горизонтальные) сохранялись

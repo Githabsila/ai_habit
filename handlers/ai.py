@@ -339,7 +339,8 @@ async def ai_chat(message: Message, state: FSMContext):
         # раньше), edit_or_split_message редактирует thinking_msg первой
         # частью и, если нужно, досылает остальные части отдельными
         # сообщениями, не обрывая ни слова, ни предложения.
-        await edit_or_split_message(thinking_msg, message, answer, reply_markup=keyboard)
+        # Ответ модели — обычный текст: «a < b» или «<div>» в нём ломали HTML, и ответ не доходил, хотя лимит уже списан (прогон 07.11).
+        await edit_or_split_message(thinking_msg, message, html.escape(answer, quote=False), reply_markup=keyboard)
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise

@@ -142,3 +142,10 @@ async def test_the_bot_pay_button_offers_the_card_before_the_stars_invoice(uid, 
     card_markup = message.answer.await_args.kwargs["reply_markup"]
     assert card_markup.inline_keyboard[0][0].url == f"https://t.me/tribute/app?startapp={key}" and "Картой" in card_markup.inline_keyboard[0][0].text
     message.answer_invoice.assert_awaited_once()
+
+
+def test_a_banned_person_gets_no_renewal_reminders(uid):
+    """Решение владельца 07.11: бан закрывает всё, что связано с ADAM, — и напоминания о продлении."""
+    _paid(uid, NOW + timedelta(days=3, hours=2))
+    _sql("UPDATE users SET banned=1 WHERE telegram_id=?", (uid,))
+    assert uid not in [row["telegram_id"] for row in sr._paid_people()]

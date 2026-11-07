@@ -29,7 +29,7 @@ def _sql(query, params=()):
 def _bot():
     return SimpleNamespace(
         create_chat_invite_link=AsyncMock(return_value=SimpleNamespace(invite_link="https://t.me/+abc")),
-        ban_chat_member=AsyncMock(), unban_chat_member=AsyncMock(), send_message=AsyncMock(),
+        ban_chat_member=AsyncMock(), unban_chat_member=AsyncMock(), send_message=AsyncMock(), revoke_chat_invite_link=AsyncMock(),
     )
 
 
@@ -62,7 +62,7 @@ async def test_paid_with_a_3_day_streak_gets_the_link_and_2_days_is_not_enough(u
     assert await try_grant_channel_access(bot, uid) is None
     _sql("UPDATE users SET streak=3 WHERE telegram_id=?", (uid,))
     assert await try_grant_channel_access(bot, uid) == "https://t.me/+abc"
-    assert bot.create_chat_invite_link.await_args.kwargs["member_limit"] == 1
+    assert bot.create_chat_invite_link.await_args.kwargs["creates_join_request"] is True, "личная ссылка-заявка (прогон 07.11)"
     assert await try_grant_channel_access(bot, uid) is None, "ссылка выдаётся один раз"
 
 
@@ -116,3 +116,81 @@ async def test_without_a_channel_nothing_happens(uid, monkeypatch):
 def test_removal_texts_do_not_describe_the_channel_contents():
     for text in channel_sync.REMOVED_TEXT.values():
         assert "мышлен" not in text and "мировоззр" not in text and "контент" not in text
+
+
+# ---------------------------------------------------------------------------------------------------------------- прогон 07.11
+
+def _bot_join():
+    bot = _bot()
+    bot.approve_chat_join_request = AsyncMock()
+    bot.decline_chat_join_request = AsyncMock()
+    bot.revoke_chat_invite_link = AsyncMock()
+    return bot
+
+
+def _request(user_id, link_name):
+    return SimpleNamespace(chat=SimpleNamespace(id=int(CHANNEL)), from_user=SimpleNamespace(id=user_id),
+                           invite_link=SimpleNamespace(name=link_name, invite_link="https://t.me/+abc"))
+
+
+async def test_review_the_link_lets_in_only_its_owner_while_access_holds(uid, channel):
+    """Прогон 07.11, находка A1: ссылка в канал была ничьей — её можно было отдать другу (друг оставался навсегда) или потратить уже после
+    конца подписки. Теперь ссылка — заявка, бот одобряет её только получателю и только пока доступ действует."""
+    from handlers.channel_join import on_join_request
+    _paid(uid, 3)
+    bot = _bot_join()
+    assert await try_grant_channel_access(bot, uid) == "https://t.me/+abc"
+    kwargs = bot.create_chat_invite_link.await_args.kwargs
+    assert kwargs["creates_join_request"] is True and kwargs["name"] == f"user_{uid}" and "member_limit" not in kwargs
+    await on_join_request(_request(uid + 1, f"user_{uid}"), bot)              # друг с чужой ссылкой
+    bot.decline_chat_join_request.assert_awaited_once()
+    await on_join_request(_request(uid, f"user_{uid}"), bot)                  # сам получатель
+    bot.approve_chat_join_request.assert_awaited_once()
+
+
+async def test_review_after_removal_the_old_link_is_revoked_and_refused(uid, channel):
+    from handlers.channel_join import on_join_request
+    _paid(uid, 3)
+    bot = _bot_join()
+    await try_grant_channel_access(bot, uid)
+    _sql("UPDATE users SET subscription_paid_until=? WHERE telegram_id=?", ((datetime.utcnow() - timedelta(days=3)).isoformat(), uid))
+    await channel_sync.run_channel_sync(bot)
+    bot.revoke_chat_invite_link.assert_awaited_once()
+    await on_join_request(_request(uid, f"user_{uid}"), bot)
+    assert bot.approve_chat_join_request.await_count == 0 and bot.decline_chat_join_request.await_count == 1
+
+
+async def test_review_parallel_grants_make_one_link(uid, channel):
+    """Прогон 07.11, находка A3: проверка «уже выдано» и отметка разделены await — параллельные отметки давали несколько ссылок."""
+    import asyncio
+    _paid(uid, 3)
+    bot = _bot_join()
+
+    async def slow_link(**kwargs):
+        await asyncio.sleep(0.01)                                            # как настоящий запрос к Telegram: уступает очередь
+        return SimpleNamespace(invite_link="https://t.me/+abc")
+
+    bot.create_chat_invite_link = AsyncMock(side_effect=slow_link)
+    results = await asyncio.gather(*[try_grant_channel_access(bot, uid) for _ in range(5)])
+    assert bot.create_chat_invite_link.await_count == 1 and sum(1 for r in results if r) == 1
+
+
+async def test_a_ban_removes_from_the_channel_at_once_and_the_link_stops_working(client, uid, channel, monkeypatch):
+    """Решение владельца 07.11: «как только пользователь банится, ему закрывается вообще всё, что связано с проектом ADAM» — и канал."""
+    import webapp.routes_admin as routes_admin
+    from handlers.channel_join import on_join_request
+    from tests.conftest import sign_init_data
+    admin = uid + 900
+    add_user(admin, "adm", "Админ")
+    monkeypatch.setattr(routes_admin, "ADMIN_IDS", [admin])
+    _paid(uid, 3)
+    bot = _bot_join()
+    client.app["bot"] = bot
+    await try_grant_channel_access(bot, uid)
+    r = await client.post(f"/api/admin/user/{uid}/ban", headers={"Authorization": f"tma {sign_init_data(admin)}"})
+    assert r.status == 200
+    bot.ban_chat_member.assert_awaited_once()
+    bot.revoke_chat_invite_link.assert_awaited_once()
+    assert "заблокирован" in bot.send_message.await_args.args[1]
+    await on_join_request(_request(uid, f"user_{uid}"), bot)
+    assert bot.approve_chat_join_request.await_count == 0

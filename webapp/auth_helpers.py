@@ -31,7 +31,7 @@ def _error(exc_cls, error, message=None, extra=None):
     return exc_cls(text=json.dumps(body), content_type="application/json")
 
 
-async def authenticate(init_data):
+async def authenticate(init_data, read_only_ok=False):
     """Проверяет подпись Telegram initData И статус доступа (бан / анкета /
     подписка) — то же самое, что webapp_server._authenticate. Создаёт
     пользователя при первом обращении. Возвращает (telegram_id, is_admin)
@@ -72,6 +72,13 @@ async def authenticate(init_data):
                 AGE_RESTRICTED_TEXT if status == AGE_RESTRICTED else "Доступ к приложению пока ожидает подтверждения",
             )
         if not bot_access_allowed(telegram_id):
+            # Решение владельца 07.11: в дополнительные сутки после триала история чата с Адамом видна (чтение) — «так люди будут видеть,
+            # что он полезен». Писать Адаму нельзя: read_only_ok передают только маршруты чтения (как GET в webapp_server._authenticate).
+            if read_only_ok:
+                from db.access_state import access_state
+                if (access_state(telegram_id) or {}).get("read_only"):
+                    touch_last_seen(telegram_id)
+                    return telegram_id, is_admin
             from db import get_subscription_status
             timed = get_subscription_status(telegram_id).get("access_mode") == "timed"
             raise _error(

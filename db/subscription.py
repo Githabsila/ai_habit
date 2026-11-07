@@ -139,6 +139,22 @@ def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None
     return new_until
 
 
+def take_back_one_period(user_id, days=30):
+    """Возврат одного платежа Stars (прогон 07.11, P3): снимаем один оплаченный период, а не весь срок — у человека, оплатившего два месяца,
+    второй остаётся. Срок не уходит в прошлое: если остаётся меньше нуля — подписки нет."""
+    user = get_user(user_id)
+    until = _parse_dt(user["subscription_paid_until"]) if user is not None else None
+    left = until - timedelta(days=days) if until else None
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET subscription_paid_until=? WHERE telegram_id=?",
+                     (left.isoformat() if left and left > now else None, user_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def revoke_subscription(user_id):
     """После возврата Stars: оплаченный срок и ссылка в канал снимаются (отметка «платил раньше» остаётся — решение по цене за админом)."""
     conn = connect()
@@ -301,6 +317,8 @@ def channel_removal_reason(user_id):
     user = get_user(user_id)
     if user is None or not ("channel_access_granted_at" in user.keys() and user["channel_access_granted_at"]):
         return None
+    if int(user["banned"] or 0) == 1:
+        return "banned"                                    # решение владельца 07.11: бан закрывает всё, что связано с ADAM, и канал тоже
     if not has_active_subscription(user_id):
         return "subscription"
     if int(user["streak"] or 0) <= 0:
@@ -328,10 +346,12 @@ def mark_channel_access_granted(user_id):
 
 
 async def try_grant_channel_access(bot, user_id):
-    """Если пользователь оплатил подписку И набрал нужный стрик, И ещё не
-    получал ссылку — создаёт одноразовую инвайт-ссылку в закрытый канал и
-    отправляет её. Ничего не делает (без ошибки), если CLOSED_CHANNEL_ID
-    не настроен — канал ещё можно подключить позже без изменений кода."""
+    """Если пользователь оплатил подписку И набрал нужный стрик, И ещё не получал ссылку — создаёт личную ссылку в закрытый канал и
+    возвращает её. Ничего не делает (без ошибки), если CLOSED_CHANNEL_ID не настроен.
+
+    Прогон 07.11: (A3) выдача занимается атомарно до запроса к Telegram — параллельные отметки привычек давали несколько ссылок;
+    (A1) ссылка — заявка (creates_join_request) с именем user_<id>: войти по ней может только сам получатель и только пока доступ
+    действует (handlers/channel_join.py) — раньше её можно было отдать другу или потратить после конца подписки."""
     from config import CLOSED_CHANNEL_ID
 
     status = get_subscription_status(user_id)
@@ -339,11 +359,29 @@ async def try_grant_channel_access(bot, user_id):
         return None
     if not CLOSED_CHANNEL_ID:
         return None
-
-    invite = await bot.create_chat_invite_link(
-        chat_id=CLOSED_CHANNEL_ID,
-        member_limit=1,
-        name=f"user_{user_id}",
-    )
-    mark_channel_access_granted(user_id)
+    conn = connect()
+    try:
+        claimed = conn.execute("UPDATE users SET channel_access_granted_at=CURRENT_TIMESTAMP WHERE telegram_id=? AND channel_access_granted_at IS NULL",
+                               (user_id,)).rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    if not claimed:
+        return None                                            # параллельный вызов уже выдаёт ссылку
+    try:
+        invite = await bot.create_chat_invite_link(chat_id=CLOSED_CHANNEL_ID, name=f"user_{user_id}", creates_join_request=True)
+    except Exception:
+        conn = connect()
+        try:
+            conn.execute("UPDATE users SET channel_access_granted_at=NULL WHERE telegram_id=?", (user_id,))
+            conn.commit()
+        finally:
+            conn.close()
+        raise
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET channel_invite_link=? WHERE telegram_id=?", (invite.invite_link, user_id))
+        conn.commit()
+    finally:
+        conn.close()
     return invite.invite_link
