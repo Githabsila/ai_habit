@@ -8872,7 +8872,9 @@ function renderSubscriptionScreen(t, ov) {
   document.getElementById("trialPaywallTitle").textContent = copy.title;
   document.getElementById("trialPaywallStatus").textContent = copy.status;
   document.getElementById("trialPaywallLead").textContent = copy.lead;
-  document.getElementById("trialPaywallPerks").innerHTML = t.paid ? "" : SUB_PERKS.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+  // Закрытый канал — строкой «как попасть», только когда он подключён (07.11); что внутри, не рассказываем (решение 05.11).
+  const perks = t.channel_configured ? [...SUB_PERKS, `Закрытый канал ADAM — при серии ${Number(t.needed) || 3} дней подряд`] : SUB_PERKS;
+  document.getElementById("trialPaywallPerks").innerHTML = t.paid ? "" : perks.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
   document.getElementById("trialPaywallOffer").innerHTML = t.paid ? "" : subOfferHtml(t);
   const offer = document.getElementById("trialPaywallOffer");
   offer.hidden = !!t.paid;

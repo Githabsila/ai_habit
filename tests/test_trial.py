@@ -340,6 +340,18 @@ def test_the_text_after_payment_names_the_term_the_free_days_and_the_renewal():
     assert "Продление автоматическое: каждые 30 дней спишется 461 ⭐ (≈$5.99)" in auto and "настройках Telegram" in auto and "вручную" not in auto
 
 
+def test_after_payment_without_the_streak_it_says_how_the_channel_opens():
+    """07.11: канал подключён, а серии на вход ещё нет — после оплаты говорим, как туда попасть; без канала — ни слова."""
+    from datetime import datetime as dt
+    snap = {"renewal_price_stars": 461, "renewal_usd": "$5.99", "streak": 1, "needed": 3, "channel_configured": True, "channel_granted": False}
+    text = tm.paid_welcome_text(snap, dt(2026, 11, 21))
+    assert "Закрытый канал ADAM откроется, когда наберёшь 3 дня ударного режима подряд — ссылка придёт сама." in text
+    assert "канал" not in tm.paid_welcome_text({**snap, "channel_configured": False}, dt(2026, 11, 21)).lower()
+    assert "откроется" not in tm.paid_welcome_text({**snap, "channel_granted": True}, dt(2026, 11, 21)), "уже в канале — не повторяем"
+    with_link = tm.paid_welcome_text({**snap, "streak": 3}, dt(2026, 11, 21), link="https://t.me/+abc")
+    assert "https://t.me/+abc" in with_link and "откроется, когда" not in with_link
+
+
 def test_the_text_after_payment_carries_the_link_only_when_there_is_one():
     snap = {"renewal_price_stars": 461, "renewal_usd": "$5.99", "streak": 2}
     assert "https://t.me/+abc" in tm.paid_welcome_text(snap, "21.11.2026", link="https://t.me/+abc")

@@ -191,7 +191,7 @@ def test_the_styles_are_light_and_the_block_sits_before_the_chest():
     for forbidden in ("filter", "backdrop-filter", "infinite", "animation"):
         assert forbidden not in css, forbidden
     assert "Окно «Сундук»" not in css.split("*/", 1)[1]
-    assert "style.css?v=20261107_HUB_V98" in INDEX and "app.js?v=20261107_HUB_V112" in INDEX
+    assert "style.css?v=20261107_HUB_V98" in INDEX and "app.js?v=20261107_HUB_V113" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- тексты (Node на заглушках DOM)
@@ -353,3 +353,11 @@ def test_no_screen_repeats_its_own_words_or_speaks_in_the_third_person():
     for case, result in zip(CASES, _run(CASES)["cases"]):
         screen = result["screen"]
         assert not shared(screen["title"], screen["status"], screen["lead"], screen["offer"], screen["pay"], screen["renewal"]), (case["trial"]["phase"], screen)
+
+
+def test_the_subscription_screen_names_the_channel_only_when_it_is_connected():
+    """07.11 «канал подключён»: строка о закрытом канале в списке «что даёт подписка» — только при channel_configured и без содержания."""
+    from pathlib import Path
+    js = (Path(__file__).resolve().parent.parent / "webapp" / "static" / "app.js").read_text(encoding="utf-8")
+    assert 'const perks = t.channel_configured ? [...SUB_PERKS, `Закрытый канал ADAM — при серии ${Number(t.needed) || 3} дней подряд`] : SUB_PERKS;' in js
+    assert "канал" not in js[js.index("const SUB_PERKS = ["):][:300].lower(), "в постоянном списке канала нет"
