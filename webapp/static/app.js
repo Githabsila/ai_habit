@@ -5704,36 +5704,75 @@ const CHEST_DRAIN_MS = 500;               // отпустил раньше — �
 const CHEST_STEPS = 3;                    // на трети, двух третях и полном заряде — удар со звуком и вибрацией
 const CHEST_SHAKE_MS = 700;
 
+// Звук сундука (выбор владельца 07.11): удары заряда — «Нарастающий тон» (до, ми, соль вверх), открытие — «Вспышка» (вдох, хлопок с басом,
+// воздух и мягкое сияние). Один общий AudioContext с небольшой «комнатой» (свёртка) и компрессором; создаётся и будится в обработчике
+// нажатия (unlockChestAudio) — иначе iPhone держит его выключенным: удары звучат уже из requestAnimationFrame, не из жеста.
+const CHEST_OPEN_LEAD_MS = 220;           // «вдох» перед хлопком: звук открытия запускаем раньше, чтобы хлопок совпал с отлётом крышки
+let chestAudio = null;
+function chestAudioCtx() {
+  if (!chestAudio) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    const ctx = new Ctx();
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.ratio.value = 4; comp.connect(ctx.destination);
+    const master = ctx.createGain(); master.connect(comp);
+    const verb = ctx.createConvolver();
+    const len = Math.floor(ctx.sampleRate * 1.2), ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.5); }
+    verb.buffer = ir;
+    const wet = ctx.createGain(); wet.gain.value = .28; verb.connect(wet); wet.connect(master);
+    chestAudio = { ctx, master, verb };
+  }
+  if (chestAudio.ctx.state === "suspended") chestAudio.ctx.resume().catch(() => {});
+  return chestAudio;
+}
+function unlockChestAudio() { if (evolutionSilence) return; try { chestAudioCtx(); } catch (_) {} }
+
+function chestSynth(a) {
+  const { ctx, master, verb } = a, now = ctx.currentTime;
+  const env = (g, t, vol, attack, dur) => { g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(.0001, t + dur); };
+  const out = (node, send) => { node.connect(master); if (send) { const s = ctx.createGain(); s.gain.value = send; node.connect(s); s.connect(verb); } };
+  return {
+    tone(f, at, dur, { type = "sine", vol = .1, attack = .005, send = .5 } = {}) {
+      const t = now + at, o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t); env(g, t, vol, attack, dur); o.connect(g); out(g, send); o.start(t); o.stop(t + dur + .05);
+    },
+    noise(at, dur, { vol = .2, f = 2000, to = 0, q = 1, type = "bandpass", attack = .002, send = .3 } = {}) {
+      const t = now + at, len = Math.max(1, Math.floor(ctx.sampleRate * (dur + .02))), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), g = ctx.createGain();
+      src.buffer = buf; fl.type = type; fl.Q.value = q; fl.frequency.setValueAtTime(f, t); if (to) fl.frequency.exponentialRampToValueAtTime(to, t + dur);
+      env(g, t, vol, attack, dur); src.connect(fl); fl.connect(g); out(g, send); src.start(t); src.stop(t + dur + .02);
+    },
+    boom(at, { vol = .5, from = 140, to = 40, dur = .35 } = {}) {
+      const t = now + at, o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine"; o.frequency.setValueAtTime(from, t); o.frequency.exponentialRampToValueAtTime(to, t + dur * .7);
+      env(g, t, vol, .004, dur); o.connect(g); out(g, 0); o.start(t); o.stop(t + dur + .05);
+    },
+  };
+}
+const chestNote = (semi) => 261.63 * Math.pow(2, semi / 12);
+
 function playChestSound(phase, n = 1) {
   if (evolutionSilence) return;
   try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    // [частота, начало (с), длительность (с), тип, громкость]: глухой удар по дереву (с каждым тапом чуть ниже и плотнее) и восходящий «дзынь» при открытии
-    const knock = [
-      [[160, 0, .1, "triangle", .22], [330, 0, .03, "square", .04]],
-      [[180, 0, .1, "triangle", .25], [110, .05, .09, "triangle", .2], [380, 0, .03, "square", .05]],
-      [[210, 0, .11, "triangle", .3], [125, .05, .1, "triangle", .26], [85, .1, .12, "triangle", .22], [440, 0, .03, "square", .06]],
-    ];
-    const notes = phase === "open"
-      ? [[523, 0, .2, "sine", .13], [659, .09, .2, "sine", .13], [784, .18, .22, "sine", .13], [1047, .28, .45, "sine", .14]]
-      : knock[Math.min(Math.max(n, 1), CHEST_STEPS) - 1];
-    let end = 0;
-    notes.forEach(([freq, at, dur, type, vol]) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const t = ctx.currentTime + at;
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, t);
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(vol, t + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(t); osc.stop(t + dur + 0.02);
-      end = Math.max(end, at + dur);
-    });
-    setTimeout(() => { try { ctx.close(); } catch (_) {} }, (end + 0.3) * 1000);
+    const a = chestAudioCtx();
+    if (!a) return;
+    const s = chestSynth(a);
+    if (phase === "open") {
+      // «Вспышка»: вдох 0,22 с (CHEST_OPEN_LEAD_MS) → хлопок с басом → воздух и сияние аккорда
+      s.noise(0, .22, { vol: .16, f: 500, to: 6000, q: .9, attack: .2, send: .2 });
+      s.boom(.22, { vol: .6, from: 120, to: 38, dur: .45 });
+      s.noise(.22, .08, { vol: .22, f: 3000, type: "highpass", q: .5, send: .5 });
+      [12, 19, 24, 28].forEach((semi, i) => s.tone(chestNote(semi), .24 + i * .02, .9, { vol: .035, attack: .02, send: .9 }));
+      return;
+    }
+    // «Нарастающий тон»: до, ми, соль — с каждым шагом заряда выше и чуть громче
+    const step = Math.min(Math.max(n, 1), CHEST_STEPS);
+    const f = chestNote([12, 16, 19][step - 1]);
+    s.tone(f, 0, .22, { type: "triangle", vol: .09 + .02 * step, send: .4 });
+    s.tone(f * 2, 0, .12, { vol: .025 * step, send: .4 });
   } catch (_) {}
 }
 
@@ -5896,6 +5935,7 @@ async function openChestReveal({ eyebrow, caption = "", final = false, tone = ""
     function onDown(e) {
       if (e.button > 0) return;
       e.preventDefault();
+      unlockChestAudio();
       try { stage.setPointerCapture(e.pointerId); } catch (_) {}
       start();
     }
@@ -5904,7 +5944,7 @@ async function openChestReveal({ eyebrow, caption = "", final = false, tone = ""
     function onWaitClick(e) { if (e.target === overlay || e.target.closest("#chestClose")) finish("later"); }
     function onWaitKey(e) {
       if (e.key === "Escape") finish("later");
-      else if ((e.key === "Enter" || e.key === " ") && document.activeElement === stage) { e.preventDefault(); if (!e.repeat) start(); }
+      else if ((e.key === "Enter" || e.key === " ") && document.activeElement === stage) { e.preventDefault(); if (!e.repeat) { unlockChestAudio(); start(); } }
     }
     function onKeyUp(e) { if (e.key === "Enter" || e.key === " ") stop(); }
     stage.addEventListener("pointerdown", onDown);
@@ -5933,7 +5973,9 @@ async function openChestReveal({ eyebrow, caption = "", final = false, tone = ""
   }
   const reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const wait = (reduceMotion ? 250 : CHEST_SHAKE_MS) - (performance.now() - startedAt);
-  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  if (wait > CHEST_OPEN_LEAD_MS) await new Promise((resolve) => setTimeout(resolve, wait - CHEST_OPEN_LEAD_MS));
+  playChestSound("open");                  // «вдох» начинается до открытия, хлопок попадает ровно в отлёт крышки
+  await new Promise((resolve) => setTimeout(resolve, CHEST_OPEN_LEAD_MS));
 
   const items = chestPrizeItems(result?.reward || {});
   title.textContent = final ? "Весь приз твой!" : "Всё твоё!";
@@ -5942,7 +5984,6 @@ async function openChestReveal({ eyebrow, caption = "", final = false, tone = ""
   closeBtn.disabled = true;
   card.dataset.phase = "open";
   haptic("triple");
-  playChestSound("open");
 
   let closed = false;
   const close = () => {

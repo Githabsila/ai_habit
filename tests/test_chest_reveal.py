@@ -78,7 +78,7 @@ def test_the_flying_lid_stays_inside_the_drawing():
 
 
 def test_script_and_style_versions_follow_the_release():
-    assert "style.css?v=20261107_HUB_V97" in INDEX and "app.js?v=20261107_HUB_V111" in INDEX
+    assert "style.css?v=20261107_HUB_V97" in INDEX and "app.js?v=20261107_HUB_V112" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- скрипт
@@ -105,7 +105,9 @@ def test_window_waits_for_a_full_charge_then_asks_the_server_shows_prizes_and_ha
     assert body.index('if (outcome === "later")') < shake
     assert body.index("catch (err)") < body.index("throw err;") < body.index("chestPrizeItems("), "ошибка запроса закрывает окно и уходит вызывающему"
     assert 'card.dataset.phase = "open";' in body
-    assert body.index('haptic("triple");') < body.index('playChestSound("open");'), "открытие — тройная долгая вибрация"
+    lead = body.index('playChestSound("open");')
+    assert lead < body.index("setTimeout(resolve, CHEST_OPEN_LEAD_MS)", lead) < body.index('card.dataset.phase = "open";') < body.index('haptic("triple");'), \
+        "«вдох» звука начинается заранее, хлопок и тройная вибрация — вместе с отлётом крышки"
     assert 'card.dataset.ready = "1";' in body, "«Забрать» оживает только после наград"
     assert "if (closed || card.dataset.ready !== \"1\") return;" in body, "раньше времени окно не закрывается"
     assert 'e.key === "Escape"' in body and "removeEventListener" in body
@@ -125,10 +127,14 @@ def test_holding_charges_the_ring_and_letting_go_drains_it():
     assert "stage.setPointerCapture(e.pointerId)" in body, "лёгкий сдвиг пальца не обрывает заряд"
     assert '"pointerup", "pointercancel", "lostpointercapture"' in body
     assert 'stage.addEventListener("contextmenu", onMenu);' in body, "долгое нажатие не открывает меню"
-    assert '(e.key === "Enter" || e.key === " ") && document.activeElement === stage' in body and "if (!e.repeat) start();" in body, "с клавиатуры — держать Enter или Пробел"
+    assert '(e.key === "Enter" || e.key === " ") && document.activeElement === stage' in body and "if (!e.repeat) { unlockChestAudio(); start(); }" in body, "с клавиатуры — держать Enter или Пробел"
     assert 'CHEST_HINTS = { idle: "Зажми и держи", hold: "Держи…", early: "Почти! Держи дольше" }' in APP_JS
     sound = APP_JS[APP_JS.index("function playChestSound("):][:1800]
-    assert sound.count('"triangle"') >= 6 and "knock[Math.min(Math.max(n, 1), CHEST_STEPS) - 1]" in sound, "у каждого из трёх шагов свой звук"
+    assert "chestNote([12, 16, 19][step - 1])" in sound, "удары «Нарастающий тон»: до, ми, соль — каждый шаг выше (выбор владельца 07.11)"
+    assert 's.boom(.22,' in sound and 'type: "highpass"' in sound, "открытие «Вспышка»: вдох, хлопок с басом, воздух"
+    assert "const CHEST_OPEN_LEAD_MS = 220;" in APP_JS
+    assert body.count("unlockChestAudio();") == 2, "звук будится в самом жесте (палец и клавиатура) — иначе iPhone молчит"
+    assert "if (evolutionSilence) return;" in APP_JS[APP_JS.index("function unlockChestAudio("):][:120]
     assert "window.AdamHaptics.knock(n)" in APP_JS[APP_JS.index("function hapticKnock("):][:200]
 
 
