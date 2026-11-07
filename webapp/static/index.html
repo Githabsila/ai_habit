@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261107_HUB_V98">
+<link rel="stylesheet" href="/static/style.css?v=20261107_HUB_V99">
 <!-- Оформление «Royal Gold» (db/style_mode.py): подключается только если режим включён для человека — app.js::applyRoyalStyle запоминает это в localStorage, чтобы не мелькало фиолетовое. -->
 <script>try{if(localStorage.getItem("adam_royal")==="1"){document.documentElement.classList.add("adam-royal");var rs=document.createElement("script");rs.src="/static/royal.js?v=20261028_ROYAL_V1";document.head.appendChild(rs);}}catch(e){}</script>
 </head>
@@ -995,6 +995,12 @@ class="habit-add-form__submit">
     <p class="pay-card__sub" id="payMethodSub"></p>
     <div class="pay-card__list" id="payMethodList"></div>
     <p class="pay-card__hint" id="payMethodHint" hidden>Звёзды покупаются в Telegram. В магазине приложений одна звезда стоит около 2 центов, поэтому сумма в долларах примерная: точная цена зависит от твоего магазина и страны.</p>
+    <form class="pay-card__email" id="payEmailForm" hidden novalidate>
+      <label for="payEmailInput">Почта для чека</label>
+      <input type="email" id="payEmailInput" inputmode="email" autocomplete="email" placeholder="name@example.com" maxlength="254">
+      <small id="payEmailNote">Платёжный сервис пришлёт на неё чек. Спрошу один раз.</small>
+      <button type="submit" class="pay-card__again">Перейти к оплате</button>
+    </form>
     <p class="pay-card__wait" id="payMethodWait" hidden></p>
     <button type="button" class="pay-card__again" id="payMethodPaid" hidden>Проверить статус</button>
     <button type="button" class="pay-card__again pay-card__again--quiet" id="payMethodReopen" hidden>Открыть страницу ещё раз</button>
@@ -1836,7 +1842,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261107_HUB_V113"></script>
+<script type="module" src="/static/app.js?v=20261107_HUB_V114"></script>
 
 </body>
 </html>

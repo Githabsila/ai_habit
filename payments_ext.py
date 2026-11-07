@@ -18,7 +18,8 @@ from db.tracking import track_server
 logger = logging.getLogger(__name__)
 
 ITEM_TYPES = ("frame_stars", "answer_pack_stars", "booster_stars", "diamond_pack_stars")
-PROVIDER_ERRORS = ("method_unavailable", "provider_error", "already_paid", "already_owned", "daily_limit_reached", "item_not_found", "invalid_request")
+PROVIDER_ERRORS = ("method_unavailable", "provider_error", "already_paid", "already_owned", "daily_limit_reached", "item_not_found", "invalid_request",
+                   "email_required")
 
 
 STAR_USD_ESTIMATE = 0.0199          # что платит покупатель за одну звезду в магазине приложений (таблица Telegram: 100 ⭐ = $1,99); у нас остаётся $0,013 за звезду
@@ -68,11 +69,17 @@ def methods_for(user_id, kind, item_id=None):
     if cents:
         key = pay_orders.price_key(kind, item["id"] if item else None, user_id)
         for entry in pay_providers.available_methods(key):
-            methods.append({"method": entry["method"], "label": entry["label"], "price_text": pay_orders.format_usd(cents)})
+            provider = pay_providers.PROVIDERS[entry["provider"]]
+            amount = provider.order_amount(key) if hasattr(provider, "order_amount") else cents
+            currency = getattr(provider, "currency", "USD")
+            price_text = pay_orders.format_usd(amount) if currency == "USD" else f"{amount // 100} ₽"
+            methods.append({"method": entry["method"], "label": entry["label"], "price_text": price_text,
+                            "needs_email": bool(getattr(provider, "needs_email", False)),
+                            "email": pay_orders.get_pay_email(user_id) if getattr(provider, "needs_email", False) else None})
     return methods
 
 
-async def start_order(user_id, method, kind, item_id=None):
+async def start_order(user_id, method, kind, item_id=None, email=None):
     """Создаёт заказ и счёт у платёжного сервиса. {"order_id", "pay_url"} либо PayError(код)."""
     if kind == "subscription":
         key = pay_orders.price_key("subscription", user_id=user_id)
@@ -92,7 +99,21 @@ async def start_order(user_id, method, kind, item_id=None):
     cents = pay_orders.price_cents(kind, item["id"] if item else None, user_id)
     if not cents:
         raise PayError("item_not_found")
-    order = pay_orders.create_order(user_id, provider.name, method, kind, item["id"] if item else None, cents, price_key=key)
+    currency = "USD"
+    if hasattr(provider, "order_amount"):                          # Lava: сумма и валюта — из привязанного оффера (рубли у «Мир» и СБП)
+        cents, currency = provider.order_amount(key), provider.currency
+        if not cents:
+            raise PayError("method_unavailable")
+    if getattr(provider, "needs_email", False):                    # Lava требует почту покупателя для чека: один раз спрашиваем и запоминаем
+        from pay_lava import valid_email
+        if email is not None:
+            clean = valid_email(email)
+            if clean is None:
+                raise PayError("email_required")
+            pay_orders.set_pay_email(user_id, clean)
+        elif not pay_orders.get_pay_email(user_id):
+            raise PayError("email_required")
+    order = pay_orders.create_order(user_id, provider.name, method, kind, item["id"] if item else None, cents, currency, price_key=key)
     try:
         invoice = await provider.create_invoice(order, cents)
     except pay_providers.ProviderError as exc:

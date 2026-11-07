@@ -60,6 +60,12 @@ def auto_notice_text(until_text, price):
             "Отключить продление можно в приложении (раздел «Подписка») или в настройках Telegram.")
 
 
+def failed_card_text():
+    """Автосписание картой через Lava не прошло (вебхук subscription.recurring.payment.failed или подтверждения нет)."""
+    return ("⚠️ Не получилось продлить подписку: карта не прошла автосписание.\n\n"
+            "Доступ держу ещё сутки. Проверь карту или оплати заново в приложении (раздел «Подписка») — серия и история сохранятся.")
+
+
 def failed_text(price):
     return (f"⚠️ Не получилось продлить подписку: Telegram не списал {price} ⭐ — возможно, не хватило звёзд.\n\n"
             "Доступ держу ещё сутки. Пополни звёзды и продли — серия и история сохранятся.")
@@ -95,10 +101,15 @@ def plan_for(user, now_utc):
     if auto:
         from datetime import timedelta
         if until <= now_utc - timedelta(hours=FAILED_AFTER_HOURS):   # срок прошёл, продления нет — идут сутки запаса
-            return f"sub_renew_failed:{stamp}", failed_text(price), renewal_keyboard(False, price, user["telegram_id"])
+            card = str(user["subscription_charge_id"] or "").startswith("lava:")
+            return (f"sub_renew_failed:{stamp}", failed_card_text() if card else failed_text(price),
+                    renewal_keyboard(False, price, user["telegram_id"]))
         if until <= now_utc:
             return None                                        # ждём подтверждение продления
         if days_left == AUTO_NOTICE_DAYS:
+            if str(user["subscription_charge_id"] or "").startswith("lava:"):           # автосписание картой — без звёзд в тексте
+                return (f"sub_auto_notice:{stamp}", f"🔁 Напоминаю честно: {until_text} подписка продлится сама — карта спишет полную цену за следующий месяц. "
+                        "Ничего делать не нужно.\n\nОтключить продление можно в приложении (раздел «Подписка»).", None)
             return f"sub_auto_notice:{stamp}", auto_notice_text(until_text, price), None
         return None
     if until <= now_utc or days_left not in REMIND_DAYS:
