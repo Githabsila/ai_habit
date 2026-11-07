@@ -8572,7 +8572,7 @@ const SIM_PAY_METHODS = [
   { method: "card", label: "Картой", price_text: "$1.99" },
   { method: "crypto", label: "Криптой", price_text: "$1.99" },
 ];
-const PAY_ICONS = { stars: "⭐", card: "💳", crypto: "🪙" };
+const PAY_ICONS = { stars: "⭐", card: "💳", rub: "🏦", sbp: "⚡", crypto: "🪙" };
 const PAY_ERRORS = {
   already_paid: "Подписка уже оформлена", already_owned: "Это у тебя уже есть", daily_limit_reached: "На сегодня этот пакет уже куплен — завтра снова можно",
   item_not_found: "Этот товар пока нельзя оплатить", method_unavailable: "Этот способ пока недоступен", provider_error: "Сервис оплаты сейчас не отвечает — выбери другой способ или попробуй позже",
@@ -8597,7 +8597,21 @@ function renderPayChoice(methods) {
   document.getElementById("payMethodReopen").hidden = true;
   document.getElementById("payMethodPaid").hidden = true;
   document.getElementById("payMethodList").hidden = false;
+  document.getElementById("payEmailForm").hidden = true;
   document.getElementById("payMethodHint").hidden = !methods.some((m) => m.method === "stars");
+}
+
+// Lava.top (07.11) требует почту покупателя для чека: перед первой оплатой спрашиваем её здесь же, сервер запоминает (db/pay_orders.set_pay_email).
+function askPayEmail(method, error = "") {
+  if (!payCtx) return;
+  payCtx.pendingMethod = method;
+  document.getElementById("payMethodList").hidden = true;
+  document.getElementById("payMethodHint").hidden = true;
+  const form = document.getElementById("payEmailForm");
+  form.hidden = false;
+  document.getElementById("payEmailNote").textContent = error || "Платёжный сервис пришлёт на неё чек. Спрошу один раз.";
+  const input = document.getElementById("payEmailInput");
+  try { input.focus({ preventScroll: true }); } catch (_) {}
 }
 
 function openPayChoice(methods, ctx) {
@@ -8633,10 +8647,14 @@ async function choosePayMethod(method) {
   if (ctx.demo) { showToast("🧪 Демо: оплата не открывается", "success", 1800); return; }
   trk("pay_method_chosen", method, null);
   if (method === "stars") { closePayChoice(); await ctx.starsFlow(); return; }
+  const entry = (ctx.methods || []).find((m) => m.method === method);
+  if (entry?.needs_email && !entry.email && !ctx.email) { askPayEmail(method); return; }
   const list = document.getElementById("payMethodList");
   list.querySelectorAll("button").forEach((b) => { b.disabled = true; });
   try {
-    const order = await api("/api/pay/order", { method: "POST", body: JSON.stringify({ method, kind: ctx.kind, item_id: ctx.itemId }) });
+    const payload = { method, kind: ctx.kind, item_id: ctx.itemId };
+    if (ctx.email) payload.email = ctx.email;
+    const order = await api("/api/pay/order", { method: "POST", body: JSON.stringify(payload) });
     ctx.orderId = order.order_id;
     ctx.payUrl = order.pay_url;
     openPayPage(order.pay_url);
@@ -8651,6 +8669,7 @@ async function choosePayMethod(method) {
     payPollTimer = setInterval(pollPayOrder, 3000);
   } catch (err) {
     list.querySelectorAll("button").forEach((b) => { b.disabled = false; });
+    if (err?.data?.error === "email_required") { ctx.email = null; askPayEmail(method, "Проверь почту — на неё придёт чек."); return; }
     showToast(PAY_ERRORS[err?.data?.error] || friendlyError(err), "error");
   }
 }
@@ -8701,6 +8720,16 @@ function initPayChoice() {
     if (btn && !btn.disabled) choosePayMethod(btn.dataset.payMethod);
   });
   document.getElementById("payMethodClose")?.addEventListener("click", () => { haptic("light"); closePayChoice(); });
+  document.getElementById("payEmailForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const value = (document.getElementById("payEmailInput").value || "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(value)) { askPayEmail(payCtx?.pendingMethod, "Похоже на опечатку — проверь почту."); return; }
+    if (!payCtx) return;
+    payCtx.email = value;
+    document.getElementById("payEmailForm").hidden = true;
+    document.getElementById("payMethodList").hidden = false;
+    choosePayMethod(payCtx.pendingMethod);
+  });
   document.getElementById("payMethodReopen")?.addEventListener("click", () => { haptic("light"); openPayPage(payCtx?.payUrl); });
   document.getElementById("payMethodPaid")?.addEventListener("click", () => { haptic("light"); pollPayOrder(true); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && payCtx?.orderId) pollPayOrder(); });     // вернулись с оплаты — проверяем сразу

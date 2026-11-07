@@ -21,7 +21,8 @@ from db.tracking import track_server
 logger = logging.getLogger(__name__)
 routes = web.RouteTableDef()
 
-ERROR_STATUS = {"method_unavailable": 503, "provider_error": 502, "already_paid": 400, "already_owned": 400, "daily_limit_reached": 400, "item_not_found": 404, "invalid_request": 400}
+ERROR_STATUS = {"method_unavailable": 503, "provider_error": 502, "already_paid": 400, "already_owned": 400, "daily_limit_reached": 400, "item_not_found": 404, "invalid_request": 400,
+                "email_required": 400}
 
 
 def _error(code):
@@ -61,7 +62,7 @@ async def pay_order_route(request):
         body = {}
     method, kind, item_id = str(body.get("method") or ""), str(body.get("kind") or ""), body.get("item_id")
     try:
-        created = await payments_ext.start_order(telegram_id, method, kind, item_id)
+        created = await payments_ext.start_order(telegram_id, method, kind, item_id, email=body.get("email"))
     except payments_ext.PayError as exc:
         return _error(exc.code)
     return web.json_response({"ok": True, **created})
@@ -175,6 +176,30 @@ async def admin_tribute_auto_link_route(request):
     if not provider.configured():
         return web.json_response({"error": "not_configured"}, status=409)
     return web.json_response({"results": await provider.auto_link()})
+
+@routes.get("/api/admin/pay/lava")
+async def admin_lava_route(request):
+    """Lava.top: ключи заданы? какие цены привязаны к офферам (с ценой в рублях) и адрес вебхука для кабинета Lava."""
+    from webapp.routes_admin import _authenticate_admin
+    await _authenticate_admin(request)
+    lava = pay_providers.PROVIDERS["lava"]
+    mapped = {row["key"]: row for row in pay_orders.lava_offers()}
+    needed = [{"key": key, "label": label, "price": pay_orders.format_usd(cents), "linked": key in mapped,
+               "rub": (pay_orders.lava_price(key, "RUB") or 0) // 100 or None} for key, label, cents in pay_orders.all_price_keys()]
+    return web.json_response({"configured": lava.configured(), "needed": needed,
+                              "webhook_url": f"{(request.url.scheme + '://' + request.host)}/api/pay/webhook/lava"})
+
+
+@routes.post("/api/admin/pay/lava/auto-link")
+async def admin_lava_auto_link_route(request):
+    """Привязать офферы Lava к нашим ценам автоматически (цена в USD + название; продление — ежемесячный оффер)."""
+    from webapp.routes_admin import _authenticate_admin
+    await _authenticate_admin(request)
+    lava = pay_providers.PROVIDERS["lava"]
+    if not lava.configured():
+        return web.json_response({"error": "not_configured"}, status=409)
+    return web.json_response({"results": await lava.auto_link()})
+
 
 @routes.get("/api/admin/pay/promos")
 async def admin_promos_route(request):

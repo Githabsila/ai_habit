@@ -22,7 +22,7 @@ SUBSCRIPTION_RENEWAL_CENTS = 599      # дальше
 USD_PRICES_CENTS = {22: 199, 23: 399, 24: 129, 27: 199, 28: 799, 7: 399}
 
 KINDS = ("subscription", "item")
-METHODS = ("crypto", "card")
+METHODS = ("crypto", "card", "rub", "sbp")       # rub — карта «Мир» в рублях, sbp — СБП (Lava.top, 07.11)
 
 SCHEMA = (
     """CREATE TABLE IF NOT EXISTS pay_orders(
@@ -37,6 +37,11 @@ SCHEMA = (
     "CREATE INDEX IF NOT EXISTS idx_pay_tribute_product ON pay_tribute_products(product_id)",
     # акции в окне «Покупки» (webapp «магазин»): заголовок, текст, до какого числа показывать
     "CREATE TABLE IF NOT EXISTS pay_promos(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, text TEXT NOT NULL, until TEXT, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL)",
+    # Lava.top (pay_lava.py, 07.11): на каждую нашу цену — оффер Lava (offerId) с ценами в USD и RUB; цены храним, чтобы сверять сумму в вебхуке
+    """CREATE TABLE IF NOT EXISTS pay_lava_offers(
+        key TEXT PRIMARY KEY, product_id TEXT NOT NULL, offer_id TEXT NOT NULL, name TEXT, prices TEXT NOT NULL, periodicity TEXT, synced_at TEXT)""",
+    # почта покупателя для чека (Lava требует email на каждую покупку): спрашиваем один раз и запоминаем
+    "CREATE TABLE IF NOT EXISTS pay_emails(user_id INTEGER PRIMARY KEY, email TEXT NOT NULL, updated_at TEXT NOT NULL)",
     # события платёжных сервисов, которые уже обработаны (идемпотентность: повторный вебхук с тем же номером покупки ничего не добавляет)
     "CREATE TABLE IF NOT EXISTS pay_events(provider TEXT NOT NULL, event_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(provider, event_id))",
 )
@@ -350,5 +355,90 @@ def recent_unfulfilled(limit=50):
     conn = connect()
     try:
         return conn.execute("SELECT * FROM pay_orders WHERE status='paid' AND fulfilled_at IS NULL ORDER BY id LIMIT ?", (int(limit),)).fetchall()
+    finally:
+        conn.close()
+
+
+# ---- Lava.top: офферы и почта покупателя (pay_lava.py)
+
+def lava_offers():
+    conn = connect()
+    try:
+        return conn.execute("SELECT * FROM pay_lava_offers ORDER BY key").fetchall()
+    finally:
+        conn.close()
+
+
+def lava_offer(key):
+    conn = connect()
+    try:
+        return conn.execute("SELECT * FROM pay_lava_offers WHERE key=?", (key,)).fetchone()
+    finally:
+        conn.close()
+
+
+def set_lava_offer(key, product_id, offer_id, name, prices, periodicity=None):
+    """prices — {"USD": 199, "RUB": 19900} в центах/копейках."""
+    import json as _json
+    conn = connect()
+    try:
+        conn.execute(
+            "INSERT INTO pay_lava_offers(key, product_id, offer_id, name, prices, periodicity, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET product_id=excluded.product_id, offer_id=excluded.offer_id, name=excluded.name, prices=excluded.prices, "
+            "periodicity=excluded.periodicity, synced_at=excluded.synced_at",
+            (key, str(product_id), str(offer_id), name, _json.dumps(prices), periodicity, _now()))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def remove_lava_offer(key):
+    conn = connect()
+    try:
+        conn.execute("DELETE FROM pay_lava_offers WHERE key=?", (key,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def lava_price(key, currency):
+    """Цена оффера в центах/копейках для валюты или None."""
+    import json as _json
+    row = lava_offer(key)
+    if row is None:
+        return None
+    try:
+        value = _json.loads(row["prices"] or "{}").get(str(currency).upper())
+    except ValueError:
+        return None
+    return int(value) if value else None
+
+
+def get_pay_email(user_id):
+    conn = connect()
+    try:
+        row = conn.execute("SELECT email FROM pay_emails WHERE user_id=?", (int(user_id),)).fetchone()
+        return row["email"] if row else None
+    finally:
+        conn.close()
+
+
+def set_pay_email(user_id, email):
+    conn = connect()
+    try:
+        conn.execute("INSERT INTO pay_emails(user_id, email, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET email=excluded.email, updated_at=excluded.updated_at",
+                     (int(user_id), email, _now()))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def find_by_provider_uuid_any(providers, provider_uuid):
+    """Заказ по номеру у сервиса среди нескольких имён (у Lava три способа — lava, lava_rub, lava_sbp — и один вебхук)."""
+    marks = ",".join("?" for _ in providers)
+    conn = connect()
+    try:
+        return conn.execute(f"SELECT * FROM pay_orders WHERE provider IN ({marks}) AND provider_uuid=? ORDER BY id DESC LIMIT 1",
+                            (*providers, str(provider_uuid))).fetchone()
     finally:
         conn.close()

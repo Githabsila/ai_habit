@@ -147,7 +147,7 @@ def card_link(kind="subscription", user_id=None, item_id=None):
 def available_methods(price_key=None):
     """Способы оплаты, которые можно показать человеку за эту покупку: [{"method", "label", "provider"}]. Звёзды сюда не входят — они есть всегда."""
     result = []
-    for method in ("card", "crypto"):
+    for method in ("card", "rub", "sbp", "crypto"):
         provider = provider_for(method, price_key)
         if provider:
             result.append({"method": method, "label": provider.label, "provider": provider.name})
@@ -157,3 +157,8 @@ def available_methods(price_key=None):
 from pay_tribute import Tribute  # noqa: E402  (регистрируем после определения общих классов: Tribute берёт ProviderError отсюда)
 
 PROVIDERS["tribute"] = Tribute()
+
+# Lava.top (pay_lava.py, 07.11) — первой среди карт: Visa/Mastercard в долларах, «Мир» и СБП в рублях. Если Lava настроена, «Картой» ведёт в неё,
+# Tribute остаётся запасным (порядок словаря = порядок выбора в provider_for).
+from pay_lava import providers as _lava_providers  # noqa: E402
+PROVIDERS = {**{k: v for k, v in PROVIDERS.items() if k != "tribute"}, **_lava_providers(), "tribute": PROVIDERS["tribute"]}

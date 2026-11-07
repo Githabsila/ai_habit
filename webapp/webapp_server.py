@@ -1102,6 +1102,20 @@ async def subscription_auto_renew_route(request):
     if bot is None:
         return web.json_response({"error": "payment_unavailable"}, status=503)
     enabled = bool(body.get("enabled"))
+    if str(charge_id).startswith("lava:"):
+        # Подписка картой через Lava.top (pay_lava.py): отключить — отменить у Lava; снова включить нельзя (отмена у Lava окончательная) —
+        # новое автопродление оформляется новой покупкой, когда кончится оплаченный срок.
+        if enabled:
+            return web.json_response({"error": "lava_cannot_resume"}, status=409)
+        import pay_providers
+        from db import pay_orders
+        lava = pay_providers.PROVIDERS.get("lava")
+        email = pay_orders.get_pay_email(telegram_id)
+        if lava is None or not email or not await lava.cancel_subscription(str(charge_id)[5:], email):
+            return web.json_response({"error": "payment_unavailable"}, status=502)
+        set_auto_renew(telegram_id, False)
+        from db.subscription import subscription_overview
+        return web.json_response({"ok": True, **subscription_overview(telegram_id)})
     try:
         await bot.edit_user_star_subscription(user_id=telegram_id, telegram_payment_charge_id=charge_id, is_canceled=not enabled)
     except Exception:

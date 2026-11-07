@@ -15008,6 +15008,11 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .pay-card h2{margin:0 0 2px;font:800 20px 'Space Grotesk',sans-serif}
 .pay-card__sub{margin:0 0 12px;font-size:13px;color:#B8B4C8}
 .pay-card__list[hidden],.pay-card__wait[hidden],.pay-card__again[hidden]{display:none}
+.pay-card__email{display:flex;flex-direction:column;gap:8px;margin:6px 0 12px}
+.pay-card__email[hidden]{display:none}
+.pay-card__email label{font-size:13px;font-weight:700;color:#D7D3E6}
+.pay-card__email input{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:inherit;font:inherit;font-size:16px}
+.pay-card__email small{font-size:12px;line-height:1.4;color:#A8A6B8}
 .pay-method{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;width:100%;min-height:52px;margin-bottom:8px;padding:0 14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.05);color:inherit;font:inherit;text-align:left;cursor:pointer}
 .pay-method:disabled{opacity:.6}
 .pay-method b{font:800 15px 'Space Grotesk',sans-serif}

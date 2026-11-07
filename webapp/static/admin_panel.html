@@ -1577,6 +1577,7 @@ textarea.field{resize:vertical;min-height:88px}
     if (!box) return;
     try{
       var t = await api('/api/admin/pay/tribute');
+      var lv = await api('/api/admin/pay/lava').catch(function(){ return null; });
       var promos = (await api('/api/admin/pay/promos')).promos || [];
       var orders = (await api('/api/admin/pay/orders')).orders || [];
       var rows = (t.needed || []).map(function(n){
@@ -1587,7 +1588,12 @@ textarea.field{resize:vertical;min-height:88px}
       var promoRows = promos.map(function(p){ return '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(p.title) + (p.active ? '' : ' (убрана)') + '</b><small>' + escapeHtml(p.text) + (p.until ? ' · до ' + escapeHtml(String(p.until).slice(0, 10)) : '') + '</small></div>' +
         (p.active ? '<button class="btn" data-promo-remove="' + p.id + '">Убрать</button>' : '') + '</div>'; }).join('');
       var orderRows = orders.slice(0, 10).map(function(o){ return '<div class="empty-note" style="padding:1px 0">' + escapeHtml(String(o.created_at).slice(5, 16)) + ' · ' + o.user_id + ' · ' + escapeHtml(o.provider) + ' · ' + escapeHtml(o.price) + ' · ' + escapeHtml(o.status) + (o.fulfilled ? ' · выдано' : (o.status === 'paid' ? ' · <b>не выдано</b>' : '')) + '</div>'; }).join('');
-      box.innerHTML =
+      var lavaRows = lv ? (lv.needed || []).map(function(n){ return '<div class="empty-note" style="padding:1px 0">' + escapeHtml(n.label) + ' · ' + escapeHtml(n.price) +
+          (n.linked ? ' · ✅ привязан' + (n.rub ? ' · ' + n.rub + ' ₽' : ' · нет цены в рублях') : ' · не привязан') + '</div>'; }).join('') : '';
+      var lavaBlock = lv ? '<div class="section-label" style="margin:8px 2px 6px">Lava.top (Visa/Mastercard, «Мир», СБП)</div>' +
+          '<div class="empty-note" style="padding:0 0 6px">Ключи Lava: <b>' + (lv.configured ? 'заданы' : 'не заданы (LAVA_API_KEY и LAVA_WEBHOOK_SECRET)') + '</b>. Адрес вебхука для кабинета Lava: <b>' + escapeHtml(lv.webhook_url) + '</b></div>' +
+          (lv.configured ? '<div class="btn-row"><button class="btn btn-accent" id="lavaAutoLinkBtn">Привязать Lava автоматически</button></div><div id="lavaAutoLinkReport"></div>' : '') + lavaRows : '';
+      box.innerHTML = lavaBlock +
         '<div class="empty-note" style="padding:0 0 6px">Ключ Tribute: <b>' + (t.configured ? 'задан' : 'не задан') + '</b>. Адрес вебхука для Tribute (кабинет → Настройки → API Keys): <b>' + escapeHtml(t.webhook_url) + '</b></div>' +
         '<div class="section-label" style="margin:8px 2px 6px">Товары Tribute под наши цены</div>' +
         (t.configured ? '<div class="btn-row"><button class="btn btn-accent" id="tributeAutoLinkBtn">Привязать автоматически</button></div><div id="tributeAutoLinkReport"></div>' : '') + rows +
@@ -1601,6 +1607,18 @@ textarea.field{resize:vertical;min-height:88px}
           try{ await api('/api/admin/pay/tribute/products', { method: 'POST', body: JSON.stringify({ key: btn.dataset.tributeSave, product_id: input.value.trim() }) }); haptic('light'); showToast('Сохранено'); loadPayAdmin(); }
           catch(e){ showToast(PAY_ADMIN_ERRORS[e && e.data && e.data.error] || 'Ошибка'); }
         });
+      });
+      var lavaAuto = document.getElementById('lavaAutoLinkBtn');
+      if (lavaAuto) lavaAuto.addEventListener('click', async function(){
+        lavaAuto.disabled = true;
+        try{
+          var res = (await api('/api/admin/pay/lava/auto-link', { method: 'POST', body: '{}' })).results || [];
+          var words = { linked: '✅ привязан', already: '✓ уже был', not_found: '— нет оффера с такой ценой в USD и названием', ambiguous: '⚠️ подходят несколько' };
+          var report = res.map(function(r){ return '<div class="empty-note" style="padding:1px 0">' + escapeHtml(r.label) + ': ' + escapeHtml(words[r.status] || r.status) +
+            (r.status === 'linked' && !r.rub ? ' (нет цены в рублях — «Мир» и СБП не покажутся)' : '') + '</div>'; }).join('');
+          haptic('light'); await loadPayAdmin();
+          var box3 = document.getElementById('lavaAutoLinkReport'); if (box3) box3.innerHTML = report;
+        }catch(e){ lavaAuto.disabled = false; showToast('Ошибка'); }
       });
       var auto = document.getElementById('tributeAutoLinkBtn');
       if (auto) auto.addEventListener('click', async function(){
