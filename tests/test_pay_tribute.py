@@ -369,3 +369,18 @@ async def test_auto_link_skips_prices_with_no_or_two_matching_products(tribute, 
     report = {row["key"]: row["status"] for row in await tribute.auto_link()}
     assert report["item_27"] == "ambiguous" and report["item_7"] == "not_found" and report["sub_first"] == "not_found"
     assert pay_orders.tribute_product("item_27") is None and pay_orders.tribute_product("item_7") is None
+
+
+def test_purchases_window_and_pay_choice_open_above_the_shop_screen():
+    """07.11, владелец: «нажимаю баннер — ничего не происходит». Баннер «Подписка и покупки» (и баланс 💎) лежат на экране «Магазин»
+    (.subpage-overlay, z-index 1850), а окно «Покупки» открывалось под ним (1655) — его просто не было видно. Окно выбора оплаты — тоже."""
+    import re
+    from pathlib import Path
+    static = Path(__file__).resolve().parent.parent / "webapp" / "static"
+    css = (static / "style.css").read_text(encoding="utf-8")
+    index = (static / "index.html").read_text(encoding="utf-8")
+    z = lambda sel: int(re.search(re.escape(sel) + r"\{[^}]*z-index:(\d+)", css).group(1))
+    shop = max(z(".subpage-overlay"), z(".subpage-overlay--nested"))       # «Магазин» открывается вложенным слоем (1860)
+    assert index.index('id="shopOverlay"') < index.index('id="shopHubBtn"') < index.index('id="shopHubOverlay"'), "баннер — внутри «Магазина»"
+    assert z(".hub-overlay") > shop and z(".pay-overlay") > z(".hub-overlay"), "«Покупки» над «Магазином», выбор оплаты над «Покупками»"
+    assert z(".pay-overlay") < 1880, "уведомления (.toast, 1880) остаются поверх — ошибки оплаты видны"
