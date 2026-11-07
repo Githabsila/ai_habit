@@ -177,6 +177,12 @@ def main(argv=None):
     parser.add_argument("--to", dest="dest", default=None, help="куда положить базу (по умолчанию — место базы проекта)")
     parser.add_argument("--force", action="store_true", help="заменить уже существующую базу (старая сохранится рядом)")
     parser.add_argument("--key", default=None, help="ключ для зашифрованной копии «….enc» (иначе — из BACKUP_ENCRYPTION_KEY)")
+    # Ключ Fernet может начинаться с «-» (urlsafe base64): argparse принял бы «--key -Abc…» за новый параметр и упал. Склеиваем в «--key=…».
+    argv = list(sys.argv[1:] if argv is None else argv)
+    for i, item in enumerate(argv[:-1]):
+        if item == "--key":
+            argv[i:i + 2] = [f"--key={argv[i + 1]}"]
+            break
     args = parser.parse_args(argv)
     global _KEY
     _KEY = args.key

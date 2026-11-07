@@ -397,7 +397,7 @@ def test_meaningful_moments_use_dedicated_effects():
     assert 'haptic("success")' in APP_JS           # уровень, серия, сундук
     assert 'haptic("reward")' in APP_JS            # похвала за награду
     assert 'haptic("warning")' in APP_JS           # ошибки
-    assert re.search(r'haptic\("triple"\);\s*\n\s*playChestSound\("open"\)', APP_JS), "сундук: тройная долгая вибрация в момент открытия крышки"
+    assert re.search(r'card\.dataset\.phase = "open";\s*\n\s*haptic\("triple"\);', APP_JS), "сундук: тройная долгая вибрация в момент открытия крышки"
     level = APP_JS[APP_JS.index("function showLevelUp("):][:2600]
     assert 'haptic(isMilestone ? "triple" : "success")' in level, "рубеж уровня — тройная, обычный уровень — «успех»"
     assert 'haptic(reward ? "triple" : "success")' in APP_JS, "новый статус серии — тройная"

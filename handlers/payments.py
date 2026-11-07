@@ -231,6 +231,12 @@ async def buy_subscription(callback: CallbackQuery):
     if spec is None:
         await callback.answer("Сейчас оплата не нужна: доступ открыт.", show_alert=True)
         return
+    from pay_providers import card_link
+    card = card_link("subscription", user_id=callback.from_user.id)
+    if card:                                          # карта (Tribute) — отдельным сообщением: у счёта в звёздах первая кнопка всегда «Оплатить»
+        await callback.message.answer(
+            "💳 Можно оплатить картой Visa или Mastercard — доступ откроется сам, как только придёт оплата.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=f"💳 Картой · {card[1]}", url=card[0])]]))
     if spec["recurring"]:
         link, spec = await create_invoice_link(callback.bot, callback.from_user.id)
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=f"⭐ Оформить за {spec['price']} Stars", url=link)]])
