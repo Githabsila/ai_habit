@@ -68,8 +68,17 @@ def test_chest_window_markup_is_a_hidden_dialog_with_all_parts():
     assert INDEX.index('id="chestOverlay"') > INDEX.index('id="dailyQuestsOverlay"'), "окно лежит в документе после квестов дня"
 
 
+def test_the_flying_lid_stays_inside_the_drawing():
+    """07.11, скрин владельца с iPhone: крышка при открытии обрезалась по верхнему краю рисунка — WebKit не рисует SVG за пределами
+    viewBox, хотя overflow:visible. Отлетевшая крышка поднимается до y≈-61, поэтому у рисунка запас сверху."""
+    assert '<svg class="chest-svg" viewBox="0 -70 200 270"' in INDEX
+    box = re.search(r"\.chest-box\{([^}]*)\}", CSS).group(1)
+    assert "height:202.5px" in box and "top:-27.5px" in box, "рамка выросла вверх, сундук остался по центру кольца"
+    assert "@keyframes chestLid{to{transform:translate(-4px,-40px) rotate(-32deg)}}" in CSS
+
+
 def test_script_and_style_versions_follow_the_release():
-    assert "style.css?v=20261107_HUB_V96" in INDEX and "app.js?v=20261107_HUB_V111" in INDEX
+    assert "style.css?v=20261107_HUB_V97" in INDEX and "app.js?v=20261107_HUB_V111" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- скрипт
