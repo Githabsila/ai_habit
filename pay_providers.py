@@ -129,6 +129,21 @@ def provider_for(method, price_key=None):
     return None
 
 
+def card_link(kind="subscription", user_id=None, item_id=None):
+    """Кнопка «Картой» для бота (07.11: в боте платили только звёздами, хотя в Mini App карта есть): (ссылка на товар Tribute, цена «$5.99»)
+    или None. Только при EXTERNAL_PAYMENTS_ENABLED, заданном ключе и привязанном товаре под нужную цену. Заказ заранее не нужен: покупку
+    Tribute присылает вебхуком с номером человека в Telegram (pay_tribute.py::_on_purchase)."""
+    from db import pay_orders
+    key = pay_orders.price_key(kind, item_id=item_id, user_id=user_id)
+    provider = provider_for("card", key)
+    if provider is None or provider.name != "tribute":
+        return None
+    product = pay_orders.tribute_product(key)
+    if not product or not product["link"]:
+        return None
+    return product["link"], pay_orders.format_usd(product["amount_cents"])
+
+
 def available_methods(price_key=None):
     """Способы оплаты, которые можно показать человеку за эту покупку: [{"method", "label", "provider"}]. Звёзды сюда не входят — они есть всегда."""
     result = []

@@ -98,3 +98,47 @@ async def test_the_job_sends_once_per_term(uid, monkeypatch):
     assert await sr.run_renewal_reminders(bot, now_utc=NOW) == 1
     assert await sr.run_renewal_reminders(bot, now_utc=NOW + timedelta(minutes=2)) == 0
     assert bot.send_message.await_count == 1
+
+
+def _card_ready(monkeypatch, key="sub_renewal", link="https://t.me/tribute/app?startapp=p102"):
+    """Оплата картой включена, ключ Tribute задан, товар под цену продления привязан."""
+    from db import pay_orders
+    monkeypatch.setattr(config, "EXTERNAL_PAYMENTS_ENABLED", True)
+    monkeypatch.setattr(config, "TRIBUTE_API_KEY", "test-key")
+    pay_orders.set_tribute_product(key, 102 if key == "sub_renewal" else 101, "ADAM Pro", 599 if key == "sub_renewal" else 199, "USD", link, "https://web")
+
+
+def test_with_card_payments_on_the_reminder_also_offers_the_card(uid, monkeypatch):
+    """07.11: в Mini App можно платить картой, а напоминание в боте предлагало только звёзды — продлить картой из бота было нельзя."""
+    monkeypatch.setattr(config, "SUBSCRIPTION_AUTORENEW_ENABLED", False)
+    _card_ready(monkeypatch)
+    key, text, keyboard = sr.plan_for(_paid(uid, NOW + timedelta(days=3, hours=2)), NOW)
+    rows = keyboard.inline_keyboard
+    assert rows[0][0].callback_data == "buy_subscription", "звёзды остаются первой кнопкой"
+    assert rows[1][0].url == "https://t.me/tribute/app?startapp=p102" and "Картой" in rows[1][0].text and "$5.99" in rows[1][0].text
+
+
+def test_without_external_payments_the_reminder_has_only_stars(uid, monkeypatch):
+    monkeypatch.setattr(config, "SUBSCRIPTION_AUTORENEW_ENABLED", False)
+    _card_ready(monkeypatch)
+    monkeypatch.setattr(config, "EXTERNAL_PAYMENTS_ENABLED", False)
+    key, text, keyboard = sr.plan_for(_paid(uid, NOW + timedelta(days=3, hours=2)), NOW)
+    assert len(keyboard.inline_keyboard) == 1
+
+
+async def test_the_bot_pay_button_offers_the_card_before_the_stars_invoice(uid, monkeypatch):
+    """Кнопка «Оплатить» в боте: при включённой карте сначала сообщение с кнопкой «Картой», потом обычный счёт в звёздах."""
+    import handlers.payments as hp
+    from db import pay_orders
+    add_user(uid, "n", "Новичок")
+    monkeypatch.setattr(config, "SUBSCRIPTION_AUTORENEW_ENABLED", False)
+    spec = {"recurring": False, "title": "ADAM Pro", "description": "30 дней", "payload": "p", "price": 153, "snapshot": {"phase": "x", "day": 1}}
+    monkeypatch.setattr(flow, "invoice_spec", lambda user_id: spec)
+    key = pay_orders.price_key("subscription", user_id=uid)
+    _card_ready(monkeypatch, key=key, link=f"https://t.me/tribute/app?startapp={key}")
+    message = SimpleNamespace(answer=AsyncMock(), answer_invoice=AsyncMock())
+    callback = SimpleNamespace(from_user=SimpleNamespace(id=uid), message=message, answer=AsyncMock(), bot=None)
+    await hp.buy_subscription(callback)
+    card_markup = message.answer.await_args.kwargs["reply_markup"]
+    assert card_markup.inline_keyboard[0][0].url == f"https://t.me/tribute/app?startapp={key}" and "Картой" in card_markup.inline_keyboard[0][0].text
+    message.answer_invoice.assert_awaited_once()

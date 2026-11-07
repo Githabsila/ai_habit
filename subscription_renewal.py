@@ -30,9 +30,16 @@ def _until_text(until, tz):
     return fmt_local(until, tz)
 
 
-def renewal_keyboard(autorenew_enabled, price):
+def renewal_keyboard(autorenew_enabled, price, user_id=None):
+    """Звёзды — всегда; «Картой» — второй строкой, когда оплата картой включена и товар Tribute привязан (pay_providers.card_link)."""
     text = f"🔁 Включить автопродление · {price} ⭐" if autorenew_enabled else f"⭐ Продлить на 30 дней · {price} ⭐"
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=text, callback_data="buy_subscription")]])
+    rows = [[InlineKeyboardButton(text=text, callback_data="buy_subscription")]]
+    if user_id is not None:
+        from pay_providers import card_link
+        card = card_link("subscription", user_id=user_id)
+        if card:
+            rows.append([InlineKeyboardButton(text=f"💳 Картой · {card[1]}", url=card[0])])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def manual_text(days_left, until_text, autorenew_enabled):
@@ -87,7 +94,7 @@ def plan_for(user, now_utc):
     if auto:
         from datetime import timedelta
         if until <= now_utc - timedelta(hours=FAILED_AFTER_HOURS):   # срок прошёл, продления нет — идут сутки запаса
-            return f"sub_renew_failed:{stamp}", failed_text(price), renewal_keyboard(False, price)
+            return f"sub_renew_failed:{stamp}", failed_text(price), renewal_keyboard(False, price, user["telegram_id"])
         if until <= now_utc:
             return None                                        # ждём подтверждение продления
         if days_left == AUTO_NOTICE_DAYS:
@@ -96,7 +103,7 @@ def plan_for(user, now_utc):
     if until <= now_utc or days_left not in REMIND_DAYS:
         return None
     return (f"sub_end_{days_left}:{stamp}", manual_text(days_left, until_text, SUBSCRIPTION_AUTORENEW_ENABLED),
-            renewal_keyboard(SUBSCRIPTION_AUTORENEW_ENABLED, price))
+            renewal_keyboard(SUBSCRIPTION_AUTORENEW_ENABLED, price, user["telegram_id"]))
 
 
 async def run_renewal_reminders(bot, now_utc=None):

@@ -76,3 +76,21 @@ async def test_the_code_archive_goes_weekly_and_encrypted(folder, monkeypatch):
     assert await backup_mod.send_code_archive(bot) is False, "второй раз в ту же неделю — не уходит"
     assert len(bot.documents) == 1
     assert not [p for p in folder.iterdir() if p.suffix in (".zip", ".enc")], "временные архивы удалены"
+
+
+async def test_a_key_that_starts_with_a_dash_is_accepted(folder, tmp_path_factory, monkeypatch):
+    """07.11, CI: ключ Fernet — urlsafe base64 и может начинаться с «-» (≈1 из 32). argparse принимал такой `--key -Abc…` за новый
+    параметр и падал (SystemExit 2) — тест падал случайно, а владелец не смог бы восстановить копию с таким ключом."""
+    import base64
+    key = "-" + base64.urlsafe_b64encode(b"\x00" * 32).decode()[1:]
+    assert key.startswith("-")
+    from cryptography.fernet import Fernet
+    Fernet(key.encode())                                            # ключ настоящий
+    monkeypatch.setenv("BACKUP_ENCRYPTION_KEY", key)
+    bot = FakeBot()
+    await backup_mod.send_offsite_backup(bot)
+    _chat, data, _caption, _silent, name = bot.documents[0]
+    sent = tmp_path_factory.mktemp("restore_dash") / name
+    sent.write_bytes(data)
+    monkeypatch.delenv("BACKUP_ENCRYPTION_KEY")
+    assert restore.main([str(sent), "--check", "--key", key]) == 0
