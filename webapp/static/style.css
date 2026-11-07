@@ -14969,7 +14969,8 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .shop-hub-banner__text b{display:block;font:800 14px 'Space Grotesk',sans-serif}
 .shop-hub-banner__text small{font-size:12px;color:#B8B4C8}
 .shop-hub-banner__arrow{font-size:22px;color:#B9A8FF}
-.hub-overlay{position:fixed;inset:0;z-index:1655;overflow-y:auto;background:#12101c;padding:calc(var(--adam-chrome-top, 0px) + 16px) 16px 32px}
+/* 07.11: z-index выше экрана «Магазин» (.subpage-overlay 1850, вложенный .subpage-overlay--nested 1860) — баннер «Подписка и покупки» лежит на нём, и окно открывалось под ним, невидимым. */
+.hub-overlay{position:fixed;inset:0;z-index:1870;overflow-y:auto;background:#12101c;padding:calc(var(--adam-chrome-top, 0px) + 16px) 16px 32px}
 .hub-overlay[hidden]{display:none}
 .hub-card{max-width:520px;margin:0 auto;color:#EDE9FA}
 .hub-card h2{margin:6px 0 12px;font:800 22px 'Space Grotesk',sans-serif}
@@ -15001,7 +15002,7 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 :root[data-mode="light"] .hub-promo b{color:#8A5A00}
 
 /* Окно выбора способа оплаты (app.js::startPurchase): звёзды, карта, крипта. Нижняя шторка, без фильтров и постоянной анимации. */
-.pay-overlay{position:fixed;inset:0;z-index:1660;display:flex;align-items:flex-end;justify-content:center;background:rgba(10,8,18,.62)}
+.pay-overlay{position:fixed;inset:0;z-index:1875;display:flex;align-items:flex-end;justify-content:center;background:rgba(10,8,18,.62)}
 .pay-overlay[hidden]{display:none}
 .pay-card{width:100%;max-width:520px;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));border-radius:22px 22px 0 0;background:#1c1730;color:#EDE9FA;box-shadow:0 -12px 32px rgba(0,0,0,.4)}
 .pay-card h2{margin:0 0 2px;font:800 20px 'Space Grotesk',sans-serif}
