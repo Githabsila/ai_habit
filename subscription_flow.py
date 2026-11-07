@@ -205,6 +205,12 @@ async def report_payment_failure(bot, user, charge_id, payload, amount, error):
         logger.warning("Не удалось сообщить о сбое оплаты человеку %s", getattr(user, "id", None))
 
 
+def _external_charge(charge_id):
+    """Платёж внешнего способа (payments_ext.fulfil: «<provider>:<order_id>» — Tribute, Heleket, Lava…), а не звёзды Telegram."""
+    from pay_providers import PROVIDERS
+    return str(charge_id or "").split(":", 1)[0] in PROVIDERS and ":" in str(charge_id or "")
+
+
 async def retry_failed_payments(bot):
     """Раз в несколько минут повторяет начисление по платежам, где деньги получены, а доступ не открыт (ТЗ §19). Успех — человеку и владельцу."""
     from db import shop
@@ -219,7 +225,7 @@ async def retry_failed_payments(bot):
         try:
             text, snap, link = await complete_subscription_payment(
                 bot, user_id, paid_at=_parse(row["purchased_at"]), charge_id=charge_id, recurring=bool(row["is_recurring"]), expires_at=_parse(row["expires_at"]),
-                calendar_months=str(charge_id).startswith(("tribute:", "heleket:")))   # карта/крипта — календарные месяцы, как при первой попытке (payments_ext.py)
+                calendar_months=_external_charge(charge_id))   # карта/крипта — календарные месяцы, как при первой попытке (payments_ext.py)
             shop.finish_payment(charge_id, True)
         except Exception as exc:
             logger.exception("Повтор начисления не удался: %s", charge_id)

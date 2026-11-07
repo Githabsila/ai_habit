@@ -411,6 +411,7 @@ def test_the_shop_has_the_purchases_window_with_its_entry_and_the_demo_scene():
     assert "shop_hub" in {scene[0] for scene in SCENES}
     banner = _INDEX[_INDEX.index('id="shopHubBtn"'):][:400]
     assert "Цены в долларах" in banner
+    assert "оплата звёздами Telegram" not in banner and "картой" in banner and "СБП" in banner, "звёзды — уже не единственный способ оплаты"
     hub = _APP_JS[_APP_JS.index("async function hubBuy"):][:900]
     assert 'startPurchase({ kind: "subscription"' in hub and 'startPurchase({ kind: "item"' in hub and "if (hubDemo)" in hub, "покупка идёт через выбор способа, в демо ничего не открывается"
 
