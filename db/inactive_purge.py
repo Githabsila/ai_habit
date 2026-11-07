@@ -52,7 +52,8 @@ def candidates(now=None, months=None):
             continue
         last_seen = datetime.fromisoformat(str(row["last_seen"]).replace("T", " ")[:19])
         warned = row["warned_at"] and row["warned_at"] > str(row["last_seen"])     # предупреждение после последнего захода
-        if last_seen < purge_before and warned:
+        warned_long_ago = warned and row["warned_at"] <= (now - timedelta(days=WARN_DAYS)).strftime(FMT)   # прогон 07.11: обещали 30 дней — ждём их
+        if last_seen < purge_before and warned_long_ago:
             purge.append(uid)
         elif not warned:
             warn.append(uid)

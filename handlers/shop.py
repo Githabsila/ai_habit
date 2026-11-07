@@ -43,7 +43,9 @@ async def shop(callback: CallbackQuery):
 # ПОКУПКА
 # =====================================
 
-@router.callback_query(F.data.startswith("buy_"))
+# Только buy_<число>: раньше startswith("buy_") ловил и buy_subscription / buy_premium — роутер магазина стоит раньше оплаты,
+# падал на int("subscription"), и «Оплатить» в боте не работала (прогон 07.11, B2).
+@router.callback_query(F.data.regexp(r"^buy_\d+$"))
 async def buy_item(callback: CallbackQuery):
     item_id = int(callback.data.split("_")[1])
 

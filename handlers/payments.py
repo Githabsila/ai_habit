@@ -274,13 +274,30 @@ async def winback_off(callback: CallbackQuery):
 async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
     """Telegram спрашивает, можно ли брать оплату. Подписку берём только у того, на кого выписан счёт (иначе деньги ушли бы мимо)."""
     payload = str(pre_checkout_query.invoice_payload or "")
+    refuse = "Не получилось проверить счёт. Открой оплату в приложении ещё раз."
     if payload.startswith("subscription:"):
         try:
             owner = int(payload.split(":")[1])
         except (IndexError, ValueError):
             owner = None
         if owner != pre_checkout_query.from_user.id:
-            await pre_checkout_query.answer(ok=False, error_message="Не получилось проверить счёт. Открой оплату в приложении ещё раз.")
+            await pre_checkout_query.answer(ok=False, error_message=refuse)
+            return
+        # Прогон 07.11 (P1): ссылку счёта можно оплатить повторно — сохранённая ссылка по вводной цене продлевала бы подписку каждый
+        # месяц за 153 ⭐. Берём только текущую цену человека.
+        from subscription_flow import invoice_spec
+        spec = invoice_spec(owner)
+        if spec is None or int(getattr(pre_checkout_query, "total_amount", 0) or 0) != int(spec["price"]):
+            await pre_checkout_query.answer(ok=False, error_message="Цена изменилась — открой оплату в приложении ещё раз, там актуальный счёт.")
+            return
+    elif payload.startswith(("avatar_frame:", "answer_pack_stars:", "diamond_pack_stars:", "booster:")):
+        # Прогон 07.11: id покупателя — последним в payload; чужую ссылку не принимаем (звёзды списались бы, а покупка не выдалась бы).
+        try:
+            owner = int(payload.split(":")[-1])
+        except ValueError:
+            owner = None
+        if owner != pre_checkout_query.from_user.id:
+            await pre_checkout_query.answer(ok=False, error_message=refuse)
             return
     await pre_checkout_query.answer(ok=True)
 

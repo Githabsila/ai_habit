@@ -384,3 +384,23 @@ def test_purchases_window_and_pay_choice_open_above_the_shop_screen():
     assert index.index('id="shopOverlay"') < index.index('id="shopHubBtn"') < index.index('id="shopHubOverlay"'), "баннер — внутри «Магазина»"
     assert z(".hub-overlay") > shop and z(".pay-overlay") > z(".hub-overlay"), "«Покупки» над «Магазином», выбор оплаты над «Покупками»"
     assert z(".pay-overlay") < 1880, "уведомления (.toast, 1880) остаются поверх — ошибки оплаты видны"
+
+
+async def test_review_the_first_month_product_does_not_renew_someone_who_already_paid(client, uid, tribute, bot):
+    """Прогон 07.11, находка P2: товар «первый месяц» ($1.99) — одна ссылка на всех. Уже платившему он продлевал подписку на месяц по
+    вводной цене сколько угодно раз. Теперь такую покупку не выдаём, а пишем админам (вернуть деньги или выдать вручную)."""
+    _user(uid)
+    _map("sub_first", 902)
+    record_subscription_payment(uid, months=1)                     # уже платил
+    before = get_user(uid)["subscription_paid_until"]
+    response = await _post(client, _event(uid, 902, 199))
+    assert response.status == 200 and (await response.json()).get("ignored") is True
+    assert get_user(uid)["subscription_paid_until"] == before, "вводная цена второй раз не продлевает"
+    assert "первый месяц" in bot.send_message.await_args.args[1]
+
+
+async def test_review_the_first_month_product_still_works_for_a_newcomer(client, uid, tribute, bot):
+    _user(uid)
+    _map("sub_first", 902)
+    response = await _post(client, _event(uid, 902, 199))
+    assert response.status == 200 and has_active_subscription(uid)

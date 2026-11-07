@@ -12,6 +12,7 @@ coach.py
 существующие new_day/send_reminders.
 """
 
+import html
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -601,7 +602,7 @@ async def run_day_progress_check(bot):
                 continue
 
             open_items = [
-                f"{item['kind']}: «{item['text']}»"
+                f"{item['kind']}: «{html.escape(str(item['text']), quote=False)}»"      # текст задачи пишет человек (прогон 07.11)
                 for item in items if not item["completed"]
             ]
 
@@ -830,7 +831,7 @@ def _fallback_habit_feedback(breakdown, period_phrase="на этой недел�
 
     return (
         f"📊 <b>{heading}</b>\n\n"
-        f"{period_phrase.capitalize()} привычка «{worst['habit_title']}» пропущена {worst['missed']} {day_word(worst['missed'])}. "
+        f"{period_phrase.capitalize()} привычка «{html.escape(str(worst['habit_title']), quote=False)}» пропущена {worst['missed']} {day_word(worst['missed'])}. "
         "Попробуй на первое время сделать её полегче или покороче — "
         "чтобы было проще вернуться в ритм, чем совсем бросить 🌱"
     )
@@ -873,7 +874,7 @@ async def run_weekly_habit_analysis(bot):
                 ai_text = await generate_weekly_habit_feedback(breakdown_text, style)
 
             if ai_text:
-                text = "📊 <b>Мой разбор твоей недели по привычкам</b>\n\n" + ai_text
+                text = "📊 <b>Мой разбор твоей недели по привычкам</b>\n\n" + html.escape(ai_text, quote=False)
             else:
                 text = _fallback_habit_feedback(breakdown)
 
@@ -921,7 +922,7 @@ async def run_monthly_habit_analysis(bot):
                 ai_text = await generate_monthly_habit_feedback(breakdown_text, style)
 
             if ai_text:
-                text = "📊 <b>Мой разбор твоего месяца по привычкам</b>\n\n" + ai_text
+                text = "📊 <b>Мой разбор твоего месяца по привычкам</b>\n\n" + html.escape(ai_text, quote=False)
             else:
                 text = _fallback_habit_feedback(
                     breakdown, period_phrase="за этот месяц", heading="Мой разбор месяца по привычкам"

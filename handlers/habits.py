@@ -1,3 +1,4 @@
+import html
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.state import StatesGroup, State
@@ -109,7 +110,7 @@ async def save_habit(message: Message, state: FSMContext):
         f"""
 ✅ Привычка успешно добавлена!
 
-🎯 <b>{title}</b>
+🎯 <b>{html.escape(str(title))}</b>
 """,
         parse_mode="HTML",
         reply_markup=habits_keyboard()
@@ -162,7 +163,7 @@ async def my_habits(callback: CallbackQuery):
 
         await callback.message.answer(
             f"""
-🎯 <b>{habit['title']}</b>
+🎯 <b>{html.escape(str(habit['title']))}</b>
 
 {status}
 """,
@@ -228,7 +229,7 @@ async def save_new_title(message: Message, state: FSMContext):
         f"""
 ✅ Привычка успешно изменена!
 
-🎯 <b>{new_title}</b>
+🎯 <b>{html.escape(str(new_title))}</b>
 """,
         parse_mode="HTML",
         reply_markup=habits_keyboard()

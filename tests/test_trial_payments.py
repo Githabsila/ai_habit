@@ -208,3 +208,70 @@ async def test_the_bot_blocks_an_expired_trial_account_with_the_scenario_text(ui
     shift_trial_day(uid, 2, ADMIN)                                              # вернулся в триал — снова пускает
     await AccessControlMiddleware()(handler, event, {})
     assert handler.await_count == 1
+
+
+async def test_review_refunding_one_payment_keeps_the_other_paid_month(uid):
+    """Прогон 07.11, находка P3: возврат одного платежа стирал весь срок — человек, оплативший два месяца (по ошибке дважды), терял оба."""
+    from datetime import datetime as _dt
+    _person(uid, 2)
+    await pay.successful_payment(_message(uid, f"charge_a{uid}"))
+    await pay.successful_payment(_message(uid, f"charge_b{uid}"))
+    two = _dt.fromisoformat(get_user(uid)["subscription_paid_until"])
+    await flow.refund_payment(_bot(), f"charge_b{uid}")
+    left = get_user(uid)["subscription_paid_until"]
+    assert left and has_active_subscription(uid), "второй, честно оплаченный месяц остаётся"
+    assert abs((two - _dt.fromisoformat(left)).days - 30) <= 1, "снят ровно один период"
+
+
+async def test_review_refunding_an_autorenew_payment_turns_autorenew_off(uid):
+    _person(uid, 2)
+    await pay.successful_payment(_message(uid, f"charge_s{uid}"))
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET subscription_auto_renew=1, subscription_charge_id=? WHERE telegram_id=?", (f"charge_s{uid}", uid))
+        conn.commit()
+    finally:
+        conn.close()
+    await flow.refund_payment(_bot(), f"charge_s{uid}")
+    assert not get_user(uid)["subscription_auto_renew"], "после возврата Telegram не должен продолжать списания"
+
+
+async def test_review_a_banned_person_cannot_use_the_bot(uid):
+    """Прогон 07.11, находка A2: бан проверялся только в /start — забаненный продолжал жать кнопки и говорить с ИИ (платные вызовы)."""
+    _person(uid, 1)
+    connect_ = connect()
+    try:
+        connect_.execute("UPDATE users SET banned=1 WHERE telegram_id=?", (uid,))
+        connect_.commit()
+    finally:
+        connect_.close()
+    shown = []
+
+    class _Msg(Message):
+        async def answer(self, text, **kwargs):
+            shown.append(text)
+
+    handler = AsyncMock()
+    await AccessControlMiddleware()(handler, _Msg.model_construct(message_id=1, from_user=SimpleNamespace(id=uid, username=None), text="привет", successful_payment=None), {})
+    assert handler.await_count == 0 and "заблокирован" in shown[0]
+
+
+async def test_review_a_star_payment_is_credited_even_under_the_age_block(uid):
+    """Прогон 07.11, A-low: проверка 16+ стояла раньше пропуска successful_payment — списанные звёзды (в т.ч. автопродление) терялись."""
+    from db.age_gate import AGE_RESTRICTED
+    _person(uid, 1)
+    connect_ = connect()
+    try:
+        connect_.execute("UPDATE users SET access_status=? WHERE telegram_id=?", (AGE_RESTRICTED, uid))
+        connect_.commit()
+    finally:
+        connect_.close()
+
+    class _Msg(Message):
+        async def answer(self, text, **kwargs):
+            pass
+
+    handler = AsyncMock()
+    await AccessControlMiddleware()(handler, _Msg.model_construct(message_id=1, from_user=SimpleNamespace(id=uid, username=None), text=None,
+                                                                    successful_payment=SimpleNamespace(total_amount=153)), {})
+    assert handler.await_count == 1

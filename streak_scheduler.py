@@ -579,7 +579,7 @@ async def run_rank_overtaken_notifications(bot):
             day = now_local.date().isoformat()
             if not claim_notification(uid, day, "rank_overtaken", scope):
                 continue
-            name = item["overtaker_name"] or "Кто-то"
+            name = html.escape(str(item["overtaker_name"] or "Кто-то"))      # имя обогнавшего пишет он сам (прогон 07.11)
             try:
                 await bot.send_message(
                     uid,

@@ -67,6 +67,7 @@ from handlers.achievements import router as achievements_router
 from handlers.daily import router as daily_router
 from handlers.community import router as community_router
 from handlers.plan_bot import router as plan_bot_router
+from handlers.channel_join import router as channel_join_router
 from handlers.fallback import router as fallback_router
 
 # ====================== НАСТРОЙКА ЛОГГИРОВАНИЯ ======================
@@ -118,6 +119,7 @@ async def main():
     dp.callback_query.outer_middleware(AccessControlMiddleware())
 
     # Роутеры
+    dp.include_router(channel_join_router)          # заявки в закрытый канал (прогон 07.11)
     dp.include_router(admin_router)
     dp.include_router(shop_router)
     dp.include_router(calendar_router)

@@ -181,7 +181,7 @@ async def process_user(bot, telegram_id, scope, now_local=None):
             ac.finish_slot(telegram_id, day_iso, slot, "skipped", scenario=scenario, note="уже было уведомление Адама")
             return "skipped: duplicate"
         try:
-            await bot.send_message(telegram_id, text, reply_markup=_keyboard())
+            await bot.send_message(telegram_id, text, reply_markup=_keyboard(), parse_mode=None)   # обычный текст с названиями привычек (прогон 07.11)
         except Exception:
             release_notification(telegram_id, day_iso, "adam_checkin", scope)
             raise
@@ -260,7 +260,7 @@ async def process_followup(bot, telegram_id, scope, now_local=None):
                 ac.finish_slot(telegram_id, day_iso, slot, "skipped", scenario=scenario, note="уже было уведомление Адама")
                 return "skipped: duplicate"
             try:
-                await bot.send_message(telegram_id, text, reply_markup=_keyboard())
+                await bot.send_message(telegram_id, text, reply_markup=_keyboard(), parse_mode=None)   # обычный текст с названиями привычек (прогон 07.11)
             except Exception:
                 release_notification(telegram_id, day_iso, kind, scope)
                 raise

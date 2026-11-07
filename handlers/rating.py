@@ -1,3 +1,4 @@
+import html
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
@@ -43,7 +44,7 @@ async def rating(callback: CallbackQuery):
 
         text += (
             f"{place} "
-            f"{user['first_name']}{badge} — "
+            f"{html.escape(str(user['first_name'] or ''))}{badge} — "      # имя пишет сам игрок (прогон 07.11)
             f"{user['xp']} Adam Coin\n"
         )
 

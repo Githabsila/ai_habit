@@ -218,7 +218,8 @@ async def retry_failed_payments(bot):
             continue
         try:
             text, snap, link = await complete_subscription_payment(
-                bot, user_id, paid_at=_parse(row["purchased_at"]), charge_id=charge_id, recurring=bool(row["is_recurring"]), expires_at=_parse(row["expires_at"]))
+                bot, user_id, paid_at=_parse(row["purchased_at"]), charge_id=charge_id, recurring=bool(row["is_recurring"]), expires_at=_parse(row["expires_at"]),
+                calendar_months=str(charge_id).startswith(("tribute:", "heleket:")))   # карта/крипта — календарные месяцы, как при первой попытке (payments_ext.py)
             shop.finish_payment(charge_id, True)
         except Exception as exc:
             logger.exception("Повтор начисления не удался: %s", charge_id)
@@ -269,5 +270,15 @@ async def refund_payment(bot, charge_id):
         return {"error": "telegram_failed", "detail": str(exc)[:200]}
     mark_payment_refunded(charge_id)
     if str(row["payload"] or "").startswith("subscription:"):
-        revoke_subscription(row["user_id"])
+        from db.shop import list_user_payments
+        from db.subscription import set_auto_renew, take_back_one_period
+        others = [p for p in list_user_payments(row["user_id"], limit=200)
+                  if p["charge_id"] != charge_id and not p["refunded_at"] and str(p["payload"] or "").startswith("subscription:") and p["status"] == "done"]
+        if others:
+            take_back_one_period(row["user_id"])                   # прогон 07.11 (P3): есть другие оплаченные месяцы — снимаем один период, не весь срок
+        else:
+            revoke_subscription(row["user_id"])                    # единственный платёж — снимаем срок целиком, как раньше
+        user = get_user(row["user_id"])
+        if user is not None and user["subscription_charge_id"] == charge_id:
+            set_auto_renew(row["user_id"], False)                  # возврат подписки Stars — дальше не списываем
     return {"ok": True, "user_id": row["user_id"], "amount": row["amount"], "payload": row["payload"]}
