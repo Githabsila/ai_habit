@@ -215,3 +215,22 @@ def test_lava_comes_first_among_cards_and_the_bot_link_stays_tribute_only(lava):
     _link_all()
     assert pay_providers.provider_for("card", "item_27").name == "lava"
     assert pay_providers.card_link("item", item_id=27) is None, "у Lava нет общей ссылки — в боте кнопка «Картой» не показывается"
+
+
+async def test_review_the_intro_price_pays_for_only_one_month(client, uid, lava, bot):
+    """Прогон 09.11: до первой оплаты можно открыть несколько счетов «первый месяц» ($1.99) и оплатить все — месяц по вводной цене только один,
+    остальные не продлевают подписку и попадают админам (как P2 у Tribute)."""
+    _user(uid)
+    _link_all()
+    pay_orders.set_pay_email(uid, "a@example.com")
+    orders = []
+    for _ in range(2):
+        created = await (await client.post("/api/pay/order", headers=_headers(uid), json={"method": "card", "kind": "subscription"})).json()
+        orders.append(pay_orders.get_order(created["order_id"]))
+    assert all(o["price_key"] == "sub_first" for o in orders)
+    for o in orders:
+        event = {"eventType": "payment.success", "contractId": o["provider_uuid"], "amount": 1.99, "currency": "USD", "status": "completed"}
+        assert (await _hook(client, event)).status == 200
+    until = datetime.fromisoformat(get_user(uid)["subscription_paid_until"])
+    assert (until - datetime.now()).days <= 31, "второй счёт по вводной цене не добавил месяц"
+    assert any("вводн" in c.args[1] for c in bot.send_message.await_args_list if c.args[0] == 777000222)

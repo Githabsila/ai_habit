@@ -109,6 +109,8 @@ def request_account_deletion(telegram_id):
     cursor.execute("DELETE FROM user_events WHERE user_id=?", (telegram_id,))
     cursor.execute("DELETE FROM app_sessions WHERE user_id=?", (telegram_id,))
     cursor.execute("DELETE FROM user_summaries WHERE user_id=?", (telegram_id,))
+    # Задачи плана дня привязаны к плану, а не к человеку (столбца-владельца нет) — стираем до самих планов (прогон 09.11).
+    cursor.execute("DELETE FROM daily_plan_tasks WHERE plan_id IN (SELECT id FROM daily_plans WHERE user_id=?)", (telegram_id,))
     for table, owned in _person_tables(cursor, _KEEP_TABLES):
         cursor.execute(f'DELETE FROM "{table}" WHERE ' + " OR ".join(f'"{column}"=?' for column in owned), (telegram_id,) * len(owned))
 

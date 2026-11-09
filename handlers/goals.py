@@ -1,3 +1,5 @@
+import html
+
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
@@ -26,7 +28,7 @@ async def show_milestones(callback: CallbackQuery):
     done_count = sum(1 for m in milestones if m["done"])
 
     text = (
-        f"🧭 <b>Твоя цель</b>\n{survey['bot_goal']}\n\n"
+        f"🧭 <b>Твоя цель</b>\n{html.escape(str(survey['bot_goal'] or ''), quote=False)}\n\n"
         f"<b>Вехи</b> ({done_count}/{len(milestones)}):\n"
         "Нажми на веху, чтобы отметить выполненной."
     )
@@ -50,7 +52,7 @@ async def toggle(callback: CallbackQuery):
     done_count = sum(1 for m in milestones if m["done"])
 
     text = (
-        f"🧭 <b>Твоя цель</b>\n{survey['bot_goal']}\n\n"
+        f"🧭 <b>Твоя цель</b>\n{html.escape(str(survey['bot_goal'] or ''), quote=False)}\n\n"
         f"<b>Вехи</b> ({done_count}/{len(milestones)}):\n"
         "Нажми на веху, чтобы отметить выполненной."
     )

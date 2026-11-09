@@ -120,6 +120,31 @@ def start_trial(user_id, now_utc=None, force=False):
     return {"started": started, "ends": ends, "tz": tz_name}
 
 
+ADOPT_TZ_HOURS = 6     # пояс, пришедший в первые часы триала, ещё может поправить его срок
+
+
+def adopt_first_timezone(user_id, tz_name, now_utc=None):
+    """Триал начат по UTC (пояса ещё не было), а теперь пришёл настоящий — пересчитать срок от того же старта. Только в первые часы
+    и только с UTC: смена пояса позже срок не двигает (ТЗ: «повторный вход и смена пояса новый триал не дают»)."""
+    user = get_user(user_id)
+    if user is None or not tz_name or str(tz_name).upper() == "UTC":
+        return False
+    keys = user.keys()
+    if not ("trial_started_at" in keys and user["trial_started_at"]) or (user["trial_tz"] if "trial_tz" in keys else None) not in (None, "", "UTC"):
+        return False
+    started = datetime.fromisoformat(str(user["trial_started_at"]))
+    if _naive_utc(now_utc) - started > timedelta(hours=ADOPT_TZ_HOURS):
+        return False
+    ends = compute_trial_end(started, tz_name)
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET trial_ends_at=?, trial_tz=? WHERE telegram_id=?", (_iso(ends), tz_name, user_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return True
+
+
 def set_trial_start(user_id, started_utc):
     """Назначить триал с указанного момента (для проверки и «машины времени»): записываются старт, срок и пояс."""
     started = started_utc.astimezone(UTC).replace(tzinfo=None) if getattr(started_utc, "tzinfo", None) else started_utc

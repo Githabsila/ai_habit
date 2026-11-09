@@ -29,6 +29,8 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
 
     root = logging.getLogger()
     root.setLevel(level)
+    # Прогон 09.11: журнал доступа aiohttp пишет строку запроса целиком — с подписью входа (initData) в адресе, если клиент её туда положил.
+    logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
 
     fmt = logging.Formatter(
         "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",

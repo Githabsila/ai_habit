@@ -286,3 +286,51 @@ async def test_the_chat_history_with_adam_is_visible_in_the_window_but_writing_i
     assert history.status == 200
     chat = await client.post("/api/ai/chat", json={"init_data": init, "message": "привет"})
     assert chat.status == 403
+
+
+async def test_review_the_chat_history_takes_the_signature_from_a_header_not_the_address(client, uid):
+    """Прогон 09.11: подпись входа (initData) уходила в адресе запроса истории и оседала в журналах доступа — сутки действовать от имени человека."""
+    from pathlib import Path
+    from db import add_user
+    from tests.conftest import sign_init_data
+    add_user(uid, f"h{uid}", "Аня")
+    response = await client.get("/api/ai/history", headers={"X-Telegram-Init-Data": sign_init_data(uid)})
+    assert response.status != 401
+    coach = (Path(__file__).resolve().parents[1] / "webapp" / "static" / "ai_coach.js").read_text(encoding="utf-8")
+    assert "/api/ai/history?init_data=" not in coach
+    import logging
+    import logging_config
+    logging_config.setup_logging()
+    assert logging.getLogger("aiohttp.access").getEffectiveLevel() >= logging.WARNING
+
+
+async def test_review_a_person_without_access_can_still_export_and_delete_their_data(client, uid):
+    """Прогон 09.11: после конца триала выгрузка и удаление аккаунта отвечали 403 — человек не мог стереть свои данные (право на удаление)."""
+    from db.daily_plan import add_daily_task
+    _person(uid, tz="UTC", started=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=10))
+    add_daily_task(uid, "Позвонить врачу про анализы")
+    export = await client.get("/api/account/export", headers=_headers(uid))
+    assert export.status == 200
+    delete = await client.post("/api/account/delete", headers=_headers(uid))
+    assert delete.status == 200
+    left = _sql("SELECT COUNT(*) AS n FROM daily_plan_tasks WHERE text=?", ("Позвонить врачу про анализы",))
+    assert left["n"] == 0, "удаление стирает и задачи плана дня (privacy.html обещает)"
+
+
+async def test_review_the_trial_follows_the_timezone_that_arrives_right_after_the_first_open(client, uid):
+    """Прогон 09.11: триал стартует в первом /api/bootstrap, а пояс приложение присылает следом — три дня считались по UTC. В Лос-Анджелесе
+    «День 3 · конец пробного» попадал уже в окно после триала и не приходил ни разу. И неизвестное имя пояса не затирает уже известный."""
+    from db import add_user
+    from db.streak import get_timezone
+    add_user(uid, f"tz{uid}", "Аня")
+    _sql("UPDATE users SET access_status='approved' WHERE telegram_id=?", (uid,))
+    acs.set_trial_start(uid, datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=5))
+    assert _sql("SELECT trial_tz FROM users WHERE telegram_id=?", (uid,))["trial_tz"] == "UTC"
+    r = await client.post("/api/streak/timezone", headers=_headers(uid), json={"timezone": "America/Los_Angeles"})
+    assert r.status == 200
+    row = _sql("SELECT trial_tz, trial_ends_at FROM users WHERE telegram_id=?", (uid,))
+    assert row["trial_tz"] == "America/Los_Angeles"
+    ends = datetime.fromisoformat(row["trial_ends_at"]).replace(tzinfo=UTC).astimezone(ZoneInfo("America/Los_Angeles"))
+    assert (ends.hour, ends.minute) == (0, 0), "срок — полночь по местному времени"
+    bogus = await client.post("/api/streak/timezone", headers=_headers(uid), json={"timezone": "Bogus/Zone"})
+    assert (await bogus.json())["timezone"] == "America/Los_Angeles" and get_timezone(uid) == "America/Los_Angeles"

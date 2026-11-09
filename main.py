@@ -283,9 +283,11 @@ async def main():
     try:
         web_runner = await run_webapp(PORT, bot)
         logger.info(f"✅ Веб-сервер запущен на порту {PORT}")
-    except Exception as e:
-        logger.error(f"❌ Ошибка запуска веб-сервера: {e}")
-        web_runner = None
+    except Exception:
+        # Прогон 09.11: без веб-сервера не работают Mini App и вебхуки оплаты. Падаем, чтобы Railway перезапустил процесс,
+        # а не продолжали жить «наполовину», когда этого никто не заметит.
+        logger.exception("❌ Ошибка запуска веб-сервера — останавливаю процесс")
+        raise
 
     # --- СТАРТОВОЕ СООБЩЕНИЕ ---
     print("\n" + "=" * 50)

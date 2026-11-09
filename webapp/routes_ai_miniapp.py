@@ -511,7 +511,8 @@ async def get_ai_history_miniapp(request):
     """
     from webapp.auth_helpers import authenticate
 
-    init_data = request.rel_url.query.get("init_data", "")
+    # Подпись — из заголовка (прогон 09.11: в адресе она оседала в журналах); адрес — только для старых закэшированных клиентов.
+    init_data = request.headers.get("X-Telegram-Init-Data", "") or request.rel_url.query.get("init_data", "")
     limit = int(request.rel_url.query.get("limit", "50"))
 
     user_id, _is_admin = await authenticate(init_data, read_only_ok=True)

@@ -11,6 +11,6 @@ async def notify_admins(bot, text: str):
     статистику вручную."""
     for admin_id in ADMIN_IDS:
         try:
-            await bot.send_message(chat_id=admin_id, text=f"🩺 {text}")
+            await bot.send_message(chat_id=admin_id, text=f"🩺 {text}", parse_mode=None)   # обычный текст (прогон 09.11)
         except Exception:
             logger.warning(f"Не удалось отправить алерт админу {admin_id}")

@@ -572,7 +572,7 @@ function AiChat() {
     }, [loading]);
     const fetchHistoryList = useCallback(async () => {
         try {
-            const res = await fetch('/api/ai/history?init_data=' + encodeURIComponent(getInitData()) + '&limit=50');
+            const res = await fetch('/api/ai/history?limit=50', { headers: { 'X-Telegram-Init-Data': getInitData() } });
             if (!res.ok)
                 return null;
             const data = await res.json();

@@ -1761,7 +1761,18 @@ async def set_streak_timezone(request):
         known = get_timezone(telegram_id)
         if known != "UTC":
             return web.json_response({"ok": True, "timezone": known, "kept": True})
+    from zoneinfo import ZoneInfo
+    try:
+        ZoneInfo(timezone)
+    except Exception:
+        # Прогон 09.11: имя пояса, которого нет в базе сервера, молча превращалось в UTC и затирало уже известный пояс.
+        from db.streak import get_timezone
+        return web.json_response({"ok": True, "timezone": get_timezone(telegram_id), "kept": True})
     set_timezone(telegram_id, timezone)
+    # Прогон 09.11: триал стартует в первом /api/bootstrap, а пояс приходит следом — без этого три дня считались по UTC (в Америке «конец пробного»
+    # попадал уже в окно после триала и не приходил). Пока триал только начат, пересчитываем его срок по настоящему поясу.
+    from db.access_state import adopt_first_timezone
+    adopt_first_timezone(telegram_id, timezone)
     return web.json_response({"ok": True, "timezone": timezone})
 
 @routes.post("/api/streak/onboarding/seen")
@@ -2738,7 +2749,8 @@ async def reset_progress_route(request):
 
 @routes.get("/api/account/export")
 async def account_export_route(request):
-    telegram_id, _ = await _authenticate(request)
+    # allow_locked: выгрузка и удаление своих данных — право человека и после конца триала (прогон 09.11).
+    telegram_id, _ = await _authenticate(request, allow_locked=True)
     data = export_full_account_data(telegram_id)
     response = web.json_response(data, dumps=lambda d: json.dumps(d, ensure_ascii=False, indent=2))
     response.headers["Content-Disposition"] = f'attachment; filename="adam_data_{telegram_id}.json"'
@@ -2751,7 +2763,7 @@ async def account_delete_route(request):
     """Необратимо (см. db/account.py::request_account_deletion) — фронт
     обязан показать явное подтверждение ПЕРЕД этим запросом, здесь его
     больше негде перепроверить."""
-    telegram_id, _ = await _authenticate(request)
+    telegram_id, _ = await _authenticate(request, allow_locked=True)
     request_account_deletion(telegram_id)
     return web.json_response({"ok": True})
 

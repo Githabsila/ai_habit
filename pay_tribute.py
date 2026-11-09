@@ -233,6 +233,6 @@ async def _alert(bot, text):
         return
     for admin_id in getattr(config, "ADMIN_IDS", []):
         try:
-            await bot.send_message(admin_id, text)
+            await bot.send_message(admin_id, text, parse_mode=None)   # в тексте поля вебхука и названия товаров — обычный текст (прогон 09.11)
         except Exception:
             logger.info("Не удалось сообщить админу %s о событии Tribute", admin_id)

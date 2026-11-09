@@ -1,3 +1,4 @@
+import html
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
@@ -48,7 +49,7 @@ async def profile(callback: CallbackQuery):
 👤 <b>Твой профиль</b>
 
 📝 Имя:
-{user["first_name"]}
+{html.escape(str(user["first_name"] or ""), quote=False)}
 
 👤 Username:
 {username_text}

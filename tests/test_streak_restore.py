@@ -154,3 +154,31 @@ async def test_streak_status_route_includes_free_restore(client, uid):
     assert r.status == 200
     body = await r.json()
     assert body["free_restore"] == {"available": True, "lost_streak": 6}
+
+
+def test_review_a_late_evening_mark_in_new_york_does_not_cover_the_next_missed_day(uid):
+    """Прогон 09.11 (S1): запасная проверка «вчера была отметка» брала date(completed_at) по UTC. В Нью-Йорке отметка в 22:00 дня D — это D+1 по UTC,
+    и пропущенный день D+1 считался выполненным: заморозка не тратилась, а серия потом сгорала до 1."""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    from db.streak import local_today, set_timezone
+    add_user(uid, "u", "Test")
+    ensure_tables()
+    set_timezone(uid, "America/New_York")
+    today = local_today(uid)
+    yesterday, before = today - timedelta(days=1), today - timedelta(days=2)
+    late = datetime(before.year, before.month, before.day, 22, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(timezone.utc)
+    conn = connect()
+    conn.execute("UPDATE users SET streak=10 WHERE telegram_id=?", (uid,))
+    conn.execute("UPDATE streak_meta SET rollover_day=?, freeze_balance=1 WHERE user_id=?", (day_key(yesterday), uid))
+    conn.execute("INSERT INTO habit_completion_events(user_id, habit_id, completed_at) VALUES (?,?,?)", (uid, 1, late.strftime("%Y-%m-%d %H:%M:%S")))
+    conn.commit()
+    conn.close()
+    rollover_user(uid)
+    conn = connect()
+    try:
+        row = conn.execute("SELECT status FROM streak_days WHERE user_id=? AND day=?", (uid, day_key(yesterday))).fetchone()
+        freezes = conn.execute("SELECT freeze_balance FROM streak_meta WHERE user_id=?", (uid,)).fetchone()["freeze_balance"]
+    finally:
+        conn.close()
+    assert row is not None and row["status"] == "freeze" and int(freezes) == 0, "пропуск вчера закрыт заморозкой"
