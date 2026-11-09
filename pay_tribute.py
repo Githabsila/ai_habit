@@ -197,7 +197,14 @@ class Tribute:
         results = []
         for key, label, cents in pay_orders.all_price_keys():
             if key in mapped:
-                results.append({"key": key, "label": label, "status": "already", "product_id": mapped[key]["product_id"]})
+                # 09.11: «Картой» ведёт на веб-ссылку товара — у привязанных раньше обновляем ссылки из Tribute (веб-ссылки могло не быть).
+                row = mapped[key]
+                fresh = next((p for p in remote if int(p.get("id") or 0) == int(row["product_id"] or 0)), None)
+                if fresh is not None and (fresh.get("webLink") or fresh.get("link")):
+                    pay_orders.set_tribute_product(key, row["product_id"], fresh.get("name") or row["name"] or "", row["amount_cents"], row["currency"] or "USD",
+                                                   fresh.get("link") or row["link"], fresh.get("webLink") or row["web_link"])
+                web = bool((fresh or {}).get("webLink") or row["web_link"])
+                results.append({"key": key, "label": label, "status": "already", "product_id": row["product_id"], "web": web})
                 continue
             pattern = AUTO_LINK_NAMES.get(key)
             found = [p for p in remote if int(p.get("amount") or 0) == cents and int(p.get("id") or 0) not in taken

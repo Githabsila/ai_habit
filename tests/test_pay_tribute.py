@@ -405,3 +405,28 @@ async def test_review_the_first_month_product_still_works_for_a_newcomer(client,
     _map("sub_first", 902)
     response = await _post(client, _event(uid, 902, 199))
     assert response.status == 200 and has_active_subscription(uid)
+
+
+async def test_review_auto_link_refreshes_the_web_link_of_already_linked_products(uid, tribute, monkeypatch):
+    """09.11: «Картой» ведёт на веб-ссылку товара (карты СНГ — только в браузере). Товары, привязанные раньше без веб-ссылки, при повторной
+    «Привязать автоматически» получают свежие ссылки, а отчёт говорит, есть ли веб-ссылка."""
+    pay_orders.set_tribute_product("item_27", 501, "10 алмазов", 199, "USD", "https://t.me/tribute_bot/app?startapp=p501", None)
+
+    async def fake_list():
+        return [{"id": 501, "name": "10 алмазов", "amount": 199, "currency": "USD", "status": "approved",
+                 "link": "https://t.me/tribute_bot/app?startapp=p501", "webLink": "https://web.tribute.tg/p/501"}]
+
+    monkeypatch.setattr(tribute, "list_products", fake_list)
+    report = {r["key"]: r for r in await tribute.auto_link()}
+    assert report["item_27"]["status"] == "already" and report["item_27"]["web"] is True
+    assert pay_orders.tribute_product("item_27")["web_link"] == "https://web.tribute.tg/p/501"
+
+
+def test_review_the_webhook_address_in_the_admin_is_https_behind_the_proxy():
+    """09.11: за прокси Railway запрос приходит по http — админка показывала http://… для кабинетов Tribute и Lava."""
+    from types import SimpleNamespace
+    from webapp.routes_pay import _public_base
+    prod = SimpleNamespace(headers={}, url=SimpleNamespace(scheme="http"), host="aihabit-production.up.railway.app")
+    assert _public_base(prod) == "https://aihabit-production.up.railway.app"
+    local = SimpleNamespace(headers={}, url=SimpleNamespace(scheme="http"), host="127.0.0.1:8080")
+    assert _public_base(local) == "http://127.0.0.1:8080"

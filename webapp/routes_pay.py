@@ -35,6 +35,16 @@ async def _auth(request):
     return telegram_id
 
 
+def _public_base(request):
+    """Внешний адрес сервера для вебхуков. За прокси Railway сам запрос приходит по http — берём протокол из X-Forwarded-Proto,
+    а для не-локального адреса — всегда https (09.11: админка показывала http://, такой адрес в кабинете оплаты не годится)."""
+    proto = (request.headers.get("X-Forwarded-Proto") or request.url.scheme or "https").split(",")[0].strip()
+    host = request.host
+    if not host.startswith(("localhost", "127.0.0.1")):
+        proto = "https"
+    return f"{proto}://{host}"
+
+
 @routes.get("/api/pay/catalog")
 async def pay_catalog_route(request):
     """Каталог для окна «Покупки»: подписка, товары с ценами, способы оплаты, поддержка, акции."""
@@ -139,7 +149,7 @@ async def admin_tribute_route(request):
         remote = [{"id": p.get("id"), "name": p.get("name"), "price": f"{int(p.get('amount') or 0) / 100:.2f} {p.get('currency')}", "status": p.get("status")}
                   for p in await provider.list_products()]
     return web.json_response({"configured": provider.configured(), "needed": needed, "tribute_products": remote,
-                              "webhook_url": f"{(request.url.scheme + '://' + request.host)}/api/pay/webhook/tribute"})
+                              "webhook_url": f"{_public_base(request)}/api/pay/webhook/tribute"})
 
 
 @routes.post("/api/admin/pay/tribute/products")
@@ -187,7 +197,7 @@ async def admin_lava_route(request):
     needed = [{"key": key, "label": label, "price": pay_orders.format_usd(cents), "linked": key in mapped,
                "rub": (pay_orders.lava_price(key, "RUB") or 0) // 100 or None} for key, label, cents in pay_orders.all_price_keys()]
     return web.json_response({"configured": lava.configured(), "needed": needed,
-                              "webhook_url": f"{(request.url.scheme + '://' + request.host)}/api/pay/webhook/lava"})
+                              "webhook_url": f"{_public_base(request)}/api/pay/webhook/lava"})
 
 
 @routes.post("/api/admin/pay/lava/auto-link")
