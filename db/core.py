@@ -979,6 +979,9 @@ def create_tables():
         INSERT OR IGNORE INTO shop_items(id,name,description,price,item_type,payload,repeatable,daily_limit_per_user)
         VALUES (23,'💬 +100 ответов ADAM','100 дополнительных ответов ADAM — оплата Telegram Stars',280,'answer_pack_stars','100',1,1)
     """)
+    # Решение владельца 09.11: купленные ответы не сгорают — описание без «оплата Telegram Stars» (есть карта и СБП).
+    cursor.execute("UPDATE shop_items SET description='50 ответов ADAM сверх дневного лимита. Не сгорают — переходят на следующие дни' WHERE id=22")
+    cursor.execute("UPDATE shop_items SET description='100 ответов ADAM сверх дневного лимита. Не сгорают — переходят на следующие дни' WHERE id=23")
     # Roadmap #32 — разовый бустер x2 Adam Coin на N часов, за Telegram
     # Stars. payload — длительность в часах. Повторная покупка ПРОДЛЕВАЕТ
     # окно (см. handlers/payments.py), поэтому лимит в день не нужен.

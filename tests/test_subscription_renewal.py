@@ -105,7 +105,7 @@ def _card_ready(monkeypatch, key="sub_renewal", link="https://t.me/tribute/app?s
     from db import pay_orders
     monkeypatch.setattr(config, "EXTERNAL_PAYMENTS_ENABLED", True)
     monkeypatch.setattr(config, "TRIBUTE_API_KEY", "test-key")
-    pay_orders.set_tribute_product(key, 102 if key == "sub_renewal" else 101, "ADAM Pro", 599 if key == "sub_renewal" else 199, "USD", link, "https://web")
+    pay_orders.set_tribute_product(key, 102 if key == "sub_renewal" else 101, "ADAM Pro", 599 if key == "sub_renewal" else 199, "USD", link, link.replace("https://t.me/tribute/app?startapp=", "https://web.tribute.tg/p/"))
 
 
 def test_with_card_payments_on_the_reminder_also_offers_the_card(uid, monkeypatch):
@@ -115,7 +115,7 @@ def test_with_card_payments_on_the_reminder_also_offers_the_card(uid, monkeypatc
     key, text, keyboard = sr.plan_for(_paid(uid, NOW + timedelta(days=3, hours=2)), NOW)
     rows = keyboard.inline_keyboard
     assert rows[0][0].callback_data == "buy_subscription", "звёзды остаются первой кнопкой"
-    assert rows[1][0].url == "https://t.me/tribute/app?startapp=p102" and "Картой" in rows[1][0].text and "$5.99" in rows[1][0].text
+    assert rows[1][0].url == "https://web.tribute.tg/p/p102" and "Картой" in rows[1][0].text and "$5.99" in rows[1][0].text
 
 
 def test_without_external_payments_the_reminder_has_only_stars(uid, monkeypatch):
@@ -140,7 +140,7 @@ async def test_the_bot_pay_button_offers_the_card_before_the_stars_invoice(uid, 
     callback = SimpleNamespace(from_user=SimpleNamespace(id=uid), message=message, answer=AsyncMock(), bot=None)
     await hp.buy_subscription(callback)
     card_markup = message.answer.await_args.kwargs["reply_markup"]
-    assert card_markup.inline_keyboard[0][0].url == f"https://t.me/tribute/app?startapp={key}" and "Картой" in card_markup.inline_keyboard[0][0].text
+    assert card_markup.inline_keyboard[0][0].url == f"https://web.tribute.tg/p/{key}" and "Картой" in card_markup.inline_keyboard[0][0].text
     message.answer_invoice.assert_awaited_once()
 
 

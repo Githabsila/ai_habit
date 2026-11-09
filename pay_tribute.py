@@ -52,9 +52,11 @@ class Tribute:
     async def create_invoice(self, order, amount_cents):
         from pay_providers import ProviderError
         product = pay_orders.tribute_product(order["price_key"]) if order["price_key"] else None
-        if product is None or not product["link"]:
+        if product is None or not (product["web_link"] or product["link"]):
             raise ProviderError("товар Tribute под эту цену не привязан")
-        return {"uuid": "", "url": product["link"]}
+        # 09.11 (ответ Tribute): внутри Telegram оплата — только звёзды и СБП (ограничение Telegram); зарубежные карты (Kaspi, Оптима, Мбанк,
+        # Dushanbe City, Visa/Mastercard) — только по веб-ссылке товара в браузере. Вебхук приходит так же, с telegram_user_id.
+        return {"uuid": "", "url": product["web_link"] or product["link"]}
 
     # ------------------------------------------------------------------------------------------------------------ вебхук
 
@@ -195,7 +197,14 @@ class Tribute:
         results = []
         for key, label, cents in pay_orders.all_price_keys():
             if key in mapped:
-                results.append({"key": key, "label": label, "status": "already", "product_id": mapped[key]["product_id"]})
+                # 09.11: «Картой» ведёт на веб-ссылку товара — у привязанных раньше обновляем ссылки из Tribute (веб-ссылки могло не быть).
+                row = mapped[key]
+                fresh = next((p for p in remote if int(p.get("id") or 0) == int(row["product_id"] or 0)), None)
+                if fresh is not None and (fresh.get("webLink") or fresh.get("link")):
+                    pay_orders.set_tribute_product(key, row["product_id"], fresh.get("name") or row["name"] or "", row["amount_cents"], row["currency"] or "USD",
+                                                   fresh.get("link") or row["link"], fresh.get("webLink") or row["web_link"])
+                web = bool((fresh or {}).get("webLink") or row["web_link"])
+                results.append({"key": key, "label": label, "status": "already", "product_id": row["product_id"], "web": web})
                 continue
             pattern = AUTO_LINK_NAMES.get(key)
             found = [p for p in remote if int(p.get("amount") or 0) == cents and int(p.get("id") or 0) not in taken

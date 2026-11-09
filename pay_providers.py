@@ -139,9 +139,10 @@ def card_link(kind="subscription", user_id=None, item_id=None):
     if provider is None or provider.name != "tribute":
         return None
     product = pay_orders.tribute_product(key)
-    if not product or not product["link"]:
+    if not product or not (product["web_link"] or product["link"]):
         return None
-    return product["link"], pay_orders.format_usd(product["amount_cents"])
+    # Веб-ссылка (оплата картой в браузере, в т.ч. карты СНГ); ссылка внутри Telegram даёт только звёзды и СБП (ответ Tribute 09.11).
+    return product["web_link"] or product["link"], pay_orders.format_usd(product["amount_cents"])
 
 
 def available_methods(price_key=None):

@@ -771,7 +771,7 @@ function AiChat() {
                 const goalLabels = { habit: 'выработать привычку', discipline: 'прокачать дисциплину', streak: 'не срывать серию', ai: 'общаться с ИИ-наставником', explore: 'просто посмотреть' };
                 const archetypeText = archetypeLabels[params.get('a') || ''];
                 const goalText = goalLabels[params.get('g') || ''];
-                let text = 'Привет! Я только что прошёл тест в ADAM';
+                let text = 'Привет! Тест в ADAM пройден';
                 if (archetypeText)
                     text += ` — мой архетип «${archetypeText}»`;
                 if (goalText)

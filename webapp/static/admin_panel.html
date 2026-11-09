@@ -1627,7 +1627,8 @@ textarea.field{resize:vertical;min-height:88px}
           var res = (await api('/api/admin/pay/tribute/auto-link', { method: 'POST', body: '{}' })).results || [];
           var words = { linked: '✅ привязан', already: '✓ уже был', not_found: '— нет товара с такой ценой и названием', ambiguous: '⚠️ подходят несколько: ', error: '⚠️ ' };
           var report = res.map(function(r){ var extra = r.status === 'ambiguous' ? (r.candidates || []).join(', ') : (r.status === 'error' ? (PAY_ADMIN_ERRORS[r.error] || r.error || '') + (r.detail ? ' (' + r.detail + ')' : '') : '');
-            return '<div class="empty-note" style="padding:1px 0">' + escapeHtml(r.label) + ': ' + escapeHtml(words[r.status] || r.status) + escapeHtml(extra) + (r.product_id && r.status === 'linked' ? ' №' + r.product_id : '') + '</div>'; }).join('');
+            var web = r.status === 'already' ? (r.web ? ' · веб-ссылка для карт ✓' : ' · ⚠️ нет веб-ссылки — карты СНГ не откроются') : '';
+            return '<div class="empty-note" style="padding:1px 0">' + escapeHtml(r.label) + ': ' + escapeHtml(words[r.status] || r.status) + escapeHtml(extra) + escapeHtml(web) + (r.product_id && r.status === 'linked' ? ' №' + r.product_id : '') + '</div>'; }).join('');
           haptic('light'); await loadPayAdmin();
           var box2 = document.getElementById('tributeAutoLinkReport'); if (box2) box2.innerHTML = report;
         }catch(e){ auto.disabled = false; showToast(PAY_ADMIN_ERRORS[e && e.data && e.data.error] || 'Ошибка'); }

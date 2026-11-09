@@ -230,28 +230,38 @@ def mark_feedback_sent(user_id):
 # =====================================
 
 def find_match_by_tags(user_id, limit=1):
-    """Возвращает approved-пользователей (кроме себя), у которых есть хотя
-    бы один общий тег интересов — простое совпадение, без ранжирования."""
+    """Approved-пользователи (кроме себя), у которых есть общие теги интересов. Решение владельца 09.11: незнакомцу показываем только то,
+    что объединяет (общие теги, поле common_tags), — без ИИ-резюме чужой анкеты и без самих ответов анкеты."""
     my_tags = get_survey_tags(user_id)
     if not my_tags:
         return []
+    mine = {str(tag).strip().lower(): str(tag).strip() for tag in my_tags if str(tag).strip()}
 
     conn = connect()
     cursor = conn.cursor()
-    placeholders = " OR ".join(["s.ai_tags LIKE ?"] * len(my_tags))
-    params = [f"%{tag}%" for tag in my_tags]
-    cursor.execute(f"""
-        SELECT u.telegram_id, u.username, u.first_name, s.ai_tags, s.ai_summary
+    # Сравниваем теги в Python: LIKE в SQLite не различает регистр только у латиницы («Бег» ≠ «бег»).
+    cursor.execute("""
+        SELECT u.telegram_id, u.username, u.first_name, s.ai_tags
         FROM user_survey s
         JOIN users u ON u.telegram_id = s.user_id
         WHERE u.access_status='approved' AND u.banned=0 AND u.telegram_id != ?
-          AND ({placeholders})
+          AND s.ai_tags IS NOT NULL AND s.ai_tags NOT IN ('', '[]')
         ORDER BY RANDOM()
-        LIMIT ?
-    """, (user_id, *params, limit))
+    """, (user_id,))
     rows = cursor.fetchall()
     conn.close()
-    return rows
+    found = []
+    for row in rows:
+        try:
+            theirs = {str(tag).strip().lower() for tag in json.loads(row["ai_tags"] or "[]")}
+        except (TypeError, ValueError):
+            continue
+        common = [mine[key] for key in mine if key in theirs]       # точное совпадение тега, а не «подстрока» из LIKE
+        if common:
+            found.append({"telegram_id": row["telegram_id"], "username": row["username"], "first_name": row["first_name"], "common_tags": common})
+        if len(found) >= limit:
+            break
+    return found
 
 
 # =====================================

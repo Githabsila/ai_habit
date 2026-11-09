@@ -1384,9 +1384,12 @@
 
     const status = document.getElementById("streakStatusLabel");
     if (status) {
+      // Проверка удобства 09.11: у новичка серии ещё не было — «сброшена» сбивает с толку; зовём начать.
+      const hadStreak = (streak.last7 || []).some(d => d.status === "missed" || d.status === "completed" || d.status === "freeze")
+        || Boolean(streak.free_restore && streak.free_restore.available);
       status.textContent = streak.days > 0
         ? `Огонь горит. Не дай ему погаснуть.`
-        : `Серия сброшена. Можно начать заново.`;
+        : hadStreak ? `Серия сброшена. Можно начать заново.` : `Отметь первую привычку — и серия начнётся.`;
     }
     const weekHint = document.getElementById("streakWeekHint");
     if (weekHint) {
@@ -1731,7 +1734,7 @@
     {
       type: "choice",
       key: "goal",
-      title: "Зачем ты пришёл в ADAM?",
+      title: "Зачем тебе ADAM?",
       options: [
         ["🎯", "Выработать привычку", "habit"],
         ["💪", "Прокачать дисциплину", "discipline"],
@@ -2044,11 +2047,45 @@
   // Стоп-экран 16+: сервер закрывает доступ (access_status=age_restricted), дальше анкеты не идём. Ошибка сети не открывает доступ —
   // при следующем входе человек снова попадёт на вопрос о возрасте.
   const AGE_STOP_TEXT = "ADAM — для тех, кому уже исполнилось 16. Возвращайся, когда будет 16: мы тебя дождёмся 🙌";
-  function showAgeStop() {
-    trk("age_stop", null, {});
-    api("/api/start-quiz/seen", { method: "POST", body: JSON.stringify({ age_range: "under16", goal: null }) }).catch(() => {});
+  // Переспрос перед стоп-экраном: «Мне нет 16» закрывает приложение, вернуть доступ может только поддержка.
+  function showAgeConfirm() {
     const title = document.getElementById("startQuizTitle");
     const options = document.getElementById("startQuizOptions");
+    const cont = document.getElementById("startQuizContinue");
+    if (title) title.textContent = "Тебе точно нет 16?";
+    if (cont) cont.hidden = true;
+    if (!options) { showAgeStop(); return; }
+    options.innerHTML = `<p class="start-quiz-age-stop">Приложение закроется, а изменить возраст здесь будет нельзя.</p>
+      <button type="button" class="start-quiz-age-btn start-quiz-age-btn--back" id="ageConfirmBack">Назад, я ошибся</button>
+      <button type="button" class="start-quiz-age-btn" id="ageConfirmYes">Да, мне нет 16</button>`;
+    document.getElementById("ageConfirmBack")?.addEventListener("click", () => {
+      delete startQuizAnswers.age_range;
+      if (cont) cont.hidden = false;
+      haptic("light");
+      renderStartQuizStep();
+    });
+    document.getElementById("ageConfirmYes")?.addEventListener("click", () => showAgeStop());
+  }
+
+  function showAgeStop() {
+    trk("age_stop", null, {});
+    const options = document.getElementById("startQuizOptions");
+    api("/api/start-quiz/seen", { method: "POST", body: JSON.stringify({ age_range: "under16", goal: null }) })
+      .then((res) => {
+        // Ошибся с возрастом — пишет в поддержку, админ вернёт доступ (проверка удобства 09.11).
+        if (!res?.support_url || !options) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "start-quiz-age-btn start-quiz-age-btn--back";
+        btn.textContent = "Указал(а) возраст по ошибке? Напиши нам";
+        btn.addEventListener("click", () => {
+          const tg = window.Telegram?.WebApp;
+          if (tg?.openTelegramLink) tg.openTelegramLink(res.support_url); else window.open(res.support_url, "_blank");
+        });
+        options.appendChild(btn);
+      })
+      .catch(() => {});
+    const title = document.getElementById("startQuizTitle");
     if (title) title.textContent = "Сервис для 16+";
     if (options) options.innerHTML = `<p class="start-quiz-age-stop">${escapeHtml(AGE_STOP_TEXT)}</p>`;
     ["startQuizContinue", "startQuizBack"].forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });
@@ -2072,7 +2109,7 @@
         api("/api/consent", { method: "POST", body: "{}" }).catch(() => {});   // согласие с первого экрана (db/consent.py)
       }
       if (step.key === "age_range" && startQuizAnswers.age_range === "under16") {
-        showAgeStop();
+        showAgeConfirm();                                  // проверка удобства 09.11: переспрос — случайный выбор нельзя было отменить
         return;
       }
       if (startQuizStep < START_QUIZ_STEPS.length - 1) {
@@ -4343,6 +4380,29 @@
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && habitUndo && !habitUndo.busy) closeHabitUndo(); });
   }
 
+  // Проверка удобства 09.11: у новичка без привычек блок «Привычки» (готовые варианты и «Добавить привычку») — первым на Главной,
+  // сразу за подсказкой дня; «Парное задание» скрыто, пока нет привычек (иначе там «Без привычки вклада…»). С первой привычкой — обычный порядок.
+  let habitsHomeAnchor = null;
+  function applyNewcomerHomeLayout(isNewcomer) {
+    const home = document.querySelector('.tab-panel[data-tab="home"]');
+    const panel = home?.querySelector(".habits-panel");
+    const streak = document.getElementById("streakWidget");
+    if (!home || !panel || !streak) return;
+    if (!habitsHomeAnchor) {                                     // запоминаем родное место блока, чтобы вернуть его туда
+      habitsHomeAnchor = document.createComment("habits-home-anchor");
+      panel.parentNode.insertBefore(habitsHomeAnchor, panel);
+    }
+    home.classList.toggle("is-newcomer", isNewcomer);
+    let top = streak;                                            // серия может лежать в общей карточке — ставим блок перед ней целиком
+    while (top.parentNode && top.parentNode !== home) top = top.parentNode;
+    if (top.parentNode !== home) return;
+    if (isNewcomer && panel.nextElementSibling !== top) {
+      home.insertBefore(panel, top);
+    } else if (!isNewcomer && habitsHomeAnchor.nextSibling !== panel) {
+      habitsHomeAnchor.parentNode.insertBefore(panel, habitsHomeAnchor.nextSibling);
+    }
+  }
+
   function renderHabits() {
     if (armedHabitDelete) disarmHabitDelete();     // см. renderSingleHabit
     const list = document.getElementById("habitList");
@@ -4355,6 +4415,7 @@
       // в списке ниже, а не на то, что реально сделано за день.
       progressLabel.textContent = `${done}/${habits.length}`;
     }
+    applyNewcomerHomeLayout(habits.length === 0);
 
     // Фильтр по категориям — виден, только если у ХОТЯ БЫ одной привычки
     // есть категория. Пустой ряд чипов, когда фильтровать нечего, — тот
@@ -5185,9 +5246,9 @@
           <div>
             <div class="calendar-eyebrow">ТВОЙ ПРОГРЕСС</div>
             <h2>${monthTitle}</h2>
-            <p>Каждый день здесь показывает, насколько ты приблизился к своим целям.</p>
+            <p>Каждый день здесь показывает, насколько ты ближе к своим целям.</p>
           </div>
-          <div class="calendar-today-badge"><b>${today.getDate()}</b></div>
+          <button type="button" class="calendar-today-badge" id="calendarTodayBadge" aria-label="Перейти к сегодняшнему дню"><b>${today.getDate()}</b>сегодня</button>
         </div>
 
         <div class="calendar-stats">
@@ -5226,6 +5287,10 @@
         </div>
       </div>
     `;
+    // Проверка удобства 09.11: число у месяца — сегодняшний день; по тапу — к нему в сетке.
+    grid.querySelector("#calendarTodayBadge")?.addEventListener("click", () => {
+      grid.querySelector(".cal-cell.is-today")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
 
     // Детальная карточка выбранного дня.
     grid.querySelectorAll("[data-cal-day]").forEach(btn => {
@@ -5255,6 +5320,11 @@
 function initTabs() {
   const tabBar = document.getElementById("tabBar");
   if (!tabBar) return;
+  document.querySelector("header.player-card")?.addEventListener("click", (e) => {
+    if (!document.body.classList.contains("header-compact")) return;
+    if (e.target.closest("button, a, [role=button]")) return;            // колокольчик, админка — своим путём
+    document.querySelector('.tab-bar__item[data-tab="profile"]')?.click();
+  });
   tabBar.addEventListener("click", (e) => {
     const btn = e.target.closest(".tab-bar__item");
     if (!btn) return;
@@ -5282,6 +5352,9 @@ function initTabs() {
       playerCard?.classList.remove("is-scrolling");
     }, 450);
     document.querySelectorAll(".tab-bar__item").forEach(b => b.classList.toggle("is-active", b === btn));
+    // Проверка удобства 09.11: большая карточка профиля — только на Главной и в Профиле; в Календаре и Рейтинге — тонкая строка,
+    // чтобы содержимое вкладки начиналось сразу. По тапу на строку — Профиль.
+    document.body.classList.toggle("header-compact", tab === "calendar" || tab === "rating");
     document.querySelectorAll(".tab-panel").forEach(panel => {
       const active = panel.dataset.tab === tab;
       panel.hidden = !active;
@@ -8461,8 +8534,8 @@ const SIM_HUB = {
   items: [
     { item_id: 27, group: "diamonds", name: "💎 10 алмазов", description: "Премиальная валюта", usd_text: "$1.99", stars_text: "150 ⭐", available: true, note: null },
     { item_id: 28, group: "diamonds", name: "💎 50 алмазов", description: "Премиальная валюта", usd_text: "$7.99", stars_text: "600 ⭐", available: true, note: null },
-    { item_id: 22, group: "answers", name: "💬 +50 ответов ADAM", description: "К дневному лимиту", usd_text: "$1.99", stars_text: "150 ⭐", available: true, note: null },
-    { item_id: 23, group: "answers", name: "💬 +100 ответов ADAM", description: "К дневному лимиту", usd_text: "$3.99", stars_text: "280 ⭐", available: true, note: null },
+    { item_id: 22, group: "answers", name: "💬 +50 ответов ADAM", description: "Не сгорают", usd_text: "$1.99", stars_text: "150 ⭐", available: true, note: null },
+    { item_id: 23, group: "answers", name: "💬 +100 ответов ADAM", description: "Не сгорают", usd_text: "$3.99", stars_text: "280 ⭐", available: true, note: null },
     { item_id: 24, group: "booster", name: "⚡ Бустер x2 Adam Coin — 24ч", description: "Вдвое больше монет за привычки", usd_text: "$1.29", stars_text: "99 ⭐", available: true, note: null },
     { item_id: 7, group: "frame", name: "👑 Рамка: Double Gold", description: "Двойная позолота", usd_text: "$3.99", stars_text: "299 ⭐", available: false, note: "Уже у тебя" },
   ],

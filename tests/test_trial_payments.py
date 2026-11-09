@@ -192,6 +192,8 @@ async def test_the_locked_message_tells_the_deadline_and_both_prices(uid):
 
 async def test_the_bot_blocks_an_expired_trial_account_with_the_scenario_text(uid):
     _person(uid, 4)
+    from db.consent import record_consent
+    record_consent(uid)
     shown = []
 
     class _Msg(Message):

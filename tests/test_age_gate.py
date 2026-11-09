@@ -29,7 +29,8 @@ def _push_allowed(user_id):
 async def test_under_16_closes_the_app_the_ai_chat_and_the_reminders(client, uid):
     assert (await client.get("/api/bootstrap", headers=_headers(uid))).status == 200
     response = await client.post("/api/start-quiz/seen", json={"age_range": "under16", "goal": None}, headers=_headers(uid))
-    assert (await response.json()) == {"ok": True, "age_restricted": True}
+    body = await response.json()
+    assert body["ok"] is True and body["age_restricted"] is True and "support_url" in body   # 09.11: ссылка «Напиши нам», если ошибся
     assert get_access_status(uid) == AGE_RESTRICTED and not _push_allowed(uid)
 
     closed = await client.get("/api/bootstrap", headers=_headers(uid))

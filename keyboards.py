@@ -199,6 +199,24 @@ def adam_chat_markup():
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=ADAM_CHAT_BUTTON, web_app=WebAppInfo(url=f"{WEBAPP_URL}/coach"))]])
 
 
+# Решение владельца 09.11: пользоваться ADAM можно только в Mini App — там стартовая анкета с проверкой 16+ и согласием на обработку данных.
+# Тем, кто их ещё не прошёл, бот на любое сообщение вежливо предлагает открыть приложение.
+MINI_APP_ONLY_TEXT = (
+    "👋 Рад тебя видеть!\n\n"
+    "ADAM живёт в приложении: там привычки, план дня и разговор со мной. "
+    "Здесь, в чате, я только присылаю напоминания и новости.\n\n"
+    "Открой приложение кнопкой ниже — это займёт пару секунд 🙂"
+)
+
+
+def open_app_markup():
+    """Одна кнопка «Открыть ADAM» (Mini App). Без WEBAPP_URL (локальный запуск) — None."""
+    if not WEBAPP_URL:
+        return None
+    url = WEBAPP_URL + ("&" if "?" in WEBAPP_URL else "?") + "from=bot_only"
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть ADAM", web_app=WebAppInfo(url=url))]])
+
+
 def welcome_menu(is_admin=False):
     """Главное меню + первой строкой кнопка «Открыть ADAM» (Mini App).
 

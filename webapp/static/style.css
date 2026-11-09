@@ -15482,3 +15482,36 @@ button.pair-chip{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .lab-bar.lab-bar--top{top:calc(env(safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px) + 8px);bottom:auto}
 .lab-bar__btn[data-sim="move"]{font-size:17px;font-weight:700;line-height:1}
 
+
+
+/* =========================================================
+   Проверка удобства 09.11: компактная шапка в Календаре и Рейтинге
+   (body.header-compact ставит app.js::initTabs). Большая карточка —
+   только на Главной и в Профиле.
+   ========================================================= */
+body.header-compact header.player-card{padding-top:10px !important;padding-bottom:10px !important;min-height:0 !important;cursor:pointer}
+body.header-compact header.player-card .player-card__ring-wrap{align-self:center !important;max-height:46px !important;min-height:46px !important;width:46px !important;height:46px !important;min-width:46px !important;flex:0 0 46px !important;
+  border-radius:50% !important;border:2px solid rgba(255,201,60,.75) !important;background:rgba(255,255,255,.06) !important}
+body.header-compact header.player-card .level-ring{display:none !important}
+body.header-compact header.player-card .level-ring__badge{position:static !important;transform:none !important;inset:auto !important;width:100% !important;height:100% !important;min-width:0 !important;min-height:0 !important;display:grid !important;place-items:center !important;padding:0 !important;
+  background:none !important;box-shadow:none !important;margin:0 !important}
+body.header-compact header.player-card .level-ring__badge span{font-size:18px !important;line-height:1 !important}
+body.header-compact header.player-card .level-ring__badge small{display:none !important}
+body.header-compact header.player-card .xp-bar,
+body.header-compact header.player-card .xp-bar__label,
+body.header-compact header.player-card .player-follow,
+body.header-compact header.player-card .player-card__handle{display:none !important}
+body.header-compact header.player-card .player-card__stats{margin-bottom:0 !important}
+body.header-compact header.player-card .player-card__name{font-size:16px !important}
+
+/* Проверка удобства 09.11: число у месяца — кнопка «сегодня» (к сегодняшнему дню в сетке). */
+button.calendar-today-badge{font-family:inherit;cursor:pointer;text-transform:lowercase;letter-spacing:.02em}
+
+/* Проверка удобства 09.11: переспрос «Тебе точно нет 16?» и кнопка «Напиши нам» на стоп-экране. */
+.start-quiz-age-btn{display:block;width:100%;margin-top:12px;padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.06);color:var(--text,#fff);font:inherit;font-weight:700;font-size:15px;cursor:pointer}
+.start-quiz-age-btn--back{background:var(--accent,#8b5cf6);border-color:transparent;color:#fff}
+
+/* Проверка удобства 09.11: у новичка без привычек «Парное задание» на Главной скрыто (app.js::applyNewcomerHomeLayout). */
+.tab-panel[data-tab="home"].is-newcomer #pairQuestCard{display:none !important}
+.tab-panel[data-tab="home"].is-newcomer .habits-panel{margin-bottom:16px}
