@@ -1850,6 +1850,13 @@ async def consent_route(request):
     return web.json_response({"ok": True, "version": CONSENT_VERSION})
 
 
+def _support_url():
+    """Ссылка t.me на первый контакт поддержки (config.SUPPORT_CONTACT, «@ник, @ник») или None."""
+    from config import SUPPORT_CONTACT
+    first = (SUPPORT_CONTACT or "").split(",")[0].strip().lstrip("@")
+    return f"https://t.me/{first}" if first and all(ch.isalnum() or ch == "_" for ch in first) else None
+
+
 @routes.post("/api/start-quiz/seen")
 async def start_quiz_seen(request):
     telegram_id, _ = await _authenticate(request)
@@ -1864,7 +1871,8 @@ async def start_quiz_seen(request):
     # (push_allowed_sql пропускает только approved). Если человек ошибся, админ вернёт доступ в его карточке.
     if age_range == AGE_UNDER_16 and telegram_id not in ADMIN_IDS:
         set_access_status(telegram_id, AGE_RESTRICTED)
-        return web.json_response({"ok": True, "age_restricted": True})
+        # Проверка удобства 09.11: ошибся с возрастом — пишет в поддержку (первый контакт из SUPPORT_CONTACT), админ вернёт доступ.
+        return web.json_response({"ok": True, "age_restricted": True, "support_url": _support_url()})
     return web.json_response({"ok": True})
 
 

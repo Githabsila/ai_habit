@@ -11,7 +11,7 @@
 <title>Project ADAM — ADAM</title>
 <link rel="icon" type="image/svg+xml" href="/static/assets/favicon.svg">
 
-<link rel="stylesheet" href="/static/style.css?v=20261107_HUB_V99">
+<link rel="stylesheet" href="/static/style.css?v=20261107_HUB_V100">
 <!-- Оформление «Royal Gold» (db/style_mode.py): подключается только если режим включён для человека — app.js::applyRoyalStyle запоминает это в localStorage, чтобы не мелькало фиолетовое. -->
 <script>try{if(localStorage.getItem("adam_royal")==="1"){document.documentElement.classList.add("adam-royal");var rs=document.createElement("script");rs.src="/static/royal.js?v=20261028_ROYAL_V1";document.head.appendChild(rs);}}catch(e){}</script>
 </head>
@@ -428,16 +428,7 @@ class="habit-add-form__submit">
   </div>
 </div>
 
-<!-- Парное задание в полном виде (на Главной — сворачиваемая карточка, в «Квестах дня» — краткая).
-     Рисует app.js::renderPairCard. -->
-<div class="pair-card pair-card--wide" id="pairQuestCardRating" hidden></div>
-
-<!-- Друзья (db/friends.py): кто сегодня отметился, кому можно напомнить,
-     «＋ Добавить» — личная ссылка-приглашение. Рисует app.js::renderFriendsCard. -->
-<div class="friends-card" id="friendsCard" hidden></div>
-
-<div class="team-card" id="teamCard" hidden></div>
-
+<!-- Проверка удобства 09.11: сам рейтинг — сразу под шапкой; друзья, парное задание и командный челлендж — ниже. -->
 <div class="rating-scope-switch" id="ratingScopeSwitch">
   <button type="button" class="rating-scope-btn is-active" data-scope="alltime">Всё время</button>
   <button type="button" class="rating-scope-btn" data-scope="season">🗓️ Сезон</button>
@@ -448,6 +439,18 @@ class="habit-add-form__submit">
 <ul class="rating-list" id="ratingList"></ul>
 
 <ul class="rating-list" id="seasonRatingList" hidden></ul>
+
+<!-- Друзья (db/friends.py): кто сегодня отметился, кому можно напомнить,
+     «＋ Добавить» — личная ссылка-приглашение. Рисует app.js::renderFriendsCard. -->
+<div class="friends-card" id="friendsCard" hidden></div>
+
+<!-- Парное задание в полном виде (на Главной — сворачиваемая карточка, в «Квестах дня» — краткая).
+     Рисует app.js::renderPairCard. -->
+<div class="pair-card pair-card--wide" id="pairQuestCardRating" hidden></div>
+
+
+<div class="team-card" id="teamCard" hidden></div>
+
 
 </section>
 
@@ -1842,7 +1845,7 @@ class="habit-add-form__submit">
 <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
 <script src="/static/haptics.js?v=20261020_HAPTICS_V2"></script>
 <script src="/static/tracker.js?v=20261014_TRACK_V3"></script>
-<script type="module" src="/static/app.js?v=20261107_HUB_V116"></script>
+<script type="module" src="/static/app.js?v=20261107_HUB_V117"></script>
 
 </body>
 </html>

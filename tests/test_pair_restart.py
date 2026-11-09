@@ -284,10 +284,11 @@ def test_today_status_glows_only_while_it_is_the_users_turn():
     assert "transform" in frames and "filter" not in frames
 
 
-def test_rating_tab_has_the_full_card_right_after_the_league_and_friends_go_before_the_team_challenge():
+def test_rating_tab_shows_the_leaderboard_first_then_friends_pair_and_team():
+    """Проверка удобства 09.11: в «Рейтинге» сам рейтинг сразу под шапкой; друзья, парное задание и командный челлендж — ниже."""
     rating = INDEX[INDEX.index('data-tab="rating"'):][:3600]
-    order = [rating.index(m) for m in ('class="rating-hero"', 'id="pairQuestCardRating"', 'id="friendsCard"', 'id="teamCard"',
-                                       'id="ratingScopeSwitch"')]
+    order = [rating.index(m) for m in ('class="rating-hero"', 'id="ratingScopeSwitch"', 'id="ratingList"', 'id="friendsCard"',
+                                       'id="pairQuestCardRating"', 'id="teamCard"')]
     assert order == sorted(order), order
     assert "renderPairCardInto(document.getElementById(\"pairQuestCardRating\"), false)" in APP_JS
 
