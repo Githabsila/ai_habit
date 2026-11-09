@@ -120,6 +120,27 @@ async def test_money_received_but_credit_failed_tells_the_owner_and_the_person_t
     assert get_user(uid)["subscription_paid_until"] == until, "повтор месяц второй раз не добавляет"
 
 
+async def test_review_a_retried_card_payment_counts_calendar_months_like_the_first_try(uid, monkeypatch):
+    """Повтор начисления по карте/крипте (Tribute, Heleket, все способы Lava) — календарный месяц, как при первой попытке; звёзды — 30 дней."""
+    _person(uid)
+    charges = {f"tribute:t{uid}": True, f"heleket:h{uid}": True, f"lava:l{uid}": True, f"lava_rub:r{uid}": True, f"lava_sbp:s{uid}": True, f"stars{uid}": False}
+    for charge in charges:
+        begin_payment(charge, uid, f"subscription:{uid}", 0)
+        finish_payment(charge, False, error="сбой")
+    seen = {}
+
+    async def fake_complete(bot, user_id, **kwargs):
+        seen[kwargs["charge_id"]] = kwargs["calendar_months"]
+        return "✅", None, None
+
+    monkeypatch.setattr(flow, "complete_subscription_payment", fake_complete)
+    monkeypatch.setattr(flow, "ADMIN_IDS", [])
+    import db.shop
+    monkeypatch.setattr(db.shop, "failed_payments", lambda limit, max_attempts: [r for r in failed_payments(limit=200, max_attempts=max_attempts) if r["charge_id"] in charges])
+    await flow.retry_failed_payments(SimpleNamespace(send_message=AsyncMock()))
+    assert seen == charges
+
+
 async def test_the_same_charge_never_adds_the_month_twice_even_when_the_credit_runs_again(uid):
     _person(uid)
     begin_payment(f"c{uid}", uid, f"subscription:{uid}", 153)                       # как в обработчике: сначала запись платежа, потом начисление
