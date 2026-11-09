@@ -223,6 +223,13 @@ async def ai_chat(message: Message, state: FSMContext):
     # команд про привычки, весь мультиагентный пайплайн и т.д.) — голос
     # это просто альтернативный способ ввести text, не отдельная ветка.
     if not text and message.voice:
+        # Прогон 09.11: Whisper платный (поминутно) — длину, запрет от админа и лимит проверяем ДО расшифровки.
+        if int(getattr(message.voice, "duration", 0) or 0) > VOICE_MAX_SECONDS:
+            await message.answer(f"🎙️ Голосовое слишком длинное — уложись в {VOICE_MAX_SECONDS // 60} мин. или напиши текстом.")
+            return
+        if not ai_usage.check_allowed(user_id).get("ok", True) or get_ai_quota(user_id, has_pro_features(user_id))["remaining"] < 1:
+            await message.answer("💬 Лимит ответов ADAM на сегодня исчерпан — голосовое не расшифровываю. Дополнительные ответы есть в магазине.")
+            return
         await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
         try:
             file = await message.bot.get_file(message.voice.file_id)
@@ -372,12 +379,30 @@ async def ai_feedback(callback: CallbackQuery):
 # Roadmap #47 — озвучка ответа AI (TTS)
 # =====================================
 
+VOICE_MAX_SECONDS = 120          # голосовое к ADAM — до 2 минут (Whisper тарифицируется поминутно)
+TTS_LIMIT, TTS_WINDOW = 6, 600   # озвучка ответа — не больше 6 раз за 10 минут на человека (платный вызов TTS)
+_tts_calls = {}
+
+
+def _tts_exceeded(user_id):
+    now = time.monotonic()
+    recent = [t for t in _tts_calls.get(user_id, []) if now - t < TTS_WINDOW]
+    if len(recent) >= TTS_LIMIT:
+        _tts_calls[user_id] = recent
+        return True
+    _tts_calls[user_id] = recent + [now]
+    return False
+
+
 @router.callback_query(F.data.startswith("ai_voice_"))
 async def ai_voice(callback: CallbackQuery):
     message_id = int(callback.data.split("_")[-1])
     text = get_ai_message_text(message_id, callback.from_user.id)
     if not text:
         await callback.answer("Не нашёл этот ответ — возможно, история уже очищена", show_alert=True)
+        return
+    if _tts_exceeded(callback.from_user.id) or not ai_usage.check_allowed(callback.from_user.id).get("ok", True):
+        await callback.answer("Озвучка временно недоступна — попробуй чуть позже.", show_alert=True)
         return
     await callback.answer("🔊 Озвучиваю...")
     # send_audio (не send_voice) — send_voice в Bot API ожидает конкретно

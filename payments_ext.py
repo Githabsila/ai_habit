@@ -191,10 +191,29 @@ def _grant_item(user_id, item_id):
     raise ValueError(f"тип товара не оплачивается: {kind}")
 
 
+async def _alert_admins(bot, text):
+    """Сообщение админам обычным текстом (не HTML: в тексте id заказов и почты)."""
+    logger.warning(text)
+    if bot is None:
+        return
+    import config
+    for admin_id in config.ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id, text, parse_mode=None)
+        except Exception:
+            logger.warning("Не удалось предупредить админа %s", admin_id)
+
+
 async def _grant_subscription(bot, order):
     """Подписка тем же путём, что у звёзд: запись платежа (received → done), продление срока, защита серии, текст подтверждения."""
     import subscription_flow
     charge_id = f"{order['provider']}:{order['order_id']}"
+    # Прогон 09.11: до первой оплаты можно открыть несколько счетов «первый месяц» и оплатить все. Вводная цена — один раз (ТЗ §6, как P2 у Tribute):
+    # если человек уже платил, а этот платёж ещё не записан (не повтор упавшего начисления), месяц не выдаём и зовём админа.
+    if dict(order).get("price_key") == "sub_first" and shop.get_payment(charge_id) is None and not trial_db.intro_price_open(order["user_id"]):
+        await _alert_admins(bot, f"⚠️ Оплата {charge_id}: «первый месяц» по вводной цене от человека {order['user_id']}, который уже платил. "
+                                 "Подписка не продлена: верни деньги через сервис оплаты или выдай месяц вручную.")
+        return None
     state = shop.begin_payment(charge_id, order["user_id"], f"subscription:{order['user_id']}", 0)
     if state == "duplicate":
         return None

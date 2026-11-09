@@ -1,7 +1,7 @@
 import hashlib
 
 import random
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone as _tz
 from zoneinfo import ZoneInfo
 
 from .core import connect
@@ -304,10 +304,16 @@ def rollover_user(user_id):
         if c.fetchone():
             prev = {"status": "completed"}
         else:
+            # Прогон 09.11 (S1): completed_at — время UTC, а «вчера» — местный день человека. Ищем по границам местных суток в UTC,
+            # иначе вечерняя отметка позавчера (по UTC уже «вчера») закрывала пропущенный день.
+            zone = ZoneInfo(get_timezone(user_id))
+            prev_date = today - timedelta(days=1)
+            start_utc = datetime(prev_date.year, prev_date.month, prev_date.day, tzinfo=zone).astimezone(_tz.utc).replace(tzinfo=None)
+            end_utc = (datetime(prev_date.year, prev_date.month, prev_date.day, tzinfo=zone) + timedelta(days=1)).astimezone(_tz.utc).replace(tzinfo=None)
             c.execute(
                 """SELECT 1 FROM habit_completion_events
-                   WHERE user_id=? AND date(completed_at)=? LIMIT 1""",
-                (user_id, previous_day),
+                   WHERE user_id=? AND completed_at>=? AND completed_at<? LIMIT 1""",
+                (user_id, start_utc.strftime("%Y-%m-%d %H:%M:%S"), end_utc.strftime("%Y-%m-%d %H:%M:%S")),
             )
             if c.fetchone():
                 prev = {"status": "completed"}

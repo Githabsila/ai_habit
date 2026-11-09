@@ -132,14 +132,28 @@ def invoice_spec(user_id):
             "period": SUBSCRIPTION_PERIOD_SECONDS if recurring else None, "snapshot": snap, "payload": f"subscription:{user_id}"}
 
 
+def _term_over(user):
+    """Оплаченный срок уже позади (идут только сутки запаса на подтверждение автосписания)."""
+    raw = user["subscription_paid_until"] if user is not None and "subscription_paid_until" in user.keys() else None
+    if not raw:
+        return False
+    try:
+        until = datetime.fromisoformat(str(raw).replace("Z", "").split("+")[0])
+    except ValueError:
+        return False
+    return until <= datetime.utcnow()
+
+
 def _renewal_spec(user_id, snap, autorenew_enabled):
     """Подписка уже идёт (решение 05.11: «автопродление очень важно, на удержании всё строим»). Без автопродления — можно включить его заранее
     или продлить вручную; новый срок добавляется к концу текущего (db/subscription.py::record_subscription_payment), дни не пропадают.
     С включённым автопродлением платить нечего — None."""
     from db.subscription import auto_renew_active, subscription_overview
     from db.users import get_user
-    if auto_renew_active(get_user(user_id)):
-        return None
+    user = get_user(user_id)
+    if auto_renew_active(user) and not _term_over(user):
+        return None                                                # срок идёт, Telegram продлит сам
+    # Прогон 09.11: срок кончился, а списание не пришло (сутки запаса) — бот просит «пополни звёзды и продли», значит, оплата вручную доступна.
     price = int(snap["renewal_price_stars"])
     until = (subscription_overview(user_id) or {}).get("paid_until_text") or ""
     after = f" Новый срок начнётся после текущего{(' (до ' + until + ')') if until else ''} — оплаченные дни не пропадут."
@@ -274,8 +288,11 @@ async def refund_payment(bot, charge_id):
         await bot.refund_star_payment(user_id=row["user_id"], telegram_payment_charge_id=charge_id)
     except Exception as exc:
         return {"error": "telegram_failed", "detail": str(exc)[:200]}
+    from db.shop import is_credited
+    credited = is_credited(charge_id) or row["status"] == "done"   # старые платежи (до учёта credited_at) — по статусу
     mark_payment_refunded(charge_id)
-    if str(row["payload"] or "").startswith("subscription:"):
+    # Прогон 09.11: платёж, начисление по которому так и не прошло, срок не давал — его возврат срок не снимает (иначе пропадёт чужой оплаченный месяц).
+    if str(row["payload"] or "").startswith("subscription:") and credited:
         from db.shop import list_user_payments
         from db.subscription import set_auto_renew, take_back_one_period
         others = [p for p in list_user_payments(row["user_id"], limit=200)

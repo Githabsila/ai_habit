@@ -1,3 +1,4 @@
+import html
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
@@ -69,12 +70,12 @@ async def find_match(callback: CallbackQuery):
         return
 
     match = matches[0]
-    name = match["username"] and f"@{match['username']}" or match["first_name"]
+    name = html.escape(str(match["username"] and f"@{match['username']}" or match["first_name"] or ""), quote=False)   # прогон 09.11
 
     await callback.message.edit_text(
         "🔎 <b>Найден единомышленник!</b>\n\n"
         f"👤 {name}\n"
-        f"💬 {match['ai_summary'] or 'Общие интересы с вами'}",
+        f"💬 {html.escape(str(match['ai_summary'] or 'Общие интересы с вами'), quote=False)}",
         parse_mode="HTML",
         reply_markup=community_keyboard()
     )
@@ -141,7 +142,8 @@ async def my_referrals(callback: CallbackQuery):
 def _display_name(row):
     if not row:
         return "друг"
-    return f"@{row['username']}" if row["username"] else (row["first_name"] or str(row["telegram_id"]))
+    # Имя уходит в HTML-сообщения (бот по умолчанию в HTML) — экранируем (прогон 09.11: «<» ломал экран челленджа, «<a href>» давал ссылку).
+    return html.escape(f"@{row['username']}" if row["username"] else (row["first_name"] or str(row["telegram_id"])), quote=False)
 
 
 @router.callback_query(F.data == "start_challenge")

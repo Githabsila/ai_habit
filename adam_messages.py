@@ -268,7 +268,7 @@ SIMPLE_HABIT_CHECKPOINT_TEMPLATES = [
 
 
 def format_simple_habit_checkpoint_message(free_habits) -> str:
-    titles = [str(h["title"]) for h in free_habits]
+    titles = [html.escape(str(h["title"]), quote=False) for h in free_habits]   # уходит с parse_mode=HTML (coach.py) — прогон 09.11
     habits = ", ".join(f"«{t}»" for t in titles)
     return pick(SIMPLE_HABIT_CHECKPOINT_TEMPLATES, pool=SOFT_EMOJIS, habits=habits)
 
@@ -491,7 +491,7 @@ GOAL_REMINDER_TEMPLATES = [
 
 
 def format_goal_reminder_message(goal: str) -> str:
-    return pick(GOAL_REMINDER_TEMPLATES, pool=TASK_EMOJIS, goal=goal)
+    return pick(GOAL_REMINDER_TEMPLATES, pool=TASK_EMOJIS, goal=html.escape(str(goal or ""), quote=False))   # HTML (coach.py) — прогон 09.11
 
 
 # =====================================

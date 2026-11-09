@@ -5,6 +5,7 @@ goal_feedback.py
 а где стоит поднажать.
 """
 
+import html
 import logging
 
 from db import get_surveys_due_for_feedback, mark_feedback_sent, get_progress, get_user, log_error
@@ -41,7 +42,7 @@ async def run_goal_feedback(bot):
             if feedback:
                 await bot.send_message(
                     chat_id=user_id,
-                    text=f"🧠 <b>Мой разбор недели по твоей цели</b>\n\n{feedback}",
+                    text=f"🧠 <b>Мой разбор недели по твоей цели</b>\n\n{html.escape(feedback, quote=False)}",   # прогон 09.11
                     parse_mode="HTML"
                 )
                 sent += 1

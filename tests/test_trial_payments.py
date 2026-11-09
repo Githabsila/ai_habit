@@ -275,3 +275,26 @@ async def test_review_a_star_payment_is_credited_even_under_the_age_block(uid):
     await AccessControlMiddleware()(handler, _Msg.model_construct(message_id=1, from_user=SimpleNamespace(id=uid, username=None), text=None,
                                                                     successful_payment=SimpleNamespace(total_amount=153)), {})
     assert handler.await_count == 1
+
+
+async def test_review_refunding_a_payment_that_was_never_credited_keeps_the_paid_month(uid):
+    """Прогон 09.11: платёж B получен, но начисление упало (доступ не открылся). Возврат B не должен снимать месяц, оплаченный платежом A."""
+    from db.shop import begin_payment, finish_payment
+    _person(uid, 2)
+    await pay.successful_payment(_message(uid, f"charge_a{uid}"))
+    until = get_user(uid)["subscription_paid_until"]
+    begin_payment(f"charge_x{uid}", uid, f"subscription:{uid}", 461)
+    finish_payment(f"charge_x{uid}", False, error="сбой начисления")
+    await flow.refund_payment(_bot(), f"charge_x{uid}")
+    assert get_user(uid)["subscription_paid_until"] == until and has_active_subscription(uid)
+
+
+async def test_review_a_failed_star_autorenewal_can_be_paid_by_hand_in_the_grace_hours(uid):
+    """Прогон 09.11: Telegram не списал звёзды, срок уже кончился, идут сутки запаса. Бот пишет «пополни звёзды и продли» —
+    значит, оплата вручную должна быть доступна, а не «оплата не нужна»."""
+    _person(uid, 2)
+    await pay.successful_payment(_message(uid, f"charge_r{uid}"))
+    _sql("UPDATE users SET subscription_auto_renew=1, subscription_charge_id=?, subscription_paid_until=? WHERE telegram_id=?",
+         (f"charge_r{uid}", (datetime.utcnow() - timedelta(hours=3)).isoformat(timespec="seconds"), uid))
+    spec = flow.invoice_spec(uid)
+    assert spec is not None and spec["price"] > 0

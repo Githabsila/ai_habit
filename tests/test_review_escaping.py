@@ -86,3 +86,30 @@ async def test_review_the_daily_tip_cannot_be_hammered(client, uid, monkeypatch)
         resp = await client.post("/api/ai/tip", json={"init_data": sign_init_data(uid)})
         statuses.append(resp.status)
     assert len(calls) == r.AI_BURST_LIMIT and statuses[-1] == 429
+
+
+def test_review_2026_11_09_more_texts_people_write_are_escaped():
+    """Прогон 09.11: ещё места, где текст людей или ответ ИИ уходил в HTML-сообщение без экранирования (вехи, разбор цели, утро в 6:00,
+    карточка в админке, сообщество, профиль, простая точка дня, напоминание о главной цели) и сообщения админам с полями вебхука."""
+    import adam_messages
+    simple = adam_messages.format_simple_habit_checkpoint_message([{"title": "Сон <23:00 & чтение"}])
+    assert "&lt;23:00 &amp; чтение" in simple and "<23:00" not in simple
+    goal = adam_messages.format_goal_reminder_message("A&B <x>")
+    assert "A&amp;B &lt;x&gt;" in goal
+    assert _src("handlers/goals.py").count("html.escape(str(survey['bot_goal'] or ''), quote=False)") == 2, "экран вех"
+    assert "html.escape(feedback, quote=False)" in _src("goal_feedback.py"), "разбор цели от ИИ"
+    assert "reply_markup=adam_chat_markup(), parse_mode=None)" in _src("morning_ping.py"), "утреннее сообщение ИИ"
+    admin = _src("handlers/admin.py")
+    for needle in ("_e(survey['business'] or '-')", "_e(survey['ai_summary'])", "_e(user['first_name'] or '-')", 'snippet = _e(row["message"][:120])'):
+        assert needle in admin, needle
+    community = _src("handlers/community.py")
+    assert "return html.escape(f\"@{row['username']}\"" in community and "html.escape(str(match['ai_summary']" in community
+    assert 'html.escape(str(user["first_name"] or ""), quote=False)' in _src("handlers/profile.py")
+    assert 'text=f"🩺 {text}", parse_mode=None)' in _src("alerts.py") and "send_message(admin_id, text, parse_mode=None)" in _src("pay_tribute.py")
+
+
+def test_review_the_process_stops_when_the_web_server_cannot_start():
+    """Прогон 09.11: без веб-сервера (Mini App, вебхуки оплаты) процесс жил дальше одним ботом — Railway не перезапускал, никто не замечал."""
+    main = _src("main.py")
+    block = main[main.index("web_runner = await run_webapp(PORT, bot)"):][:600]
+    assert "raise" in block and "web_runner = None" not in block

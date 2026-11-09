@@ -1,3 +1,4 @@
+import html
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
@@ -29,6 +30,12 @@ from db import (
 )
 
 from handlers.onboarding import notify_approved
+
+
+def _e(value):
+    """Текст людей в HTML-сообщении админке (прогон 09.11: карточка не открывалась при «<», а «<a href>» давал ссылку от имени бота)."""
+    return html.escape(str(value), quote=False)
+
 
 router = Router()
 
@@ -623,7 +630,7 @@ async def _send_user_card(message: Message, user_id: int):
     text = (
         f"👤 <b>Карточка пользователя</b>\n\n"
         f"🆔 <code>{user['telegram_id']}</code>\n"
-        f"👤 @{user['username'] or '-'} ({user['first_name'] or '-'})\n"
+        f"👤 @{user['username'] or '-'} ({_e(user['first_name'] or '-')})\n"
         f"⭐ Уровень: {user['level']} · Adam Coin: {user['xp']}\n"
         f"🔥 Серия: {user['streak']}\n"
         f"✅ Выполнено привычек: {user['total_completed']}\n"
@@ -637,16 +644,16 @@ async def _send_user_card(message: Message, user_id: int):
         tags = get_survey_tags(user_id)
         text += (
             "\n📋 <b>Анкета</b>\n"
-            f"💼 Дело: {survey['business'] or '-'}\n"
+            f"💼 Дело: {_e(survey['business'] or '-')}\n"
             # «Увлечения» — вопрос старой анкеты из 4 шагов; в новой его нет.
-            + (f"🎨 Увлечения: {survey['hobbies']}\n" if survey["hobbies"] else "")
-            + f"🎯 Что прокачать / цель в жизни: {survey['life_goal'] or '-'}\n"
-            f"🤖 Цель в боте: {survey['bot_goal'] or '-'}\n"
+            + (f"🎨 Увлечения: {_e(survey['hobbies'])}\n" if survey["hobbies"] else "")
+            + f"🎯 Что прокачать / цель в жизни: {_e(survey['life_goal'] or '-')}\n"
+            f"🤖 Цель в боте: {_e(survey['bot_goal'] or '-')}\n"
         )
         if tags:
-            text += f"🏷 Теги (AI): {', '.join(tags)}\n"
+            text += f"🏷 Теги (AI): {_e(', '.join(tags))}\n"
         if survey["ai_summary"]:
-            text += f"🧠 AI-резюме: {survey['ai_summary']}\n"
+            text += f"🧠 AI-резюме: {_e(survey['ai_summary'])}\n"
     else:
         text += "\n📋 Анкету ещё не заполнял.\n"
 
@@ -659,7 +666,7 @@ async def _send_user_card(message: Message, user_id: int):
     achievements = get_achievements(user_id)
     if achievements:
         text += f"\n🏆 Достижения ({len(achievements)}): " + ", ".join(
-            a["title"] for a in achievements[:5]
+            _e(a["title"]) for a in achievements[:5]
         ) + "\n"
 
     # Последние сообщения AI-наставнику
@@ -668,14 +675,19 @@ async def _send_user_card(message: Message, user_id: int):
         text += "\n💬 <b>Последние сообщения AI-наставнику</b>\n"
         for row in history[-6:]:
             role = "🧑" if row["role"] == "user" else "🤖"
-            snippet = row["message"][:120]
+            snippet = _e(row["message"][:120])
             text += f"{role} {snippet}\n"
 
-    if len(text) > 4000:
-        for i in range(0, len(text), 4000):
-            await message.answer(text[i:i + 4000], parse_mode="HTML")
-    else:
-        await message.answer(text, parse_mode="HTML", reply_markup=back_menu_keyboard())
+    # Прогон 09.11: длинную карточку режем по строкам, а не посреди тега (иначе «can't parse entities»); клавиатура — у последней части.
+    parts, chunk = [], ""
+    for line in text.splitlines(keepends=True):
+        if len(chunk) + len(line) > 4000 and chunk:
+            parts.append(chunk)
+            chunk = ""
+        chunk += line
+    parts.append(chunk)
+    for index, part in enumerate(parts):
+        await message.answer(part, parse_mode="HTML", reply_markup=back_menu_keyboard() if index == len(parts) - 1 else None)
 
 
 # =====================================
