@@ -1384,9 +1384,12 @@
 
     const status = document.getElementById("streakStatusLabel");
     if (status) {
+      // Проверка удобства 09.11: у новичка серии ещё не было — «сброшена» сбивает с толку; зовём начать.
+      const hadStreak = (streak.last7 || []).some(d => d.status === "missed" || d.status === "completed" || d.status === "freeze")
+        || Boolean(streak.free_restore && streak.free_restore.available);
       status.textContent = streak.days > 0
         ? `Огонь горит. Не дай ему погаснуть.`
-        : `Серия сброшена. Можно начать заново.`;
+        : hadStreak ? `Серия сброшена. Можно начать заново.` : `Отметь первую привычку — и серия начнётся.`;
     }
     const weekHint = document.getElementById("streakWeekHint");
     if (weekHint) {
@@ -1731,7 +1734,7 @@
     {
       type: "choice",
       key: "goal",
-      title: "Зачем ты пришёл в ADAM?",
+      title: "Зачем тебе ADAM?",
       options: [
         ["🎯", "Выработать привычку", "habit"],
         ["💪", "Прокачать дисциплину", "discipline"],

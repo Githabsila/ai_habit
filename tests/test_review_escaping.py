@@ -133,3 +133,10 @@ def test_review_a_like_minded_match_shows_only_what_unites_them(uid):
     found = [m for m in find_match_by_tags(me, limit=50) if m["telegram_id"] == other]
     assert found and found[0]["common_tags"] == ["бег"]
     assert "ai_summary" not in found[0] and "Разведён" not in str(found[0])
+
+
+def test_review_2026_11_09_clear_wording_for_a_newcomer():
+    """Проверка удобства 09.11: новичку без серии не пишем «Серия сброшена», анкета и первое сообщение Адаму — без мужского рода."""
+    app = _src("webapp/static/app.js")
+    assert "Отметь первую привычку — и серия начнётся." in app and "Зачем тебе ADAM?" in app and "Зачем ты пришёл" not in app
+    assert "только что прошёл тест" not in _src("webapp/static/ai_coach.js")
