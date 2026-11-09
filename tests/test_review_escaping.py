@@ -103,7 +103,7 @@ def test_review_2026_11_09_more_texts_people_write_are_escaped():
     for needle in ("_e(survey['business'] or '-')", "_e(survey['ai_summary'])", "_e(user['first_name'] or '-')", 'snippet = _e(row["message"][:120])'):
         assert needle in admin, needle
     community = _src("handlers/community.py")
-    assert "return html.escape(f\"@{row['username']}\"" in community and "html.escape(str(match['ai_summary']" in community
+    assert "return html.escape(f\"@{row['username']}\"" in community and "html.escape(', '.join(match['common_tags']), quote=False)" in community
     assert 'html.escape(str(user["first_name"] or ""), quote=False)' in _src("handlers/profile.py")
     assert 'text=f"🩺 {text}", parse_mode=None)' in _src("alerts.py") and "send_message(admin_id, text, parse_mode=None)" in _src("pay_tribute.py")
 
@@ -113,3 +113,23 @@ def test_review_the_process_stops_when_the_web_server_cannot_start():
     main = _src("main.py")
     block = main[main.index("web_runner = await run_webapp(PORT, bot)"):][:600]
     assert "raise" in block and "web_runner = None" not in block
+
+
+def test_review_a_like_minded_match_shows_only_what_unites_them(uid):
+    """Решение владельца 09.11: «Найти единомышленника» показывает незнакомцу только общие интересы — не ИИ-резюме чужой анкеты."""
+    import json
+    from db.core import connect
+    from db.onboarding import find_match_by_tags
+    me, other = uid, uid + 1
+    for person, tags, summary in ((me, ["бег", "чтение"], "мой разбор"), (other, ["Бег", "бизнес"], "Разведён, долги, ищет работу")):
+        add_user(person, f"m{person}", "Аня")
+        conn = connect()
+        try:
+            conn.execute("UPDATE users SET access_status='approved', banned=0 WHERE telegram_id=?", (person,))
+            conn.execute("INSERT OR REPLACE INTO user_survey(user_id, ai_tags, ai_summary) VALUES (?,?,?)", (person, json.dumps(tags, ensure_ascii=False), summary))
+            conn.commit()
+        finally:
+            conn.close()
+    found = [m for m in find_match_by_tags(me, limit=50) if m["telegram_id"] == other]
+    assert found and found[0]["common_tags"] == ["бег"]
+    assert "ai_summary" not in found[0] and "Разведён" not in str(found[0])

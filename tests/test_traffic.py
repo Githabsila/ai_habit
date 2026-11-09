@@ -123,14 +123,16 @@ def test_the_code_is_read_from_the_mini_app_start_param(uid):
     assert traffic.attribute_from_init_data(other, "") is False and traffic.attribute_from_init_data(other, None) is False
 
 
-async def test_start_command_with_a_channel_link_remembers_the_channel_and_still_runs_the_survey(uid, monkeypatch):
+async def test_start_command_with_a_channel_link_remembers_the_channel_and_invites_into_the_app(uid, monkeypatch):
     import handlers.start as start_mod
     code = traffic.create_source(f"Старт {uid}")["code"]
     monkeypatch.setattr(start_mod, "begin_survey", AsyncMock())
     message = SimpleNamespace(text=f"/start src_{code}", from_user=SimpleNamespace(id=uid, username="u", first_name="Аня"), answer=AsyncMock(), bot=None)
     await start_mod.start(message, SimpleNamespace())
     assert get_user(uid)["source_code"] == code and get_user(uid)["referrer_id"] is None
-    start_mod.begin_survey.assert_awaited()
+    # Решение владельца 09.11: анкета — только в приложении (16+ и согласие); бот вежливо зовёт туда, источник при этом запомнен.
+    start_mod.begin_survey.assert_not_awaited()
+    assert "живёт в приложении" in message.answer.await_args.args[0]
 
 
 async def test_a_friend_invite_is_its_own_channel_and_still_gives_the_bonus(uid, monkeypatch):

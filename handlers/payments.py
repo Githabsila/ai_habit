@@ -387,7 +387,7 @@ async def _credit_payment(message: Message, payment, payload: str):
                 pass
             log_stars_purchase(message.from_user.id, item_id)
         await message.answer(
-            f"✅ Спасибо! {item['name'] if item else 'Пакет ответов'} добавлен к твоему дневному лимиту.",
+            f"✅ Спасибо! {item['name'] if item else 'Пакет ответов'} зачислен: эти ответы не сгорают и тратятся после дневного лимита.",
             reply_markup=back_menu_keyboard()
         )
         return

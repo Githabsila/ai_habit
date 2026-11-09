@@ -96,6 +96,25 @@ class AccessControlMiddleware(BaseMiddleware):
         if isinstance(event, Message) and (event.text or "").startswith("/start"):
             return await handler(event, data)
 
+        # Решение владельца 09.11: пользоваться ADAM можно только в приложении. Кто ещё не прошёл там стартовую анкету (16+ и согласие),
+        # получает вежливое приглашение открыть Mini App вместо функций бота.
+        try:
+            from db.consent import consent_of
+            needs_app = consent_of(user_id) is None
+        except Exception:
+            needs_app = False
+        if needs_app:
+            from keyboards import MINI_APP_ONLY_TEXT, open_app_markup
+            try:
+                if isinstance(event, CallbackQuery):
+                    await event.answer()
+                    await event.message.answer(MINI_APP_ONLY_TEXT, reply_markup=open_app_markup())
+                else:
+                    await event.answer(MINI_APP_ONLY_TEXT, reply_markup=open_app_markup())
+            except Exception:
+                pass
+            return None
+
         if bot_access_allowed(user_id):
             return await handler(event, data)
 

@@ -62,6 +62,8 @@ class _FakeMessage:
 
 async def test_any_incoming_message_clears_bot_blocked_flag(uid):
     add_user(uid, "u", "Test")
+    from db.consent import record_consent
+    record_consent(uid)                                   # прошёл стартовую анкету в приложении (решение 09.11)
     mark_bot_blocked(uid)
     assert is_bot_blocked(uid)
 

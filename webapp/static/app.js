@@ -8461,8 +8461,8 @@ const SIM_HUB = {
   items: [
     { item_id: 27, group: "diamonds", name: "💎 10 алмазов", description: "Премиальная валюта", usd_text: "$1.99", stars_text: "150 ⭐", available: true, note: null },
     { item_id: 28, group: "diamonds", name: "💎 50 алмазов", description: "Премиальная валюта", usd_text: "$7.99", stars_text: "600 ⭐", available: true, note: null },
-    { item_id: 22, group: "answers", name: "💬 +50 ответов ADAM", description: "К дневному лимиту", usd_text: "$1.99", stars_text: "150 ⭐", available: true, note: null },
-    { item_id: 23, group: "answers", name: "💬 +100 ответов ADAM", description: "К дневному лимиту", usd_text: "$3.99", stars_text: "280 ⭐", available: true, note: null },
+    { item_id: 22, group: "answers", name: "💬 +50 ответов ADAM", description: "Не сгорают", usd_text: "$1.99", stars_text: "150 ⭐", available: true, note: null },
+    { item_id: 23, group: "answers", name: "💬 +100 ответов ADAM", description: "Не сгорают", usd_text: "$3.99", stars_text: "280 ⭐", available: true, note: null },
     { item_id: 24, group: "booster", name: "⚡ Бустер x2 Adam Coin — 24ч", description: "Вдвое больше монет за привычки", usd_text: "$1.29", stars_text: "99 ⭐", available: true, note: null },
     { item_id: 7, group: "frame", name: "👑 Рамка: Double Gold", description: "Двойная позолота", usd_text: "$3.99", stars_text: "299 ⭐", available: false, note: "Уже у тебя" },
   ],

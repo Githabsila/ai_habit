@@ -62,6 +62,8 @@ async def test_the_access_granted_message_leads_into_the_app(uid, web_url):
 async def test_the_start_greeting_for_an_approved_person_has_the_open_app_button(uid, web_url):
     add_user(uid, "u", "Аня")
     set_access_status(uid, "approved")
+    from db.consent import record_consent
+    record_consent(uid)
     message = SimpleNamespace(
         text="/start", from_user=SimpleNamespace(id=uid, username="u", first_name="Аня", full_name="Аня"),
         answer=AsyncMock(), bot=SimpleNamespace(send_message=AsyncMock()),
@@ -183,3 +185,30 @@ async def test_back_to_main_menu_keeps_the_open_app_button(web_url):
     first = markup.inline_keyboard[0][0]
     assert first.web_app is not None and "Открыть ADAM" in first.text
     assert "reminders_menu" in {b.callback_data for b in _buttons(markup)}
+
+
+async def test_review_without_the_app_quiz_the_bot_politely_invites_into_the_app(uid, web_url):
+    """Решение владельца 09.11: пользоваться ADAM можно только в приложении (там 16+ и согласие на обработку данных). Кто их не прошёл,
+    на /start и на любое сообщение получает вежливое приглашение открыть Mini App — анкета в боте не запускается."""
+    from middlewares.access_control import AccessControlMiddleware
+    add_user(uid, "u", "Аня")
+    message = SimpleNamespace(
+        text="/start", from_user=SimpleNamespace(id=uid, username="u", first_name="Аня", full_name="Аня"),
+        answer=AsyncMock(), bot=SimpleNamespace(send_message=AsyncMock()),
+    )
+    state = FSMContext(storage=MemoryStorage(), key=StorageKey(bot_id=1, chat_id=uid, user_id=uid))
+    await start_handler.start(message, state)
+    assert "живёт в приложении" in message.answer.call_args.args[0]
+    assert message.answer.call_args.kwargs["reply_markup"].inline_keyboard[0][0].web_app.url == URL + "?from=bot_only"
+    assert await state.get_state() is None, "анкета в боте не началась"
+    from aiogram.types import Message as _M
+
+    class _Msg(_M):
+        async def answer(self, text, **kwargs):
+            shown.append(text)
+
+    shown = []
+    event = _Msg.model_construct(message_id=1, from_user=SimpleNamespace(id=uid, username="u"), text="привет", successful_payment=None)
+    handler = AsyncMock()
+    await AccessControlMiddleware()(handler, event, {})
+    assert handler.await_count == 0 and shown and "живёт в приложении" in shown[0]

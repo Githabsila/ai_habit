@@ -348,8 +348,12 @@ def _ensure_ai_quota_day(cur, user_id, day):
 
     Таблица исторически имеет PRIMARY KEY только по user_id, поэтому
     INSERT OR IGNORE сам по себе НЕ создавал новую строку на следующий день.
-    Из-за этого вчерашний used/bonus мог переноситься на сегодня.
+    Из-за этого вчерашний used мог переноситься на сегодня.
+
+    Решение владельца 09.11: купленные ответы (bonus_answers) — остаток, а не дневная добавка: на новый день сбрасываются только
+    used и bonus_today (сколько купленных потрачено сегодня), остаток переходит дальше.
     """
+    _ensure_bonus_today_column(cur)
     cur.execute(
         "INSERT OR IGNORE INTO ai_quota(user_id, day, used, bonus_answers) VALUES (?, ?, 0, 0)",
         (user_id, day),
@@ -358,51 +362,70 @@ def _ensure_ai_quota_day(cur, user_id, day):
     row = cur.fetchone()
     if row and str(row["day"]) != day:
         cur.execute(
-            "UPDATE ai_quota SET day=?, used=0, bonus_answers=0 WHERE user_id=?",
+            "UPDATE ai_quota SET day=?, used=0, bonus_today=0 WHERE user_id=?",
             (day, user_id),
         )
+
+
+_bonus_today_ready = False
+
+
+def _ensure_bonus_today_column(cur):
+    global _bonus_today_ready
+    if _bonus_today_ready:
+        return
+    columns = {row[1] for row in cur.execute("PRAGMA table_info(ai_quota)")}
+    if "bonus_today" not in columns:
+        cur.execute("ALTER TABLE ai_quota ADD COLUMN bonus_today INTEGER DEFAULT 0")
+    _bonus_today_ready = True
+
+
+def _base_limit(is_pro):
+    try:
+        from config import AI_DAILY_PRO_COST_UNITS, AI_DAILY_FREE_COST_UNITS
+        return AI_DAILY_PRO_COST_UNITS if is_pro else AI_DAILY_FREE_COST_UNITS
+    except Exception:
+        return 50 if is_pro else 15
+
 
 def get_ai_quota(user_id, is_pro=False):
     from datetime import date
     conn=connect(); cur=conn.cursor(); day=str(date.today())
     _ensure_ai_quota_day(cur, user_id, day)
-    cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=?", (user_id,))
+    cur.execute("SELECT used, bonus_answers, COALESCE(bonus_today, 0) AS bonus_today FROM ai_quota WHERE user_id=?", (user_id,))
     r=cur.fetchone(); conn.commit(); conn.close()
-    try:
-        from config import AI_DAILY_PRO_COST_UNITS, AI_DAILY_FREE_COST_UNITS
-        base = AI_DAILY_PRO_COST_UNITS if is_pro else AI_DAILY_FREE_COST_UNITS
-    except Exception:
-        base = 50 if is_pro else 15
+    base = _base_limit(is_pro)
     used=int(r["used"] or 0) if r else 0
-    bonus=int(r["bonus_answers"] or 0) if r else 0
-    return {"used":used,"bonus":bonus,"limit":base+bonus,"remaining":max(0,base+bonus-used),"pro":is_pro}
+    bonus=int(r["bonus_answers"] or 0) if r else 0          # остаток купленных
+    spent_bonus=int(r["bonus_today"] or 0) if r else 0     # купленных потрачено сегодня (уже вычтены из остатка)
+    limit = base + bonus + spent_bonus
+    return {"used":used,"bonus":bonus,"limit":limit,"remaining":max(0,limit-used),"pro":is_pro}
 
 def consume_ai_answer(user_id, is_pro=False, cost=1):
     from datetime import date
     conn=connect(); cur=conn.cursor(); day=str(date.today())
     _ensure_ai_quota_day(cur, user_id, day)
-    cur.execute("SELECT used, bonus_answers FROM ai_quota WHERE user_id=?", (user_id,))
+    cur.execute("SELECT used, bonus_answers, COALESCE(bonus_today, 0) AS bonus_today FROM ai_quota WHERE user_id=?", (user_id,))
     r = cur.fetchone()
 
     used = int(r["used"] or 0) if r else 0
     bonus = int(r["bonus_answers"] or 0) if r else 0
-    try:
-        from config import AI_DAILY_PRO_COST_UNITS, AI_DAILY_FREE_COST_UNITS
-        base = AI_DAILY_PRO_COST_UNITS if is_pro else AI_DAILY_FREE_COST_UNITS
-    except Exception:
-        base = 50 if is_pro else 15
-    total = base + bonus
+    spent_bonus = int(r["bonus_today"] or 0) if r else 0
+    base = _base_limit(is_pro)
 
     try:
         cost = max(1, int(cost))
     except (TypeError, ValueError):
         cost = 1
-
-    if used + cost > total:
+    # Сначала дневной лимит, потом купленные: часть сверх дневного лимита списывается из остатка купленных.
+    from_base = max(0, min(cost, base + spent_bonus - used))
+    from_bonus = cost - from_base
+    if from_bonus > bonus:
         conn.close()
         return False
 
-    cur.execute("UPDATE ai_quota SET used=used+? WHERE user_id=?", (cost, user_id))
+    cur.execute("UPDATE ai_quota SET used=used+?, bonus_answers=bonus_answers-?, bonus_today=COALESCE(bonus_today,0)+? WHERE user_id=?",
+                (cost, from_bonus, from_bonus, user_id))
     conn.commit()
     conn.close()
     return True

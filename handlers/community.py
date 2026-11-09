@@ -75,7 +75,7 @@ async def find_match(callback: CallbackQuery):
     await callback.message.edit_text(
         "🔎 <b>Найден единомышленник!</b>\n\n"
         f"👤 {name}\n"
-        f"💬 {html.escape(str(match['ai_summary'] or 'Общие интересы с вами'), quote=False)}",
+        f"🤝 Что объединяет: {html.escape(', '.join(match['common_tags']), quote=False)}",
         parse_mode="HTML",
         reply_markup=community_keyboard()
     )

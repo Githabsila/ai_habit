@@ -70,3 +70,22 @@ async def test_cached_answer_still_consumes_quota(client, uid, monkeypatch):
     assert r2.status == 200
     body2 = await r2.json()
     assert body2["quota"]["used"] == before["used"] + 2
+
+
+def test_review_bought_answers_do_not_burn_at_midnight(uid):
+    """Решение владельца 09.11: купленные за звёзды ответы ADAM не сгорают — тратятся после дневного лимита и переходят на следующий день."""
+    from db.core import connect
+    from db.shop import add_ai_bonus_answers
+    add_user(uid, "tester", "Test")
+    base = get_ai_quota(uid, is_pro=False)["limit"]
+    add_ai_bonus_answers(uid, 50)
+    for _ in range(base + 10):                         # весь дневной лимит + 10 купленных
+        assert consume_ai_answer(uid, is_pro=False, cost=1) is True
+    conn = connect()
+    try:
+        conn.execute("UPDATE ai_quota SET day='2000-01-01' WHERE user_id=?", (uid,))   # наступил новый день
+        conn.commit()
+    finally:
+        conn.close()
+    tomorrow = get_ai_quota(uid, is_pro=False)
+    assert tomorrow["used"] == 0 and tomorrow["bonus"] == 40 and tomorrow["remaining"] == base + 40

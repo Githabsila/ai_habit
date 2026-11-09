@@ -174,7 +174,7 @@ def _grant_item(user_id, item_id):
     if kind == "answer_pack_stars":
         shop.add_ai_bonus_answers(user_id, int(item["payload"] or 0))
         shop.log_stars_purchase(user_id, item["id"])
-        return f"✅ Спасибо! {item['name']} добавлен к твоему дневному лимиту."
+        return f"✅ Спасибо! {item['name']} зачислен: эти ответы не сгорают и тратятся после дневного лимита."
     if kind == "diamond_pack_stars":
         amount = int(item["payload"] or 0)
         if amount > 0:

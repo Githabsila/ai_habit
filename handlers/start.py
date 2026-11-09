@@ -18,6 +18,7 @@ from db import (
 from db.referrals import REWARD_COINS, register_invite, mark_notified
 
 from handlers.onboarding import begin_survey
+from keyboards import MINI_APP_ONLY_TEXT, open_app_markup
 from db.traffic import attribute as attribute_source, parse_payload
 
 router = Router()
@@ -145,6 +146,16 @@ async def start(message: Message, state: FSMContext):
     # Админов анкета не касается — сразу в меню
     is_admin = message.from_user.id in ADMIN_IDS
     status = get_access_status(message.from_user.id)
+
+    # Решение владельца 09.11: ADAM — только в приложении. Пока человек не прошёл стартовую анкету Mini App (16+ и согласие на обработку
+    # данных), анкету в боте не запускаем — вежливо зовём в приложение (там она и пройдёт).
+    if not is_admin:
+        from db.consent import consent_of
+        if consent_of(message.from_user.id) is None:
+            if referred_bonus_given:
+                await message.answer(f"🎁 Бонус за переход по приглашению друга: +{invite['invitee_coins']} Adam Coin!")
+            await message.answer(MINI_APP_ONLY_TEXT, reply_markup=open_app_markup())
+            return
 
     if not is_admin and status == "new":
         if referred_bonus_given:
