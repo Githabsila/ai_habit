@@ -135,7 +135,8 @@ async def test_choosing_the_card_returns_the_product_link_and_makes_an_order(uid
     assert err.value.code == "method_unavailable"
     _map("item_27", 901)
     created = await payments_ext.start_order(person, "card", "item", 27)
-    assert created["pay_url"] == "https://t.me/tribute_bot/app?startapp=p901"
+    # 09.11 (ответ Tribute): внутри Telegram оплата — только звёзды и СБП; зарубежные карты (СНГ) — только по веб-ссылке в браузере.
+    assert created["pay_url"] == "https://web.tribute.tg/p/901"
     order = pay_orders.get_order(created["order_id"])
     assert (order["provider"], order["method"], order["price_key"], order["status"]) == ("tribute", "card", "item_27", "created")
 

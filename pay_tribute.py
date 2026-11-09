@@ -52,9 +52,11 @@ class Tribute:
     async def create_invoice(self, order, amount_cents):
         from pay_providers import ProviderError
         product = pay_orders.tribute_product(order["price_key"]) if order["price_key"] else None
-        if product is None or not product["link"]:
+        if product is None or not (product["web_link"] or product["link"]):
             raise ProviderError("товар Tribute под эту цену не привязан")
-        return {"uuid": "", "url": product["link"]}
+        # 09.11 (ответ Tribute): внутри Telegram оплата — только звёзды и СБП (ограничение Telegram); зарубежные карты (Kaspi, Оптима, Мбанк,
+        # Dushanbe City, Visa/Mastercard) — только по веб-ссылке товара в браузере. Вебхук приходит так же, с telegram_user_id.
+        return {"uuid": "", "url": product["web_link"] or product["link"]}
 
     # ------------------------------------------------------------------------------------------------------------ вебхук
 
