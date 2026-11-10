@@ -8,7 +8,10 @@ goal_feedback.py
 import html
 import logging
 
-from db import get_surveys_due_for_feedback, mark_feedback_sent, get_progress, get_user, log_error
+from aiogram.exceptions import TelegramForbiddenError
+
+from db import get_surveys_due_for_feedback, mark_feedback_sent, get_progress, get_user, log_error, mark_bot_blocked
+from db.settings import get_settings, in_quiet_hours
 from multi_agent import analyze_goal_progress
 from db import ai_usage
 from alerts import notify_admins
@@ -16,7 +19,17 @@ from alerts import notify_admins
 logger = logging.getLogger("goal_feedback")
 
 
-async def run_goal_feedback(bot):
+def _due_local(user_id, now_utc=None):
+    """Понедельник 10:00–11:00 по местному времени человека и не в его тихие часы, иначе None. Раньше — один cron в 10:00 по
+    серверу: у UTC−8 разбор приходил в 2 ночи (прогон 09.11). Проверяем ДО вызова ИИ, чтобы не платить за неотправляемое."""
+    from coach import _local_due
+    local = _local_due(user_id, now_utc, weekday=0, hour=10)
+    if local is None or in_quiet_hours(get_settings(user_id), local):
+        return None
+    return local
+
+
+async def run_goal_feedback(bot, now_utc=None):
     surveys = get_surveys_due_for_feedback(days=7)
     sent = 0
     failed = 0
@@ -24,6 +37,8 @@ async def run_goal_feedback(bot):
     for survey in surveys:
         user_id = survey["user_id"]
         try:
+            if _due_local(user_id, now_utc) is None:
+                continue
             user = get_user(user_id)
             progress = get_progress(user_id) or {}
             completed_ratio = (
@@ -53,6 +68,8 @@ async def run_goal_feedback(bot):
                 # ушло.
                 mark_feedback_sent(user_id)
 
+        except TelegramForbiddenError:
+            mark_bot_blocked(user_id)          # заблокировал бота — больше не тратим на него вызов ИИ каждую неделю
         except Exception as e:
             failed += 1
             logger.warning(f"Не удалось отправить разбор цели {user_id}: {e}")

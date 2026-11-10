@@ -1108,10 +1108,10 @@ async def subscription_auto_renew_route(request):
         if enabled:
             return web.json_response({"error": "lava_cannot_resume"}, status=409)
         import pay_providers
-        from db import pay_orders
         lava = pay_providers.PROVIDERS.get("lava")
-        email = pay_orders.get_pay_email(telegram_id)
-        if lava is None or not email or not await lava.cancel_subscription(str(charge_id)[5:], email):
+        contract = str(charge_id)[5:]
+        email, exact = lava.contract_email(contract, telegram_id) if lava is not None else (None, False)
+        if lava is None or not email or not await lava.cancel_subscription(contract, email, missing_ok=exact):
             return web.json_response({"error": "payment_unavailable"}, status=502)
         set_auto_renew(telegram_id, False)
         from db.subscription import subscription_overview

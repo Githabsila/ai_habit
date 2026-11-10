@@ -390,6 +390,12 @@ async def _finish(bot, user, state, bot_goal, message, edit):
         await grant_access(bot, user_id, bot_goal=bot_goal)
         return
 
+    # Доступ уже открыт (одобрен раньше или прошёл анкету заново) — не понижаем его до «на проверке» (прогон 09.11).
+    if db_user and (db_user["access_status"] or "") == "approved":
+        from keyboards import open_app_markup
+        await _say(message, "✅ Анкета сохранена. Доступ у тебя уже открыт — всё в приложении ADAM.", open_app_markup(), edit)
+        return
+
     set_access_status(user_id, "pending")
 
     # ВАЖНО: уведомление админу уходит сразу после перевода заявки в pending — без ожидания

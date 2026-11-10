@@ -8734,7 +8734,10 @@ async function choosePayMethod(method) {
     list.hidden = true;
     document.getElementById("payMethodHint").hidden = true;
     const wait = document.getElementById("payMethodWait");
-    wait.textContent = "Открыл страницу оплаты. Оплати там и вернись сюда — подтверждение я увижу сам.";
+    // Tribute спрашивает вход через Telegram: покупка придёт тому аккаунту, которым вошли (10.11 — проверено живой покупкой).
+    wait.textContent = /tribute\.tg/i.test(order.pay_url || "")
+      ? "Открыл страницу оплаты. Если попросит войти — входи через Telegram тем же аккаунтом, что и здесь: покупка придёт на него. Оплати и вернись сюда — подтверждение я увижу сам."
+      : "Открыл страницу оплаты. Оплати там и вернись сюда — подтверждение я увижу сам.";
     wait.hidden = false;
     document.getElementById("payMethodReopen").hidden = false;
     document.getElementById("payMethodPaid").hidden = false;

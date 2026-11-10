@@ -11,6 +11,7 @@ from keyboards import admin_keyboard, pending_keyboard, back_menu_keyboard, broa
 
 from db import (
     get_users_count,
+    get_user,
     get_all_users,
     get_all_users_info,
     give_premium_admin,
@@ -46,6 +47,7 @@ router = Router()
 
 class AdminState(StatesGroup):
     broadcast = State()
+    broadcast_confirm = State()
     broadcast_tag_input = State()
     premium = State()
     xp = State()
@@ -141,30 +143,61 @@ async def start_ban(callback: CallbackQuery, state: FSMContext):
 
 @router.message(AdminState.ban)
 async def ban(message: Message, state: FSMContext):
-
+    """ID → карточка и подтверждение. Раньше бан срабатывал сразу, без проверки, что такой человек есть (прогон 09.11)."""
     if message.from_user.id not in ADMIN_IDS:
         return
 
     try:
         user_id = int(message.text)
-    except ValueError:
+    except (TypeError, ValueError):
         await message.answer("❌ Нужно ввести Telegram ID.")
         return
+    if user_id in ADMIN_IDS:
+        await message.answer("❌ Администратора заблокировать нельзя.")
+        return
+    user = get_user(user_id)
+    if not user:
+        await message.answer("❌ Пользователя с таким ID нет в базе. Проверьте ID.")
+        return
 
+    await state.clear()
+    name = html.escape(user["first_name"] or "—")
+    username = f" (@{html.escape(user['username'])})" if user["username"] else ""
+    await message.answer(
+        f"🚫 Заблокировать пользователя?\n\n👤 {name}{username}\nID: <code>{user_id}</code>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🚫 Да, заблокировать", callback_data=f"ban_yes:{user_id}")],
+            [InlineKeyboardButton(text="✖️ Отмена", callback_data="ban_no")],
+        ]),
+    )
+
+
+@router.callback_query(F.data == "ban_no")
+async def ban_no(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+    await callback.answer("Отменено")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except TelegramBadRequest:
+        pass
+
+
+@router.callback_query(F.data.regexp(r"^ban_yes:\d+$"))
+async def ban_yes(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+    user_id = int(callback.data.split(":")[1])
     ban_user(user_id)
     from channel_sync import remove_banned_now
-    await remove_banned_now(message.bot, user_id)                       # бан закрывает и закрытый канал — сразу (решение 07.11)
-    await state.clear()
-
-    await message.answer(
-        f"""
-🚫 Пользователь заблокирован.
-
-👤 ID:
-<code>{user_id}</code>
-""",
-        parse_mode="HTML"
-    )
+    await remove_banned_now(callback.bot, user_id)                       # бан закрывает и закрытый канал — сразу (решение 07.11)
+    await callback.answer("Заблокирован")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except TelegramBadRequest:
+        pass
+    await callback.message.answer(f"🚫 Пользователь заблокирован.\n\n👤 ID:\n<code>{user_id}</code>", parse_mode="HTML")
 
 
 # =====================================
@@ -214,59 +247,133 @@ async def broadcast_tag_input(message: Message, state: FSMContext):
         return
 
     tag = (message.text or "").strip()
+    if tag.startswith("/"):
+        await state.clear()
+        await message.answer("✖️ Рассылка отменена.")
+        return
+    # Пустой тег или «%» совпадали со всеми, у кого есть теги (прогон 09.11).
+    if not tag or "%" in tag or "_" in tag:
+        await message.answer("❌ Введите тег текстом, например: бизнес.")
+        return
     matching = get_users_by_tags([tag])
 
     if not matching:
-        await message.answer(f"❌ По тегу «{tag}» никого не нашлось. Введите другой тег.")
+        await message.answer(f"❌ По тегу «{html.escape(tag)}» никого не нашлось. Введите другой тег.")
         return
 
     await state.set_state(AdminState.broadcast)
     await state.update_data(tag=tag)
     await message.answer(
-        f"🏷 Найдено {len(matching)} пользователей с тегом «{tag}».\n\n"
+        f"🏷 Найдено {len(matching)} пользователей с тегом «{html.escape(tag)}».\n\n"
         "📢 Отправьте сообщение для рассылки только им."
     )
 
 
+def _broadcast_recipients(tag):
+    """Кому уйдёт рассылка: без забаненных и без тех, кто заблокировал бота (прогон 09.11 — раньше слали всем подряд)."""
+    if tag:
+        ids = set(get_users_by_tags([tag]))
+        users = [u for u in get_all_users() if u["telegram_id"] in ids]
+    else:
+        users = get_all_users()
+    return [u["telegram_id"] for u in users if not u["banned"] and u["bot_blocked_at"] is None]
+
+
+def _broadcast_confirm_keyboard(count):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"✅ Отправить ({count})", callback_data="broadcast_go")],
+        [InlineKeyboardButton(text="✖️ Отмена", callback_data="broadcast_cancel")],
+    ])
+
+
+# Пауза между сообщениями: ~20 в секунду, ниже лимита Telegram (~30/с).
+BROADCAST_PAUSE_SECONDS = 0.05
+
+
 @router.message(AdminState.broadcast)
 async def send_broadcast(message: Message, state: FSMContext):
-
+    """Текст рассылки → показываем, кому уйдёт, и ждём подтверждения. Раньше уходило сразу — и /start, набранный «передумав»,
+    улетал всем (прогон 09.11)."""
     if message.from_user.id not in ADMIN_IDS:
+        return
+
+    text = message.text or ""
+    if text.startswith("/"):
+        await state.clear()
+        await message.answer("✖️ Рассылка отменена.")
+        return
+    if not text.strip():
+        await message.answer("❌ Нужен текст. Фото и стикеры рассылкой не отправляются. Пришлите текст или /cancel.")
         return
 
     data = await state.get_data()
     tag = data.get("tag")
+    body = message.html_text                       # оформление админа (жирный, ссылки) сохраняется, «<» экранирован
+    count = len(_broadcast_recipients(tag))
+    await state.set_state(AdminState.broadcast_confirm)
+    await state.update_data(body=body)
+    target_line = f"по тегу «{html.escape(tag)}»" if tag else "всем пользователям"
+    await message.answer(
+        f"📢 Рассылка {target_line}: получателей — <b>{count}</b>.\n\nТак увидят сообщение:\n\n{body}",
+        parse_mode="HTML",
+        reply_markup=_broadcast_confirm_keyboard(count),
+    )
 
-    if tag:
-        telegram_ids = get_users_by_tags([tag])
-    else:
-        telegram_ids = [u["telegram_id"] for u in get_all_users()]
+
+@router.callback_query(F.data == "broadcast_cancel")
+async def broadcast_cancel(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+    await state.clear()
+    await callback.answer("Отменено")
+    await callback.message.answer("✖️ Рассылка отменена.")
+
+
+@router.callback_query(F.data == "broadcast_go", AdminState.broadcast_confirm)
+async def broadcast_go(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        return
+    data = await state.get_data()
+    await state.clear()                            # второе нажатие уже не найдёт состояние — рассылка не уйдёт дважды
+    body = data.get("body")
+    tag = data.get("tag")
+    if not body:
+        await callback.answer("Рассылка устарела", show_alert=True)
+        return
+    await callback.answer("Отправляю…")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except TelegramBadRequest:
+        pass
+
+    import asyncio
+    from aiogram.exceptions import TelegramRetryAfter
+    from db.users import is_bot_forbidden_error, mark_bot_blocked
 
     success = 0
     failed = 0
+    for telegram_id in _broadcast_recipients(tag):
+        for attempt in range(2):
+            try:
+                await callback.bot.send_message(chat_id=telegram_id, text=body, parse_mode="HTML")
+                success += 1
+                break
+            except TelegramRetryAfter as exc:
+                if attempt == 0:
+                    await asyncio.sleep(exc.retry_after + 1)
+                    continue
+                failed += 1
+            except Exception as exc:
+                if is_bot_forbidden_error(exc):
+                    mark_bot_blocked(telegram_id)
+                failed += 1
+                break
+        await asyncio.sleep(BROADCAST_PAUSE_SECONDS)
 
-    for telegram_id in telegram_ids:
-        try:
-            await message.bot.send_message(
-                chat_id=telegram_id,
-                text=message.text,
-                parse_mode="HTML"
-            )
-            success += 1
-        except Exception:
-            failed += 1
-
-    await state.clear()
-
-    target_line = f"по тегу «{tag}»" if tag else "всем пользователям"
-    await message.answer(
-        f"""
-✅ Рассылка завершена ({target_line})!
-
-👥 Отправлено: {success}
-
-❌ Ошибок: {failed}
-"""
+    target_line = f"по тегу «{html.escape(tag)}»" if tag else "всем пользователям"
+    await callback.message.answer(
+        f"✅ Рассылка завершена ({target_line})!\n\n👥 Отправлено: {success}\n\n❌ Ошибок: {failed}",
+        parse_mode="HTML",
     )
 
 

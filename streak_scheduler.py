@@ -490,6 +490,18 @@ async def run_weekly_streak_bonus(bot):
             logger.exception("Ошибка weekly streak bonus для %s", uid)
 
 
+def _push_allowed(uid):
+    """Пуши «рекорд», «тебя обогнали», «спаси друга» — только тем, кому бот открыт: не забаненным и не закрытым гейтом подписки
+    (прогон 09.11: get_users_near_personal_record и _friend_ids бан не отсекают)."""
+    from db import is_banned
+    return not is_bot_blocked(uid) and not is_banned(uid) and bot_access_allowed(uid)
+
+
+# Пуш «тебя обогнали» — только днём по местному времени (раньше 8:00 UTC = полночь на западе США, прогон 09.11).
+RANK_PUSH_FROM_HOUR = 8
+RANK_PUSH_TO_HOUR = 22
+
+
 async def run_personal_record_notifications(bot):
     """Улучшение #49: пользователю, чья текущая серия ровно на 1 день короче
     его собственного исторического рекорда, в 9:00 приходит мотивирующий
@@ -500,7 +512,7 @@ async def run_personal_record_notifications(bot):
     scope = notification_scope(bot)
     for row in get_users_near_personal_record():
         uid = row["user_id"]
-        if is_bot_blocked(uid):
+        if not _push_allowed(uid):
             continue
         try:
             settings = get_settings(uid)
@@ -566,7 +578,7 @@ async def run_rank_overtaken_notifications(bot):
     scope = notification_scope(bot)
     for item in overtaken:
         uid = item["user_id"]
-        if is_bot_blocked(uid):
+        if not _push_allowed(uid):
             continue
         try:
             settings = get_settings(uid)
@@ -574,7 +586,7 @@ async def run_rank_overtaken_notifications(bot):
                 continue
             tz = ZoneInfo(get_timezone(uid))
             now_local = datetime.now(tz)
-            if in_quiet_hours(settings, now_local):
+            if in_quiet_hours(settings, now_local) or not (RANK_PUSH_FROM_HOUR <= now_local.hour < RANK_PUSH_TO_HOUR):
                 continue
             day = now_local.date().isoformat()
             if not claim_notification(uid, day, "rank_overtaken", scope):
@@ -817,7 +829,7 @@ async def _send_rescue_push(bot, scope, helper_id, owner_id, state, name):
     from db import rescue as rescue_db
 
     settings = get_settings(helper_id)
-    if not settings or not settings["reminders"] or is_bot_blocked(helper_id):
+    if not settings or not settings["reminders"] or not _push_allowed(helper_id):
         return False
     now = datetime.now(ZoneInfo(get_timezone(helper_id)))
     if in_quiet_hours(settings, now) or not (RESCUE_PUSH_FROM_HOUR <= now.hour < RESCUE_PUSH_TO_HOUR):

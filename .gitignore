@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 users.db
 users.db-wal
 users.db-shm
@@ -11,7 +13,6 @@ venv/
 .vscode/
 .idea/
 .DS_Store
-.env.example
 webapp/static/_dev_preview.html
 webapp/static/_dev_preview_coach.html
 .claude/worktrees/
@@ -20,3 +21,4 @@ webapp/static/_dev_preview_coach.html
 logs/
 *.lnk
 *.bak_*
+*.db

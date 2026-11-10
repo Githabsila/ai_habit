@@ -78,7 +78,7 @@ def test_the_flying_lid_stays_inside_the_drawing():
 
 
 def test_script_and_style_versions_follow_the_release():
-    assert "style.css?v=20261107_HUB_V100" in INDEX and "app.js?v=20261107_HUB_V117" in INDEX
+    assert "style.css?v=20261107_HUB_V100" in INDEX and "app.js?v=20261110_HUB_V118" in INDEX
 
 
 # ---------------------------------------------------------------------------------------------------------------- скрипт

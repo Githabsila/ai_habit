@@ -52,6 +52,9 @@ def ensure_schema(cursor):
         cursor.execute(statement)
     if "price_key" not in {row[1] for row in cursor.execute("PRAGMA table_info(pay_orders)").fetchall()}:
         cursor.execute("ALTER TABLE pay_orders ADD COLUMN price_key TEXT")
+    # почта, с которой оформлен заказ Lava: отменять автосписание надо именно с ней, а не с последней введённой (прогон 09.11)
+    if "email" not in {row[1] for row in cursor.execute("PRAGMA table_info(pay_orders)").fetchall()}:
+        cursor.execute("ALTER TABLE pay_orders ADD COLUMN email TEXT")
     # в общем журнале платежей видно, чем заплатили (звёзды — по умолчанию)
     if "provider" not in {row[1] for row in cursor.execute("PRAGMA table_info(stars_payments)").fetchall()}:
         cursor.execute("ALTER TABLE stars_payments ADD COLUMN provider TEXT DEFAULT 'stars'")
@@ -428,6 +431,15 @@ def set_pay_email(user_id, email):
     try:
         conn.execute("INSERT INTO pay_emails(user_id, email, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET email=excluded.email, updated_at=excluded.updated_at",
                      (int(user_id), email, _now()))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def set_order_email(order_id, email):
+    conn = connect()
+    try:
+        conn.execute("UPDATE pay_orders SET email=? WHERE order_id=?", (email, order_id))
         conn.commit()
     finally:
         conn.close()

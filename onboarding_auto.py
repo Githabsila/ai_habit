@@ -10,7 +10,8 @@ onboarding_auto.py
 import logging
 
 from config import AUTO_APPROVE_HOURS
-from db import get_users_pending_since, set_access_status, log_error
+from db import get_users_pending_since, log_error
+from db.onboarding import claim_auto_approve
 from handlers.onboarding import notify_approved
 from alerts import notify_admins
 
@@ -24,7 +25,8 @@ async def run_auto_approve(bot):
 
     for user_id in pending_ids:
         try:
-            set_access_status(user_id, "approved")
+            if not claim_auto_approve(user_id):
+                continue
             await notify_approved(bot, user_id)
             approved += 1
         except Exception as e:

@@ -18,7 +18,10 @@ async def run_partner_jobs(bot):
     except Exception:
         logger.exception("Не удалось сверить начисления партнёрской программы")
     sent = 0
+    from db import is_banned
     for row in partners.unnotified_accruals():
+        if is_banned(row["partner_id"]):             # забаненному не пишем (прогон 09.11); начисление остаётся в его разделе
+            continue
         if not partners.mark_accrual_notified(row["id"]):
             continue
         text = (f"🤝 Новое начисление: {row['amount']} ⭐. Кто-то из приглашённых тобой оформил покупку. "
