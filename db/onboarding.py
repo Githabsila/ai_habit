@@ -55,6 +55,24 @@ def set_access_status(user_id, status):
         track_server(user_id, "access_approved", meta={"from": previous["access_status"]})
 
 
+def claim_auto_approve(user_id):
+    """Атомарно pending → approved для автоодобрения. False — заявку уже одобрили/отклонили/забанили, пока шёл прогон
+    (иначе второе «Доступ открыт» и вторая привычка, прогон 09.11)."""
+    conn = connect()
+    try:
+        cur = conn.execute(
+            "UPDATE users SET access_status='approved' WHERE telegram_id=? AND access_status='pending' AND COALESCE(banned, 0)=0",
+            (user_id,))
+        conn.commit()
+        claimed = cur.rowcount == 1
+    finally:
+        conn.close()
+    if claimed:
+        from .tracking import track_server
+        track_server(user_id, "access_approved", meta={"from": "pending", "auto": True})
+    return claimed
+
+
 def get_pending_users(limit=15):
     conn = connect()
     cursor = conn.cursor()
@@ -78,6 +96,7 @@ def get_users_pending_since(hours):
     cursor.execute("""
         SELECT telegram_id FROM users
         WHERE access_status='pending'
+          AND COALESCE(banned, 0)=0
           AND survey_completed_at IS NOT NULL
           AND survey_completed_at <= datetime('now', ?)
     """, (f"-{hours} hours",))
@@ -205,6 +224,7 @@ def get_surveys_due_for_feedback(days=7):
         JOIN users u ON u.telegram_id = s.user_id
         WHERE u.access_status='approved'
           AND u.banned=0
+          AND u.bot_blocked_at IS NULL
           AND s.bot_goal IS NOT NULL AND s.bot_goal != ''
           AND (s.last_feedback_at IS NULL OR s.last_feedback_at <= datetime('now', ?))
     """, (f"-{days} days",))

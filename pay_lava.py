@@ -92,6 +92,7 @@ class Lava:
         email = pay_orders.get_pay_email(order["user_id"])
         if offer is None or not email:
             raise ProviderError("нет оффера Lava или почты покупателя")
+        pay_orders.set_order_email(order["order_id"], email)
         base = str(getattr(config, "WEBAPP_URL", "") or "").rstrip("/")
         body = {
             "email": email, "offerId": offer["offer_id"], "currency": self.currency, "paymentProvider": self.payment_provider,
@@ -109,10 +110,21 @@ class Lava:
             raise ProviderError(f"Lava отказала ({status}): {str(message or data)[:120]}")
         return {"uuid": str(data["id"]), "url": str(data["paymentUrl"])}
 
-    async def cancel_subscription(self, contract_id, email):
-        """Отменить автосписание (DELETE /api/v1/subscriptions). True — отменено или уже отменено."""
+    def contract_email(self, contract_id, user_id=None):
+        """(почта, точно_та_самая): почта из заказа, которым оформлена подписка; для старых заказов без неё — последняя введённая."""
+        order = pay_orders.find_by_provider_uuid_any(PROVIDER_NAMES, contract_id)
+        email = dict(order).get("email") if order is not None else None
+        if email:
+            return email, True
+        if user_id is None and order is not None:
+            user_id = order["user_id"]
+        return (pay_orders.get_pay_email(user_id) if user_id is not None else None), False
+
+    async def cancel_subscription(self, contract_id, email, missing_ok=True):
+        """Отменить автосписание (DELETE /api/v1/subscriptions). True — отменено (или уже отменено, если почта точно та, с которой
+        оформляли: missing_ok). С «запасной» почтой 404 успехом не считаем — подписка могла остаться (прогон 09.11)."""
         status, _data = await self._request("DELETE", "/api/v1/subscriptions", params={"contractId": contract_id, "email": email})
-        return status in (200, 204, 404)
+        return status in (200, 204) or (missing_ok and status == 404)
 
     async def list_products(self):
         status, data = await self._request("GET", "/api/v2/products", params={"showAllSubscriptionPeriods": "true"})
@@ -188,6 +200,7 @@ class Lava:
             paid = pay_orders.mark_paid(order["order_id"], str(payload.get("status") or "completed"))
             await payments_ext.fulfil(bot, paid)
             if order["kind"] == "subscription" and str(payload.get("status") or "") == "subscription-active":
+                await self._cancel_previous_autorenew(bot, order["user_id"], contract)
                 _remember_autorenew(order["user_id"], contract)
                 await _say(bot, order["user_id"], "🔁 Автопродление картой включено: каждый месяц Lava спишет полную цену, и подписка продлится сама. "
                                                   "Отключить можно в приложении (раздел «Подписка»).")
@@ -195,6 +208,20 @@ class Lava:
             pay_orders.release_event("lava", f"p{contract}")
             raise
         return {"status": "ok"}
+
+    async def _cancel_previous_autorenew(self, bot, user_id, new_contract):
+        """Две оплаченные подписки = два автосписания каждый месяц, а в приложении отменить можно только последнюю (прогон 09.11).
+        Оставляем новую, старую отменяем у Lava; не вышло — пишем админам."""
+        from db.users import get_user
+        user = get_user(user_id)
+        previous = str(user["subscription_charge_id"] or "") if user is not None else ""
+        if not previous.startswith("lava:") or not int(user["subscription_auto_renew"] or 0) or previous[5:] == new_contract:
+            return
+        old_contract = previous[5:]
+        email, exact = self.contract_email(old_contract, user_id)
+        if not email or not await self.cancel_subscription(old_contract, email, missing_ok=exact):
+            await _alert(bot, f"⚠️ Lava: у {user_id} две подписки с автосписанием ({old_contract} и {new_contract}). "
+                              "Старую отменить не удалось — отмени её в кабинете Lava.")
 
     async def _on_renewed(self, payload, bot):
         """Очередное автосписание: заказ на продление создаём уже оплаченным (родитель — первая оплата подписки) и начисляем календарный месяц."""

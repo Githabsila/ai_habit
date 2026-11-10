@@ -345,6 +345,7 @@ async def test_goal_feedback_does_not_mark_sent_when_ai_returns_nothing(monkeypa
     monkeypatch.setattr(goal_feedback, "get_surveys_due_for_feedback", lambda days=7: [survey])
     monkeypatch.setattr(goal_feedback, "get_user", lambda _uid: {"streak": 3})
     monkeypatch.setattr(goal_feedback, "get_progress", lambda _uid: {"completed": 2, "total": 4})
+    monkeypatch.setattr(goal_feedback, "_due_local", lambda _uid, now_utc=None: object())   # время отправки — отдельный тест
 
     marked = []
     monkeypatch.setattr(goal_feedback, "mark_feedback_sent", lambda _uid: marked.append(_uid))
@@ -398,6 +399,7 @@ async def test_goal_feedback_marks_sent_when_feedback_actually_delivered(monkeyp
     monkeypatch.setattr(goal_feedback, "get_surveys_due_for_feedback", lambda days=7: [survey])
     monkeypatch.setattr(goal_feedback, "get_user", lambda _uid: {"streak": 3})
     monkeypatch.setattr(goal_feedback, "get_progress", lambda _uid: {"completed": 2, "total": 4})
+    monkeypatch.setattr(goal_feedback, "_due_local", lambda _uid, now_utc=None: object())   # время отправки — отдельный тест
 
     marked = []
     monkeypatch.setattr(goal_feedback, "mark_feedback_sent", lambda _uid: marked.append(_uid))

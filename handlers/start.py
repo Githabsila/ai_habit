@@ -113,6 +113,9 @@ async def start(message: Message, state: FSMContext):
             inviter_id = int(payload)
         except ValueError:
             inviter_id = None
+        # Число любой длины роняло register_invite (OverflowError в SQLite), и новичок не получал ответа (прогон 09.11).
+        if inviter_id is not None and not (0 < inviter_id < 2 ** 63):
+            inviter_id = None
 
     # Нельзя пригласить самого себя
     if inviter_id is not None and inviter_id != message.from_user.id:

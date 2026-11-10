@@ -282,7 +282,9 @@ def rollover_user(user_id):
         conn.close()
         return False
 
-    if meta["rollover_day"] == today_s:
+    # >= а не ==: если человек перевёл пояс назад, rollover_day оказывается «в будущем» — повторная смена дня сбросила бы
+    # уже отмеченные сегодня привычки и задублировала habit_logs (прогон 09.11). Даты ISO сравниваются строками.
+    if meta["rollover_day"] and meta["rollover_day"] >= today_s:
         conn.close()
         return False
 
@@ -371,12 +373,32 @@ def reset_habits_for_user(user_id):
     conn.commit()
     conn.close()
 
-def rollover_all_users():
+def _users_due_for_rollover():
+    """Кому сейчас нужна смена дня — одним запросом. Раньше каждую минуту на каждого человека шло 2–3 подключения к SQLite
+    (3000 человек ≈ 5 с, и бот с Mini App подвисали каждую минуту — прогон 09.11). Теперь rollover_user вызывается только для тех,
+    у кого локальный день сменился (или ещё нет streak_meta)."""
     conn = connect()
-    c = conn.cursor()
-    c.execute("SELECT telegram_id FROM users")
-    ids = [r["telegram_id"] for r in c.fetchall()]
-    conn.close()
+    try:
+        rows = conn.execute("""SELECT u.telegram_id, sm.user_id AS has_meta, sm.timezone, sm.rollover_day
+                               FROM users u LEFT JOIN streak_meta sm ON sm.user_id = u.telegram_id""").fetchall()
+    finally:
+        conn.close()
+    zones = {}
+    due = []
+    for r in rows:
+        tz_name = r["timezone"] or "UTC"
+        if tz_name not in zones:
+            try:
+                zones[tz_name] = datetime.now(ZoneInfo(tz_name)).date().isoformat()
+            except Exception:
+                zones[tz_name] = datetime.now(ZoneInfo("UTC")).date().isoformat()
+        if r["has_meta"] is None or not r["rollover_day"] or r["rollover_day"] < zones[tz_name]:
+            due.append(r["telegram_id"])
+    return due
+
+
+def rollover_all_users():
+    ids = _users_due_for_rollover()
     changed = []
     for uid in ids:
         if rollover_user(uid):
@@ -955,7 +977,9 @@ def get_streak_reengagement_state(user_id):
     conn = connect()
     c = conn.cursor()
     c.execute(
-        "SELECT MAX(day) AS last_day FROM streak_days WHERE user_id=? AND status='completed'",
+        # День, спасённый заморозкой / защитой после триала (status='freeze'), серию сохранил — простоем не считается. Раньше
+        # считали только 'completed', и человеку с живой серией приходило «Серия погасла» (прогон 09.11).
+        "SELECT MAX(day) AS last_day FROM streak_days WHERE user_id=? AND status IN ('completed', 'freeze')",
         (user_id,),
     )
     row = c.fetchone()

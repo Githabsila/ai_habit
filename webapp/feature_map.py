@@ -316,7 +316,7 @@ PASSIVE_API = (
 
 # Админские маршруты и экраны — не продукт, в статистику использования не идут.
 ADMIN_API_PREFIXES = ("/api/admin/", "/api/analytics/", "/admin", "/analytics")
-IGNORED_BOT = ("cb:admin*", "cb:broadcast_*", "cb:back_menu", "cmd:/admin", "cmd:/changelog", "cmd:/analytics", "msg:other",
+IGNORED_BOT = ("cb:admin*", "cb:broadcast_*", "cb:ban_no", "cb:ban_yes*", "cb:back_menu", "cmd:/admin", "cmd:/changelog", "cmd:/analytics", "msg:other",
                "msg:photo", "msg:video", "msg:video_note", "msg:document", "msg:sticker", "msg:location", "msg:contact")
 IGNORED_EVENTS = ("registered", "session_start", "screen", "source_attributed")      # служебные: учтены воронкой и каналами
 
