@@ -260,6 +260,9 @@ def reset_profile(user_id):
         conn.close()
 
 
+FIRST_DAY_HOURS = 20
+
+
 def should_show(user_id):
     """Открывать ли знакомство само: профиля и отказа нет, и человек либо пришёл не раньше NEW_USERS_SINCE, либо включён флаг adam_intro."""
     if get_profile(user_id) is not None:
@@ -268,7 +271,16 @@ def should_show(user_id):
     user = get_user(user_id)
     if not user:
         return False
-    created = str(user["created_at"] or "")[:10] if "created_at" in user.keys() else ""
+    created_full = str(user["created_at"] or "") if "created_at" in user.keys() else ""
+    # Онбординг короче (решение владельца 11.11): в первый день знакомство само не открывается — новичок и так проходит опрос и тур.
+    # Окно появится при заходе на второй день; кнопка «Пройти» в «Прогрессе» работает всегда.
+    try:
+        from datetime import datetime, timedelta
+        if created_full and datetime.strptime(created_full[:19].replace("T", " "), "%Y-%m-%d %H:%M:%S") > datetime.utcnow() - timedelta(hours=FIRST_DAY_HOURS):
+            return False
+    except ValueError:
+        pass
+    created = created_full[:10]
     if created and created >= NEW_USERS_SINCE:
         return True
     from .feature_flags import is_feature_enabled

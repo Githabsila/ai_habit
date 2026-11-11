@@ -217,7 +217,7 @@ def test_onboarding_has_a_step_for_progress_and_achievements():
     steps = APP_JS[APP_JS.index("const PRODUCT_ONBOARDING_STEPS"):][:5200]
     assert re.search(r"9: \{ target: '#openStatsBtn', title: 'Прогресс и достижения'", steps)
     assert re.search(r"10: \{ target: '#openSettingsBtn'", steps) and re.search(r"11: \{ target: '#aiCoachBtn'", steps)
-    assert "11: 'profile'" in APP_JS
+    assert "11: 'home'" in APP_JS             # 11.11: «Написать Адаму» — третий шаг короткого тура, кнопка в нижней панели на любой вкладке
 
 
 def test_medal_overlay_is_wired_and_waits_for_quiet():

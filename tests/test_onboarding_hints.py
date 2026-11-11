@@ -27,10 +27,11 @@ def test_steps_3_and_4_have_fallback_targets():
 
 
 def test_next_and_back_skip_steps_without_a_visible_target():
-    assert "goToOnboardingStage(stage + 1, 1)" in APP_JS
-    assert "goToOnboardingStage(stage - 1, -1)" in APP_JS
+    # 11.11: тур — 3 шага (START_TOUR), «Далее/Назад» идут по нему
+    assert "goToOnboardingStage(START_TOUR[pos + 1], 1)" in APP_JS
+    assert "goToOnboardingStage(START_TOUR[pos - 1], -1)" in APP_JS
     body = _function_body("goToOnboardingStage")
-    assert "!showProductHint(stage) && dir" in body
+    assert "!showProductHint(stage) && dir" in body and "START_TOUR.indexOf(stage) + dir" in body
     # showProductHint сообщает, показала ли шаг
     show = _function_body("showProductHint")
     assert "if (!target) return false;" in show and "return true;" in APP_JS[APP_JS.index(show):][:9000]
