@@ -1946,6 +1946,10 @@ def create_tables():
     from . import pay_orders as _pay_orders
     _pay_orders.ensure_schema(cursor)
 
+    # Журнал отправок бота (db/outbox.py, 11.11): что, кому, когда и какая рассылка отправила.
+    from . import outbox as _outbox
+    _outbox.ensure_schema(cursor)
+
     # ---------------- «Что нового» (changelog внутри Mini App) ----------------
     # Раньше об обновлениях узнавали только по факту (или никак) — теперь
     # каждая запись здесь показывается пользователю один раз модальным окном

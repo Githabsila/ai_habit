@@ -528,6 +528,12 @@ textarea.field{resize:vertical;min-height:88px}
       '</div>' +
 
       '<div class="card">' +
+        '<div class="card-title"><span class="card-icon card-icon--violet">🗺</span>Карта сообщений и прогон сценария</div>' +
+        '<div class="empty-note" style="padding:0 0 10px">Прогон: выбери сценарий — бот пришлёт тебе весь день такого человека по порядку, настоящими текстами и кнопками (в базу ничего не пишется, другим не уходит). Ниже — все рассылки бота: когда приходят (местное время человека), кому, чем отключаются и сколько ушло за 7 дней. Что получил конкретный человек — в его карточке, «Журнал отправок».</div>' +
+        '<div id="botMapBox"><div class="empty-note">Загружаю…</div></div>' +
+      '</div>' +
+
+      '<div class="card">' +
         '<div class="card-title"><span class="card-icon card-icon--violet">✉️</span>Сообщения бота</div>' +
         '<div class="empty-note" style="padding:0 0 10px">Всё, что бот шлёт сам: напоминания, таймер, возврат в серию, канал, ответы. Собрано тем же кодом, что и настоящая рассылка, на твоих привычках. «Прислать мне» — придёт только тебе в Telegram, в базу ничего не пишется. Сообщения триала — в карточке «Триал».</div>' +
         '<div id="botMsgBox"><div class="empty-note">Загружаю…</div></div>' +
@@ -595,6 +601,7 @@ textarea.field{resize:vertical;min-height:88px}
     loadLab();
     loadSims();
     loadBotMessages();
+    loadBotMap();
     loadReminderExperiment();
     loadAdamLab();
     loadAdamChatLab();
@@ -946,6 +953,41 @@ textarea.field{resize:vertical;min-height:88px}
           btn.disabled = true;
           try{ await api('/api/admin/bot-messages/send', { method: 'POST', body: JSON.stringify({ key: btn.dataset.botmsg }) }); showToast('Отправлено тебе в Telegram'); }
           catch(e){ showToast('Не получилось отправить'); }
+          btn.disabled = false;
+        });
+      });
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  // Карта сообщений (bot_messages_map.py) и прогон сценария (bot_test_runs.py), 11.11.
+  async function loadBotMap(){
+    var box = document.getElementById('botMapBox');
+    if (!box) return;
+    try{
+      var d = await api('/api/admin/bot-map');
+      var runs = (d.scenarios || []).map(function(sc){
+        return '<div class="list-row" style="flex-direction:column;align-items:stretch;gap:6px"><div class="list-row-name"><b>' + escapeHtml(sc.title) + '</b><small>' + escapeHtml(sc.about) + '<br>' +
+          sc.steps.map(function(st){ return escapeHtml(st.at) + ' — ' + escapeHtml(st.title); }).join('<br>') + '</small></div>' +
+          '<button class="btn btn-accent" data-botrun="' + escapeHtml(sc.key) + '">▶️ Прислать мне этот день</button></div>';
+      }).join('');
+      var group = null, map = '';
+      (d.messages || []).forEach(function(m){
+        if (m.group !== group){ group = m.group; map += '<div class="empty-note" style="padding:12px 0 4px;font-weight:700">' + escapeHtml(group) + '</div>'; }
+        map += '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(m.title) + '</b><small>🕐 ' + escapeHtml(m.when) +
+          '<br>Кому: ' + escapeHtml(m.conditions) + '<br>Отключается: ' + escapeHtml(m.off) +
+          '<br>За 7 дней ушло: ' + (m.week_count || 0) + (m.week_failed ? ' (не дошло ' + m.week_failed + ')' : '') + (m.last_at ? ' · последнее ' + escapeHtml(fmtDate(m.last_at)) : '') + '</small></div></div>';
+      });
+      box.innerHTML = '<div class="section-label" style="margin:4px 2px 6px">Прогон сценария</div>' + runs +
+        '<div class="section-label" style="margin:16px 2px 6px">Все рассылки бота</div>' + map;
+      box.querySelectorAll('[data-botrun]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          btn.disabled = true; showToast('Отправляю день в Telegram…');
+          try{
+            var r = await api('/api/admin/bot-map/run', { method: 'POST', body: JSON.stringify({ scenario: btn.dataset.botrun }) });
+            showToast(r.failed && r.failed.length ? ('Пришло ' + r.sent + ', не собралось: ' + r.failed.join(', ')) : ('Пришло ' + r.sent + ' сообщений — смотри чат с ботом'));
+          }catch(e){ showToast('Не получилось'); }
           btn.disabled = false;
         });
       });
@@ -1318,9 +1360,27 @@ textarea.field{resize:vertical;min-height:88px}
         '<div class="empty-note" style="padding:0 0 6px;line-height:1.5"><b>' + escapeHtml(d.summary) + '</b><br>Привычек: ' + d.habits.total + ', не закрыто сейчас: ' + d.habits.open + '</div>' +
         account + '<div class="empty-note" style="padding:10px 0 4px">Точки дня (по текущему состоянию человека):</div>' + points +
         '<div class="empty-note" style="padding:10px 0 4px">Что бот отправлял за 3 дня:</div>' + recent +
-        '<div class="empty-note" style="padding:10px 0 4px">Причины пропусков:</div>' + skips;
+        '<div class="empty-note" style="padding:10px 0 4px">Причины пропусков:</div>' + skips +
+        '<div class="section-label" style="margin:16px 2px 8px">Журнал отправок (30 дней)</div><div id="outboxBox"><div class="empty-note">Загружаю…</div></div>';
+      loadOutbox(userId);
     }catch(e){
       box.innerHTML = title + '<div class="empty-note">Не получилось загрузить</div>';
+    }
+  }
+
+  // Журнал отправок (db/outbox.py, 11.11): каждое сообщение бота человеку — когда, какая рассылка (по карте), начало текста, дошло ли.
+  async function loadOutbox(userId){
+    var box = document.getElementById('outboxBox');
+    if (!box) return;
+    try{
+      var items = (await api('/api/admin/user/' + userId + '/outbox')).items || [];
+      box.innerHTML = items.length ? items.map(function(r){
+        var name = r.title ? escapeHtml(r.title) : ('ответ на действие · ' + escapeHtml(r.source || '?'));
+        return '<div class="list-row"><div class="list-row-name"><b>' + escapeHtml(fmtDate(r.sent_at)) + ' · ' + name + (r.ok ? '' : ' · ⛔ не дошло (' + escapeHtml(r.error || '') + ')') + '</b>' +
+          '<small>' + (r.when ? '🕐 ' + escapeHtml(r.when) + '<br>' : '') + escapeHtml((r.text || '').replace(/<[^>]+>/g, '').slice(0, 220)) + '</small></div></div>';
+      }).join('') : '<div class="empty-note">Пока пусто: журнал ведётся с 11.11</div>';
+    }catch(e){
+      box.innerHTML = '<div class="empty-note">Не получилось загрузить</div>';
     }
   }
 
