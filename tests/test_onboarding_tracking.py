@@ -50,7 +50,8 @@ def test_every_onboarding_step_in_the_app_has_a_name_in_the_tracking():
     questions = APP[APP.index("const ARCHETYPE_QUIZ_QUESTIONS = ["):]
     questions = questions[:questions.index("\n  ];")].count('q: "')
     keys |= {f"archetype_q{i}" for i in range(questions)}
-    assert {"welcome", "age_range", "goal", "archetype_q3", "archetype_result", "firststeps", "referral", "paywall"} <= keys
+    # 11.11: стартовый опрос короче — тест на архетип и «Позови друзей» из него убраны (подписи в трекинге остались для старых данных)
+    assert {"welcome", "age_range", "goal", "firststeps", "paywall"} <= keys
     assert not [k for k in keys if k not in tracking.QUIZ_STEP_LABELS], "шагу квиза нужна подпись в db/tracking.py::QUIZ_STEP_LABELS"
     steps = APP[APP.index("const PRODUCT_ONBOARDING_STEPS"):]
     stages = set(re.findall(r"^ {4}(\d+): \{ target:", steps[:steps.index("\n  };")], flags=re.M))

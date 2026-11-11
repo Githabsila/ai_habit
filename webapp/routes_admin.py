@@ -107,6 +107,53 @@ async def admin_bot_message_send_route(request):
     return web.json_response({"ok": True})
 
 
+# ---------------------------------------------------------------- карта сообщений, прогон сценария, журнал отправок (11.11)
+
+@routes.get("/api/admin/bot-map")
+async def admin_bot_map_route(request):
+    """Все рассылки бота (bot_messages_map.py) — когда, кому, чем отключаются, сколько ушло за неделю — и сценарии прогона (bot_test_runs.py)."""
+    await _authenticate_admin(request)
+    import bot_messages_map
+    import bot_test_runs
+    from db import outbox
+    return web.json_response({"messages": bot_messages_map.as_rows(outbox.source_stats(days=7)), "scenarios": bot_test_runs.describe()})
+
+
+@routes.post("/api/admin/bot-map/run")
+async def admin_bot_map_run_route(request):
+    """body: {"scenario": key} — прислать САМОМУ админу весь день человека в этом сценарии. В базу ничего не пишется, другим ничего не уходит."""
+    admin_id = await _authenticate_admin(request)
+    import bot_test_runs
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    key = str(body.get("scenario") or "")
+    if key not in bot_test_runs.BY_KEY:
+        return web.json_response({"error": "unknown_scenario"}, status=400)
+    bot = request.app.get("bot")
+    if bot is None:
+        return web.json_response({"error": "bot_unavailable"}, status=503)
+    return web.json_response({"ok": True, **await bot_test_runs.run(bot, admin_id, key)})
+
+
+@routes.get("/api/admin/user/{telegram_id}/outbox")
+async def admin_user_outbox_route(request):
+    """Журнал: что бот отправил этому человеку за 30 дней — когда, что, какая рассылка (по карте) и дошло ли."""
+    await _authenticate_admin(request)
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return web.json_response({"error": "bad_id"}, status=400)
+    import bot_messages_map
+    from db import outbox
+    rows = []
+    for row in outbox.for_user(telegram_id, limit=150):
+        hit = bot_messages_map.find(row["chain"])
+        rows.append({**row, "title": hit.title if hit else None, "group": hit.group if hit else None, "when": hit.when if hit else None})
+    return web.json_response({"items": rows})
+
+
 @routes.get("/api/admin/stats")
 async def admin_stats_route(request):
     await _authenticate_admin(request)

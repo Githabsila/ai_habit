@@ -26,6 +26,13 @@ _uid_counter = itertools.count(855_000_000, 100)
 ALL = {"focus": "study", "struggle": "start", "energy": "morning", "span": "s25", "hours": "h2", "talk": "month"}
 
 
+@pytest.fixture(autouse=True)
+def _no_first_day_pause(monkeypatch, request):
+    """11.11: в первый день знакомство само не открывается (FIRST_DAY_HOURS). Старые тесты проверяют остальные правила — без паузы."""
+    if "first_day" not in request.node.name:
+        monkeypatch.setattr(ap, "FIRST_DAY_HOURS", 0)
+
+
 @pytest.fixture
 def uid():
     return next(_uid_counter)
@@ -401,3 +408,16 @@ def test_the_funnel_counts_the_introduction_step_by_step_and_the_chosen_methods(
 def test_every_question_has_a_funnel_label():
     from db.tracking import ADAM_INTRO_STEP_LABELS
     assert set(ap.QUESTION_KEYS) <= set(ADAM_INTRO_STEP_LABELS), "новому вопросу нужна подпись в db/tracking.py::ADAM_INTRO_STEP_LABELS"
+
+
+def test_first_day_the_window_waits_until_tomorrow(uid):
+    """Онбординг короче (11.11): в первые часы знакомство само не открывается, на второй день — открывается."""
+    add_user(uid, f"f{uid}", "Аня")
+    assert ap.should_show(uid) is False
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET created_at=datetime('now', '-1 day') WHERE telegram_id=?", (uid,))
+        conn.commit()
+    finally:
+        conn.close()
+    assert ap.should_show(uid) is True

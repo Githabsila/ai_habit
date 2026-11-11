@@ -99,7 +99,7 @@ def test_every_quiz_step_type_has_a_renderer():
 
 def test_the_hints_start_with_how_to_check_the_habit_when_it_is_already_in_the_list():
     schedule = APP[APP.index("function scheduleProductOnboarding()"):][:2400]
-    assert "reachedStage < 2" in schedule and schedule.index("showProductHint(2)") < schedule.index("showProductHint(3)")
+    assert "reachedStage < 2" in schedule and schedule.index("showProductHint(2)") < schedule.index("showProductHint(11)")   # 11.11: дальше сразу к Адаму
     step2 = re.search(r"2: \{ target: '\.habits-panel', title: 'Твои привычки', text: '([^']+)'", APP).group(1)
     assert "появится" not in step2, "шаг 2 теперь показывают и тем, у кого привычка уже есть"
 

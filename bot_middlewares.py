@@ -44,3 +44,50 @@ async def retry_flood_control(make_request, bot, method):
                 attempt, MAX_RETRY_ATTEMPTS, wait_s, type(method).__name__,
             )
             await asyncio.sleep(wait_s)
+
+
+# ---------------------------------------------------------------------------------------------------------------- журнал отправок
+# 11.11 (владелец): «видеть все отработанные сообщения — когда, почему и при каких условиях». Каждое сообщение человеку в личку пишем
+# в db/outbox.py вместе с тем, КТО его отправил: первые функции нашего кода в стеке вызова (рассылка, обработчик). По ним админка
+# находит рассылку в карте сообщений (bot_messages_map.py). Ни запись, ни поиск источника не могут сорвать отправку.
+import os as _os
+import sys as _sys
+
+_OUTBOX_METHODS = {"sendMessage", "sendPhoto", "sendDocument", "sendVoice", "sendAudio", "sendVideo", "sendAnimation",
+                   "sendSticker", "sendInvoice", "sendMediaGroup", "sendVideoNote"}
+_SKIP_PARTS = (f"{_os.sep}aiogram{_os.sep}", f"{_os.sep}asyncio{_os.sep}", "site-packages", "contextlib.py", "functools.py",
+               "bot_middlewares.py", "bot_style.py", "alerts.py")
+
+
+def _outbox_chain(depth=3):
+    """«модуль.функция» первых функций нашего кода в стеке (ближайшая первой)."""
+    names = []
+    try:
+        frame = _sys._getframe(2)
+        while frame is not None and len(names) < depth:
+            path = frame.f_code.co_filename or ""
+            if not any(part in path for part in _SKIP_PARTS) and not path.startswith("<"):
+                name = f"{frame.f_globals.get('__name__', '?')}.{frame.f_code.co_name}"
+                if name not in names:
+                    names.append(name)
+            frame = frame.f_back
+    except Exception:
+        pass
+    return names
+
+
+async def log_outbox(make_request, bot, method):
+    api_method = getattr(method, "__api_method__", "")
+    chat_id = getattr(method, "chat_id", None)
+    if api_method not in _OUTBOX_METHODS or not isinstance(chat_id, int) or chat_id <= 0:
+        return await make_request(bot, method)
+    chain = _outbox_chain()
+    text = getattr(method, "text", None) or getattr(method, "caption", None) or getattr(method, "title", None) or ""
+    from db import outbox
+    try:
+        result = await make_request(bot, method)
+    except Exception as exc:
+        outbox.record(chat_id, api_method, chain[0] if chain else None, " < ".join(chain), text, ok=False, error=type(exc).__name__)
+        raise
+    outbox.record(chat_id, api_method, chain[0] if chain else None, " < ".join(chain), text)
+    return result

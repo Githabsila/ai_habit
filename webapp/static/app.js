@@ -1743,15 +1743,9 @@
         ["🚀", "Просто посмотреть", "explore"],
       ],
     },
-    ...ARCHETYPE_QUIZ_QUESTIONS.map((q, i) => ({
-      type: "choice",
-      key: `archetype_q${i}`,
-      title: q.q,
-      options: q.options,
-    })),
-    { type: "archetype_result", title: "Твой архетип" },
+    // Онбординг короче (решение владельца 11.11): тест на архетип (4 вопроса + результат) и «Позови друзей» убраны из стартового
+    // опроса — тест остаётся в Настройках («Пройти тест»), приглашение — в профиле и рассылке второй недели.
     { type: "firststeps", title: "Первые шаги" },
-    { type: "referral", title: "Позови друзей — бонус обоим" },
     { type: "paywall", title: "ADAM после пробного периода" },
   ];
   // Окно «ADAM после пробного периода» (цены) — только аккаунтам в сценарии триала (state.access.paywall). Тестировщикам со
@@ -2554,19 +2548,21 @@
   function maybeShowHandleIntro() {
     if (!state?.show_handle_intro || handleIntroShownThisSession) return;
     handleIntroShownThisSession = true;
-    openHandleIntro();
+    state.show_handle_intro = false;                               // экран ника убран (11.11) — только отмечаем, что «показан»
+    api("/api/handle-intro/seen", { method: "POST" }).catch(() => {});
   }
 
   // Общая точка выхода из "вводной" части онбординга (app-tour, если он
   // был) в сторону интерактивных стартовых шагов — по пути показывает
   // экран ника, если он ещё не был показан.
   function proceedPastWelcome() {
+    // Экран ника больше не показываем (11.11): ник уже назначен автоматически, поменять его можно в профиле (тап по имени).
     if (state?.show_handle_intro && !handleIntroShownThisSession) {
       handleIntroShownThisSession = true;
-      openHandleIntro();
-    } else {
-      scheduleProductOnboarding();
+      state.show_handle_intro = false;
+      api("/api/handle-intro/seen", { method: "POST" }).catch(() => {});
     }
+    scheduleProductOnboarding();
   }
 
   function openHandleIntro() {
@@ -2691,8 +2687,11 @@
   // цель на неактивной вкладке. У шага 10 цель (#aiCoachBtn) — часть
   // постоянной нижней навигации, как и у шагов 5-7, поэтому вкладка не
   // важна — оставляем ту же, что и у шага 9, чтобы не дёргать её лишний раз.
-  const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'home', 4: 'home', 5: 'calendar', 6: 'rating', 7: 'profile', 8: 'profile', 9: 'profile', 10: 'profile', 11: 'profile' };
+  const ONBOARDING_STAGE_TAB = { 1: 'home', 2: 'home', 3: 'home', 4: 'home', 5: 'calendar', 6: 'rating', 7: 'profile', 8: 'profile', 9: 'profile', 10: 'profile', 11: 'home' };
   const CONTEXT_TAB_STAGE = { calendar: 5, rating: 6, profile: 7 };
+  // Стартовый тур — 3 шага вместо 11 (решение владельца 11.11): добавить привычку, отметить её, написать Адаму. Календарь, рейтинг и
+  // профиль объясняются при первом заходе во вкладку (CONTEXT_TAB_STAGE); главное дело, задачи, магазин, прогресс и настройки — без тура.
+  const START_TOUR = [1, 2, 11];
 
   function resolveStepTarget(step) {
     const selectors = Array.isArray(step.target) ? step.target : [step.target];
@@ -3075,7 +3074,10 @@
     const tab = ONBOARDING_STAGE_TAB[stage];
     const activeTab = document.querySelector('.tab-bar__item.is-active')?.dataset.tab;
     const show = () => {
-      if (!showProductHint(stage) && dir) goToOnboardingStage(stage + dir, dir);
+      if (!showProductHint(stage) && dir) {
+        const next = START_TOUR[START_TOUR.indexOf(stage) + dir];
+        if (next) goToOnboardingStage(next, dir);
+      }
     };
     if (tab && tab !== activeTab) {
       unlockBackgroundScroll();
@@ -3147,23 +3149,31 @@
     const actions = document.getElementById('productOnboardingHintActions');
     if (actions) {
       actions.innerHTML = '';
-      const total = Object.keys(PRODUCT_ONBOARDING_STEPS).length;
-      if (stage > 1) {
+      const pos = START_TOUR.indexOf(stage);
+      if (pos === -1) {
+        // Подсказка раздела (календарь, рейтинг, профиль) — одна, без «Далее»: экскурсии по приложению больше нет.
+        const ok = document.createElement('button');
+        ok.type = 'button';
+        ok.className = 'product-onboarding-hint__action product-onboarding-hint__action--primary';
+        ok.textContent = 'Понятно';
+        ok.addEventListener('click', () => hideProductHint());
+        actions.appendChild(ok);
+      } else if (pos > 0) {
         const back = document.createElement('button');
         back.type = 'button';
         back.className = 'product-onboarding-hint__action';
         back.textContent = '← Назад';
-        back.addEventListener('click', () => goToOnboardingStage(stage - 1, -1));
+        back.addEventListener('click', () => goToOnboardingStage(START_TOUR[pos - 1], -1));
         actions.appendChild(back);
       }
-      if (stage < total) {
+      if (pos !== -1 && pos < START_TOUR.length - 1) {
         const next = document.createElement('button');
         next.type = 'button';
         next.className = 'product-onboarding-hint__action product-onboarding-hint__action--primary';
         next.textContent = 'Далее →';
-        next.addEventListener('click', () => goToOnboardingStage(stage + 1, 1));
+        next.addEventListener('click', () => goToOnboardingStage(START_TOUR[pos + 1], 1));
         actions.appendChild(next);
-      } else {
+      } else if (pos !== -1) {
         // Просьба пользователя: на последнем шаге снизу должна быть кнопка
         // "Вперёд" — завершает тур (а не просто повисает без выхода).
         // Последний шаг теперь про чат с ADAM (просьба: акцент на AI и
@@ -3190,8 +3200,9 @@
     // разъезжалось с реальным числом шагов при будущих правках.
     const stepEl = document.getElementById('productOnboardingHintStep');
     if (stepEl) {
-      stepEl.textContent = `Шаг ${stage} из ${Object.keys(PRODUCT_ONBOARDING_STEPS).length}`;
-      stepEl.hidden = false;
+      const pos = START_TOUR.indexOf(stage);
+      stepEl.textContent = pos === -1 ? '' : `Шаг ${pos + 1} из ${START_TOUR.length}`;
+      stepEl.hidden = pos === -1;
     }
 
     // Перелистываем/докручиваем к цели — просьба пользователя: раньше
@@ -3248,11 +3259,13 @@
     // поэтому оно оставалось устаревшим весь сеанс, и подсказка для
     // рейтинга/профиля показывалась заново при каждом повторном переходе
     // на вкладку, даже после закрытия крестиком.
+    // Шаг «Написать Адаму» (11) не записываем как стадию: иначе «дошёл до 11» гасил бы подсказки разделов 5–7 (см. клик по вкладкам).
+    const savedStage = stage === 11 ? 2 : stage;
     if (state) {
       state.product_onboarding = state.product_onboarding || {};
-      state.product_onboarding.onboarding_stage = Math.max(state.product_onboarding.onboarding_stage || 0, stage);
+      state.product_onboarding.onboarding_stage = Math.max(state.product_onboarding.onboarding_stage || 0, savedStage);
     }
-    api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage }) }).catch(() => {});
+    api('/api/onboarding/stage', { method: 'POST', body: JSON.stringify({ stage: savedStage }) }).catch(() => {});
     return true;
   }
 
@@ -3275,7 +3288,6 @@
         return;
       }
       const hasHabits = (state?.habits || []).length > 0;
-      const hasMainGoal = !!state?.daily_plan?.main_goal;
       const reachedStage = state?.product_onboarding?.onboarding_stage || 0;
       if (!hasHabits) {
         productOnboardingTimers.push(setTimeout(() => showProductHint(1), 700));
@@ -3283,8 +3295,8 @@
         // Первая привычка уже в списке (её подобрал бот при выдаче доступа): сначала показываем, как её отметить, — это главное
         // действие первого дня. Раньше человек сразу попадал на «Шаг 3 из 11» про главное дело, не увидев шагов 1 и 2.
         productOnboardingTimers.push(setTimeout(() => showProductHint(2), 700));
-      } else if (!hasMainGoal) {
-        productOnboardingTimers.push(setTimeout(() => showProductHint(3), 700));
+      } else {
+        productOnboardingTimers.push(setTimeout(() => showProductHint(11), 700));    // тур короче (11.11): после привычки — сразу к Адаму
       }
     };
     // Вводная часть закончилась — сначала окно про ударный режим (если оно ещё не показано), потом знакомство с Адамом, потом подсказки.
@@ -3311,8 +3323,7 @@
   // получает обычную награду (toast за монеты, тосты плана дня) — именно
   // на этом прожитом опыте и держится петля "делаю → вижу прогресс".
   function onOnboardingMainGoalSaved() {
-    hideProductHint();
-    setTimeout(() => showProductHint(4), 700);
+    hideProductHint();                       // шага «Второстепенные задачи» в туре больше нет (11.11)
   }
 
   // После того как в рамках сценария человек хотя бы раз отметил
@@ -3582,11 +3593,8 @@
     // же (незавершённого) сценария — например, страницу перезагрузили
     // посередине — не показываем её снова, продолжаем сразу с
     // интерактивных шагов.
-    if (state?.product_onboarding?.onboarding_started_at) {
-      proceedPastWelcome();
-    } else {
-      openAppTour();
-    }
+    // Три вводных слайда («Я — ADAM», «Формируй привычки», «Погнали») больше не показываем (11.11): они повторяли приветствие опроса.
+    proceedPastWelcome();
   }
 
   function initAppTour() {
@@ -3628,7 +3636,10 @@
       const stage = CONTEXT_TAB_STAGE[btn.dataset.tab];
       if (!stage) return;
       const reachedStage = state?.product_onboarding?.onboarding_stage || 0;
-      if (reachedStage >= stage) return;
+      if (reachedStage >= 8) return;                    // прошёл старый длинный тур — разделы ему уже показывали
+      // Подсказка раздела — один раз на вкладку: стадия на сервере растёт, но заход в «Профиль» (7) раньше гасил «Календарь» (5).
+      const seenKey = `adam_tab_hint_${btn.dataset.tab}`;
+      try { if (localStorage.getItem(seenKey)) return; localStorage.setItem(seenKey, '1'); } catch (_) {}
       setTimeout(() => showProductHint(stage), 180);
     });
   }
