@@ -7,7 +7,7 @@
   outcome(payload)                       — ("paid" | "failed" | "pending", сырой статус)
   paid_amount_matches(payload, order)    — сумма в подтверждении совпала с суммой заказа
 
-Подключено сейчас: Heleket (криптовалюта) — по его документации https://doc.heleket.com/ (запрос и вебхук подписываются MD5 от base64 тела и платёжного API-ключа).
+Подключено сейчас: Crypto Bot (криптовалюта в Telegram, pay_cryptobot.py), Heleket (криптовалюта) — по его документации https://doc.heleket.com/ (запрос и вебхук подписываются MD5 от base64 тела и платёжного API-ключа).
 Карта Visa/Mastercard: Tribute (pay_tribute.py) — решение владельца 28.10; у него нет «счёта на человека», вместо этого ссылки заранее заведённых товаров и вебхук с номером покупки.
 
 Ключи в код не пишутся и мне не присылаются: HELEKET_MERCHANT_ID и HELEKET_API_KEY владелец задаёт в Railway сам.
@@ -116,7 +116,10 @@ class Heleket:
             return False
 
 
-PROVIDERS = {"heleket": Heleket()}
+from pay_cryptobot import CryptoBot  # noqa: E402
+
+# Crypto Bot первым среди крипты (11.11): счёт открывается прямо в Telegram, без браузера. Heleket — запасной, если Crypto Bot не настроен.
+PROVIDERS = {"cryptobot": CryptoBot(), "heleket": Heleket()}
 
 
 def provider_for(method, price_key=None):

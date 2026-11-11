@@ -211,7 +211,7 @@ async def test_auto_link_matches_offers_by_usd_price_name_and_periodicity(lava, 
 
 
 def test_lava_comes_first_among_cards_and_the_bot_link_stays_tribute_only(lava):
-    assert list(pay_providers.PROVIDERS)[:4] == ["heleket", "lava", "lava_rub", "lava_sbp"]
+    assert list(pay_providers.PROVIDERS)[:5] == ["cryptobot", "heleket", "lava", "lava_rub", "lava_sbp"]   # 11.11: Crypto Bot — первой среди крипты
     _link_all()
     assert pay_providers.provider_for("card", "item_27").name == "lava"
     assert pay_providers.card_link("item", item_id=27) is None, "у Lava нет общей ссылки — в боте кнопка «Картой» не показывается"
