@@ -1578,6 +1578,7 @@ textarea.field{resize:vertical;min-height:88px}
     try{
       var t = await api('/api/admin/pay/tribute');
       var lv = await api('/api/admin/pay/lava').catch(function(){ return null; });
+      var cb = await api('/api/admin/pay/cryptobot').catch(function(){ return null; });
       var promos = (await api('/api/admin/pay/promos')).promos || [];
       var orders = (await api('/api/admin/pay/orders')).orders || [];
       var rows = (t.needed || []).map(function(n){
@@ -1593,7 +1594,10 @@ textarea.field{resize:vertical;min-height:88px}
       var lavaBlock = lv ? '<div class="section-label" style="margin:8px 2px 6px">Lava.top (Visa/Mastercard, «Мир», СБП)</div>' +
           '<div class="empty-note" style="padding:0 0 6px">Ключи Lava: <b>' + (lv.configured ? 'заданы' : 'не заданы (LAVA_API_KEY и LAVA_WEBHOOK_SECRET)') + '</b>. Адрес вебхука для кабинета Lava: <b>' + escapeHtml(lv.webhook_url) + '</b></div>' +
           (lv.configured ? '<div class="btn-row"><button class="btn btn-accent" id="lavaAutoLinkBtn">Привязать Lava автоматически</button></div><div id="lavaAutoLinkReport"></div>' : '') + lavaRows : '';
-      box.innerHTML = lavaBlock +
+      var cbBlock = cb ? '<div class="section-label" style="margin:8px 2px 6px">Crypto Bot (крипта прямо в Telegram)</div>' +
+          '<div class="empty-note" style="padding:0 0 6px">Токен: <b>' + (cb.configured ? (cb.check === 'ok' ? 'задан, работает ✓' + (cb.app_name ? ' (' + escapeHtml(cb.app_name) + ')' : '') : 'задан, но ' + escapeHtml(cb.check || '?')) : 'не задан (CRYPTOBOT_API_TOKEN)') + '</b>' +
+          (cb.testnet ? ' · <b>тестовая сеть</b>' : '') + '. Адрес вебхука (@CryptoBot → Crypto Pay → My Apps → приложение → Webhooks): <b>' + escapeHtml(cb.webhook_url) + '</b></div>' : '';
+      box.innerHTML = cbBlock + lavaBlock +
         '<div class="empty-note" style="padding:0 0 6px">Ключ Tribute: <b>' + (t.configured ? 'задан' : 'не задан') + '</b>. Адрес вебхука для Tribute (кабинет → Настройки → API Keys): <b>' + escapeHtml(t.webhook_url) + '</b></div>' +
         '<div class="section-label" style="margin:8px 2px 6px">Товары Tribute под наши цены</div>' +
         (t.configured ? '<div class="btn-row"><button class="btn btn-accent" id="tributeAutoLinkBtn">Привязать автоматически</button></div><div id="tributeAutoLinkReport"></div>' : '') + rows +

@@ -107,6 +107,10 @@ EXTERNAL_PAYMENTS_ENABLED = os.getenv("EXTERNAL_PAYMENTS_ENABLED", "false").lowe
 # Пока не заданы, способ «Криптой» в приложении не показывается.
 HELEKET_MERCHANT_ID = os.getenv("HELEKET_MERCHANT_ID", "").strip()
 HELEKET_API_KEY = os.getenv("HELEKET_API_KEY", "").strip()
+# Crypto Bot (@CryptoBot, Crypto Pay API, pay_cryptobot.py, 11.11): запасная оплата криптой (USDT, TON, BTC…), счёт открывается прямо в Telegram.
+# Токен приложения — из @CryptoBot → Crypto Pay → My Apps; им же подписываются вебхуки. Задаёт владелец в Railway. CRYPTOBOT_TESTNET=true — тестовая сеть (@CryptoTestnetBot).
+CRYPTOBOT_API_TOKEN = os.getenv("CRYPTOBOT_API_TOKEN", "").strip()
+CRYPTOBOT_TESTNET = os.getenv("CRYPTOBOT_TESTNET", "false").lower() == "true"
 # Автопродление подписки Stars (ТЗ §2). Telegram умеет подписку только по ссылке-счёту (createInvoiceLink, период 30 дней, ОДНА фиксированная цена): вводной цены
 # внутри подписки нет. Поэтому схема такая: первая покупка — разовый счёт на 30 дней по вводной цене, а когда человек платит не впервые, счёт — подписка с
 # автопродлением (отключается в приложении или в настройках Telegram). Пока флаг выключен, все счета разовые, а тексты честно говорят «продление вручную».

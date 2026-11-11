@@ -4382,25 +4382,24 @@
 
   // Проверка удобства 09.11: у новичка без привычек блок «Привычки» (готовые варианты и «Добавить привычку») — первым на Главной,
   // сразу за подсказкой дня; «Парное задание» скрыто, пока нет привычек (иначе там «Без привычки вклада…»). С первой привычкой — обычный порядок.
-  let habitsHomeAnchor = null;
+  // Новичку (нет привычек) блок привычек ставим перед серией; потом возвращаем по настройке «Привычки сверху» (applyHomeLayout).
+  // Раньше возвращали к «родному месту», запомненному при первой отрисовке, и это спорило с настройкой: после включения
+  // «Привычки сверху» любое сохранение плана перекидывало план обратно наверх до перезапуска (жалоба владельца 11.11).
   function applyNewcomerHomeLayout(isNewcomer) {
     const home = document.querySelector('.tab-panel[data-tab="home"]');
     const panel = home?.querySelector(".habits-panel");
     const streak = document.getElementById("streakWidget");
     if (!home || !panel || !streak) return;
-    if (!habitsHomeAnchor) {                                     // запоминаем родное место блока, чтобы вернуть его туда
-      habitsHomeAnchor = document.createComment("habits-home-anchor");
-      panel.parentNode.insertBefore(habitsHomeAnchor, panel);
-    }
+    const wasNewcomer = home.classList.contains("is-newcomer");
     home.classList.toggle("is-newcomer", isNewcomer);
+    if (!isNewcomer) {
+      if (wasNewcomer) applyHomeLayout();
+      return;
+    }
     let top = streak;                                            // серия может лежать в общей карточке — ставим блок перед ней целиком
     while (top.parentNode && top.parentNode !== home) top = top.parentNode;
     if (top.parentNode !== home) return;
-    if (isNewcomer && panel.nextElementSibling !== top) {
-      home.insertBefore(panel, top);
-    } else if (!isNewcomer && habitsHomeAnchor.nextSibling !== panel) {
-      habitsHomeAnchor.parentNode.insertBefore(panel, habitsHomeAnchor.nextSibling);
-    }
+    if (panel.nextElementSibling !== top) home.insertBefore(panel, top);
   }
 
   function renderHabits() {
@@ -8547,7 +8546,7 @@ const HUB_GROUPS = [["diamonds", "Алмазы"], ["answers", "Ответы Ад
 const HUB_METHOD_HINTS = {
   stars: "Звёзды покупаются в Telegram. В магазине приложений одна звезда стоит около 2 центов, поэтому рядом с ценой в звёздах мы показываем примерную сумму в долларах. Точная цена зависит от твоего магазина и страны.",
   card: "Visa или Mastercard, оплата проходит внутри Telegram.",
-  crypto: "USDT, TON и другие монеты — выберешь на странице оплаты.",
+  crypto: "USDT, TON, BTC и другие монеты — оплата прямо в Telegram, без карты и браузера.",
 };
 let hubData = null;
 let hubDemo = false;
@@ -12456,6 +12455,7 @@ function applyHomeLayout() {
   const layout = (state.settings && state.settings.home_layout) || {};
   planCard.hidden = !!layout.plan_hidden;
   const parent = habitsPanel.parentNode;
+  if (parent.classList?.contains("is-newcomer")) return;        // у новичка привычки стоят перед серией (applyNewcomerHomeLayout)
   if (layout.habits_first) {
     parent.insertBefore(habitsPanel, planCard);
   } else {

@@ -14,6 +14,7 @@ from aiohttp import web
 
 import pay_providers
 import payments_ext
+import config
 from config import ADMIN_IDS
 from db import pay_orders
 from db.tracking import track_server
@@ -186,6 +187,26 @@ async def admin_tribute_auto_link_route(request):
     if not provider.configured():
         return web.json_response({"error": "not_configured"}, status=409)
     return web.json_response({"results": await provider.auto_link()})
+
+@routes.get("/api/admin/pay/cryptobot")
+async def admin_cryptobot_route(request):
+    """Crypto Bot (11.11): задан ли токен, что отвечает Crypto Pay (getMe — имя приложения) и адрес вебхука для @CryptoBot → Crypto Pay → My Apps → Webhooks."""
+    from webapp.routes_admin import _authenticate_admin
+    await _authenticate_admin(request)
+    provider = pay_providers.PROVIDERS["cryptobot"]
+    app_name, check = None, None
+    if provider.configured():
+        try:
+            data = await provider._call("getMe", {})
+            if isinstance(data, dict) and data.get("ok"):
+                app_name, check = str((data.get("result") or {}).get("name") or ""), "ok"
+            else:
+                check = "токен не принят"
+        except Exception:
+            check = "Crypto Bot не ответил"
+    return web.json_response({"configured": provider.configured(), "testnet": bool(getattr(config, "CRYPTOBOT_TESTNET", False)), "app_name": app_name,
+                              "check": check, "webhook_url": f"{_public_base(request)}/api/pay/webhook/cryptobot"})
+
 
 @routes.get("/api/admin/pay/lava")
 async def admin_lava_route(request):
