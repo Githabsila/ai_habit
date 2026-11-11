@@ -4054,6 +4054,10 @@
         // Резервируем место под кнопку в строке с именем, иначе длинное
         // имя/приветствие визуально и по кликам перекрывает кнопку.
         adminBtn.closest(".player-card")?.classList.toggle("has-admin-btn", !!u.is_admin);
+        // 11.11 (владелец): кнопка — в строке с монетой и серией, выше полосы опыта. Раньше стояла абсолютно «от низа карточки»
+        // и на ПК/в Telegram Web налезала на полосу опыта.
+        const statsRow = document.querySelector(".player-card__stats");
+        if (u.is_admin && statsRow && adminBtn.parentNode !== statsRow) statsRow.appendChild(adminBtn);
     }
 
     // Бейдж непрочитанного на кнопке ИИ (просьба пользователя): только
@@ -5031,7 +5035,7 @@
           ${Number(r.evo) > 0 ? `<span class="rating-item__evo">${evoChipHtml(r.evo)}</span>` : ""}
           ${status ? `<small class="rating-item__status">${escapeHtml(status)}</small>` : ""}
         </span>
-        <span class="rating-item__meta"><span class="rating-stat"><span class="material-symbols-rounded stat-icon">local_fire_department</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
+        <span class="rating-item__meta"><span class="rating-stat"><span class="stat-icon stat-icon--emoji" aria-hidden="true">🔥</span>${Number(r.streak || 0)}</span><span class="rating-stat">${ADAM_COIN_ICON}${Number(r.xp || 0)}</span></span>
         ${r.can_react
           ? `<button type="button" class="rating-item__react-btn" data-react-target="${r.telegram_id}" aria-label="Поддержать">💌</button>`
           : (isMe ? "" : `<span class="rating-item__react-btn rating-item__react-btn--sent" aria-hidden="true" title="Сегодня уже поддержал">${ICON_CHECK}</span>`)}

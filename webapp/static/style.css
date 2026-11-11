@@ -15515,3 +15515,9 @@ button.calendar-today-badge{font-family:inherit;cursor:pointer;text-transform:lo
 /* Проверка удобства 09.11: у новичка без привычек «Парное задание» на Главной скрыто (app.js::applyNewcomerHomeLayout). */
 .tab-panel[data-tab="home"].is-newcomer #pairQuestCard{display:none !important}
 .tab-panel[data-tab="home"].is-newcomer .habits-panel{margin-bottom:16px}
+
+/* 11.11 (владелец): огонёк серии — эмодзи вместо значка шрифта Material Symbols. Шрифт грузится с Google и в Telegram Web/на медленной сети
+   не успевал — вместо огонька было видно слово «local_fire_department». Кнопка админки — в строке с монетой и серией (app.js переносит её
+   в .player-card__stats), справа, выше полосы опыта. */
+.stat-icon--emoji{font-size:15px;line-height:1;display:inline-block;width:auto !important;height:auto !important;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.player-card__stats .player-card__admin-btn{position:static !important;margin-left:auto;align-self:center;flex:0 0 auto;top:auto !important;bottom:auto !important;right:auto !important}
