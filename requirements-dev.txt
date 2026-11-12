@@ -6,3 +6,4 @@ pytest-asyncio==1.4.0
 
 # Проверка зависимостей на известные CVE (безопасность): pip-audit -r requirements.txt
 pip-audit==2.10.1
+freezegun==1.5.1

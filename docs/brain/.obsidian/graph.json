@@ -1,0 +1,13 @@
+{
+  "collapse-filter": false, "search": "", "showTags": false, "showAttachments": false, "hideUnresolved": false, "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    {"query": "path:Функции", "color": {"a": 1, "rgb": 9195263}},
+    {"query": "path:Рассылки", "color": {"a": 1, "rgb": 5025616}},
+    {"query": "path:Код", "color": {"a": 1, "rgb": 16750848}},
+    {"query": "path:История", "color": {"a": 1, "rgb": 10395294}},
+    {"query": "file:\"Решения владельца\"", "color": {"a": 1, "rgb": 15277667}}
+  ],
+  "collapse-display": false, "showArrow": false, "textFadeMultiplier": 0, "nodeSizeMultiplier": 1.1, "lineSizeMultiplier": 1,
+  "collapse-forces": true, "centerStrength": 0.5, "repelStrength": 12, "linkStrength": 1, "linkDistance": 220, "scale": 0.6, "close": false
+}

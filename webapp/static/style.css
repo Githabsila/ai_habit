@@ -15521,3 +15521,6 @@ button.calendar-today-badge{font-family:inherit;cursor:pointer;text-transform:lo
    в .player-card__stats), справа, выше полосы опыта. */
 .stat-icon--emoji{font-size:15px;line-height:1;display:inline-block;width:auto !important;height:auto !important;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
 .player-card__stats .player-card__admin-btn{position:static !important;margin-left:auto;align-self:center;flex:0 0 auto;top:auto !important;bottom:auto !important;right:auto !important}
+
+/* Проверка 12.11: в чужом профиле (окно с прокруткой) флекс сжимал кнопку «✓ Вы подписаны» до 24px — кнопки и карточки не сжимаются. */
+.up-body > *{flex-shrink:0}

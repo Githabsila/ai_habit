@@ -6,6 +6,8 @@ Dispatcher с настоящими роутерами: обычный текст
 """
 from datetime import datetime
 
+from types import SimpleNamespace
+
 import pytest
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.context import FSMContext
@@ -25,9 +27,13 @@ class _RecordingBot(Bot):
     def __init__(self):
         super().__init__(token="123456:TEST_TOKEN_NOT_REAL")
         self.calls = []
+        self.next_message_id = 50
 
     async def __call__(self, method, request_timeout=None):
         self.calls.append(method)
+        if isinstance(method, SendMessage):                # вопрос «Добавить в план?» запоминается по номеру сообщения (12.11)
+            self.next_message_id += 1
+            return SimpleNamespace(message_id=self.next_message_id - 1)
         return True
 
 
@@ -147,3 +153,16 @@ def test_capture_is_admins_only_until_the_flag_is_on(uid, monkeypatch):
         assert fallback.capture_enabled(uid + 1) is True
     finally:
         set_feature_flag(fallback.CAPTURE_FLAG, False, 100)
+
+
+async def test_two_thoughts_in_a_row_each_button_adds_its_own(dp, monkeypatch, uid):
+    """Прогон 11.11: кнопка под первым вопросом добавляла вторую мысль, а первая терялась."""
+    from db import add_user
+    from db.daily_plan import get_daily_plan
+    add_user(uid, "a", "Аня")
+    monkeypatch.setattr(fallback, "capture_enabled", lambda _uid: True)
+    bot = _RecordingBot()
+    await dp.feed_update(bot, _update(uid, "Купить подарок маме"))       # вопрос №50
+    await dp.feed_update(bot, _update(uid, "Позвонить врачу завтра"))    # вопрос №51
+    await dp.feed_update(bot, _callback(uid, "capture:today", 50))
+    assert [t["text"] for t in get_daily_plan(uid)["tasks"]] == ["Купить подарок маме"]

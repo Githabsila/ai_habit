@@ -124,6 +124,16 @@ def test_log_error_without_user_does_not_crash():
 # streak_scheduler
 # =====================================
 
+def _set_streak(uid, streak):
+    from db.core import connect
+    conn = connect()
+    try:
+        conn.execute("UPDATE users SET streak=? WHERE telegram_id=?", (streak, uid))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _patch_streak(monkeypatch, uid, hour, minute=0):
     import streak_scheduler
 
@@ -144,6 +154,7 @@ def _patch_streak(monkeypatch, uid, hour, minute=0):
 async def test_streak_risk_marks_blocked_once_without_traceback_then_skips(monkeypatch, uid, caplog):
     add_user(uid, "u", "U")
     add_habit(uid, "Пить воду")
+    _set_streak(uid, 3)                                   # 12.11: «Последний час» — только при живой серии
     streak_scheduler = _patch_streak(monkeypatch, uid, 23, 0)
 
     bot = ForbiddenBot()
@@ -164,6 +175,7 @@ async def test_streak_risk_marks_blocked_once_without_traceback_then_skips(monke
 async def test_streak_risk_still_reaches_users_who_did_not_block(monkeypatch, uid):
     add_user(uid, "u", "U")
     add_habit(uid, "Пить воду")
+    _set_streak(uid, 3)                                   # 12.11: «Последний час» — только при живой серии
     streak_scheduler = _patch_streak(monkeypatch, uid, 23, 0)
 
     bot = FakeBot()

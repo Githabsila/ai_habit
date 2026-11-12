@@ -143,8 +143,12 @@ def _meta(user_id):
     return row
 
 def get_timezone(user_id):
-    row = _meta(user_id)
-    tz = row["timezone"] if row and row["timezone"] else "UTC"
+    from .bulk import cached_timezone
+    found, tz = cached_timezone(user_id)                  # внутри прохода рассылки — из памяти (db/bulk.py)
+    if not found:
+        row = _meta(user_id)
+        tz = row["timezone"] if row else None
+    tz = tz or "UTC"
     try:
         ZoneInfo(tz)
         return tz
@@ -902,8 +906,9 @@ def get_users_near_personal_record():
     conn = connect()
     c = conn.cursor()
     c.execute(
+        # «Ещё день — и рекорд» имеет смысл от серии в 2 дня: раньше при серии 0 и рекорде 1 приходило «серия 0 дн., рекорд 1 дн.» (симуляция 12.11)
         "SELECT telegram_id, streak, best_streak FROM users "
-        "WHERE best_streak > 0 AND streak = best_streak - 1"
+        "WHERE best_streak > 0 AND streak = best_streak - 1 AND streak >= 2"
     )
     rows = [{"user_id": r["telegram_id"], "streak": r["streak"], "best_streak": r["best_streak"]} for r in c.fetchall()]
     conn.close()

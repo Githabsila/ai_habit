@@ -335,6 +335,15 @@ def channel_removal_reason(user_id):
     if not has_active_subscription(user_id):
         return "subscription"
     if int(user["streak"] or 0) <= 0:
+        # Серию ещё можно вернуть (бесплатное восстановление раз в месяц или помощь друга) — пока не выгоняем: раньше человека убирали
+        # из канала в первые 15 минут после полуночи, а вернуть серию он мог ещё пару дней (прогон 11.11).
+        try:
+            from .rescue import rescue_state
+            from .streak import get_free_restore_status
+            if get_free_restore_status(user_id).get("available") or rescue_state(user_id).get("available"):
+                return None
+        except Exception:
+            pass
         return "streak"
     return None
 
