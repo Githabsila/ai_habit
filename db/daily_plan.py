@@ -91,11 +91,14 @@ def set_daily_main_goal(user_id, text):
     text = (text or "").strip()[:MAX_DAILY_TASK_TEXT_LENGTH]
     conn = connect()
     cursor = conn.cursor()
+    # Исправил опечатку в уже отмеченной главной задаче — отметка остаётся (раньше слетала, проверка 12.11). Новая задача (пустой
+    # план) начинается неотмеченной.
+    keep_done = bool((plan.get("main_goal") if hasattr(plan, "get") else plan["main_goal"]) or "")
     cursor.execute("""
         UPDATE daily_plans
-        SET main_goal=?, main_goal_completed=0, goal_reminder_sent=0
+        SET main_goal=?, main_goal_completed=CASE WHEN ? THEN main_goal_completed ELSE 0 END, goal_reminder_sent=0
         WHERE id=?
-    """, (text, plan["id"]))
+    """, (text, 1 if keep_done else 0, plan["id"]))
     conn.commit()
     conn.close()
     if text:

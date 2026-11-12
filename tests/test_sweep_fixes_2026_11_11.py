@@ -269,3 +269,32 @@ async def test_admin_id_input_survives_photos_commands_and_unknown_ids(uid, monk
     st = _St()
     await admin.premium_user(cmd, st)
     assert st.cleared and "Отменено" in cmd.answer.await_args.args[0]
+
+
+def test_fixing_a_typo_keeps_the_main_goal_done(uid):
+    from db.daily_plan import toggle_daily_main_goal, get_daily_plan, set_daily_main_goal
+    add_user(uid, f"u{uid}", "Аня")
+    set_daily_main_goal(uid, "Сдлать отчёт")
+    toggle_daily_main_goal(uid)
+    set_daily_main_goal(uid, "Сделать отчёт")
+    assert get_daily_plan(uid)["main_goal_completed"] == 1
+
+
+# ------------------------------------------------------------------------------------------------ скорость рассылок
+
+def test_bulk_preload_serves_timezones_and_settings_from_one_read(uid, monkeypatch):
+    import db.core as core
+    from db.bulk import preload
+    from db.settings import get_settings
+    from db.streak import get_timezone, set_timezone
+    add_user(uid, f"u{uid}", "Аня")
+    set_timezone(uid, "Asia/Vladivostok")
+    with preload():
+        calls = []
+        real = core.connect
+        monkeypatch.setattr("db.streak.connect", lambda *a, **k: calls.append(1) or real(*a, **k))
+        monkeypatch.setattr("db.settings.connect", lambda *a, **k: calls.append(1) or real(*a, **k))
+        assert get_timezone(uid) == "Asia/Vladivostok"
+        assert get_settings(uid) is not None
+        assert calls == [], "внутри прохода — без новых подключений к базе"
+    assert get_timezone(uid) == "Asia/Vladivostok"

@@ -351,11 +351,46 @@ def _round(value):
     return int(value) if get_setting("rounding") == "floor" else int(round(value))
 
 
+def external_stars_base(order):
+    """Звёздный эквивалент оплаты картой или криптой (решение владельца 12.11: партнёр получает и за них). Считаем по нашим ценам, а не
+    по курсу: подписка — её цена в звёздах (153 ⭐ / 461 ⭐), товар — его цена в долларах / $0,013 за звезду (так цены и выводились)."""
+    import config
+    from .pay_orders import USD_PRICES_CENTS, key_to_purchase
+    key = order["price_key"] if "price_key" in order.keys() else None
+    if key == "sub_first":
+        return int(config.SUBSCRIPTION_INTRO_PRICE_STARS)
+    if key == "sub_renewal":
+        return int(config.SUBSCRIPTION_RENEWAL_PRICE_STARS)
+    purchase = key_to_purchase(key) if key else None
+    cents = purchase[2] if purchase else (USD_PRICES_CENTS.get(order["item_id"]) if order["item_id"] is not None else None)
+    if cents is None and str(order["currency"] or "USD").upper() == "USD":
+        cents = int(order["amount_cents"] or 0)
+    return int(round((cents or 0) / 1.3))
+
+
+def _external_payment(conn, charge_id):
+    """Оплата картой/криптой как «платёж» для начисления: заказ pay_orders по charge_id «provider:order_id», оплачен."""
+    provider, _, order_id = str(charge_id).partition(":")
+    if not order_id:
+        return None
+    order = conn.execute("SELECT * FROM pay_orders WHERE order_id=? AND provider=?", (order_id, provider)).fetchone()
+    if order is None or order["status"] not in ("paid", "fulfilled") and not order["paid_at"]:
+        return None
+    return {"user_id": order["user_id"], "amount": external_stars_base(order), "is_test": 0, "refunded_at": None, "status": "done",
+            "purchased_at": order["paid_at"], "created_at": order["created_at"]}
+
+
 def accrue_payment(charge_id):
-    """Начисление за подтверждённую покупку приглашённого. Идемпотентно по charge_id. Возвращает строку начисления или None, если начислять нечего."""
+    """Начисление за подтверждённую покупку приглашённого. Идемпотентно по charge_id. Возвращает строку начисления или None, если начислять нечего.
+    Оплата картой/криптой (charge_id «tribute:…», «lava:…», «cryptobot:…») — по заказу и в звёздном эквиваленте (12.11)."""
     conn = connect()
     try:
         payment = conn.execute("SELECT * FROM stars_payments WHERE charge_id=?", (charge_id,)).fetchone()
+        external = _external_payment(conn, charge_id)
+        if payment is not None and external is not None and not int(payment["amount"] or 0):
+            payment = {**dict(payment), "amount": external["amount"]}       # подписка картой пишется в журнал платежей с суммой 0
+        elif payment is None:
+            payment = external
         if payment is None or int(payment["is_test"] or 0) or payment["refunded_at"] or (payment["status"] or "done") != "done":
             return None
         if conn.execute("SELECT 1 FROM partner_accruals WHERE charge_id=?", (charge_id,)).fetchone():

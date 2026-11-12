@@ -2,6 +2,10 @@ from .core import connect
 
 
 def get_settings(user_id):
+    from .bulk import cached_settings
+    found, row = cached_settings(user_id)                 # внутри прохода рассылки — из памяти (db/bulk.py)
+    if found:
+        return row
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM settings WHERE user_id=?", (user_id,))

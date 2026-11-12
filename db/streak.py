@@ -143,8 +143,12 @@ def _meta(user_id):
     return row
 
 def get_timezone(user_id):
-    row = _meta(user_id)
-    tz = row["timezone"] if row and row["timezone"] else "UTC"
+    from .bulk import cached_timezone
+    found, tz = cached_timezone(user_id)                  # внутри прохода рассылки — из памяти (db/bulk.py)
+    if not found:
+        row = _meta(user_id)
+        tz = row["timezone"] if row else None
+    tz = tz or "UTC"
     try:
         ZoneInfo(tz)
         return tz

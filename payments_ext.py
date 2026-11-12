@@ -252,6 +252,12 @@ async def fulfil(bot, order):
         logger.exception("Оплата подтверждена, а начисление не прошло: %s", order["order_id"])
         raise
     track_server(order["user_id"], "pay_order_paid", order["method"], meta={"kind": order["kind"], "item": order["item_id"], "cents": order["amount_cents"], "provider": order["provider"]})
+    # Партнёрская программа: начисление и за оплату картой/криптой (решение владельца 12.11), в звёздном эквиваленте; сбой не мешает выдаче.
+    try:
+        from db import partners
+        partners.accrue_payment(f"{order['provider']}:{order['order_id']}")
+    except Exception:
+        logger.exception("Партнёрское начисление за %s не записано", order["order_id"])
     if text and bot is not None:
         try:
             # Оформление «Royal Gold» (bot_style.py): подтверждение подписки — с золотым баннером, если оно включено у человека.

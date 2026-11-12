@@ -236,13 +236,14 @@ async def run_streak_risk_notifications(bot):
 
     for uid in get_streak_users(include_blocked=False):
         try:
-            settings = get_settings(uid)
-            if not reminder_category_enabled(settings, "streak"):
-                continue
-
             tz_name = get_timezone(uid)
             tz = ZoneInfo(tz_name)
             now = datetime.now(tz)
+            if not (in_time_window(now, hour=23, minute=0) or in_time_window(now, hour=23, minute=30)):
+                continue                                                      # вне 23:00/23:30 — дальше не проверяем (скорость, 11.11)
+            settings = get_settings(uid)
+            if not reminder_category_enabled(settings, "streak"):
+                continue
             # Окна допуска вместо "== ровно эта минута" — от повторов
             # защищает claim_notification ниже, а не точность тика
             # планировщика. Окна не пересекаются (23:00-23:04 и 23:30-23:34),
@@ -400,14 +401,17 @@ async def run_streak_reengagement_notifications(bot):
 
     for uid in get_streak_users(include_blocked=False):
         try:
+            tz = ZoneInfo(get_timezone(uid))
+            now = datetime.now(tz)
+            # Все слоты возврата — ровно в начале часа (окно 4 минуты): в остальные минуты дальше не проверяем никого (скорость, 11.11).
+            if now.minute >= 5:
+                continue
             settings = get_settings(uid)
             if not reminder_category_enabled(settings, "streak"):
                 continue
-            if not bot_access_allowed(uid):                                  # «вернись в серию» звало бы в закрытое (ТЗ §14)
-                continue
-            tz = ZoneInfo(get_timezone(uid))
-            now = datetime.now(tz)
             if in_quiet_hours(settings, now):
+                continue
+            if not bot_access_allowed(uid):                                  # «вернись в серию» звало бы в закрытое (ТЗ §14)
                 continue
             state = get_streak_reengagement_state(uid)
             inactive = int(state["inactive_days"] or 0)

@@ -59,8 +59,12 @@ async def unhandled_text(message: Message, state: FSMContext):
     text = (message.text or "").strip()
     if capture_enabled(message.from_user.id) and not text.startswith("/") and len(text) >= CAPTURE_MIN_CHARS:
         from db.daily_plan import MAX_DAILY_TASK_TEXT_LENGTH
-        await state.update_data(capture_text=text[:MAX_DAILY_TASK_TEXT_LENGTH])
-        await message.answer(capture_question(text[:MAX_DAILY_TASK_TEXT_LENGTH]), parse_mode="HTML", reply_markup=capture_keyboard())
+        text = text[:MAX_DAILY_TASK_TEXT_LENGTH]
+        asked = await message.answer(capture_question(text), parse_mode="HTML", reply_markup=capture_keyboard())
+        # Текст храним по номеру вопроса: две мысли подряд — у каждого вопроса своя (раньше кнопка под первой добавляла вторую, прогон 11.11).
+        captures = dict((await state.get_data()).get("captures") or {})
+        captures[str(getattr(asked, "message_id", ""))] = text
+        await state.update_data(captures=dict(list(captures.items())[-10:]))
         return
     await message.answer(FALLBACK_TEXT, reply_markup=adam_chat_markup())
 
@@ -71,8 +75,9 @@ async def capture_choice(callback: CallbackQuery, state: FSMContext):
     from db.tracking import track_server
     choice = callback.data.split(":", 1)[1]
     data = await state.get_data()
-    text = data.get("capture_text")
-    await state.update_data(capture_text=None)
+    captures = dict(data.get("captures") or {})
+    text = captures.pop(str(callback.message.message_id), None)
+    await state.update_data(captures=captures)
     if choice == "no" or not text:
         await callback.message.edit_text("Ок, не добавляю." if text else "Это уже устарело — напиши задачу ещё раз.")
         await callback.answer()

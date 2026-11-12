@@ -36,6 +36,12 @@ async def run_morning_ping(bot):
         # прогон заново пытался писать уже заблокировавшим бота пользователям —
         # Telegram отвечает Forbidden на КАЖДУЮ такую попытку, это не
         # временный сбой. См. db/users.py::mark_bot_blocked/is_bot_blocked.
+        # Сначала дешёвое — наступило ли у человека 06:00 (пояс из кэша прохода, db/bulk.py); остальное только для попавших в окно (11.11).
+        try:
+            if not in_time_window(datetime.now(ZoneInfo(get_timezone(telegram_id))), hour=6, minute=0):
+                continue
+        except Exception:
+            continue
         if is_bot_blocked(telegram_id):
             continue
 

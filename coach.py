@@ -298,7 +298,16 @@ async def run_planned_time_reminders(bot):
     """Раз в минуту (main.py) — у кого из привычек planned_time совпало
     с текущей локальной минутой пользователя, тот ещё не выполнен и по
     нему сегодня ещё не напоминали."""
-    users = get_all_users(include_blocked=False, unlocked_only=True)
+    # Только люди, у которых у незакрытой привычки задано время, — одним запросом (раньше get_habits на каждого, 2 с на 2000 человек, 11.11).
+    from db.core import connect as _connect
+    _conn = _connect()
+    try:
+        timed = {r["user_id"] for r in _conn.execute(
+            "SELECT DISTINCT user_id FROM habits WHERE planned_time IS NOT NULL AND planned_time != '' AND completed=0 AND COALESCE(reminder_sent,0)=0"
+        ).fetchall()}
+    finally:
+        _conn.close()
+    users = [u for u in get_all_users(include_blocked=False, unlocked_only=True) if u["telegram_id"] in timed]
     sent = 0
 
     for user in users:

@@ -626,7 +626,7 @@ async def test_admin_previews_every_scenario_and_sends_the_text_only_to_themselv
 def test_wiring_job_label_flag_seed_and_admin_card():
     main = (ROOT / "main.py").read_text(encoding="utf-8")
     assert "from adam_proactive import run_adam_checkins" in main
-    assert 'scheduler.add_job(run_adam_checkins, "interval", minutes=3, args=[bot], max_instances=1, coalesce=True)' in main
+    assert 'scheduler.add_job(preloaded(run_adam_checkins), "interval", minutes=3, args=[bot], max_instances=1, coalesce=True)' in main
     from db.streak import NOTIFICATION_KIND_LABELS
     assert NOTIFICATION_KIND_LABELS["adam_checkin"] == "💬 Сообщение от Адама"
     conn = connect()

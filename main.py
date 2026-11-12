@@ -13,6 +13,7 @@ from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 
 from config import BOT_TOKEN, WEBAPP_URL, PORT, ADMIN_IDS
 from db import create_tables, get_user, give_premium_admin, award_season_rewards, publish_release_notes
+from db.bulk import preloaded          # пояса и настройки всех людей — двумя запросами на проход рассылки (11.11)
 from bot_middlewares import edit_photo_fallback, log_outbox, retry_flood_control
 from bot_style import royal_dress
 from webapp.webapp_server import run_webapp
@@ -152,34 +153,34 @@ async def main():
     from db import outbox as _outbox
     scheduler.add_job(_outbox.cleanup, "cron", hour=4, minute=15)          # журнал отправок — 30 дней
     scheduler.add_job(_outbox.flush, "interval", seconds=30, max_instances=1, coalesce=True)   # журнал пишется пачками
-    scheduler.add_job(run_task_reminder_check, "interval", minutes=15, args=[bot])
+    scheduler.add_job(preloaded(run_task_reminder_check), "interval", minutes=15, args=[bot])
     # Своё время напоминания у привычки (habits.planned_time) — опционально,
     # молчит для тех, у кого не задано. Каждую минуту, как и остальные
     # job'ы, завязанные на точную локальную минуту пользователя.
-    scheduler.add_job(run_planned_time_reminders, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_planned_time_reminders), "interval", minutes=1, args=[bot])
     # Контрольная точка проверяется каждую минуту и сама учитывает
     # локальный часовой пояс каждого пользователя. Это важно на Railway,
     # где timezone контейнера может отличаться от timezone пользователя.
-    scheduler.add_job(run_weekly_report, "interval", minutes=15, args=[bot])            # по местному времени человека (coach._local_due, 07.11)
-    scheduler.add_job(run_weekly_habit_analysis, "interval", minutes=15, args=[bot])
+    scheduler.add_job(preloaded(run_weekly_report), "interval", minutes=15, args=[bot])            # по местному времени человека (coach._local_due, 07.11)
+    scheduler.add_job(preloaded(run_weekly_habit_analysis), "interval", minutes=15, args=[bot])
     # Roadmap #24: тот же разбор, но раз в месяц (1-го числа) — сдвинут по
     # минутам от run_month_start_ping (7:30), чтобы не бить по OpenAI и
     # Telegram API одним и тем же пользователям одновременно.
-    scheduler.add_job(run_monthly_habit_analysis, "interval", minutes=15, args=[bot])
+    scheduler.add_job(preloaded(run_monthly_habit_analysis), "interval", minutes=15, args=[bot])
     # Утреннее приветствие — в 06:00, не в 12:00/08:00 (промт п.12)
-    scheduler.add_job(run_morning_ping, "interval", minutes=1, args=[bot])
-    scheduler.add_job(run_goal_feedback, "interval", minutes=15, args=[bot])            # пн 10:00 по местному времени (09.11)
+    scheduler.add_job(preloaded(run_morning_ping), "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_goal_feedback), "interval", minutes=15, args=[bot])            # пн 10:00 по местному времени (09.11)
     scheduler.add_job(run_auto_approve, "interval", minutes=15, args=[bot])
     # Ударный режим работает по локальному времени каждого пользователя.
     # Rollover идёт каждую минуту и идемпотентно обрабатывает только тех,
     # у кого наступил новый локальный день.
     scheduler.add_job(run_streak_rollover, "interval", minutes=1)
-    scheduler.add_job(run_streak_risk_notifications, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_streak_risk_notifications), "interval", minutes=1, args=[bot])
     # Закрытый канал: серия сгорела или подписка кончилась — убрать (channel_sync.py). Без CLOSED_CHANNEL_ID ничего не делает.
     scheduler.add_job(run_channel_sync, "interval", minutes=15, args=[bot], max_instances=1, coalesce=True)
     # Конец оплаченного срока: за 7/3/1 день и в день окончания — продлить или включить автопродление; при автопродлении — честное
     # предупреждение за 3 дня и «не получилось продлить» (subscription_renewal.py).
-    scheduler.add_job(run_renewal_reminders, "interval", minutes=2, args=[bot], max_instances=1, coalesce=True)
+    scheduler.add_job(preloaded(run_renewal_reminders), "interval", minutes=2, args=[bot], max_instances=1, coalesce=True)
     # Автоудаление неактивных (db/inactive_purge.py): выключено, пока не задан INACTIVE_PURGE_MONTHS; за 30 дней — предупреждение.
     from db.inactive_purge import run_inactive_purge
     scheduler.add_job(run_inactive_purge, "cron", hour=4, minute=40, args=[bot], max_instances=1, coalesce=True)
@@ -187,18 +188,18 @@ async def main():
     # постепенно реже для тех, кто пропал надолго. Проверка каждую минуту
     # учитывает локальный час пользователя и останавливается после первого
     # выполненного действия в текущем дне.
-    scheduler.add_job(run_streak_reengagement_notifications, "interval", minutes=1, args=[bot])
-    scheduler.add_job(run_weekly_streak_bonus, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_streak_reengagement_notifications), "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_weekly_streak_bonus), "interval", minutes=1, args=[bot])
     # Улучшение #49: в 9:00 по локальному времени — мотивирующий пуш тем, кто
     # на 1 день короче своего же исторического рекорда серии.
-    scheduler.add_job(run_personal_record_notifications, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_personal_record_notifications), "interval", minutes=1, args=[bot])
     # Улучшение #40: раз в сутки (8:00 UTC) — кого обогнали в сезонном рейтинге.
-    scheduler.add_job(run_rank_overtaken_notifications, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_rank_overtaken_notifications), "interval", minutes=1, args=[bot])
     # Парное задание: засчёт цели, набранной через бота, и вечернее напоминание
     # в последний день окна (db/pair_quests.py).
-    scheduler.add_job(run_pair_quest_notifications, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_pair_quest_notifications), "interval", minutes=1, args=[bot])
     # Серия друга погасла, но её ещё можно вернуть — пуш друзьям (db/rescue.py, как «восстановить дружеский забег» в Duolingo).
-    scheduler.add_job(run_rescue_notifications, "interval", minutes=5, args=[bot], max_instances=1, coalesce=True)
+    scheduler.add_job(preloaded(run_rescue_notifications), "interval", minutes=5, args=[bot], max_instances=1, coalesce=True)
     # Раздача наград топ-3 сезона 1-го числа (см. db/seasons.py::award_season_rewards)
     # была определена, но нигде не вызывалась — реальный пробел, найденный
     # попутно при работе над #40, чинится тем же коммитом.
@@ -207,25 +208,25 @@ async def main():
     # --- Умные напоминания ---
     # Не больше 5 напоминаний по привычкам в день (решение владельца 05.11): точка 10:00 — только группе «7» эксперимента
     # «до 5 или до 7» (db/reminder_experiment.py, флаг reminders_7). Пока флаг выключен, она никому не уходит.
-    scheduler.add_job(run_habit_checkpoint_10, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_habit_checkpoint_10), "interval", minutes=1, args=[bot])
     # 12:00 — дневная проверка привычек. Отдельные 2-часовые пинги по привычкам
     # отключены: здесь одно сводное сообщение только по невыполненным привычкам.
-    scheduler.add_job(run_habit_checkpoint_12, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_habit_checkpoint_12), "interval", minutes=1, args=[bot])
     # 17:00 и 22:00 — закрывают дыру между 12:00 и 23:00 risk-уведомлением:
     # то молчит, если за день закрыта хотя бы одна привычка из нескольких.
-    scheduler.add_job(run_habit_checkpoint_17, "interval", minutes=1, args=[bot])
-    scheduler.add_job(run_habit_checkpoint_22, "interval", minutes=1, args=[bot])
-    scheduler.add_job(run_day_progress_check, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_habit_checkpoint_17), "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_habit_checkpoint_22), "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_day_progress_check), "interval", minutes=1, args=[bot])
     # 19:00 — единая сверка главной + второстепенных задач.
     # Разовое приглашение начать диалог с ADAM — 4-30 минут после
     # регистрации, только если человек так и не написал ему ни разу.
-    scheduler.add_job(run_ai_welcome_nudge, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_ai_welcome_nudge), "interval", minutes=1, args=[bot])
     # «Адам пишет первым» (adam_proactive.py): в случайный момент окон 14:00–16:30 и 19:30–21:30 по местному времени человека
     # решает, нужно ли сообщение (отстаёт от своего темпа / итог вечера / чатовый день), и шлёт его. Раскатка — флаг adam_checkin.
-    scheduler.add_job(run_adam_checkins, "interval", minutes=3, args=[bot], max_instances=1, coalesce=True)
+    scheduler.add_job(preloaded(run_adam_checkins), "interval", minutes=3, args=[bot], max_instances=1, coalesce=True)
     # «Позови друга» (referral_mailing.py): новичкам на 2-й/4-й/6-й день в обеденное окно по местному времени, плюс уведомления о наградах,
     # выплаченных после первой отметки друга. Выключатель — флаг referral_mailing.
-    scheduler.add_job(run_referral_mailing, "interval", minutes=5, args=[bot], max_instances=1, coalesce=True)
+    scheduler.add_job(preloaded(run_referral_mailing), "interval", minutes=5, args=[bot], max_instances=1, coalesce=True)
     scheduler.add_job(run_referral_notices, "interval", minutes=2, args=[bot], max_instances=1, coalesce=True)
     # Сверка Telegram-ников (username_sync.py): раз в сутки ночью бот спрашивает у Telegram ник тех, кого не проверяли 7 дней.
     scheduler.add_job(run_username_sync, "cron", hour=4, minute=20, args=[bot], max_instances=1, coalesce=True)
@@ -233,14 +234,14 @@ async def main():
     scheduler.add_job(run_abuse_alerts, "interval", minutes=3, args=[bot], max_instances=1, coalesce=True)
 
     # --- Промт п.8: начало/конец недели и месяца ---
-    scheduler.add_job(run_week_start_ping, "interval", minutes=15, args=[bot])            # все четыре — по местному времени (07.11)
-    scheduler.add_job(run_week_end_ping, "interval", minutes=15, args=[bot])
-    scheduler.add_job(run_month_start_ping, "interval", minutes=15, args=[bot])
-    scheduler.add_job(run_month_end_ping, "interval", minutes=15, args=[bot])
+    scheduler.add_job(preloaded(run_week_start_ping), "interval", minutes=15, args=[bot])            # все четыре — по местному времени (07.11)
+    scheduler.add_job(preloaded(run_week_end_ping), "interval", minutes=15, args=[bot])
+    scheduler.add_job(preloaded(run_month_start_ping), "interval", minutes=15, args=[bot])
+    scheduler.add_job(preloaded(run_month_end_ping), "interval", minutes=15, args=[bot])
 
     # --- Пром 13: напоминания триала → подписки (сам гейт по умолчанию
     # выключен, см. config.SUBSCRIPTION_GATE_ENABLED) ---
-    scheduler.add_job(run_trial_reminders, "interval", minutes=1, args=[bot])
+    scheduler.add_job(preloaded(run_trial_reminders), "interval", minutes=1, args=[bot])
     # Деньги получены, а начисление упало (ТЗ 28.10 §19): повторяем начисление и сообщаем, когда получилось.
     scheduler.add_job(retry_failed_payments, "interval", minutes=3, args=[bot])
     scheduler.add_job(run_partner_jobs, "interval", minutes=5, args=[bot])

@@ -7609,6 +7609,8 @@ function initPlanActions() {
         invalid_format: "Только латиница, цифры и «_», от 3 до 20 символов",
         taken: "Этот ник уже занят",
         invalid_name: "Имя — от 1 до 30 символов",
+        // Сервис оплаты не ответил или бот недоступен — раньше на экран выходил сам код «payment_unavailable» (проверка 12.11).
+        payment_unavailable: "Оплата сейчас недоступна — попробуй через пару минут",
         not_for_sale: "Эту награду выдаёт администратор",
         not_enough_xp: "Не хватает Adam Coin",
         habit_not_done: "Эта привычка уже не отмечена",
@@ -7967,7 +7969,10 @@ function renderTeamCard() {
         await api("/api/team/create", { method: "POST", body: JSON.stringify({ name: input.value }) });
         haptic("medium");
         await loadTeamAndSeason();
-      } catch (err) { showToast(friendlyError(err), "error"); }
+      } catch (err) {
+        // У команды своё ограничение (1–40 символов, db/teams.py), общий текст «Имя — от 1 до 30» был о профиле (проверка 12.11).
+        showToast(err?.data?.error === "invalid_name" ? "Название команды — от 1 до 40 символов" : friendlyError(err), "error");
+      }
     });
     document.getElementById("teamJoinBtn").addEventListener("click", async () => {
       const input = document.getElementById("teamJoinInput");

@@ -336,3 +336,21 @@ def test_settings_accept_only_sensible_values(uid):
     for key, bad in (("attribution_rule", "middle"), ("default_share", "101"), ("default_window_days", "0"), ("min_payout", "-1"), ("currency", "USD"), ("rounding", "ceil")):
         assert partners.set_setting(key, bad) == {"error": "invalid_value"}, key
     assert partners.all_settings()["attribution_rule"] == "first" and partners.all_settings()["default_share"] == "40"
+
+
+def test_card_and_crypto_purchases_also_pay_the_partner_in_star_equivalent(uid):
+    """Решение владельца 12.11: партнёр получает и за оплату картой/криптой — звёздный эквивалент по нашим ценам."""
+    from db import pay_orders
+    owner = _partner(uid)
+    friend = uid + 1
+    _invitee(friend, owner)
+    sub = pay_orders.create_order(friend, "cryptobot", "crypto", "subscription", None, 599, "USD", "sub_renewal")
+    pay_orders.mark_paid(sub["order_id"], "paid")
+    _pay(friend, f"cryptobot:{sub['order_id']}", amount=0)                # подписка картой/криптой пишется в журнал платежей с суммой 0
+    item = pay_orders.create_order(friend, "tribute", "card", "item", 27, 199, "USD", "item_27")
+    pay_orders.mark_paid(item["order_id"], "paid")
+    a = partners.accrue_payment(f"cryptobot:{sub['order_id']}")
+    b = partners.accrue_payment(f"tribute:{item['order_id']}")             # товар картой — без строки в журнале платежей
+    assert a["base_amount"] == 461 and a["amount"] == 184
+    assert b["base_amount"] == 153 and b["status"] == "accrued"
+    assert partners.accrue_payment(f"tribute:{item['order_id']}") is None, "повтор ничего не добавляет"

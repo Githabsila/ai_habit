@@ -465,7 +465,7 @@ def test_the_push_text_declines_the_days_and_escapes_nothing_twice():
 def test_the_job_is_scheduled():
     main = Path(__file__).resolve().parent.parent / "main.py"
     text = main.read_text(encoding="utf-8")
-    assert "run_rescue_notifications" in text and 'scheduler.add_job(run_rescue_notifications, "interval", minutes=5' in text
+    assert "run_rescue_notifications" in text and 'scheduler.add_job(preloaded(run_rescue_notifications), "interval", minutes=5' in text
 
 
 # ---------------------------------------------------------------------------------------------------------------- центр уведомлений
