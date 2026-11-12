@@ -100,6 +100,14 @@ def format_risk_message(progress: dict) -> str:
 # НЕДЕЛЬНЫЕ ОТЧЁТЫ
 # =====================================
 
+def _account_age_days(user):
+    """Сколько полных дней прошло с регистрации (по created_at, UTC). Неизвестно — считаем «давно»."""
+    try:
+        created = datetime.strptime(str(user["created_at"])[:19].replace("T", " "), "%Y-%m-%d %H:%M:%S")
+    except (KeyError, IndexError, TypeError, ValueError):
+        return 10 ** 6
+    return (datetime.now(timezone.utc).replace(tzinfo=None) - created).days
+
 def format_weekly_report(summary: dict) -> str:
     active_days = summary["active_days"]
 
@@ -173,6 +181,10 @@ async def run_weekly_report(bot, now_utc=None):
         if not reminder_category_enabled(settings, "digests") or in_quiet_hours(settings, local):
             continue
 
+        # Первая неделя человека — не «итог недели»: новичку на 3-й день приходило «Активных дней 3/7 — НАДО ПОДНАЖАТЬ», хотя он
+        # не пропустил ни дня, и это в самый важный вечер триала (симуляция 12.11).
+        if _account_age_days(user) < 7:
+            continue
         summary = get_weekly_summary(telegram_id)
         if summary["active_days"] == 0:
             # Неактивным за неделю не шлём — не будем добавлять спам
@@ -819,6 +831,8 @@ async def run_week_end_ping(bot, now_utc=None):
         local = _local_due(telegram_id, now_utc, weekday=6, hour=18)          # воскресенье 18:00 по местному времени
         if local is None:
             continue
+        if _account_age_days(user) < 7:
+            continue                      # первая неделя: в 18:00 приходит важное сообщение триала, «конец недели» его заслонял (симуляция 12.11)
         week_key = local.strftime("%G-W%V")
 
         settings = get_settings(telegram_id)

@@ -298,6 +298,7 @@ async def test_streak_risk_23_fires_when_scheduler_tick_is_late(monkeypatch, uid
     monkeypatch.setattr(streak_scheduler, "get_settings", lambda _uid: {"reminders": 1})
     monkeypatch.setattr(streak_scheduler, "get_timezone", lambda _uid: "UTC")
     monkeypatch.setattr(streak_scheduler, "has_completed_today", lambda _uid: False)
+    monkeypatch.setattr(streak_scheduler, "get_user", lambda _uid: {"streak": 3})     # 12.11: «Последний час» — только при живой серии
 
     class FrozenDatetime(datetime):
         @classmethod

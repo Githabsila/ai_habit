@@ -906,8 +906,9 @@ def get_users_near_personal_record():
     conn = connect()
     c = conn.cursor()
     c.execute(
+        # «Ещё день — и рекорд» имеет смысл от серии в 2 дня: раньше при серии 0 и рекорде 1 приходило «серия 0 дн., рекорд 1 дн.» (симуляция 12.11)
         "SELECT telegram_id, streak, best_streak FROM users "
-        "WHERE best_streak > 0 AND streak = best_streak - 1"
+        "WHERE best_streak > 0 AND streak = best_streak - 1 AND streak >= 2"
     )
     rows = [{"user_id": r["telegram_id"], "streak": r["streak"], "best_streak": r["best_streak"]} for r in c.fetchall()]
     conn.close()

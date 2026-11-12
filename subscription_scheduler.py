@@ -89,9 +89,9 @@ async def run_trial_reminders(bot):
                 try:
                     text, keyboard = build_message(message.key, snap)
                     # Оформление «Royal Gold» (bot_style.py): приглашение на второй день и «пробный доступ заканчивается» приходят с золотым баннером, если оно включено у человека.
-                    with_banner = message.key in BANNER_KEYS and await bot_style.send_banner(bot, telegram_id, "trial", text, keyboard)
-                    if not with_banner:
-                        with outbox.kind("winback" if message.key.startswith("wb_") else message.key):   # журнал: какое сообщение триала
+                    with outbox.kind("winback" if message.key.startswith("wb_") else message.key):   # журнал: какое сообщение триала (и с баннером)
+                        with_banner = message.key in BANNER_KEYS and await bot_style.send_banner(bot, telegram_id, "trial", text, keyboard)
+                        if not with_banner:
                             await bot.send_message(telegram_id, text, reply_markup=keyboard)
                 except Exception as exc:
                     release_notification(telegram_id, snap["local_date"], kind, scope)
