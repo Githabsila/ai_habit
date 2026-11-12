@@ -61,7 +61,11 @@ def _parse_mode_ok(method):
     if getattr(method, "entities", None):
         return False
     mode = getattr(method, "parse_mode", None)
-    return mode is None or not isinstance(mode, str) or mode == "HTML"
+    # Явный parse_mode=None — текст без разметки (утро, Адам): HTML-шапка показалась бы как «<b>ADAM</b>» (прогон 11.11).
+    # Не заданный parse_mode — это не None, а заглушка Default: бот подставит свой HTML.
+    if mode is None:
+        return False
+    return not isinstance(mode, str) or mode == "HTML"
 
 
 async def royal_dress(make_request, bot, method):

@@ -299,6 +299,17 @@ async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
         if owner != pre_checkout_query.from_user.id:
             await pre_checkout_query.answer(ok=False, error_message=refuse)
             return
+    elif payload.startswith(("premium_", "gift_premium:")):
+        # Premium больше не продаётся (PREMIUM_TIER_ENABLED): старый счёт оплатился бы, а выдачи нет — звёзды списаны впустую.
+        # Счёт на себя — платит только владелец, подарок — только даритель (последний id в payload). Прогон 11.11.
+        import config
+        try:
+            payer = int(payload.split("_" if payload.startswith("premium_") else ":")[-1])
+        except ValueError:
+            payer = None
+        if not config.PREMIUM_TIER_ENABLED or payer != pre_checkout_query.from_user.id:
+            await pre_checkout_query.answer(ok=False, error_message="Этот счёт больше не действует — всё, что давал Premium, теперь входит в Pro.")
+            return
     await pre_checkout_query.answer(ok=True)
 
 

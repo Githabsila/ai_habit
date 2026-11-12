@@ -1,20 +1,25 @@
-from datetime import date
-
 from .core import connect
 from .users import add_xp
 from .statistics import add_statistics
+
+
+def _today(user_id):
+    """Местная дата человека. Раньше — дата сервера: смена дня (местная полночь) пересоздавала уже закрытые задания «сегодня по серверу»,
+    и награду за них можно было получить дважды в сутки (прогон 11.11)."""
+    from .streak import local_today
+    return local_today(user_id).isoformat()
 
 
 def create_daily_tasks(user_id):
     conn = connect()
     cursor = conn.cursor()
 
-    today = str(date.today())
+    today = _today(user_id)
 
-    cursor.execute(
-        "DELETE FROM daily_tasks WHERE user_id=? AND task_date=?",
-        (user_id, today)
-    )
+    # Уже созданные на этот день не трогаем (раньше DELETE + INSERT обнулял выполненные).
+    if cursor.execute("SELECT 1 FROM daily_tasks WHERE user_id=? AND task_date=? LIMIT 1", (user_id, today)).fetchone():
+        conn.close()
+        return
 
     tasks = [
         ("Выполнить привычку", 1, 20),
@@ -37,7 +42,7 @@ def get_daily_tasks(user_id):
     cursor = conn.cursor()
     cursor.execute("""
         SELECT * FROM daily_tasks WHERE user_id=? AND task_date=? ORDER BY id
-    """, (user_id, str(date.today())))
+    """, (user_id, _today(user_id)))
     tasks = cursor.fetchall()
     conn.close()
     return tasks
@@ -50,7 +55,7 @@ def update_daily_task(user_id, task_name, amount=1):
     cursor.execute("""
         SELECT * FROM daily_tasks
         WHERE user_id=? AND task=? AND task_date=?
-    """, (user_id, task_name, str(date.today())))
+    """, (user_id, task_name, _today(user_id)))
 
     task = cursor.fetchone()
 

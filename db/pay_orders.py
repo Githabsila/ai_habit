@@ -186,15 +186,17 @@ def release_fulfilment(order_id, error=None):
         conn.close()
 
 
-def find_open(user_id, provider, kind, item_id, within_hours=6):
-    """Самый свежий неоплаченный заказ человека у этого сервиса на эту покупку (Tribute не знает наших номеров заказов — сопоставляем по человеку и товару)."""
+def find_open(user_id, provider, kind, item_id, within_hours=6, price_key=None):
+    """Самый свежий неоплаченный заказ человека у этого сервиса на эту покупку (Tribute не знает наших номеров заказов — сопоставляем по человеку и товару).
+    price_key — ещё и по цене: оплату «продления» ($5.99) нельзя приписать открытому заказу «первый месяц» ($1.99) (прогон 11.11)."""
     from datetime import timedelta
     since = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=int(within_hours))).strftime(FMT)
     conn = connect()
     try:
         return conn.execute(
-            "SELECT * FROM pay_orders WHERE user_id=? AND provider=? AND kind=? AND COALESCE(item_id,-1)=COALESCE(?, -1) AND status='created' AND created_at>=? ORDER BY id DESC LIMIT 1",
-            (int(user_id), provider, kind, item_id, since)).fetchone()
+            "SELECT * FROM pay_orders WHERE user_id=? AND provider=? AND kind=? AND COALESCE(item_id,-1)=COALESCE(?, -1) AND status='created' AND created_at>=? "
+            "AND (? IS NULL OR price_key IS NULL OR price_key=?) ORDER BY id DESC LIMIT 1",
+            (int(user_id), provider, kind, item_id, since, price_key, price_key)).fetchone()
     finally:
         conn.close()
 

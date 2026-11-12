@@ -22,3 +22,10 @@ def test_newcomer_layout_no_longer_remembers_a_stale_home_spot():
 
 def test_home_layout_leaves_the_newcomer_order_alone():
     assert 'classList?.contains("is-newcomer")' in _body("applyHomeLayout")
+
+
+def test_layout_moves_only_the_habits_block_so_the_plan_never_jumps_above_the_streak():
+    """Прогон 11.11: в ветке «план сверху» раньше двигался сам план — к привычкам, а у новичка они стоят над серией."""
+    body = _body("applyHomeLayout")
+    assert "parent.insertBefore(planCard" not in body
+    assert "parent.insertBefore(habitsPanel, planCard.nextSibling)" in body

@@ -18,9 +18,13 @@ from .core import connect
 from .users import get_user
 
 MODE_OPEN, MODE_TIMED, MODE_TRIAL = "open", "timed", "trial"
-MODES = (MODE_OPEN, MODE_TIMED, MODE_TRIAL)
+# «Без ограничений» от админа (прогон 11.11): open — режим ПО УМОЛЧАНИЮ у всех, и при общем гейте подписки обычный open-аккаунт идёт
+# по триалу. Поэтому кнопка «∞ Без ограничений» писала open, а человек снова получал триал и закрытие. unlimited гейт не трогает.
+MODE_UNLIMITED = "unlimited"
+MODES = (MODE_OPEN, MODE_TIMED, MODE_TRIAL, MODE_UNLIMITED)
 ACCESS_MODES = MODES
-MODE_LABELS = {MODE_OPEN: "Свободный (тестировщик)", MODE_TIMED: "Временный доступ", MODE_TRIAL: "Сценарий триала"}
+MODE_LABELS = {MODE_OPEN: "Свободный (тестировщик)", MODE_TIMED: "Временный доступ", MODE_TRIAL: "Сценарий триала",
+               MODE_UNLIMITED: "Без ограничений (выдал админ)"}
 
 GRANT_DAYS = (3, 7, 14)          # временный доступ
 GIFT_DAYS = (3, 7, 14, 30)       # подарочные дни
@@ -81,7 +85,7 @@ def trial_scenario_for_user(user):
     mode = _row_mode(user)
     if mode == MODE_TRIAL:
         return True
-    if mode == MODE_TIMED:
+    if mode in (MODE_TIMED, MODE_UNLIMITED):
         return False
     from .subscription import gate_applies_to_user
     return gate_applies_to_user(user)
@@ -237,7 +241,9 @@ def gift_days(user_id, days, admin_id=None):
         paid = _field(user, "subscription_paid_until")
         if paid and paid > now:
             return {"subscription_paid_until": _iso(paid + timedelta(days=days))}
-        if _row_mode(user) == MODE_OPEN:
+        # Подарок не нужен только тому, у кого доступ и так не ограничен. Обычный open-аккаунт под общим гейтом идёт по триалу —
+        # ему подарок нужен (раньше ему отказывало «unlimited», прогон 11.11).
+        if _row_mode(user) == MODE_UNLIMITED or (_row_mode(user) == MODE_OPEN and not trial_scenario_for_user(user)):
             return {"error": "unlimited"}
         return {"access_until": _extended(user, days)}
 
@@ -247,7 +253,7 @@ def gift_days(user_id, days, admin_id=None):
 def set_unlimited(user_id, admin_id=None):
     """Снять ограничения: режим 'open' (как у первых тестировщиков), бесплатный период и триал сбрасываются."""
     return _apply(user_id, admin_id, "unlimited", None,
-                  lambda user, conn: {"access_mode": MODE_OPEN, "access_until": None, "trial_started_at": None, "trial_ends_at": None, "trial_tz": None})
+                  lambda user, conn: {"access_mode": MODE_UNLIMITED, "access_until": None, "trial_started_at": None, "trial_ends_at": None, "trial_tz": None})
 
 
 def start_trial_mode(user_id, admin_id=None, restart=False):

@@ -67,6 +67,7 @@ from webapp.services.ai_jobs import ai_jobs
 from webapp.services import chat_brain
 from db import ai_usage
 
+FEEDBACK_REASON_MAX = 120
 logger = logging.getLogger("webapp.ai_miniapp")
 
 # ============ КОНФИГ ============
@@ -712,8 +713,10 @@ async def ai_feedback_miniapp(request):
 
     save_ai_feedback(message_id, user_id, rating)
 
-    if reason and rating == "down":
-        save_feedback_reason(message_id, user_id, reason)
+    # Причина 👎 уходит в контекст каждого следующего запроса к модели (ai_utils.build_user_context): без ограничения можно было
+    # прислать мегабайт текста и раздуть расход на ИИ (прогон 11.11). Причина — короткая подпись кнопки, 120 символов с запасом.
+    if isinstance(reason, str) and reason.strip() and rating == "down":
+        save_feedback_reason(message_id, user_id, reason.strip()[:FEEDBACK_REASON_MAX])
 
     return web.json_response({"ok": True})
 
@@ -797,6 +800,8 @@ async def ai_add_habit_miniapp(request):
     except ValueError as exc:
         if str(exc) in ("habit_limit", "habit_add_locked"):
             return web.json_response({"error": str(exc)}, status=400)
+        if str(exc) == "habit_too_fast":                                 # как в /api/habits (прогон 11.11: здесь было 500)
+            return web.json_response({"error": "habit_too_fast"}, status=429)
         logger.exception(f"Ошибка при добавлении привычки для {user_id}")
         return web.json_response({"error": "internal_error"}, status=500)
     except Exception:

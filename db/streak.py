@@ -285,6 +285,11 @@ def rollover_user(user_id):
     # >= а не ==: если человек перевёл пояс назад, rollover_day оказывается «в будущем» — повторная смена дня сбросила бы
     # уже отмеченные сегодня привычки и задублировала habit_logs (прогон 09.11). Даты ISO сравниваются строками.
     if meta["rollover_day"] and meta["rollover_day"] >= today_s:
+        if meta["rollover_day"] > today_s:
+            # Пояс перевели назад: сегодняшний день уже обработан «наперёд». Записываем сегодняшнюю дату, но без сброса — иначе
+            # следующий местный день тоже считался бы обработанным и пропускался (прогон 11.11).
+            c.execute("UPDATE streak_meta SET rollover_day=? WHERE user_id=?", (today_s, user_id))
+            conn.commit()
         conn.close()
         return False
 

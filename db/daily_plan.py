@@ -198,12 +198,12 @@ def save_daily_plan(user_id, main_goal, tasks):
     cursor.execute("""
         UPDATE daily_plans SET main_goal=?, main_goal_completed=0, goal_reminder_sent=0
         WHERE id=?
-    """, ((main_goal or "").strip(), plan_id))
+    """, (str(main_goal or "").strip()[:MAX_DAILY_TASK_TEXT_LENGTH], plan_id))     # длина — как у /api/plan/main/save (прогон 11.11)
 
     cursor.execute("DELETE FROM daily_plan_tasks WHERE plan_id=?", (plan_id,))
 
-    for task_text in (tasks or [])[:5]:
-        task_text = (task_text or "").strip()
+    for task_text in (tasks if isinstance(tasks, list) else [])[:5]:
+        task_text = str(task_text or "").strip()[:MAX_DAILY_TASK_TEXT_LENGTH]
         if task_text:
             cursor.execute("""
                 INSERT INTO daily_plan_tasks(plan_id, text, created_at, reminder_sent)

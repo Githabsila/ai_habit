@@ -30,7 +30,9 @@ def _due_local(user_id, now_utc=None):
 
 
 async def run_goal_feedback(bot, now_utc=None):
-    surveys = get_surveys_due_for_feedback(days=7)
+    # 6, а не 7 дней: отметка «отправлено» ставится на секунды позже слота, и через неделю тот же слот был «ещё рано» — отправка
+    # сползала на 15 минут каждую неделю и раз в 5 недель выпадала из окна 10:00–11:00 (прогон 11.11). Окно (пн 10:00) держит _due_local.
+    surveys = get_surveys_due_for_feedback(days=6)
     sent = 0
     failed = 0
 

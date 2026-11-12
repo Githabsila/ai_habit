@@ -1991,6 +1991,8 @@
     trk("quiz_step", step.key || step.type, { i: startQuizStep + 1, of: START_QUIZ_STEPS.length });
     if (back) back.hidden = startQuizStep === 0;
     if (fill) fill.style.width = `${((startQuizStep + 1) / START_QUIZ_STEPS.length) * 100}%`;
+    // Переспрос «Тебе точно нет 16?» прячет «Далее»; стрелка «Назад» оттуда раньше оставляла экран вообще без кнопок (прогон 11.11).
+    if (continueBtn) continueBtn.hidden = false;
     if (continueBtn) {
       continueBtn.textContent = step.type === "welcome" ? "Поехали" : (startQuizStep === START_QUIZ_STEPS.length - 1 ? "Начать" : "Далее");
     }
@@ -2089,6 +2091,13 @@
 
   function initStartQuiz() {
     document.getElementById("startQuizBack")?.addEventListener("click", () => {
+      // С переспроса «Тебе точно нет 16?» стрелка возвращает к самому вопросу о возрасте (как «Назад, я ошибся»).
+      if (document.getElementById("startQuizContinue")?.hidden && START_QUIZ_STEPS[startQuizStep]?.key === "age_range") {
+        delete startQuizAnswers.age_range;
+        haptic("light");
+        renderStartQuizStep();
+        return;
+      }
       if (startQuizStep === 0) return;
       startQuizStep--;
       haptic("light");
@@ -3259,8 +3268,8 @@
     // поэтому оно оставалось устаревшим весь сеанс, и подсказка для
     // рейтинга/профиля показывалась заново при каждом повторном переходе
     // на вкладку, даже после закрытия крестиком.
-    // Шаг «Написать Адаму» (11) не записываем как стадию: иначе «дошёл до 11» гасил бы подсказки разделов 5–7 (см. клик по вкладкам).
-    const savedStage = stage === 11 ? 2 : stage;
+    // Шаг «Написать Адаму» (11) не записываем как стадию 11: иначе «дошёл до 11» гасил бы подсказки разделов 5–7 (см. клик по вкладкам).
+    const savedStage = stage === 11 ? 3 : stage;      // 3 — «тур дошёл до Адама»: по нему продолжение после перезагрузки (шаг 2 ≠ шаг 3)
     if (state) {
       state.product_onboarding = state.product_onboarding || {};
       state.product_onboarding.onboarding_stage = Math.max(state.product_onboarding.onboarding_stage || 0, savedStage);
@@ -3291,7 +3300,7 @@
       const reachedStage = state?.product_onboarding?.onboarding_stage || 0;
       if (!hasHabits) {
         productOnboardingTimers.push(setTimeout(() => showProductHint(1), 700));
-      } else if (reachedStage < 2) {
+      } else if (reachedStage < 3) {        // перезагрузка на шаге 2 — снова шаг 2 «как отметить», а не сразу к Адаму (прогон 11.11)
         // Первая привычка уже в списке (её подобрал бот при выдаче доступа): сначала показываем, как её отметить, — это главное
         // действие первого дня. Раньше человек сразу попадал на «Шаг 3 из 11» про главное дело, не увидев шагов 1 и 2.
         productOnboardingTimers.push(setTimeout(() => showProductHint(2), 700));
@@ -3638,7 +3647,7 @@
       const reachedStage = state?.product_onboarding?.onboarding_stage || 0;
       if (reachedStage >= 8) return;                    // прошёл старый длинный тур — разделы ему уже показывали
       // Подсказка раздела — один раз на вкладку: стадия на сервере растёт, но заход в «Профиль» (7) раньше гасил «Календарь» (5).
-      const seenKey = `adam_tab_hint_${btn.dataset.tab}`;
+      const seenKey = `adam_tab_hint_${state?.user?.telegram_id || ""}_${btn.dataset.tab}`;   // по аккаунту: второй аккаунт на том же телефоне тоже увидит
       try { if (localStorage.getItem(seenKey)) return; localStorage.setItem(seenKey, '1'); } catch (_) {}
       setTimeout(() => showProductHint(stage), 180);
     });
@@ -12471,10 +12480,12 @@ function applyHomeLayout() {
   planCard.hidden = !!layout.plan_hidden;
   const parent = habitsPanel.parentNode;
   if (parent.classList?.contains("is-newcomer")) return;        // у новичка привычки стоят перед серией (applyNewcomerHomeLayout)
+  // Двигаем только блок привычек, план стоит на своём месте (после серии и парного задания). Раньше в ветке «план сверху» двигался
+  // план — к привычкам, а у новичка они стоят над серией: после первой привычки план уезжал выше серии (прогон 11.11).
   if (layout.habits_first) {
-    parent.insertBefore(habitsPanel, planCard);
-  } else {
-    parent.insertBefore(planCard, habitsPanel);
+    if (habitsPanel.nextElementSibling !== planCard) parent.insertBefore(habitsPanel, planCard);
+  } else if (planCard.nextElementSibling !== habitsPanel) {
+    parent.insertBefore(habitsPanel, planCard.nextSibling);
   }
 }
 
@@ -13313,6 +13324,16 @@ async function boot() {
             if (bannerText) bannerText.textContent = friendlyError(err) || "Не удалось загрузить данные";
             if (ageStop) {
               banner?.querySelectorAll("button").forEach((b) => { b.hidden = true; });
+              // Ошибся с возрастом — та же кнопка в поддержку, что и сразу после ответа (showAgeStop); раньше при повторном входе её не было.
+              const supportUrl = err?.data?.support_url;
+              if (supportUrl && banner && !banner.querySelector(".boot-retry-banner__support")) {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "boot-retry-banner__btn boot-retry-banner__support";
+                btn.textContent = "Указал(а) возраст по ошибке? Напиши нам";
+                btn.addEventListener("click", () => { if (tg?.openTelegramLink) tg.openTelegramLink(supportUrl); else window.open(supportUrl, "_blank"); });
+                banner.appendChild(btn);
+              }
               const icon = banner?.querySelector(".boot-retry-banner__icon");
               const head = banner?.querySelector(".boot-retry-banner__title");
               if (icon) icon.textContent = "🔒";

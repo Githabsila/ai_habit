@@ -1404,7 +1404,7 @@ textarea.field{resize:vertical;min-height:88px}
     var a = u.access || {};
     var state = a.allowed ? '<span class="badge badge-ok">доступ открыт</span>' : '<span class="badge badge-bad">доступ закрыт</span>';
     var until;
-    if (a.mode === 'open') until = 'без ограничений';
+    if (a.mode === 'open' || a.mode === 'unlimited') until = 'без ограничений';
     else if (a.free_end) until = 'до ' + fmtDate(a.free_end) + (a.days_left ? ' · осталось ' + a.days_left + ' дн.' : ' · закончился');
     else until = '—';
     var paid = a.paid_active ? ('<div class="empty-note" style="padding:2px 0">💳 Подписка оплачена до ' + fmtDate(a.paid_until) + ' — подарочные дни сдвинут и срок списания</div>') : '';

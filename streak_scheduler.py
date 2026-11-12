@@ -9,6 +9,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from config import WEBAPP_URL
 from adam_messages import plural_ru
+from db import outbox
 
 from db import (
     rollover_all_users, get_streak_users, get_timezone, create_daily_tasks,
@@ -239,23 +240,29 @@ async def run_streak_risk_notifications(bot):
             if not reminder_category_enabled(settings, "streak"):
                 continue
 
-            # Основные действия закрыты (дополнительное окно, конец доступа): призыв «отметь привычку» звал бы в недоступное, серию здесь защищает триал (ТЗ §14).
-            if not bot_access_allowed(uid):
-                continue
-
             tz_name = get_timezone(uid)
             tz = ZoneInfo(tz_name)
             now = datetime.now(tz)
-            if in_quiet_hours(settings, now):
-                continue
             # Окна допуска вместо "== ровно эта минута" — от повторов
             # защищает claim_notification ниже, а не точность тика
             # планировщика. Окна не пересекаются (23:00-23:04 и 23:30-23:34),
             # так что перепутать 23:00 и 23:30 они не могут.
+            # Окно проверяем ДО дорогих проверок (гейт, серия): вне 23:00/23:30 — это почти все люди почти всегда (прогон 11.11, скорость).
             in_2300 = in_time_window(now, hour=23, minute=0)
             in_2330 = in_time_window(now, hour=23, minute=30)
             if not (in_2300 or in_2330):
                 continue
+            if in_quiet_hours(settings, now):
+                continue
+            # Основные действия закрыты (дополнительное окно, конец доступа): призыв «отметь привычку» звал бы в недоступное, серию здесь защищает триал (ТЗ §14).
+            if not bot_access_allowed(uid):
+                continue
+            # «Сжечь ударный режим» — только тому, у кого есть что терять: живая серия или пропуск не больше 3 дней (новичок, вернувшийся).
+            # Раньше «Последний час» и таймер приходили КАЖДУЮ ночь и тем, кто не заходил неделями (прогон 11.11).
+            if int((get_user(uid) or {"streak": 0})["streak"] or 0) <= 0:
+                back = get_streak_reengagement_state(uid)
+                if back["has_history"] and int(back["inactive_days"] or 0) > 3:
+                    continue
             if has_completed_today(uid):
                 # Если человек уже спас серию, никакого финишного спама.
                 continue
@@ -266,12 +273,13 @@ async def run_streak_risk_notifications(bot):
                 if not claim_notification(uid, day, "risk23", scope):
                     continue
                 try:
-                    await bot.send_message(
-                        uid,
-                        random.choice(RISK_23_FIRST),
-                        parse_mode="HTML",
-                        reply_markup=_countdown_keyboard(),
-                    )
+                    with outbox.kind("risk23"):                      # журнал: «Последний час», а не таймер
+                        await bot.send_message(
+                            uid,
+                            random.choice(RISK_23_FIRST),
+                            parse_mode="HTML",
+                            reply_markup=_countdown_keyboard(),
+                        )
                 except Exception:
                     release_notification(uid, day, "risk23", scope)
                     raise
@@ -284,12 +292,13 @@ async def run_streak_risk_notifications(bot):
                 continue
             try:
                 risk_text = random.choice(RISK_23_30).format(**gender_forms(get_gender(uid)))
-                sent = await bot.send_message(
-                    uid,
-                    risk_text,
-                    parse_mode="HTML",
-                    reply_markup=_countdown_keyboard(),
-                )
+                with outbox.kind("timer"):                          # журнал: финишный таймер 23:30
+                    sent = await bot.send_message(
+                        uid,
+                        risk_text,
+                        parse_mode="HTML",
+                        reply_markup=_countdown_keyboard(),
+                    )
             except Exception:
                 release_notification(uid, day, "risk2330", scope)
                 raise
@@ -626,13 +635,17 @@ async def _send_pair_push(bot, uid, text):
     """Пуш про парное задание. Уважает общий тумблер напоминаний и блокировку
     бота. True — доставлено."""
     settings = get_settings(uid)
-    if not settings or not settings["reminders"] or is_bot_blocked(uid):
+    if not settings or not settings["reminders"] or not _push_allowed(uid):     # и забаненным / закрытым гейтом — нет (прогон 11.11)
         return False
     try:
         await bot.send_message(uid, text, parse_mode="HTML", reply_markup=_pair_keyboard())
         return True
     except TelegramForbiddenError:
         _on_forbidden(uid, "pair_quest")
+    except Exception:
+        # Любая другая ошибка Telegram (429, «chat not found», сеть) раньше вылетала из цикла событий выше — и пуши ВСЕМ остальным
+        # в этом тике терялись навсегда (события уже «заняты»). Теперь теряется только этот один (прогон 11.11).
+        logger.warning("Пуш парного задания %s не ушёл", uid, exc_info=True)
     return False
 
 

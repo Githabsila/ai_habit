@@ -123,7 +123,7 @@ class Tribute:
             return {"status": "ok", "duplicate": True}
         try:
             # Повтор после упавшего начисления: заказ под этот purchase_id уже есть (оплачен, не начислен) — доводим его, а не заводим второй.
-            order = pay_orders.find_by_provider_uuid(self.name, purchase_id) or pay_orders.find_open(user_id, self.name, kind, item_id)
+            order = pay_orders.find_by_provider_uuid(self.name, purchase_id) or pay_orders.find_open(user_id, self.name, kind, item_id, price_key=product["key"])
             if order is None:                                         # оплатили по ссылке не из приложения: заказ создаём уже оплаченным
                 order = pay_orders.create_order(user_id, self.name, self.method, kind, item_id, expected_cents, "USD", product["key"])
             pay_orders.set_provider_uuid(order["order_id"], purchase_id)
