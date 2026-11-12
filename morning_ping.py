@@ -20,7 +20,7 @@ logger = logging.getLogger("morning_ping")
 
 FALLBACK_TEXT = (
     "☀️ Доброе утро! Новый день — новая возможность продвинуться к цели. "
-    "Загляните в привычки, когда будет минутка 💪"
+    "Загляни в привычки, когда будет минутка 💪"          # на «ты», как весь бот (симуляция 12.11)
 )
 
 
@@ -71,8 +71,14 @@ async def run_morning_ping(bot):
                 # Утренний проактивный пинг не читает долгую память чата.
                 # Старые темы не должны всплывать сами по себе.
                 habit_titles = [h["title"] for h in get_habits(telegram_id)]
-                with ai_usage.scope(telegram_id, "morning"):
-                    text = await generate_morning_message(style, "", user["streak"], habits=habit_titles)
+                try:
+                    with ai_usage.scope(telegram_id, "morning"):
+                        text = await generate_morning_message(style, "", user["streak"], habits=habit_titles)
+                except Exception:
+                    # ИИ не ответил (сбой, лимит) — утро всё равно приходит, запасным текстом. Раньше сообщение отменялось, а после 4 минут
+                    # окна человек оставался без утреннего вовсе (симуляция триала 12.11).
+                    logger.warning("Утреннее сообщение %s: ИИ не ответил, отправляю запасной текст", telegram_id, exc_info=True)
+                    text = ""
                 if not text:
                     text = FALLBACK_TEXT
 
