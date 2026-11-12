@@ -133,7 +133,12 @@ def adopt_first_timezone(user_id, tz_name, now_utc=None):
     if not ("trial_started_at" in keys and user["trial_started_at"]) or (user["trial_tz"] if "trial_tz" in keys else None) not in (None, "", "UTC"):
         return False
     started = datetime.fromisoformat(str(user["trial_started_at"]))
-    if _naive_utc(now_utc) - started > timedelta(hours=ADOPT_TZ_HOURS):
+    # Пока триал идёт по UTC (пояс так и не пришёл), настоящий пояс принимаем до конца триала, а не только 6 часов: иначе у человека в
+    # Лос-Анджелесе «второй день» приходил в первый, а «конец пробного» показывал чужое время (прогон 11.11). Смена с НАСТОЯЩЕГО пояса
+    # на другой по-прежнему срок не двигает (условие trial_tz выше).
+    old_ends = datetime.fromisoformat(str(user["trial_ends_at"])) if ("trial_ends_at" in keys and user["trial_ends_at"]) else None
+    now = _naive_utc(now_utc)
+    if now - started > timedelta(hours=ADOPT_TZ_HOURS) and (old_ends is None or now >= old_ends):
         return False
     ends = compute_trial_end(started, tz_name)
     conn = connect()
@@ -252,7 +257,9 @@ def access_state(user_id, now_utc=None):
     elif bounds is None:
         state = STATE_NOT_STARTED
     elif now < trial_ends:
-        state, ends_at = STATE_TRIAL, trial_ends
+        # Подарок админа во время триала: доступ на самом деле до access_until — так и говорим (раньше «Пробный доступ до» конца триала
+        # и «сегодня заканчивается» в день 3, прогон 11.11).
+        state, ends_at = STATE_TRIAL, free_end
     elif access_until and now < access_until:
         state, ends_at = STATE_GIFT, access_until
     elif now < grace_end:

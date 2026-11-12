@@ -17,6 +17,8 @@ from zoneinfo import ZoneInfo
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from db import outbox
+
 logger = logging.getLogger(__name__)
 
 REMIND_DAYS = (7, 3, 1, 0)
@@ -140,7 +142,9 @@ async def run_renewal_reminders(bot, now_utc=None):
             if not claim_notification(user_id, stamp, kind, scope):
                 continue
             try:
-                await bot.send_message(user_id, text, reply_markup=keyboard)
+                journal_key = "renew_failed" if "failed" in kind else ("renew_auto" if "auto" in kind else "renew_manual")
+                with outbox.kind(journal_key):                     # журнал: какое напоминание о сроке (bot_messages_map)
+                    await bot.send_message(user_id, text, reply_markup=keyboard)
             except Exception as exc:
                 release_notification(user_id, stamp, kind, scope)
                 if is_bot_forbidden_error(exc):

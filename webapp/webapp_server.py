@@ -226,7 +226,9 @@ async def _authenticate(request, allow_locked=False):
             raise web.HTTPForbidden(
                 text=json.dumps({
                     "error": f"access_{status}",
-                    "message": AGE_RESTRICTED_TEXT if status == AGE_RESTRICTED else "Доступ к приложению пока ожидает подтверждения"
+                    "message": AGE_RESTRICTED_TEXT if status == AGE_RESTRICTED else "Доступ к приложению пока ожидает подтверждения",
+                    # 16+ при повторном входе: экран без кнопок — ошибившемуся некуда было написать (прогон 11.11)
+                    "support_url": _support_url() if status == AGE_RESTRICTED else None,
                 }),
                 content_type="application/json",
             )

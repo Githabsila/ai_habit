@@ -23,6 +23,7 @@ from db import (
 )
 from db.settings import in_quiet_hours
 from db.access import trial_scenario_for_user
+from db import outbox
 from db import trial as trial_db
 from db import trial_flow
 from db.tracking import track_server
@@ -90,7 +91,8 @@ async def run_trial_reminders(bot):
                     # Оформление «Royal Gold» (bot_style.py): приглашение на второй день и «пробный доступ заканчивается» приходят с золотым баннером, если оно включено у человека.
                     with_banner = message.key in BANNER_KEYS and await bot_style.send_banner(bot, telegram_id, "trial", text, keyboard)
                     if not with_banner:
-                        await bot.send_message(telegram_id, text, reply_markup=keyboard)
+                        with outbox.kind("winback" if message.key.startswith("wb_") else message.key):   # журнал: какое сообщение триала
+                            await bot.send_message(telegram_id, text, reply_markup=keyboard)
                 except Exception as exc:
                     release_notification(telegram_id, snap["local_date"], kind, scope)
                     if is_bot_forbidden_error(exc):

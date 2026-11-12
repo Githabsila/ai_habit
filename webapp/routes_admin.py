@@ -149,7 +149,7 @@ async def admin_user_outbox_route(request):
     from db import outbox
     rows = []
     for row in outbox.for_user(telegram_id, limit=150):
-        hit = bot_messages_map.find(row["chain"])
+        hit = bot_messages_map.find_row(row)
         rows.append({**row, "title": hit.title if hit else None, "group": hit.group if hit else None, "when": hit.when if hit else None})
     return web.json_response({"items": rows})
 

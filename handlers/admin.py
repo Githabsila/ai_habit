@@ -45,6 +45,40 @@ router = Router()
 # СОСТОЯНИЯ
 # =====================================
 
+def _split_lines(text, limit=4000):
+    """Длинный HTML-текст — на части по строкам, а не посреди тега (иначе Telegram: «can't parse entities»). Прогон 11.11."""
+    parts, chunk = [], ""
+    for line in text.splitlines(keepends=True):
+        if len(chunk) + len(line) > limit and chunk:
+            parts.append(chunk)
+            chunk = ""
+        chunk += line
+    parts.append(chunk)
+    return [p[:limit] for p in parts]
+
+
+async def _read_user_id(message, state, error_text="❌ Нужно ввести Telegram ID."):
+    """ID из сообщения админа. Команда (/start, /admin …) — выход из режима ввода; фото, мусор и огромные числа — понятная ошибка
+    вместо падения; ID, которого нет в базе, — тоже ошибка (раньше premium/монеты/разбан писали «успешно» в пустоту). Прогон 11.11."""
+    text = (message.text or "").strip()
+    if text.startswith("/"):
+        await state.clear()
+        await message.answer("✖️ Отменено.")
+        return None
+    try:
+        user_id = int(text)
+    except ValueError:
+        await message.answer(error_text)
+        return None
+    if not (0 < user_id < 2 ** 63):
+        await message.answer(error_text)
+        return None
+    if get_user(user_id) is None:
+        await message.answer("❌ Пользователя с таким ID нет в базе. Проверьте ID или отправьте /admin, чтобы выйти.")
+        return None
+    return user_id
+
+
 class AdminState(StatesGroup):
     broadcast = State()
     broadcast_confirm = State()
@@ -106,10 +140,8 @@ async def do_unban(message: Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
         return
 
-    try:
-        user_id = int(message.text)
-    except ValueError:
-        await message.answer("❌ Нужно ввести Telegram ID.")
+    user_id = await _read_user_id(message, state)
+    if user_id is None:
         return
 
     unban_user(user_id)
@@ -147,18 +179,13 @@ async def ban(message: Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
         return
 
-    try:
-        user_id = int(message.text)
-    except (TypeError, ValueError):
-        await message.answer("❌ Нужно ввести Telegram ID.")
+    user_id = await _read_user_id(message, state)
+    if user_id is None:
         return
     if user_id in ADMIN_IDS:
         await message.answer("❌ Администратора заблокировать нельзя.")
         return
     user = get_user(user_id)
-    if not user:
-        await message.answer("❌ Пользователя с таким ID нет в базе. Проверьте ID.")
-        return
 
     await state.clear()
     name = html.escape(user["first_name"] or "—")
@@ -398,10 +425,8 @@ async def premium_user(message: Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
         return
 
-    try:
-        user_id = int(message.text)
-    except ValueError:
-        await message.answer("❌ Нужно ввести числовой Telegram ID.")
+    user_id = await _read_user_id(message, state, "❌ Нужно ввести числовой Telegram ID.")
+    if user_id is None:
         return
 
     give_premium_admin(user_id)
@@ -439,12 +464,24 @@ async def give_xp(message: Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
         return
 
+    text = (message.text or "").strip()
+    if text.startswith("/"):
+        await state.clear()
+        await message.answer("✖️ Отменено.")
+        return
     try:
-        user_id, xp = message.text.split()
+        user_id, xp = text.split()
         user_id = int(user_id)
         xp = int(xp)
     except ValueError:
         await message.answer("❌ Неверный формат.\n\nПример:\n123456789 500")
+        return
+    # Отрицательные и огромные суммы, несуществующий ID — раньше проходили молча (прогон 11.11).
+    if not (0 < user_id < 2 ** 63) or not (0 < xp <= 100_000):
+        await message.answer("❌ ID — положительное число, Adam Coin — от 1 до 100 000.\n\nПример:\n123456789 500")
+        return
+    if get_user(user_id) is None:
+        await message.answer("❌ Пользователя с таким ID нет в базе.")
         return
 
     give_xp_admin(user_id, xp)
@@ -500,11 +537,8 @@ async def admin_users(callback: CallbackQuery):
             "────────────────\n"
         )
 
-    if len(text) > 4000:
-        for i in range(0, len(text), 4000):
-            await callback.message.answer(text[i:i + 4000], parse_mode="HTML")
-    else:
-        await callback.message.answer(text, parse_mode="HTML")
+    for part in _split_lines(text):
+        await callback.message.answer(part, parse_mode="HTML")
 
     await callback.answer()
 
@@ -602,7 +636,7 @@ async def admin_pending(callback: CallbackQuery):
 
     for user in users:
         tags = get_survey_tags(user["telegram_id"])
-        tags_line = ", ".join(tags) if tags else "—"
+        tags_line = html.escape(", ".join(tags)) if tags else "—"
         text += (
             f"🆔 <code>{user['telegram_id']}</code> (@{user['username'] or '-'})\n"
             f"🏷 Теги: {tags_line}\n"
@@ -611,7 +645,7 @@ async def admin_pending(callback: CallbackQuery):
 
     try:
         await callback.message.edit_text(
-            text[:4000],
+            _split_lines(text)[0],
             parse_mode="HTML",
             reply_markup=pending_keyboard(users)
         )
@@ -660,7 +694,7 @@ async def admin_approve(callback: CallbackQuery):
     text = "🕓 <b>Заявки на доступ</b>\n\nНажмите на пользователя, чтобы одобрить:\n\n"
     for user in users:
         tags = get_survey_tags(user["telegram_id"])
-        tags_line = ", ".join(tags) if tags else "—"
+        tags_line = html.escape(", ".join(tags)) if tags else "—"
         text += (
             f"🆔 <code>{user['telegram_id']}</code> (@{user['username'] or '-'})\n"
             f"🏷 Теги: {tags_line}\n"
@@ -669,7 +703,7 @@ async def admin_approve(callback: CallbackQuery):
 
     try:
         await callback.message.edit_text(
-            text[:4000],
+            _split_lines(text)[0],
             parse_mode="HTML",
             reply_markup=pending_keyboard(users)
         )
@@ -700,10 +734,8 @@ async def user_card_show(message: Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
         return
 
-    try:
-        user_id = int(message.text)
-    except ValueError:
-        await message.answer("❌ Нужно ввести Telegram ID.")
+    user_id = await _read_user_id(message, state)
+    if user_id is None:
         return
 
     await state.clear()
@@ -825,15 +857,15 @@ async def tag_search_run(message: Message, state: FSMContext):
     users = search_users_by_tag(tag)
 
     if not users:
-        await message.answer(f"❌ По тегу «{tag}» никого не нашлось.")
+        await message.answer(f"❌ По тегу «{html.escape(tag)}» никого не нашлось.")
         return
 
-    text = f"🏷 <b>По тегу «{tag}»</b> — найдено {len(users)}:\n\n"
+    text = f"🏷 <b>По тегу «{html.escape(tag)}»</b> — найдено {len(users)}:\n\n"
     for user in users:
         text += f"🆔 <code>{user['telegram_id']}</code> (@{user['username'] or '-'})\n"
 
     await message.answer(
-        text[:4000],
+        _split_lines(text)[0],
         parse_mode="HTML",
         reply_markup=tag_search_results_keyboard(users)
     )

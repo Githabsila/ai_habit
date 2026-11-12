@@ -109,7 +109,7 @@ def test_unlimited_removes_every_restriction(uid):
     grant_access(uid, 3, ADMIN)
     start_trial_mode(uid, ADMIN)
     info = set_unlimited(uid, ADMIN)
-    assert info["mode"] == "open" and info["access_until"] is None and info["trial_started_at"] is None and info["allowed"] is True
+    assert info["mode"] == "unlimited" and info["access_until"] is None and info["trial_started_at"] is None and info["allowed"] is True   # 11.11: свой режим «Без ограничений», гейт его не трогает
 
 
 # ---------------------------------------------------------------------------------------------------------------- подарочные дни

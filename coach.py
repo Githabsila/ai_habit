@@ -45,6 +45,7 @@ from db import (
     get_users_needing_ai_welcome_nudge,
     is_bot_blocked, mark_bot_blocked, bot_access_allowed,
 )
+from db import outbox
 from multi_agent import generate_weekly_habit_feedback, generate_monthly_habit_feedback
 from db import ai_usage
 from db.checkpoint_style import recent_checkpoint_picks, save_checkpoint_picks, checkpoints_sent_today
@@ -151,7 +152,7 @@ async def run_weekly_report(bot, now_utc=None):
     текста тут достаточно и без LLM, а недельная рассылка по всем
     пользователям — не место экономить на количестве, а место экономить
     на токенах."""
-    users = get_all_users(include_blocked=False)
+    users = get_all_users(include_blocked=False, unlocked_only=True)   # закрытым гейтом сводки не шлём (прогон 11.11)
     sent = 0
     # Глобальный cron (один момент времени для всех, не по локальному часу
     # пользователя), поэтому ключ дедупликации — просто текущая неделя, а
@@ -307,6 +308,8 @@ async def run_planned_time_reminders(bot):
             continue
 
         now_local = datetime.now(ZoneInfo(get_timezone(telegram_id)))
+        if in_quiet_hours(settings, now_local):          # «в это время бот молчит» — и про привычку по таймеру тоже (прогон 11.11)
+            continue
 
         for habit in get_habits(telegram_id):
             if habit["completed"] or habit["reminder_sent"]:
@@ -523,7 +526,8 @@ async def _run_habit_checkpoint(bot, target_hour: int, kind: str, label: str):
                 continue
 
             try:
-                await bot.send_message(telegram_id, message_text, parse_mode="HTML")
+                with outbox.kind(kind.replace("habit_", "")):      # журнал: какая именно точка дня (bot_messages_map: checkpoint_17)
+                    await bot.send_message(telegram_id, message_text, parse_mode="HTML")
             except Exception:
                 release_notification(telegram_id, day, kind, scope)
                 raise
@@ -778,7 +782,8 @@ async def _broadcast(bot, text_fn, job_name, key_fmt, now_utc=None, **due):
             continue
 
         try:
-            await bot.send_message(telegram_id, text_fn(), parse_mode="HTML")
+            with outbox.kind(job_name.replace("_ping", "")):                # журнал: week_start / month_end …
+                await bot.send_message(telegram_id, text_fn(), parse_mode="HTML")
             sent += 1
         except Exception as e:
             release_notification(telegram_id, day_key, job_name, scope)
@@ -796,7 +801,7 @@ async def run_week_end_ping(bot, now_utc=None):
     """Конец недели — персонализируем по сегодняшнему прогрессу: если все
     привычки за день уже закрыты, хвалим за финиш, а не подгоняем "сделать
     ещё шаг" (см. format_week_end_message)."""
-    users = get_all_users(include_blocked=False)
+    users = get_all_users(include_blocked=False, unlocked_only=True)   # закрытым гейтом сводки не шлём (прогон 11.11)
     sent = 0
     scope = notification_scope(bot)
 
@@ -878,7 +883,7 @@ async def run_weekly_habit_analysis(bot, now_utc=None):
     отдельно (habit_logs, см. db/habits.py) и просим AI дать конкретную
     персонализированную обратную связь по самой проседающей привычке —
     например предложить сократить время, чтобы вернуться в ритм."""
-    users = get_all_users(include_blocked=False)
+    users = get_all_users(include_blocked=False, unlocked_only=True)   # закрытым гейтом сводки не шлём (прогон 11.11)
     sent = 0
     scope = notification_scope(bot)
 
@@ -934,7 +939,7 @@ async def run_monthly_habit_analysis(bot, now_utc=None):
     """Раз в месяц (1-го числа, см. main.py) — тот же разбор, что и
     еженедельный, но с фокусом на месячный тренд, а не на один провальный
     день недели."""
-    users = get_all_users(include_blocked=False)
+    users = get_all_users(include_blocked=False, unlocked_only=True)   # закрытым гейтом сводки не шлём (прогон 11.11)
     sent = 0
     scope = notification_scope(bot)
 

@@ -55,8 +55,9 @@ import sys as _sys
 
 _OUTBOX_METHODS = {"sendMessage", "sendPhoto", "sendDocument", "sendVoice", "sendAudio", "sendVideo", "sendAnimation",
                    "sendSticker", "sendInvoice", "sendMediaGroup", "sendVideoNote"}
-_SKIP_PARTS = (f"{_os.sep}aiogram{_os.sep}", f"{_os.sep}asyncio{_os.sep}", "site-packages", "contextlib.py", "functools.py",
-               "bot_middlewares.py", "bot_style.py", "alerts.py")
+_SKIP_PARTS = (f"{_os.sep}aiogram{_os.sep}", f"{_os.sep}asyncio{_os.sep}", "site-packages")
+# Сравниваем ИМЯ файла, а не подстроку пути: «alerts.py» совпадало с abuse_alerts.py, и рассылка о подозрениях теряла отправителя (прогон 11.11).
+_SKIP_FILES = {"contextlib.py", "functools.py", "bot_middlewares.py", "bot_style.py", "alerts.py"}
 
 
 def _outbox_chain(depth=3):
@@ -66,7 +67,7 @@ def _outbox_chain(depth=3):
         frame = _sys._getframe(2)
         while frame is not None and len(names) < depth:
             path = frame.f_code.co_filename or ""
-            if not any(part in path for part in _SKIP_PARTS) and not path.startswith("<"):
+            if not any(part in path for part in _SKIP_PARTS) and _os.path.basename(path) not in _SKIP_FILES and not path.startswith("<"):
                 name = f"{frame.f_globals.get('__name__', '?')}.{frame.f_code.co_name}"
                 if name not in names:
                     names.append(name)
@@ -91,3 +92,21 @@ async def log_outbox(make_request, bot, method):
         raise
     outbox.record(chat_id, api_method, chain[0] if chain else None, " < ".join(chain), text)
     return result
+
+
+# ---------------------------------------------------------------------------------------------------------------- правка фото-сообщения
+# Прогон 11.11: приветствие /start (и другие сообщения с баннером, bot_style.send_banner) уходят ФОТО с подписью. Кнопки под ними
+# («Умные напоминания», «Админ-панель», меню) делают edit_message_text, а у фото нет текста — Telegram отвечает «there is no text in the
+# message to edit», обработчик падает, кнопка «крутится». Здесь одно место на все такие кнопки: правка не удалась именно поэтому —
+# отправляем тот же текст с теми же кнопками новым сообщением.
+async def edit_photo_fallback(make_request, bot, method):
+    try:
+        return await make_request(bot, method)
+    except Exception as exc:
+        from aiogram.methods import EditMessageText, SendMessage
+        if not isinstance(method, EditMessageText) or method.chat_id is None or "no text in the message to edit" not in str(exc):
+            raise
+        logger.info("Правка фото-сообщения %s: отвечаю новым сообщением", method.chat_id)
+        return await bot(SendMessage(chat_id=method.chat_id, text=method.text, parse_mode=method.parse_mode,
+                                     entities=method.entities, reply_markup=method.reply_markup,
+                                     link_preview_options=method.link_preview_options))

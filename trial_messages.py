@@ -161,7 +161,9 @@ CATALOG = (
     TrialMessage("d3_talk", "День 3 · приглашение к разговору с Адамом", "День 3 · 11–14, один раз; без продажи",
                  "day3", (11, 14), _d3_talk, gate=lambda s, c: c["chats_today"] < 2, buttons=("talk",)),
     TrialMessage("d3_end", "День 3 · прямо про конец пробного доступа", "День 3 · 18–21, один раз; после оплаты не приходит",
-                 "day3", (18, 21), _d3_end, buttons=("sub",), service=True),
+                 "day3", (18, 21), _d3_end, buttons=("sub",), service=True,
+                 # подарок админа продлил доступ дальше триала — «сегодня заканчивается» было бы неправдой (прогон 11.11)
+                 condition=lambda snap: not snap.get("ends_at") or snap.get("ends_at") == snap.get("trial_ends_at")),
     TrialMessage("grace_notice", "Окно 24 часа · что закрыто и что сохранено", "Окно после триала · 9–21, один раз",
                  "grace", (9, 21), _grace_notice, buttons=("sub",), service=True),
     TrialMessage("wb_question", "После триала · полезный вопрос", "После окна · 11–19, редко (паузы растут, без реакции — замедляется)",

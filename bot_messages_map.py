@@ -158,11 +158,20 @@ def find(chain):
     return None
 
 
+def find_row(row):
+    """Рассылка для строки журнала: сначала по ключу, который рассылка назвала сама (outbox.kind), потом по стеку вызова."""
+    key = row.get("kind") if hasattr(row, "get") else None
+    return BY_KEY.get(key) or find(row.get("chain") if hasattr(row, "get") else None)
+
+
 def as_rows(stats=None):
     stats = stats or {}
     rows = []
     for m in MAP:
-        sent = [stats[s] for s in m.sources if s in stats]
+        # Ключ, который рассылка назвала сама, плюс «модуль.функция» — только если функция отправляет ОДНО это сообщение
+        # (общие функции вроде _run_habit_checkpoint или run_trial_reminders иначе приписывали бы чужие отправки, прогон 11.11).
+        own = [s for s in m.sources if sum(1 for other in MAP if s in other.sources) == 1]
+        sent = [stats[k] for k in [m.key, *own] if k in stats]
         rows.append({"key": m.key, "group": m.group, "title": m.title, "when": m.when, "conditions": m.conditions, "off": m.off,
                      "preview": list(m.preview), "week_count": sum(s["count"] for s in sent), "week_failed": sum(s["failed"] for s in sent),
                      "last_at": max((s["last_at"] for s in sent if s["last_at"]), default=None)})

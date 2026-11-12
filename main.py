@@ -13,7 +13,7 @@ from aiogram.types import MenuButtonWebApp, MenuButtonDefault, WebAppInfo
 
 from config import BOT_TOKEN, WEBAPP_URL, PORT, ADMIN_IDS
 from db import create_tables, get_user, give_premium_admin, award_season_rewards, publish_release_notes
-from bot_middlewares import log_outbox, retry_flood_control
+from bot_middlewares import edit_photo_fallback, log_outbox, retry_flood_control
 from bot_style import royal_dress
 from webapp.webapp_server import run_webapp
 from logging_config import setup_logging
@@ -105,11 +105,14 @@ async def main():
     # всем пользователям — при flood control (429) от Telegram один повтор
     # с ожиданием retry_after надёжнее, чем терять сообщение и ждать
     # следующего тика планировщика. Работает для всех методов Bot API сразу.
+    # Журнал отправок (db/outbox.py): что, кому, когда и какая рассылка отправила — видно в карточке человека в админке.
+    # Первым (самым внешним): повтор после 429 внутри retry_flood_control не должен записываться как «не дошло» (прогон 11.11).
+    bot.session.middleware(log_outbox)
     bot.session.middleware(retry_flood_control)
     # Оформление «Royal Gold» (bot_style.py, режим в админке): золотая шапка на длинных сообщениях тем, у кого оно включено; остальным ничего не меняется.
     bot.session.middleware(royal_dress)
-    # Журнал отправок (db/outbox.py): что, кому, когда и какая рассылка отправила — видно в карточке человека в админке.
-    bot.session.middleware(log_outbox)
+    # Кнопка под фото-баннером правит «текст», которого у фото нет, — отвечаем новым сообщением (bot_middlewares.edit_photo_fallback).
+    bot.session.middleware(edit_photo_fallback)
 
     # --- ДИСПЕТЧЕР ---
     dp = Dispatcher()
@@ -145,9 +148,10 @@ async def main():
     # --- ПЛАНИРОВЩИК ---
     # Счётчики использования (вызовы API и действия в боте) копятся в памяти — раз в минуту сбрасываем в базу (db/usage.py).
     scheduler.add_job(usage_db.flush, "interval", minutes=1, max_instances=1, coalesce=True)
-    scheduler.add_job(usage_db.cleanup, "cron", hour=4, minute=10)
+    scheduler.add_job(usage_db.cleanup, "cron", hour=4, minute=10)        # раз в сутки убираем счётчики старше 180 дней
     from db import outbox as _outbox
-    scheduler.add_job(_outbox.cleanup, "cron", hour=4, minute=15)          # журнал отправок — 30 дней        # раз в сутки убираем счётчики старше 180 дней
+    scheduler.add_job(_outbox.cleanup, "cron", hour=4, minute=15)          # журнал отправок — 30 дней
+    scheduler.add_job(_outbox.flush, "interval", seconds=30, max_instances=1, coalesce=True)   # журнал пишется пачками
     scheduler.add_job(run_task_reminder_check, "interval", minutes=15, args=[bot])
     # Своё время напоминания у привычки (habits.planned_time) — опционально,
     # молчит для тех, у кого не задано. Каждую минуту, как и остальные

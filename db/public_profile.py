@@ -35,7 +35,7 @@ def get_public_profile(user_id):
     user = cursor.fetchone()
     conn.close()
 
-    if user is None or not user["public_profile_enabled"]:
+    if user is None or not user["public_profile_enabled"] or ("banned" in user.keys() and user["banned"]):   # забаненного не показываем (прогон 11.11)
         return None
 
     achievements = get_achievements(user_id)

@@ -16,7 +16,8 @@ _KEEP_TABLES = {
     "referral_invites", "abuse_flags", "access_log", "error_log", "user_reports", "user_blocks",
 }
 # Столбцы, по которым строка принадлежит человеку (у «двусторонних» таблиц — любая из сторон: подписки, подарки, друзья, парные задания).
-_PERSON_COLUMNS = ("user_id", "from_user_id", "to_user_id", "follower_id", "followee_id", "friend_id", "inviter_id", "invitee_id", "helper_id", "owner_id")
+_PERSON_COLUMNS = ("user_id", "from_user_id", "to_user_id", "follower_id", "followee_id", "friend_id", "inviter_id", "invitee_id", "helper_id", "owner_id",
+                   "partner_id")   # испытание вдвоём (challenges.partner_id) — прогон 11.11; команды (teams.created_by) общие — их не стираем
 # В выгрузку «всё, что о тебе хранится» не попадают служебные записи против злоупотреблений и внутренние журналы.
 _EXPORT_SKIP = {"users", "abuse_flags", "access_log", "error_log", "partner_audit", "partner_payouts", "user_reports", "user_blocks"}
 _EXPORT_ROW_LIMIT = 5000

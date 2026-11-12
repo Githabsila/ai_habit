@@ -117,7 +117,11 @@ def record_subscription_payment(user_id, months=1, paid_at=None, expires_at=None
         # держим прежний якорь; началась заново (срока не было или он истёк) — якорь = число, с которого считаем.
         stored = user["subscription_anchor_day"] if user and "subscription_anchor_day" in user.keys() else None
         continuing = bool(current_until and current_until > moment)
-        anchor_day = int(stored) if (continuing and stored) else base.day
+        # Якорь держим, только если текущий срок кончается именно в «якорное» число. Срок сдвинули звёзды (+30 дней) или админ —
+        # старый якорь перенёс бы месяц не на месяц вперёд, а на ближайшее якорное число: за $5.99 — 10 дней (прогон 11.11).
+        import calendar as _calendar
+        anchor_fits = bool(stored) and base.day == min(int(stored), _calendar.monthrange(base.year, base.month)[1])
+        anchor_day = int(stored) if (continuing and anchor_fits) else base.day
         new_until = add_calendar_months(base, months, anchor_day)
     else:
         new_until = base + timedelta(days=30 * months)  # звёзды Telegram: подписка бывает только на 30 дней
@@ -146,6 +150,13 @@ def take_back_one_period(user_id, days=30):
     until = _parse_dt(user["subscription_paid_until"]) if user is not None else None
     left = until - timedelta(days=days) if until else None
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Оплатил во время триала → к сроку прибавлен остаток бесплатных дней. После возврата остаётся ровно конец триала — это уже
+    # не «подписка до …», а триал: срок снимаем, иначе приложение говорит «Подписка до 13 ноября» и молчит «последний день» (прогон 11.11).
+    if left and user is not None:
+        from .access import free_end
+        free = free_end(user)
+        if free is not None and left <= free:
+            left = None
     conn = connect()
     try:
         conn.execute("UPDATE users SET subscription_paid_until=? WHERE telegram_id=?",
@@ -180,6 +191,8 @@ def gate_applies_to_user(user):
     from config import SUBSCRIPTION_GATE_ENABLED, SUBSCRIPTION_GATE_CUTOVER
     if not user:
         return False
+    if "access_mode" in user.keys() and user["access_mode"] == "unlimited":
+        return False                                  # «Без ограничений» от админа (db/access.py::MODE_UNLIMITED)
     if "access_mode" in user.keys() and user["access_mode"] in ("timed", "trial"):
         return True
     if not SUBSCRIPTION_GATE_ENABLED:

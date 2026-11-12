@@ -146,7 +146,7 @@ def build_user_context(user_id: int, max_chars: int = 2800) -> str:
     reasons = get_recent_negative_reasons(user_id, limit=3)
 
     if reasons:
-        unique = list(dict.fromkeys(reasons))
+        unique = list(dict.fromkeys(str(r)[:120] for r in reasons))      # и старые, сохранённые до ограничения (прогон 11.11)
         lines.append("")
         lines.append(
             "Недавние замечания пользователя: "
