@@ -448,29 +448,40 @@ def render(people, errors, days, start_utc):
                      f'сообщений бота за {days} дн.: <b>{n_bot}</b></p>{"".join(rows)}</section>')
     err = "".join(f"<li><code>{esc(k)}</code>: {esc(v)}</li>" for k, v in errors.items())
     summary = "".join(
-        f"<tr><td>{esc(p.name)}</td><td>{esc(p.title)}</td><td>{sum(1 for e in p.events if e['type'] == 'bot')}</td>"
+        f"<tr><td>{esc(p.name)}</td><td>{esc(p.title)}</td><td class=n>{sum(1 for e in p.events if e['type'] == 'bot')}</td>"
         f"<td>{esc(next((e['text'] for e in reversed(p.events) if e['type'] == 'action' and 'доступ:' in e['text']), ''))[-120:]}</td></tr>"
         for p in people)
-    return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Симуляция триала</title><style>
-:root{{--bg:#f6f5fb;--card:#fff;--ink:#1d1a2b;--mut:#6b6880;--act:#eef3ff;--bot:#f3fbef;--line:#e4e1ef;--accent:#6b4eff}}
-@media (prefers-color-scheme:dark){{:root:not([data-theme="light"]){{--bg:#121019;--card:#1b1826;--ink:#ece9f6;--mut:#9a96ad;--act:#1d2236;--bot:#18261b;--line:#2c2840;--accent:#a996ff}}}}
-body{{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}}
-main{{max-width:860px;margin:0 auto;padding:16px}} h1{{font-size:22px;margin:8px 0}} .lead{{color:var(--mut)}}
-table{{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:14px}} td,th{{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertical-align:top}}
-.card{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:16px 0}} .card h2{{font-size:17px;margin:0 0 4px}}
-.about{{color:var(--mut);margin:0 0 8px;font-size:14px}} .day{{font-weight:700;margin:14px 0 6px;color:var(--accent)}}
-.ev{{display:flex;gap:10px;padding:8px 10px;border-radius:10px;margin:4px 0}} .ev time{{font-variant-numeric:tabular-nums;color:var(--mut);min-width:42px}}
+    return f"""<title>Симуляция триала ADAM</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@600;700&display=swap">
+<style>
+/* Лента событий: по карточке на человека, внутри — дни и строки «время · событие». Действия человека и сообщения бота — разным фоном. */
+:root{{--bg:#f5f4f9;--card:#ffffff;--ink:#1c1a28;--mut:#646078;--act:#eaf0ff;--bot:#ecf7ea;--line:#dfdce9;--accent:#5b45e0;
+  --display:"Space Grotesk",system-ui,sans-serif;--body:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}}
+@media (prefers-color-scheme:dark){{:root:not([data-theme="light"]){{--bg:#13111b;--card:#1c1928;--ink:#ebe8f5;--mut:#9b97ae;--act:#1d2340;--bot:#16281a;--line:#2d2940;--accent:#a593ff;color-scheme:dark}}}}
+:root[data-theme="dark"]{{--bg:#13111b;--card:#1c1928;--ink:#ebe8f5;--mut:#9b97ae;--act:#1d2340;--bot:#16281a;--line:#2d2940;--accent:#a593ff;color-scheme:dark}}
+body{{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body)}}
+main{{max-width:860px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}}
+h1,h2{{font-family:var(--display);text-wrap:balance}} h1{{font-size:24px;margin:4px 0 8px}} .lead{{color:var(--mut);max-width:65ch}}
+.tbl{{overflow-x:auto;margin:14px 0 18px}} table{{width:100%;border-collapse:collapse;font-size:14px;min-width:520px}}
+td,th{{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}} th{{color:var(--mut);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase}}
+td.n{{font-variant-numeric:tabular-nums}}
+.card{{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:16px 0}} .card h2{{font-size:18px;margin:0 0 4px}}
+.about{{color:var(--mut);margin:0 0 8px;font-size:14px}} .day{{font-family:var(--display);font-weight:700;margin:16px 0 6px;color:var(--accent)}}
+.ev{{display:flex;gap:10px;padding:8px 10px;border-radius:8px;margin:4px 0}} .ev>div{{min-width:0}}
+.ev time{{font-variant-numeric:tabular-nums;color:var(--mut);min-width:42px}}
 .act{{background:var(--act)}} .bot{{background:var(--bot)}} .ttl{{font-weight:600;font-size:13px;color:var(--mut)}} .txt{{overflow-wrap:anywhere}}
-.btns{{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px}} .btn{{border:1px solid var(--line);border-radius:8px;padding:2px 8px;font-size:13px}}
-</style></head><body><main>
+.btns{{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px}} .btn{{border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:13px}}
+</style>
+<main>
 <h1>Симуляция триала: {len(people)} человек, {days} дней</h1>
 <p class="lead">Временная база, время «сжато» по 15 минут, всё остальное — настоящий код: открытие приложения, отметки, оплата и все рассылки бота
-по расписанию. Время — местное у каждого человека. ИИ отключён: где текст пишет модель, видно запасной текст. Старт: {start_utc:%d.%m %H:%M} UTC.</p>
-<table><tr><th>Человек</th><th>Сценарий</th><th>Сообщений бота</th><th>Последнее состояние</th></tr>{summary}</table>
+по расписанию. Время у каждого человека — местное. ИИ отключён: где текст пишет модель, видно запасной текст. Регистрация: {start_utc:%d.%m %H:%M} UTC.
+Голубые строки — действия человека, зелёные — сообщения бота.</p>
+<div class="tbl"><table><tr><th>Человек</th><th>Сценарий</th><th>Сообщений бота</th><th>Чем закончилось</th></tr>{summary}</table></div>
 {"<p><b>Ошибки рассылок за прогон:</b></p><ul>" + err + "</ul>" if err else "<p>Ошибок в рассылках за прогон не было.</p>"}
 {"".join(cards)}
-</main></body></html>"""
+</main>"""
 
 
 def main():
